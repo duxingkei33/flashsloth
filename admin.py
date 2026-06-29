@@ -626,6 +626,209 @@ def delete_post(pid):
     return redirect(url_for("index"))
 
 # ─── 发布 ───────────────────────────────────────
+# ─── Discuz! 验证码登录 API ─────────────────────
+@app.route("/api/discuz/captcha", methods=["POST"])
+@login_required
+def discuz_get_captcha():
+    """获取 Discuz! 验证码图片和 session 信息"""
+    site_url = request.json.get("site_url", "").rstrip("/")
+    if not site_url:
+        return jsonify({"success": False, "error": "缺少论坛地址"})
+
+    try:
+        sess = requests.Session()
+        sess.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        })
+
+        # 获取登录页
+        r = sess.get(f"{site_url}/member.php?mod=logging&action=login", timeout=20)
+        formhash = re.search(r'name="formhash"\s+value="([^"]+)"', r.text)
+        form_action = re.search(
+            r'<form[^>]*name="login"[^>]*action="([^"]*)"', r.text
+        )
+        seccode_span = re.search(r'id="seccode_([^"]+)"', r.text)
+        if not formhash or not form_action or not seccode_span:
+            return jsonify({"success": False, "error": "无法解析登录页面"})
+
+        formhash = formhash.group(1)
+        loginhash = re.search(r"loginhash=([a-zA-Z0-9]+)", form_action.group(1))
+        loginhash = loginhash.group(1) if loginhash else ""
+        seccodehash = seccode_span.group(1)
+
+        # 刷新验证码（跳过第一个）
+        import time as _time
+        sess.get(
+            f"{site_url}/misc.php?mod=seccode&action=update&idhash={seccodehash}&{_time.time()}",
+            timeout=15,
+        )
+        _time.sleep(0.3)
+        js = sess.get(
+            f"{site_url}/misc.php?mod=seccode&action=update&idhash={seccodehash}&{_time.time()}",
+            timeout=15,
+        )
+        upd = re.search(r"update=(\d+)", js.text)
+        if not upd:
+            return jsonify({"success": False, "error": "无法获取验证码"})
+        upd = upd.group(1)
+
+        # 下载验证码图片
+        img = sess.get(
+            f"{site_url}/misc.php?mod=seccode&update={upd}&idhash={seccodehash}",
+            timeout=15,
+            headers={
+                "Accept": "image/*",
+                "Referer": f"{site_url}/member.php?mod=logging&action=login",
+            },
+        )
+        if len(img.content) < 100:
+            return jsonify({"success": False, "error": "验证码图片获取失败"})
+
+        # 保存图片和 session 信息到临时存储
+        img_b64 = base64.b64encode(img.content).decode()
+        token = generate_token(current_user.id, "discuz_captcha")
+        # 存到 verify_codes 表（临时存 session 信息）
+        conn = get_db()
+        sess_data = json.dumps({
+            "cookies": {c.name: c.value for c in sess.cookies},
+            "seccodehash": seccodehash,
+            "loginhash": loginhash,
+            "formhash": formhash,
+            "site_url": site_url,
+        })
+        conn.execute(
+            "INSERT INTO verify_codes (target, code, action) VALUES (?, ?, 'discuz_session')",
+            (f"user_{current_user.id}_{token}", sess_data),
+        )
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "token": token,
+            "image": f"data:image/png;base64,{img_b64}",
+            "seccodehash": seccodehash,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": f"获取验证码异常: {e}"})
+
+
+@app.route("/api/discuz/login", methods=["POST"])
+@login_required
+def discuz_login_with_captcha():
+    """提交验证码完成 Discuz! 登录"""
+    token = request.json.get("token", "")
+    captcha = request.json.get("captcha", "").strip()
+    if not token or not captcha:
+        return jsonify({"success": False, "error": "缺少 token 或验证码"})
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM verify_codes WHERE target=? AND action='discuz_session' AND used=0",
+        (f"user_{current_user.id}_{token}",),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "会话已过期，请重新获取验证码"})
+
+    conn.execute("UPDATE verify_codes SET used=1 WHERE id=?", (row["id"],))
+    conn.commit()
+    conn.close()
+
+    sess_data = json.loads(row["code"])
+    site_url = sess_data["site_url"]
+
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    })
+    for name, val in sess_data["cookies"].items():
+        session.cookies.set(name, val, domain=site_url.replace("https://", "").replace("http://", ""))
+
+    # 1. 验证验证码
+    check_url = f"{site_url}/misc.php?mod=seccode&action=check&inajax=1"
+    check_resp = session.post(
+        check_url, data={"secverify": captcha, "idhash": sess_data["seccodehash"]}, timeout=10
+    )
+    if "succeed" not in check_resp.text:
+        return jsonify({"success": False, "error": "验证码错误，请重新填写", "captcha_wrong": True})
+
+    # 2. 登录（需要用户名密码，从请求中获取）
+    username = request.json.get("username", "")
+    password = request.json.get("password", "")
+
+    login_url = (
+        f"{site_url}/member.php?mod=logging&action=login"
+        f"&loginsubmit=yes&loginhash={sess_data['loginhash']}"
+    )
+    login_data = {
+        "formhash": sess_data["formhash"],
+        "referer": site_url + "/",
+        "loginfield": "username",
+        "username": username,
+        "password": password,
+        "questionid": "0",
+        "answer": "",
+        "seccodehash": sess_data["seccodehash"],
+        "seccodemodid": "member::logging",
+        "seccodeverify": captcha,
+        "cookietime": "2592000",
+    }
+    resp = session.post(login_url, data=login_data, timeout=20, allow_redirects=True)
+
+    # 3. 检查结果
+    auth = [c for c in session.cookies if "auth" in c.name.lower()]
+    if auth:
+        # 登录成功！返回完整 cookie 字符串
+        cookie_str = "; ".join([f"{c.name}={c.value}" for c in session.cookies])
+        return jsonify({
+            "success": True,
+            "message": "登录成功",
+            "cookies": cookie_str,
+        })
+
+    # 提取错误信息
+    err_text = "登录失败"
+    for p in [
+        r'<div[^>]*class="alert_error"[^>]*>([\s\S]*?)</div>',
+        r'<p[^>]*class="alert_info"[^>]*>(.*?)</p>',
+        r'<p[^>]*>(.*?)(?:</p>)',
+    ]:
+        m = re.search(p, resp.text, re.DOTALL)
+        if m:
+            t = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+            if t and len(t) < 300:
+                err_text = t
+                break
+
+    return jsonify({"success": False, "error": err_text})
+
+
+@app.route("/api/accounts/test/<int:aid>", methods=["POST"])
+@login_required
+def test_account(aid):
+    """测试指定账号的连接状态"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    try:
+        publisher = get_publisher(acct["platform"], cfg)
+        if hasattr(publisher, "test_connection"):
+            result = publisher.test_connection()
+            return jsonify(result)
+        return jsonify({"success": False, "error": "该平台不支持连接测试"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"测试异常: {e}"})
+
+
 @app.route("/publish", methods=["POST"])
 @login_required
 def publish():
