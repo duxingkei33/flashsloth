@@ -1496,10 +1496,12 @@ def forum_reader():
 @login_required
 def api_forum_browse():
     """浏览指定论坛并抓取新帖"""
-    account_id = request.json.get("account_id", type=int)
+    account_id = request.json.get("account_id")
     hours = request.json.get("hours", 24)
     if not account_id:
         return jsonify({"success": False, "error": "请选择论坛账号"})
+    account_id = int(account_id)
+    hours = int(hours)
 
     conn = get_db()
     acct = conn.execute(
@@ -1582,9 +1584,10 @@ def api_forum_browse():
 @login_required
 def api_forum_replies():
     """检查我的帖子的回复"""
-    account_id = request.json.get("account_id", type=int)
+    account_id = request.json.get("account_id")
     if not account_id:
         return jsonify({"success": False, "error": "请选择论坛账号"})
+    account_id = int(account_id)
 
     conn = get_db()
     acct = conn.execute(
