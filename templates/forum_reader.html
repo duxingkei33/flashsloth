@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}AI 逛论坛{% endblock %}
+{% block content %}
+<style>
+.reader-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.reader-header h1 { font-size:1.3em; }
+.unread-badge { background:#e63946; color:#fff; padding:2px 8px; border-radius:10px; font-size:12px; margin-left:6px; }
+.rec-card { background:#fff; border-radius:8px; padding:16px; margin-bottom:10px;
+            box-shadow:0 1px 3px rgba(0,0,0,.08); border-left:4px solid #4361ee; }
+.rec-card.read { border-left-color:#ddd; opacity:.7; }
+.rec-card .title { font-weight:600; font-size:15px; color:#1a1a2e; }
+.rec-card .title a { color:#4361ee; text-decoration:none; }
+.rec-card .title a:hover { text-decoration:underline; }
+.rec-card .meta { font-size:12px; color:#888; margin-top:4px; }
+.rec-card .tags { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
+.rec-card .tag { background:#e8f0fe; color:#4361ee; padding:2px 8px; border-radius:4px; font-size:11px; }
+.rec-card .content-preview { font-size:13px; color:#555; margin-top:8px;
+                             max-height:60px; overflow:hidden; }
+.rec-card .reply-badge { display:inline-block; background:#ffd60a; color:#333;
+                          padding:2px 8px; border-radius:4px; font-size:11px; margin-left:6px; }
+.control-panel { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.control-panel select, .control-panel input { padding:8px 12px; border:1px solid #ddd;
+                       border-radius:6px; font-size:14px; }
+.control-panel button { padding:8px 16px; border:none; border-radius:6px;
+                         cursor:pointer; font-size:14px; }
+.result-box { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px;
+               padding:12px; margin-bottom:16px; display:none; font-size:13px; }
+.result-box.error { background:#fef2f2; border-color:#fecaca; }
+.loading { color:#666; font-size:13px; padding:12px; text-align:center; }
+.tab-bar { display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid #eee; }
+.tab { padding:10px 20px; cursor:pointer; color:#666; font-size:14px;
+       border-bottom:2px solid transparent; margin-bottom:-2px; }
+.tab.active { color:#4361ee; border-bottom-color:#4361ee; font-weight:600; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+</style>
+
+<div class="reader-header">
+    <h1>🤖 AI 逛论坛
+        {% if unread > 0 %}
+        <span class="unread-badge">{{ unread }} 未读</span>
+        {% endif %}
+    </h1>
+    <div>
+        <a href="/api/forum-reader/clear-old" class="btn btn-sm btn-warning" onclick="return confirm('清理7天前的已读推荐？')">🧹 清理旧数据</a>
+    </div>
+</div>
+
+<div class="tab-bar">
+    <div class="tab active" onclick="switchTab(this, 'recommendations')">📌 推荐</div>
+    <div class="tab" onclick="switchTab(this, 'browse')">🌐 浏览论坛</div>
+    <div class="tab" onclick="switchTab(this, 'replies')">💬 我的回复</div>
+</div>
+
+<!-- 推荐 Tab -->
+<div id="tab-recommendations" class="tab-content active">
+    {% if recommendations %}
+    <p style="font-size:13px;color:#888;margin-bottom:12px;">共 {{ recommendations|length }} 条推荐，按 AI 评分排序</p>
+    {% for r in recommendations %}
+    <div class="rec-card {% if r.is_read %}read{% endif %}" id="rec-{{ r.id }}">
+        <div class="title">
+            <a href="{{ r.url }}" target="_blank" onclick="markRead({{ r.id }})">{{ r.title }}</a>
+            {% if r.is_my_thread %}<span class="reply-badge">💬 有回复</span>{% endif %}
+        </div>
+        <div class="meta">
+            {% if r.forum_name %}{{ r.forum_name }} · {% endif %}
+            {% if r.author %}作者: {{ r.author }} · {% endif %}
+            AI评分: <strong>{{ r.score }}</strong> ·
+            {{ r.created_at[:16] }}
+            {% if r.reply_author %}
+            · 回复者: <strong>{{ r.reply_author }}</strong>
+            {% endif %}
+        </div>
+        {% if r.tags and r.tags != '[]' %}
+        <div class="tags">
+            {% set taglist = r.tags|from_json %}
+            {% for t in taglist %}
+            <span class="tag">{{ t }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if r.content and not r.is_read %}
+        <div class="content-preview">{{ r.content[:200] }}{% if r.content|length > 200 %}...{% endif %}</div>
+        {% endif %}
+        {% if r.reply_content %}
+        <div class="content-preview" style="color:#e63946;">回复: {{ r.reply_content[:200] }}</div>
+        {% endif %}
+        <div style="margin-top:6px;">
+            <a href="javascript:void(0)" onclick="markRead({{ r.id }})" class="btn btn-sm btn-primary">✅ 已读</a>
+            <a href="{{ r.url }}" target="_blank" style="font-size:12px;color:#888;margin-left:8px;" onclick="markRead({{ r.id }})">打开原文 ↗</a>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card" style="text-align:center;padding:40px;">
+        <p style="font-size:2em;margin-bottom:12px;">🤖</p>
+        <p style="color:#666;margin-bottom:16px;">还没有推荐内容</p>
+        <p style="color:#999;font-size:13px;">切换到「浏览论坛」标签，选择论坛账号开始逛</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 浏览 Forum Tab -->
+<div id="tab-browse" class="tab-content">
+    <div class="card">
+        <h3>🌐 逛论坛（选择账号开始抓取）</h3>
+        <div class="control-panel" style="margin-top:12px;">
+            <select id="browse-account" style="min-width:200px;">
+                <option value="">— 选择论坛账号 —</option>
+                {% for a in discuz_accounts %}
+                <option value="{{ a.id }}">{{ a.account_name }} ({{ a.platform }})</option>
+                {% endfor %}
+            </select>
+            <select id="browse-hours">
+                <option value="24">最近24小时</option>
+                <option value="72" selected>最近3天</option>
+                <option value="168">最近7天</option>
+            </select>
+            <button class="btn btn-primary" onclick="browseForum()">🚀 开始逛</button>
+        </div>
+        {% if not discuz_accounts %}
+        <p style="color:#e63946;font-size:13px;margin-top:12px;">
+            ⚠️ 还没有论坛账号！请先在 <a href="/accounts" style="color:#4361ee;">账号管理</a> 添加 Discuz! 论坛账号（配置 site_url 和 cookie/password）
+        </p>
+        {% endif %}
+        <div id="browse-result" class="result-box"></div>
+        <div id="browse-loading" class="loading" style="display:none;">⏳ 正在逛论坛，请稍候...</div>
+        <div id="browse-samples" style="margin-top:12px;"></div>
+    </div>
+</div>
+
+<!-- 回复检查 Tab -->
+<div id="tab-replies" class="tab-content">
+    <div class="card">
+        <h3>💬 检查我的帖子回复</h3>
+        <p style="font-size:13px;color:#888;margin-bottom:12px;">自动扫描已发布到论坛的帖子，检查是否有新回复</p>
+        <div class="control-panel">
+            <select id="reply-account" style="min-width:200px;">
+                <option value="">— 选择论坛账号 —</option>
+                {% for a in discuz_accounts %}
+                <option value="{{ a.id }}">{{ a.account_name }} ({{ a.platform }})</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-success" onclick="checkReplies()">🔍 检查回复</button>
+        </div>
+        <div id="reply-result" class="result-box"></div>
+        <div id="reply-loading" class="loading" style="display:none;">⏳ 正在检查回复...</div>
+    </div>
+</div>
+
+<script>
+function switchTab(el, name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+}
+
+function browseForum() {
+    const aid = document.getElementById('browse-account').value;
+    const hours = document.getElementById('browse-hours').value;
+    if (!aid) { alert('请先选择论坛账号'); return; }
+    
+    const result = document.getElementById('browse-result');
+    const loading = document.getElementById('browse-loading');
+    const samples = document.getElementById('browse-samples');
+    result.style.display = 'none';
+    samples.innerHTML = '';
+    loading.style.display = 'block';
+    
+    fetch('/api/forum-reader/browse', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: parseInt(aid), hours: parseInt(hours)})
+    })
+    .then(r => r.json())
+    .then(d => {
+        loading.style.display = 'none';
+        if (d.success) {
+            result.className = 'result-box';
+            result.innerHTML = `✅ 逛完！共扫描 ${d.total} 条帖子，AI筛选出 ${d.filtered} 条，新保存 ${d.new_saved} 条`;
+            result.style.display = 'block';
+            
+            if (d.samples && d.samples.length > 0) {
+                samples.innerHTML = '<h4 style="margin:12px 0 8px;font-size:14px;">🏆 精选推荐</h4>';
+                d.samples.forEach(t => {
+                    samples.innerHTML += `
+                        <div class="rec-card" style="margin-bottom:6px;">
+                            <div class="title"><a href="${t.url}" target="_blank">${t.title}</a></div>
+                            <div class="meta">板块: ${t.forum_name ||'?'} · AI评分: <strong>${t.ai_score}</strong></div>
+                            ${t.ai_tags ? '<div class="tags">' + t.ai_tags.map(t => '<span class="tag">' + t + '</span>').join('') + '</div>' : ''}
+                        </div>`;
+                });
+            }
+            
+            // 刷新推荐列表
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            result.className = 'result-box error';
+            result.innerHTML = '❌ ' + (d.error || '浏览失败');
+            result.style.display = 'block';
+        }
+    })
+    .catch(e => {
+        loading.style.display = 'none';
+        result.className = 'result-box error';
+        result.innerHTML = '❌ 请求异常: ' + e;
+        result.style.display = 'block';
+    });
+}
+
+function checkReplies() {
+    const aid = document.getElementById('reply-account').value;
+    if (!aid) { alert('请先选择论坛账号'); return; }
+    
+    const result = document.getElementById('reply-result');
+    const loading = document.getElementById('reply-loading');
+    result.style.display = 'none';
+    loading.style.display = 'block';
+    
+    fetch('/api/forum-reader/replies', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: parseInt(aid)})
+    })
+    .then(r => r.json())
+    .then(d => {
+        loading.style.display = 'none';
+        if (d.success) {
+            result.className = 'result-box';
+            result.innerHTML = `✅ 检查完成！新回复 ${d.new_replies} 条，共 ${d.total_replies} 条回复`;
+            result.style.display = 'block';
+            if (d.new_replies > 0) setTimeout(() => location.reload(), 1500);
+        } else {
+            result.className = 'result-box error';
+            result.innerHTML = '❌ ' + (d.error || '检查失败');
+            result.style.display = 'block';
+        }
+    })
+    .catch(e => {
+        loading.style.display = 'none';
+        result.className = 'result-box error';
+        result.innerHTML = '❌ 请求异常: ' + e;
+        result.style.display = 'block';
+    });
+}
+
+function markRead(rid) {
+    fetch('/api/forum-reader/mark-read/' + rid)
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            const el = document.getElementById('rec-' + rid);
+            if (el) {
+                el.classList.add('read');
+                el.querySelector('.btn-primary').textContent = '✅ 已读';
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
