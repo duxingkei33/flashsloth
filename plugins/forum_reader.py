@@ -55,8 +55,15 @@ class DiscuzForumReader:
         try:
             r = self.session.get(f"{self.site_url}/forum.php", timeout=15)
             forums = []
-            # 匹配板块链接
-            for m in re.finditer(r'<a[^>]*href="forum\.php\?mod=forumdisplay&fid=(\d+)"[^>]*>([^<]+)</a>', r.text):
+            # 标准 Discuz! 格式: forum.php?mod=forumdisplay&fid=X
+            pat1 = re.compile(r'<a[^>]*href="forum\.php\?mod=forumdisplay&fid=(\d+)"[^>]*>([^<]+)</a>')
+            for m in pat1.finditer(r.text):
+                fid, name = m.group(1), unescape(m.group(2)).strip()
+                if fid not in [f["fid"] for f in forums]:
+                    forums.append({"fid": fid, "name": name})
+            # 兼容格式: forum-X-1.html (mydigit.cn 等)
+            pat2 = re.compile(r'forum-(\d+)-1\.html[^>]*>([^<]+)</a>')
+            for m in pat2.finditer(r.text):
                 fid, name = m.group(1), unescape(m.group(2)).strip()
                 if fid not in [f["fid"] for f in forums]:
                     forums.append({"fid": fid, "name": name})
