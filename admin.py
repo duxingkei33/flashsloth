@@ -1191,7 +1191,8 @@ def publish_retract(log_id):
             body=log["body"] or "",
             tags=json.loads(log["tags"]) if log["tags"] else [],
         )
-        result = publisher.retract(article, {"message": log.get("message", "")})
+        log_dict = dict(log)
+        result = publisher.retract(article, log_dict)
 
         if result.get("success"):
             # 更新发布日志状态
