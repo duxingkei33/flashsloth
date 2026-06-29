@@ -58,7 +58,7 @@ function toggleNotion(sel) {
 }
 </script>
 
-<!-- 📡 平台状态 -->
+<!-- 📡 发布平台 -->
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;">
         <h2 style="margin:0;">📡 发布平台</h2>
@@ -76,6 +76,39 @@ function toggleNotion(sel) {
                 {% else %}
                 <span class="badge badge-info">未配置</span>
                 {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- 🚀 部署目标 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;">🚀 部署目标</h2>
+        <a href="/deployers" class="btn btn-sm btn-success">管理部署</a>
+    </div>
+    <div class="publisher-grid" style="margin-top:12px;">
+        {% for d in deployers %}
+        {% set deps = deployer_map.get(d.name, []) %}
+        <div class="publisher-card"
+             style="border-left-color: {{ '#2ec4b6' if deps else '#ccc' }};">
+            <div class="name">{{ d.display_name }}</div>
+            <div class="status">
+                {% if deps %}
+                <span class="badge badge-success">{{ deps|length }} 个配置</span>
+                {% else %}
+                <span class="badge badge-info">未配置</span>
+                {% endif %}
+            </div>
+            <div class="actions" style="margin-top:8px;">
+                {% for dep in deps %}
+                <a href="/deployers/deploy/{{ dep.id }}" class="btn btn-sm btn-success"
+                   onclick="return confirm('部署到 {{ dep.display_name or dep.deployer_name }}？')"
+                   style="margin-right:4px;margin-bottom:4px;">
+                    🚀 {{ dep.display_name or dep.deployer_name }}
+                </a>
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
