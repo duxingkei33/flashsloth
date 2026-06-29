@@ -247,6 +247,12 @@ def index():
         "SELECT * FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
         (current_user.id,)
     ).fetchone()
+    
+    # 部署器配置（在关闭连接前）
+    deployer_configs = conn.execute(
+        "SELECT * FROM deployer_configs WHERE user_id=? AND is_active=1",
+        (current_user.id,)
+    ).fetchall()
     conn.close()
 
     # 所有可用 platform
@@ -259,10 +265,6 @@ def index():
 
     # 部署器信息
     dep_list = list_deployers()
-    deployer_configs = conn.execute(
-        "SELECT * FROM deployer_configs WHERE user_id=? AND is_active=1",
-        (current_user.id,)
-    ).fetchall()
     deployer_map = {}
     for d in deployer_configs:
         deployer_map.setdefault(d["deployer_name"], []).append(dict(d))
