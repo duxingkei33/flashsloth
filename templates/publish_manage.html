@@ -60,6 +60,7 @@
                 <th>平台</th>
                 <th>账号</th>
                 <th>状态</th>
+                <th>部署</th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -81,6 +82,15 @@
                     <span class="badge badge-success">✅ 已发布</span>
                     {% else %}
                     <span class="badge badge-danger" title="{{ log.error }}">❌ 失败</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.deploy_status == 'deployed' %}
+                    <span class="badge badge-success" style="font-size:11px;">✅ 已部署</span>
+                    {% elif log.deploy_status == 'pending' or (log.success and log.status != 'retracted') %}
+                    <span class="badge badge-warning" style="font-size:11px;">⏳ 待部署</span>
+                    {% else %}
+                    <span style="color:#999;font-size:12px;">-</span>
                     {% endif %}
                 </td>
                 <td>
