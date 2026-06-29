@@ -150,4 +150,4 @@ FlashSloth uses a **dual-license model**:
 | 🆓 Non-profit organizations, open-source projects | AGPL-3.0 (free) |
 | 💼 Commercial use by organizations | **Requires commercial license** (contact author) |
 
-For commercial licensing: **duxingkei33@gmail.com**
+For commercial licensing: **277563381@qq.com**
