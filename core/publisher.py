@@ -27,6 +27,13 @@ class Publisher(ABC):
         """
         pass
 
+    def retract(self, article: Article, publish_log: dict = None) -> dict:
+        """
+        撤回已发布的文章（可选实现）。
+        返回: {"success": bool, "error": str, "message": str}
+        """
+        return {"success": True, "error": "", "message": "该平台不支持自动撤回，请手动处理"}
+
     def validate_config(self) -> list[str]:
         """返回缺失的配置项"""
         missing = []
