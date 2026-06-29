@@ -23,6 +23,7 @@ import flashsloth.plugins.publisher_juejin     # noqa
 import flashsloth.plugins.publisher_rss        # noqa
 import flashsloth.plugins.publisher_zhihu      # noqa
 import flashsloth.plugins.publisher_csdn       # noqa
+import flashsloth.plugins.publisher_discuz     # noqa
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
@@ -126,6 +127,11 @@ def init_db():
         conn.commit()
         global _BOOT_CREDENTIALS
         _BOOT_CREDENTIALS = (admin_user, admin_pass)
+        # 同时写入文件，避免终端输出被缓冲吞掉
+        cred_path = os.path.join(os.path.dirname(__file__), ".boot_credentials")
+        with open(cred_path, "w") as f:
+            f.write(f"username: {admin_user}\npassword: {admin_pass}\n")
+        print(f"[FlashSloth] 首次启动凭证已写入 {cred_path}", flush=True)
     else:
         _BOOT_CREDENTIALS = None
 
