@@ -256,6 +256,16 @@ def index():
             (pid,),
         ).fetchall()
         publish_map[pid] = [dict(l) for l in plogs]
+
+    # 每篇文章的 deploy 状态（最新一次发布记录）
+    deploy_status_map = {}
+    for post in posts:
+        pid = post["id"]
+        latest = conn.execute(
+            "SELECT deploy_status FROM publish_log WHERE article_id=? AND success=1 ORDER BY id DESC LIMIT 1",
+            (pid,),
+        ).fetchone()
+        deploy_status_map[pid] = latest["deploy_status"] if latest else None
     pconfig = conn.execute(
         "SELECT * FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
         (current_user.id,)
@@ -289,6 +299,7 @@ def index():
                          deployers=dep_list,
                          deployer_map=deployer_map,
                          publish_map=publish_map,
+                         deploy_status_map=deploy_status_map,
                          provider=pconfig,
                          now=datetime.now())
 
@@ -1369,10 +1380,17 @@ def deployer_run(cid):
              result.get("message", ""))
         )
         conn.commit()
-        conn.close()
+
         if result.get("success"):
             msg = result.get("message", "部署成功")
             flash(f"✅ {msg}", "success")
+            # 更新所有 pending 的发布记录为 deployed
+            conn.execute(
+                "UPDATE publish_log SET deploy_status='deployed', updated_at=datetime('now') "
+                "WHERE deploy_status='pending' OR deploy_status IS NULL"
+            )
+            conn.commit()
+            conn.close()
             # GitHub Pages 部署延迟提示
             if row["deployer_name"] == "github_pages":
                 flash("⏳ GitHub Pages 需要 1-2 分钟刷新，请稍后访问站点确认", "info")
