@@ -1,8 +1,11 @@
 """
-Discuz! Publisher — Cookie 方式发帖
-适用场景：用户自行登录论坛后复制 Cookie，插件用有效 Cookie 直接发帖
+Discuz! Publisher — 发帖 + 密码/验证码登录 + Cookie 方式
+支持两种登录方式：
+  1. Cookie 方式：用户从浏览器复制 Cookie 粘贴
+  2. 密码+验证码方式：输入用户名密码，由用户填写验证码图片
+添加账号时自动验证登录状态，失败显示具体原因。
 """
-import re, requests, json
+import re, requests, json, time
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
 
@@ -12,9 +15,19 @@ class DiscuzPublisher(Publisher):
     name = "discuz"
     display_name = "Discuz! 论坛"
     config_fields = [
+        {"key": "login_mode", "label": "登录方式", "type": "select", "required": True,
+         "options": [
+             {"value": "cookie", "label": "Cookie 直接发帖"},
+             {"value": "password", "label": "密码+验证码登录"},
+         ],
+         "placeholder": "选择登录方式"},
         {"key": "site_url", "label": "论坛地址", "type": "text", "required": True,
          "placeholder": "https://www.amobbs.com"},
-        {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
+        {"key": "username", "label": "用户名（密码模式）", "type": "text", "required": False,
+         "placeholder": "论坛登录用户名"},
+        {"key": "password", "label": "密码（密码模式）", "type": "password", "required": False,
+         "placeholder": "论坛登录密码"},
+        {"key": "cookie", "label": "Cookie（Cookie模式）", "type": "password", "required": False,
          "placeholder": "登录后从浏览器 F12 复制 Cookie"},
         {"key": "fid", "label": "版块 ID", "type": "text", "required": True,
          "placeholder": "发帖目标版块的 fid，如 42"},
@@ -24,6 +37,9 @@ class DiscuzPublisher(Publisher):
         super().__init__(config)
         self.site_url = config.get("site_url", "").rstrip("/")
         self.fid = config.get("fid", "")
+        self.login_mode = config.get("login_mode", "cookie")
+        self.username = config.get("username", "")
+        self.password = config.get("password", "")
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -41,8 +57,123 @@ class DiscuzPublisher(Publisher):
                 self.session.cookies.set(key.strip(), val.strip(), domain=self._get_domain())
 
     def _get_domain(self) -> str:
-        """从 site_url 提取域名"""
         return self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
+
+    def validate_config(self) -> list[str]:
+        """验证配置完整性"""
+        missing = []
+        if not self.site_url:
+            missing.append("论坛地址")
+        if not self.fid:
+            missing.append("版块 ID")
+        if self.login_mode == "cookie" and not self.config.get("cookie", ""):
+            missing.append("Cookie")
+        if self.login_mode == "password" and not self.username:
+            missing.append("用户名")
+        if self.login_mode == "password" and not self.password:
+            missing.append("密码")
+        return missing
+
+    def test_connection(self) -> dict:
+        """测试连接状态 — 验证登录是否有效，返回详细结果"""
+        if self.login_mode == "cookie":
+            return self._test_cookie()
+        else:
+            return {
+                "success": False,
+                "error": "密码模式需先验证验证码才能测试登录",
+                "needs_captcha": True,
+            }
+
+    def _test_cookie(self) -> dict:
+        """测试 Cookie 是否有效"""
+        try:
+            resp = self.session.get(
+                f"{self.site_url}/home.php?mod=space&do=profile", timeout=10
+            )
+            if "个人主页" in resp.text or self.username in resp.text:
+                return {"success": True, "error": "", "status": "已登录"}
+            for cookie in self.session.cookies:
+                if "auth" in cookie.name.lower():
+                    return {"success": True, "error": "", "status": "已登录"}
+            if "login" in resp.url.lower():
+                return {"success": False, "error": "Cookie 已过期，请重新登录获取", "status": "Cookie过期"}
+            return {"success": False, "error": "无法确认登录状态", "status": "未知"}
+        except Exception as e:
+            return {"success": False, "error": f"连接失败: {e}", "status": "连接失败"}
+
+    def login_with_password(self, captcha_text: str, seccodehash: str) -> dict:
+        """密码+验证码登录，返回详细结果"""
+        try:
+            # 1. 获取登录页
+            r = self.session.get(
+                f"{self.site_url}/member.php?mod=logging&action=login", timeout=20
+            )
+            formhash = re.search(r'name="formhash"\s+value="([^"]+)"', r.text)
+            if not formhash:
+                return {"success": False, "error": "无法获取登录表单"}
+            formhash = formhash.group(1)
+
+            form_action = re.search(
+                r'<form[^>]*name="login"[^>]*action="([^"]*)"', r.text
+            )
+            if not form_action:
+                return {"success": False, "error": "无法获取登录 action"}
+            loginhash = re.search(r"loginhash=([a-zA-Z0-9]+)", form_action.group(1))
+            loginhash = loginhash.group(1) if loginhash else ""
+
+            # 2. 先验证验证码
+            check_url = f"{self.site_url}/misc.php?mod=seccode&action=check&inajax=1"
+            check_resp = self.session.post(
+                check_url, data={"secverify": captcha_text, "idhash": seccodehash}, timeout=10
+            )
+            if "succeed" not in check_resp.text:
+                return {"success": False, "error": "验证码错误，请重新填写"}
+
+            # 3. 登录
+            login_url = (
+                f"{self.site_url}/member.php?mod=logging&action=login"
+                f"&loginsubmit=yes&loginhash={loginhash}"
+            )
+            login_data = {
+                "formhash": formhash,
+                "referer": self.site_url + "/",
+                "loginfield": "username",
+                "username": self.username,
+                "password": self.password,
+                "questionid": "0",
+                "answer": "",
+                "seccodehash": seccodehash,
+                "seccodemodid": "member::logging",
+                "seccodeverify": captcha_text,
+                "cookietime": "2592000",
+            }
+            resp = self.session.post(login_url, data=login_data, timeout=20, allow_redirects=True)
+
+            # 4. 检查结果
+            auth = [c for c in self.session.cookies if "auth" in c.name.lower()]
+            if auth:
+                return {"success": True, "error": "", "status": "已登录"}
+            
+            err_msg = self._extract_error(resp.text)
+            return {"success": False, "error": err_msg, "status": "登录失败"}
+        except Exception as e:
+            return {"success": False, "error": f"登录异常: {e}", "status": "异常"}
+
+    def _extract_error(self, html: str) -> str:
+        """从登录响应 HTML 提取错误信息"""
+        patterns = [
+            r'<div[^>]*class="alert_error"[^>]*>([\s\S]*?)</div>',
+            r'<p[^>]*class="alert_info"[^>]*>(.*?)</p>',
+            r'<p[^>]*>(.*?)(?:</p>)',
+        ]
+        for p in patterns:
+            m = re.search(p, html, re.DOTALL)
+            if m:
+                text = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+                if text and len(text) < 300:
+                    return text
+        return "未知错误"
 
     def publish(self, article: Article, **kwargs) -> dict:
         missing = self.validate_config()
@@ -50,19 +181,22 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": f"缺少配置: {', '.join(missing)}",
                     "url": "", "id": ""}
 
+        # 密码模式需要先确认已登录
+        if self.login_mode == "password":
+            return {"success": False, "error": "请先完成验证码登录后再发帖",
+                    "url": "", "id": ""}
+
         # 验证 Cookie 有效性
         if not self._check_login():
-            return {"success": False, "error": "Cookie 无效或已过期，请重新登录后复制 Cookie",
+            return {"success": False, "error": "Cookie 无效或已过期，请重新登录",
                     "url": "", "id": ""}
 
         try:
-            # 获取 formhash
             formhash = self._get_formhash()
             if not formhash:
                 return {"success": False, "error": "无法获取 formhash，请检查版块 ID",
                         "url": "", "id": ""}
 
-            # 发帖
             html_body = article.to_html()
             result = self._post_thread(formhash, article.title, html_body)
 
@@ -74,25 +208,20 @@ class DiscuzPublisher(Publisher):
                     "error": "",
                 }
             return result
-
         except Exception as e:
             return {"success": False, "error": f"Discuz! 发布异常: {e}",
                     "url": "", "id": ""}
 
     def _check_login(self) -> bool:
-        """检查 Cookie 是否有效（访问个人主页）"""
         resp = self.session.get(f"{self.site_url}/home.php?mod=space&do=profile", timeout=10)
-        # 登录后页面含有用户名或 uid
-        if "个人主页" in resp.text or "space.php" in resp.url:
+        if "个人主页" in resp.text or self.username in resp.text:
             return True
-        # 检查 Cookie 中是否有 auth
         for cookie in self.session.cookies:
             if "auth" in cookie.name.lower():
                 return True
         return "login" not in resp.url.lower()
 
     def _get_formhash(self) -> str | None:
-        """进入发帖页面获取 formhash"""
         post_url = f"{self.site_url}/forum.php?mod=post&action=newthread&fid={self.fid}"
         resp = self.session.get(post_url, timeout=15)
         for pattern in [
@@ -106,8 +235,10 @@ class DiscuzPublisher(Publisher):
         return None
 
     def _post_thread(self, formhash: str, title: str, content_html: str) -> dict:
-        """发表新主题"""
-        post_url = f"{self.site_url}/forum.php?mod=post&action=newthread&fid={self.fid}&extra=&topicsubmit=yes"
+        post_url = (
+            f"{self.site_url}/forum.php?mod=post&action=newthread"
+            f"&fid={self.fid}&extra=&topicsubmit=yes"
+        )
         data = {
             "formhash": formhash,
             "posttime": "",
@@ -124,7 +255,6 @@ class DiscuzPublisher(Publisher):
         }
         resp = self.session.post(post_url, data=data, timeout=30, allow_redirects=True)
 
-        # 发帖成功会跳转到新帖子页面
         tid_match = re.search(r"tid=(\d+)", resp.url)
         if tid_match:
             tid = tid_match.group(1)
@@ -135,7 +265,6 @@ class DiscuzPublisher(Publisher):
                 "error": "",
             }
 
-        # 检查错误提示
         err_match = re.search(
             r'<div[^>]*class="alert_error"[^>]*>([\s\S]*?)</div>', resp.text
         )
@@ -143,7 +272,6 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": err_match.group(1).strip()[:200],
                     "url": "", "id": ""}
 
-        # 没报错可能成功了
         if "发新主题" not in resp.text and "发表回复" not in resp.text:
             return {"success": True, "tid": "", "url": self.site_url, "error": ""}
 
