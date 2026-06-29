@@ -9,3 +9,4 @@ build/
 .venv/
 venv/
 .boot_credentials
+storage/
