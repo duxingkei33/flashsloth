@@ -12,6 +12,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import get_publisher, list_publishers
 from flashsloth.core.config import load_config, get_publisher_config
+# 导入 Publisher 插件触发注册
+import flashsloth.plugins.publisher_wordpress  # noqa
+import flashsloth.plugins.publisher_wechat     # noqa
+import flashsloth.plugins.publisher_juejin     # noqa
+import flashsloth.plugins.publisher_rss        # noqa
+import flashsloth.plugins.publisher_zhihu      # noqa
+import flashsloth.plugins.publisher_csdn       # noqa
+import flashsloth.plugins.publisher_discuz     # noqa
 
 
 def cmd_publish(args):
