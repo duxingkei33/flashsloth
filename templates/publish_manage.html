@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}发布管理{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <h2 style="margin:0;">📡 发布管理</h2>
+    <a href="/" class="btn btn-sm btn-primary">← 返回仪表盘</a>
+</div>
+
+<!-- 文章发布统计 -->
+<div class="card">
+    <h3>📝 文章发布状态</h3>
+    {% if articles %}
+    <table>
+        <thead>
+            <tr>
+                <th>文章</th>
+                <th>状态</th>
+                <th>已发布</th>
+                <th>已撤回</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in articles %}
+            <tr>
+                <td><a href="/post/edit/{{ a.id }}" style="color:#4361ee;">{{ a.title or '(无标题)' }}</a></td>
+                <td>
+                    {% if a.status == 'published' %}
+                    <span class="badge badge-success">已发布</span>
+                    {% else %}
+                    <span class="badge badge-warning">草稿</span>
+                    {% endif %}
+                </td>
+                <td>{{ a.pub_count }}</td>
+                <td>
+                    {% if a.ret_count > 0 %}
+                    <span class="badge badge-warning">{{ a.ret_count }} 次撤回</span>
+                    {% else %}
+                    <span style="color:#999;">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">暂无文章</p>
+    {% endif %}
+</div>
+
+<!-- 发布记录 -->
+<div class="card">
+    <h3>📋 全部发布记录</h3>
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>文章</th>
+                <th>平台</th>
+                <th>账号</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td style="font-size:12px;color:#666;">{{ log.created_at[:16] }}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <a href="/post/edit/{{ log.article_id }}" style="color:#4361ee;">{{ log.article_title or '(已删除)' }}</a>
+                </td>
+                <td><span class="badge badge-info">{{ log.platform }}</span></td>
+                <td style="font-size:13px;">{{ log.account_name or '-' }}</td>
+                <td>
+                    {% if log.status == 'retracted' %}
+                    <span class="badge badge-warning" title="撤回时间: {{ log.retracted_at[:16] if log.retracted_at else '' }}">
+                        ↩️ 已撤回
+                    </span>
+                    {% elif log.success %}
+                    <span class="badge badge-success">✅ 已发布</span>
+                    {% else %}
+                    <span class="badge badge-danger" title="{{ log.error }}">❌ 失败</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:4px;">
+                        {% if log.success and log.status != 'retracted' %}
+                        <a href="/publish/retract/{{ log.id }}" class="btn btn-sm btn-warning"
+                           onclick="return confirm('确认撤回此文章？')">↩️ 撤回</a>
+                        {% endif %}
+                        {% if log.status == 'retracted' %}
+                        <a href="/publish/re-publish/{{ log.id }}" class="btn btn-sm btn-success"
+                           onclick="return confirm('确认重新发布此文章？')">🔄 重新发布</a>
+                        {% endif %}
+                        {% if log.url %}
+                        <a href="{{ log.url }}" target="_blank" class="btn btn-sm btn-primary"
+                           title="{{ log.url }}">🔗 查看</a>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">暂无发布记录</p>
+    {% endif %}
+</div>
+
+{% endblock %}
