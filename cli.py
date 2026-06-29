@@ -21,6 +21,7 @@ import flashsloth.plugins.publisher_zhihu      # noqa
 import flashsloth.plugins.publisher_csdn       # noqa
 import flashsloth.plugins.publisher_discuz     # noqa
 import flashsloth.plugins.publisher_github_pages  # noqa
+import flashsloth.plugins.deployer_github_pages  # noqa
 
 
 def cmd_publish(args):

@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}部署管理{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <h2 style="margin:0;">🚀 部署管理</h2>
+</div>
+
+<!-- 添加部署配置 -->
+<div class="card">
+    <h3>➕ 添加部署目标</h3>
+    <form method="post" action="/deployers/add" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+        <div class="form-group">
+            <label>部署器类型</label>
+            <select name="deployer_name" id="deployerSelect" onchange="toggleFields(this)" required>
+                <option value="">— 选择部署器 —</option>
+                {% for d in deployers %}
+                <option value="{{ d.name }}" data-fields='{{ d.config_fields|tojson }}'>{{ d.display_name }}</option>
+                {% endfor %}
+            </select>
+            {% if not deployers %}
+            <p style="color:#999;font-size:12px;margin-top:4px;">暂无可用的部署器插件</p>
+            {% endif %}
+        </div>
+        <div class="form-group">
+            <label>显示名称</label>
+            <input type="text" name="display_name" placeholder="例如: 我的博客" style="width:300px;">
+        </div>
+        <div id="dynamicFields" style="display:none;flex-direction:column;gap:12px;">
+            <!-- 由 JS 动态生成 -->
+        </div>
+        <button type="submit" class="btn btn-success" style="width:200px;">+ 添加部署配置</button>
+    </form>
+</div>
+
+<!-- 已配置的部署 -->
+<div class="card" style="margin-top:16px;">
+    <h3>📡 已配置的部署目标</h3>
+    {% if configs %}
+    <table>
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in configs %}
+            <tr>
+                <td><strong>{{ c.display_name or c.deployer_name }}</strong></td>
+                <td><span class="badge badge-info">{{ c.deployer_name }}</span></td>
+                <td>
+                    {% if c.is_active %}
+                    <span class="badge badge-success">启用</span>
+                    {% else %}
+                    <span class="badge badge-warning">禁用</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:4px;">
+                        <a href="/deployers/deploy/{{ c.id }}" class="btn btn-sm btn-success"
+                           onclick="return confirm('确认部署到 {{ c.display_name or c.deployer_name }}？')">
+                            🚀 部署
+                        </a>
+                        <a href="/deployers/test/{{ c.id }}" class="btn btn-sm btn-primary">测试</a>
+                        <a href="/deployers/delete/{{ c.id }}" class="btn btn-sm btn-danger"
+                           onclick="return confirm('确定删除？')">删除</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">
+        还没有部署配置。请选择上方部署器类型并添加。
+    </p>
+    {% endif %}
+</div>
+
+<!-- 部署记录 -->
+<div class="card" style="margin-top:16px;">
+    <h3>📋 部署记录</h3>
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>部署器</th>
+                <th>结果</th>
+                <th>详情</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td style="font-size:12px;color:#666;">{{ log.created_at[:16] }}</td>
+                <td><span class="badge badge-info">{{ log.deployer_name }}</span></td>
+                <td>
+                    {% if log.success %}
+                    <span class="badge badge-success">✅ 成功</span>
+                    {% else %}
+                    <span class="badge badge-danger" title="{{ log.error }}">❌ 失败</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:12px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ log.message or log.error or '-' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">暂无部署记录</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleFields(sel) {
+    const container = document.getElementById('dynamicFields');
+    const option = sel.options[sel.selectedIndex];
+    if (!option || !option.value) {
+        container.style.display = 'none';
+        return;
+    }
+    try {
+        const fields = JSON.parse(option.getAttribute('data-fields') || '[]');
+        container.innerHTML = '';
+        if (fields.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        fields.forEach(f => {
+            const group = document.createElement('div');
+            group.className = 'form-group';
+            const label = document.createElement('label');
+            label.textContent = f.label || f.key;
+            if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+            group.appendChild(label);
+
+            if (f.type === 'select') {
+                const select = document.createElement('select');
+                select.name = 'cfg_' + f.key;
+                select.required = f.required;
+                if (f.options) {
+                    f.options.forEach(o => {
+                        const opt = document.createElement('option');
+                        opt.value = o.value;
+                        opt.textContent = o.label || o.value;
+                        select.appendChild(opt);
+                    });
+                }
+                group.appendChild(select);
+            } else {
+                const input = document.createElement('input');
+                input.type = f.type === 'password' ? 'password' : 'text';
+                input.name = 'cfg_' + f.key;
+                input.placeholder = f.placeholder || '';
+                input.value = f.default || '';
+                input.style.width = '400px';
+                if (f.required) input.required = true;
+                group.appendChild(input);
+            }
+
+            container.appendChild(group);
+        });
+        container.style.display = 'flex';
+    } catch(e) {
+        container.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
