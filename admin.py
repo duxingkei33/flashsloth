@@ -1396,6 +1396,7 @@ def deployer_run(cid):
                 flash("⏳ GitHub Pages 需要 1-2 分钟刷新，请稍后访问站点确认", "info")
         else:
             flash(f"❌ 部署失败: {result.get('error', '未知错误')}", "error")
+            conn.close()
     except Exception as e:
         conn.execute(
             "INSERT INTO deploy_log (config_id, deployer_name, success, error) VALUES (?, ?, 0, ?)",
