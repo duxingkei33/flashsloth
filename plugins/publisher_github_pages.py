@@ -8,6 +8,11 @@ import os, json
 from datetime import datetime
 from flashsloth.core.publisher import Publisher, register
 from flashsloth.core.article import Article
+try:
+    from pymdownx.slugs import slugify as _mkdocs_slugify
+    _slugger = _mkdocs_slugify(case="lower")
+except ImportError:
+    _slugger = None
 
 
 def _get_date_str():
@@ -39,11 +44,11 @@ class GitHubPagesBlogPublisher(Publisher):
         },
         {
             "key": "post_url_prefix",
-            "label": "文章 URL 前缀",
+            "label": "文章 URL 前缀（留空自动用 /YYYY/MM/DD/ 格式）",
             "type": "text",
             "required": False,
-            "default": "/posts/",
-            "placeholder": "/posts/",
+            "default": "",
+            "placeholder": "留空自动生成",
         },
     ]
 
@@ -53,7 +58,15 @@ class GitHubPagesBlogPublisher(Publisher):
             config.get("posts_dir", "/opt/data/contenthub/blog/docs/posts")
         )
         self.site_url = config.get("site_url", "https://duxingkei33.github.io").rstrip("/")
-        self.post_url_prefix = config.get("post_url_prefix", "/posts/")
+        self.post_url_prefix = config.get("post_url_prefix", "")
+        # 使用 pymdownx slugify（与 MkDocs Material 一致），否则 fallback
+        global _slugger
+        if _slugger is None:
+            try:
+                from pymdownx.slugs import slugify as _mkdocs_slugify
+                _slugger = _mkdocs_slugify(case="lower")
+            except ImportError:
+                _slugger = None
 
     def publish(self, article: Article) -> dict:
         """将文章发布为 Markdown 文件"""
@@ -108,13 +121,21 @@ tags:
                 f.write(md_content)
 
             post_slug = filename.replace(".md", "")
-            # URL: site_url + /posts/ + slug + /
-            prefix = self.post_url_prefix
-            if not prefix.startswith("/"):
-                prefix = "/" + prefix
-            if not prefix.endswith("/"):
-                prefix = prefix + "/"
-            post_url = f"{self.site_url.rstrip('/')}{prefix}{post_slug}/"
+            # 生成 MkDocs 兼容的 URL: /YYYY/MM/DD/slug/
+            if self.post_url_prefix:
+                # 自定义前缀
+                prefix = self.post_url_prefix
+                if not prefix.startswith("/"):
+                    prefix = "/" + prefix
+                if not prefix.endswith("/"):
+                    prefix = prefix + "/"
+                post_url = f"{self.site_url.rstrip('/')}{prefix}{post_slug}/"
+            else:
+                # 自动用 MkDocs 格式: /YYYY/MM/DD/slug/
+                dt = datetime.now()
+                y, m, d = dt.year, dt.month, dt.day
+                slug = self._slugify(article.title)
+                post_url = f"{self.site_url.rstrip('/')}/{y:04d}/{m:02d}/{d:02d}/{slug}/"
 
             return {
                 "success": True,
@@ -199,7 +220,11 @@ tags:
             }
 
     def _slugify(self, title: str) -> str:
-        """将标题转为 URL 友好的 slug"""
+        """使用 pymdownx slugify 生成与 MkDocs Material 一致的 slug"""
+        global _slugger
+        if _slugger is not None:
+            return _slugger(title, "-")
+        # fallback：降级算法
         import re
         slug = title.lower().strip()
         slug = re.sub(r'[\s_]+', '-', slug)
