@@ -108,7 +108,13 @@ tags:
                 f.write(md_content)
 
             post_slug = filename.replace(".md", "")
-            post_url = f"{self.site_url}{self.post_url_prefix.strip('/')}/{post_slug}/"
+            # URL: site_url + /posts/ + slug + /
+            prefix = self.post_url_prefix
+            if not prefix.startswith("/"):
+                prefix = "/" + prefix
+            if not prefix.endswith("/"):
+                prefix = prefix + "/"
+            post_url = f"{self.site_url.rstrip('/')}{prefix}{post_slug}/"
 
             return {
                 "success": True,
