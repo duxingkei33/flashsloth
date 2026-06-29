@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}选择发布目标{% endblock %}
+{% block content %}
+<div class="card" style="max-width:600px;">
+    <h2>🚀 发布文章</h2>
+    <p style="color:#666;margin:8px 0 16px;">
+        <strong>{{ post.title }}</strong>
+        {% if post.tags %}
+        — 标签: {{ post.tags|from_json|join(', ') }}
+        {% endif %}
+    </p>
+
+    <form method="post" action="/publish">
+        <input type="hidden" name="article_id" value="{{ post.id }}">
+        <p style="font-weight:600;margin-bottom:8px;">选择发布到哪些平台账号：</p>
+        {% if accounts %}
+        <div style="display:grid;gap:8px;">
+            {% for a in accounts %}
+            <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;
+                          border:1px solid #ddd;border-radius:6px;cursor:pointer;">
+                <input type="checkbox" name="account_ids" value="{{ a.id }}">
+                <span class="badge badge-info">{{ a.platform }}</span>
+                <span>{{ a.account_name }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-success" style="margin-top:16px;width:100%;padding:12px;">
+            📤 发布到所选平台
+        </button>
+        {% else %}
+        <p style="color:#999;padding:20px 0;text-align:center;">
+            还没有配置发布平台账号。<br>
+            <a href="/accounts" class="btn btn-primary" style="margin-top:8px;">去添加账号</a>
+        </p>
+        {% endif %}
+    </form>
+    <a href="/" class="btn" style="background:#eee;margin-top:12px;display:inline-block;">返回</a>
+</div>
+{% endblock %}

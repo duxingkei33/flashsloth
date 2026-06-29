@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}平台账号管理{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:20px;">🔑 多平台账号管理</h1>
+
+{% for p in platforms %}
+<div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;font-size:16px;">{{ p.display_name }}</h2>
+        <button onclick="showAddForm('{{ p.name }}')" class="btn btn-sm btn-success">+ 添加账号</button>
+    </div>
+
+    {% set accounts = grouped.get(p.name, []) %}
+    {% if accounts %}
+    <table style="margin-top:12px;">
+        <thead><tr><th>账号名</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for a in accounts %}
+        <tr>
+            <td>{{ a.account_name }}</td>
+            <td>
+                {% if a.is_active %}
+                <span class="badge badge-success">启用</span>
+                {% else %}
+                <span class="badge badge-warning">停用</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="/accounts/edit/{{ a.id }}" class="btn btn-sm btn-primary">编辑</a>
+                <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
+                   onclick="return confirm('确定删除此账号？')">删除</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;padding:12px 0;font-size:14px;">暂未添加 {{ p.display_name }} 账号</p>
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- 添加账号弹窗 -->
+<div id="addForm" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;">添加账号 — <span id="addPlatformName"></span></h2>
+        <form method="post" action="/accounts/add">
+            <input type="hidden" name="platform" id="addPlatform">
+            <div class="form-group">
+                <label>账号别名</label>
+                <input type="text" name="account_name" required placeholder="如：主号、备用号">
+            </div>
+            <div id="addConfigFields"></div>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+                <button type="submit" class="btn btn-primary">保存</button>
+                <button type="button" class="btn" style="background:#eee;" onclick="hideAddForm()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const PLATFORM_FIELDS = {{ platforms|tojson }};
+
+function showAddForm(platform) {
+    const p = PLATFORM_FIELDS.find(x => x.name === platform);
+    if (!p) return;
+    document.getElementById('addPlatform').value = platform;
+    document.getElementById('addPlatformName').textContent = p.display_name;
+
+    let html = '';
+    (p.config_fields || []).forEach(f => {
+        const type = f.type === 'password' ? 'password' : 'text';
+        html += `<div class="form-group">
+            <label>${f.label}</label>
+            <input type="${type}" name="cfg_${f.key}" placeholder="${f.placeholder || ''}">
+        </div>`;
+    });
+    document.getElementById('addConfigFields').innerHTML = html;
+    document.getElementById('addForm').style.display = 'flex';
+}
+
+function hideAddForm() {
+    document.getElementById('addForm').style.display = 'none';
+}
+</script>
+{% endblock %}

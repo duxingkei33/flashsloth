@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}FlashSloth 管理后台{% endblock %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               background: #f5f5f5; color: #333; }
+        .navbar { background: #1a1a2e; color: #fff; padding: 12px 24px;
+                  display: flex; justify-content: space-between; align-items: center; }
+        .navbar a { color: #fff; text-decoration: none; margin-left: 16px; }
+        .navbar .brand { font-size: 1.2em; font-weight: bold; }
+        .navbar .brand span { color: #ffd700; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px;
+                box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .card h2 { margin-bottom: 16px; font-size: 1.1em; color: #1a1a2e; }
+        .btn { display: inline-block; padding: 8px 16px; border-radius: 6px;
+               text-decoration: none; font-size: 14px; border: none; cursor: pointer; }
+        .btn-primary { background: #4361ee; color: #fff; }
+        .btn-success { background: #2ec4b6; color: #fff; }
+        .btn-danger { background: #e63946; color: #fff; }
+        .btn-warning { background: #ff9f1c; color: #fff; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { font-weight: 600; color: #666; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px;
+                 font-size: 12px; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+        .flash { padding: 12px 20px; margin-bottom: 16px; border-radius: 6px; }
+        .flash-success { background: #d4edda; color: #155724; }
+        .flash-error { background: #f8d7da; color: #721c24; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 14px; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+            font-size: 14px; }
+        .form-group textarea { min-height: 300px; font-family: monospace; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                 gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: #fff; border-radius: 8px; padding: 20px; text-align: center;
+                     box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .stat-card .num { font-size: 2em; font-weight: bold; color: #1a1a2e; }
+        .stat-card .label { font-size: 13px; color: #666; margin-top: 4px; }
+        .publisher-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                          gap: 12px; }
+        .publisher-card { background: #f8f9fa; border-radius: 8px; padding: 16px;
+                          border-left: 4px solid #4361ee; }
+        .publisher-card .name { font-weight: 600; font-size: 15px; }
+        .publisher-card .status { font-size: 13px; margin-top: 4px; }
+        .publisher-card .actions { margin-top: 10px; }
+        .auth-form { max-width: 400px; margin: 60px auto; }
+        .auth-form .card { padding: 32px; }
+        .auth-form h1 { text-align: center; margin-bottom: 24px; font-size: 1.5em; }
+        .auth-form .links { text-align: center; margin-top: 16px; font-size: 14px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar">
+        <div>
+            <a href="/" class="brand">🦥<span>FlashSloth</span></a>
+            <a href="/">仪表盘</a>
+            <a href="/settings">设置</a>
+        </div>
+        <div>
+            <span style="font-size: 13px; opacity: .8;">{{ current_user.username }}</span>
+            <a href="/change_password">改密码</a>
+            <a href="/logout">退出</a>
+        </div>
+    </nav>
+    {% endif %}
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

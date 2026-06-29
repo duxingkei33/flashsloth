@@ -1,0 +1,7 @@
+flask>=3.0
+flask-login>=0.6
+werkzeug>=3.0
+markdown>=3.5
+python-frontmatter>=1.1
+pyyaml>=6.0
+requests>=2.31

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if post else '新建' }}文章{% endblock %}
+{% block content %}
+<div class="card" style="max-width:900px;">
+    <h2>{{ '✏️ 编辑文章' if post else '📝 新建文章' }}</h2>
+    <form method="post">
+        <div class="form-group">
+            <label>标题</label>
+            <input type="text" name="title" value="{{ post.title if post else '' }}" required
+                   placeholder="文章标题">
+        </div>
+        <div class="form-group">
+            <label>摘要</label>
+            <input type="text" name="summary" value="{{ post.summary if post else '' }}"
+                   placeholder="一句话简介（可选）">
+        </div>
+        <div class="form-group">
+            <label>标签（逗号分隔）</label>
+            <input type="text" name="tags"
+                   value="{{ post.tags|from_json|join(', ') if post and post.tags else '' }}"
+                   placeholder="技术, 笔记, 项目管理">
+        </div>
+        <div class="form-group">
+            <label>正文（Markdown 格式）</label>
+            <textarea name="body" placeholder="在这里写文章...">{{ post.body if post else '' }}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">💾 保存</button>
+            <a href="/" class="btn" style="background:#eee;">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
