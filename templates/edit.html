@@ -26,8 +26,12 @@
                 <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('img-input').click()">🖼️ 上传图片</button>
                 <button type="button" class="btn btn-sm btn-success" onclick="openStorageBrowser()">☁️ 从存储选择</button>
                 <input type="file" id="img-input" accept="image/*" style="display:none" onchange="uploadImage(this)">
+                <button type="button" class="btn btn-sm btn-warning" onclick="togglePreview()" id="preview-btn">👁️ 预览</button>
             </div>
-            <textarea name="body" placeholder="在这里写文章..." id="article-body">{{ post.body if post else '' }}</textarea>
+            <div id="editor-container" style="display:flex;gap:16px;">
+                <textarea name="body" placeholder="在这里写文章..." id="article-body" style="flex:1;min-height:400px;">{{ post.body if post else '' }}</textarea>
+                <div id="preview-panel" style="flex:1;min-height:400px;border:1px solid #ddd;border-radius:6px;padding:16px;overflow-y:auto;display:none;background:#fff;font-size:14px;line-height:1.7;"></div>
+            </div>
         </div>
         <div style="display:flex;gap:8px;">
             <button type="submit" class="btn btn-primary">💾 保存</button>
@@ -211,6 +215,68 @@ function deleteStorageFile(path) {
             alert('❌ ' + (data.error || '删除失败'));
         }
     });
+}
+
+// ─── Markdown 实时预览 ───────────────────
+let previewVisible = false;
+
+function togglePreview() {
+    previewVisible = !previewVisible;
+    const panel = document.getElementById('preview-panel');
+    const btn = document.getElementById('preview-btn');
+    panel.style.display = previewVisible ? 'block' : 'none';
+    btn.textContent = previewVisible ? '✏️ 编辑' : '👁️ 预览';
+    if (previewVisible) renderPreview();
+}
+
+function renderPreview() {
+    const textarea = document.getElementById('article-body');
+    const panel = document.getElementById('preview-panel');
+    if (!previewVisible) return;
+    panel.innerHTML = simpleMarkdown(textarea.value);
+}
+
+// 输入时自动更新预览
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.getElementById('article-body');
+    textarea.addEventListener('input', function() {
+        if (previewVisible) renderPreview();
+    });
+});
+
+function simpleMarkdown(md) {
+    if (!md) return '<p style="color:#999;">输入 Markdown 内容后预览...</p>';
+    let html = md
+        // 代码块 (```)
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
+        // 行内代码
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // 标题 (##)
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        // 粗体
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // 斜体
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // 图片
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:4px;">')
+        // 链接
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+        // 分割线
+        .replace(/^---$/gm, '<hr>')
+        // 无序列表
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        // 有序列表
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        // 引用
+        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+        // 段落
+        .replace(/\n\n/g, '</p><p>')
+        // 换行
+        .replace(/\n/g, '<br>');
+
+    return '<p>' + html + '</p>';
 }
 </script>
 {% endblock %}
