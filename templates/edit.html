@@ -218,7 +218,7 @@ function deleteStorageFile(path) {
 }
 
 // ─── Markdown 实时预览 ───────────────────
-let previewVisible = false;
+let previewVisible = true;
 
 function togglePreview() {
     previewVisible = !previewVisible;
@@ -242,6 +242,8 @@ document.addEventListener('DOMContentLoaded', function() {
     textarea.addEventListener('input', function() {
         if (previewVisible) renderPreview();
     });
+    // 默认开启预览
+    renderPreview();
 });
 
 function simpleMarkdown(md) {

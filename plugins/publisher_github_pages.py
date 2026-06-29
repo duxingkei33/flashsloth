@@ -2,6 +2,7 @@
 GitHub Pages Publisher — 将文章发布为 GitHub Pages 博客的 Markdown 文件
 文章会被写入本地仓库的 posts/ 目录，格式化为 MkDocs 兼容的 YAML 前端数据格式
 配合 deployer_github_pages.py 完成完整发布流程
+支持撤回操作：删除已发布的 Markdown 文件
 """
 import os, json
 from datetime import datetime
@@ -9,11 +10,15 @@ from flashsloth.core.publisher import Publisher, register
 from flashsloth.core.article import Article
 
 
+def _get_date_str():
+    return datetime.now().strftime("%Y-%m-%d")
+
+
 @register
 class GitHubPagesBlogPublisher(Publisher):
     name = "github_pages_blog"
     display_name = "GitHub Pages 博客"
-    description = "将文章发布为 GitHub Pages 博客 Markdown 文件"
+    description = "将文章发布为 GitHub Pages 博客 Markdown 文件，支持撤回"
 
     config_fields = [
         {
@@ -71,14 +76,13 @@ class GitHubPagesBlogPublisher(Publisher):
                 }
 
         # 生成文件名: YYYY-MM-DD-文章标题.md
-        date_str = datetime.now().strftime("%Y-%m-%d")
+        date_str = _get_date_str()
         slug = self._slugify(article.title)
         filename = f"{date_str}-{slug}.md"
         filepath = os.path.join(self.posts_dir, filename)
 
-        # 检查是否已存在（防止覆盖）
+        # 检查是否已存在
         if os.path.exists(filepath):
-            # 加序号
             counter = 1
             while os.path.exists(filepath):
                 filename = f"{date_str}-{slug}-{counter}.md"
@@ -103,9 +107,6 @@ tags:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
-            # 计算文章 URL
-            post_url = f"{self.site_url}{self.post_url_prefix.strip('/')}/{slug}/"
-            # 如果 mkdocs 的命名规则不同，取文件名不带扩展名
             post_slug = filename.replace(".md", "")
             post_url = f"{self.site_url}{self.post_url_prefix.strip('/')}/{post_slug}/"
 
@@ -123,6 +124,48 @@ tags:
                 "error": f"写入文件失败: {e}",
                 "url": "",
             }
+
+    def retract(self, article: Article, publish_log: dict = None) -> dict:
+        """撤回文章 — 从 posts 目录删除 Markdown 文件"""
+        missing = self.validate_config()
+        if missing:
+            return {"success": False, "error": f"缺少配置: {', '.join(missing)}"}
+
+        if not os.path.isdir(self.posts_dir):
+            return {"success": False, "error": f"文章目录不存在: {self.posts_dir}"}
+
+        filepath = None
+
+        # 1. 从发布日志获取文件名
+        if publish_log and publish_log.get("message"):
+            msg = publish_log.get("message", "")
+            if "已写入 " in msg:
+                filename = msg.split("已写入 ")[-1].strip()
+                filepath = os.path.join(self.posts_dir, filename)
+
+        # 2. 按标题模糊匹配
+        if not filepath or not os.path.exists(filepath):
+            slug = self._slugify(article.title)
+            for fname in os.listdir(self.posts_dir):
+                if slug in fname and fname.endswith(".md"):
+                    fp = os.path.join(self.posts_dir, fname)
+                    if os.path.exists(fp):
+                        filepath = fp
+                        break
+
+        if not filepath or not os.path.exists(filepath):
+            return {"success": False, "error": "找不到对应的文章文件，需手动删除"}
+
+        try:
+            os.remove(filepath)
+            return {
+                "success": True,
+                "error": "",
+                "message": f"已删除 {os.path.basename(filepath)}，请执行部署以同步到 GitHub Pages",
+                "filepath": filepath,
+            }
+        except OSError as e:
+            return {"success": False, "error": f"删除失败: {e}"}
 
     def test_connection(self) -> dict:
         """测试文章目录是否可写"""
@@ -152,13 +195,9 @@ tags:
     def _slugify(self, title: str) -> str:
         """将标题转为 URL 友好的 slug"""
         import re
-        # 中文保留，空格和特殊字符转横线
         slug = title.lower().strip()
-        # 替换空格和特殊字符为横线
         slug = re.sub(r'[\s_]+', '-', slug)
-        # 只保留字母数字和中文和横线
         slug = re.sub(r'[^\w\-]', '', slug)
-        # 去掉多余的横线
         slug = re.sub(r'-{2,}', '-', slug)
         slug = slug.strip('-')
         return slug[:80] or "post"

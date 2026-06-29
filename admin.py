@@ -1099,10 +1099,11 @@ def publish():
             publisher = get_publisher(acct["platform"], cfg)
             result = publisher.publish(article)
             conn.execute(
-                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (article_id, aid, acct["platform"],
                  1 if result["success"] else 0,
-                 result.get("url", ""), result.get("error", "")),
+                 result.get("url", ""), result.get("error", ""),
+                 result.get("message", "")),
             )
             results.append(result)
         except Exception as e:
@@ -1152,6 +1153,125 @@ def publish_select(pid):
     return render_template("publish_select.html",
                          post=post, accounts=accounts,
                          published=[dict(p) for p in published])
+
+
+# ─── 撤回 / 重新发布 ──────────────────────────
+@app.route("/publish/retract/<int:log_id>")
+@login_required
+def publish_retract(log_id):
+    """撤回已发布的文章"""
+    conn = get_db()
+    log = conn.execute(
+        "SELECT pl.*, a.title, a.body, a.tags FROM publish_log pl "
+        "LEFT JOIN articles a ON pl.article_id=a.id "
+        "WHERE pl.id=? AND (a.user_id=? OR ?)",
+        (log_id, current_user.id, current_user.is_admin)
+    ).fetchone()
+    if not log:
+        conn.close()
+        flash("发布记录不存在", "error")
+        return redirect(url_for("index"))
+
+    # 获取 publisher 并执行撤回
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=?",
+        (log["account_id"],)
+    ).fetchone()
+    conn.close()
+
+    if not acct:
+        flash("关联账号不存在", "error")
+        return redirect(url_for("index"))
+
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    try:
+        publisher = get_publisher(acct["platform"], cfg)
+        article = Article(
+            title=log["title"] or "",
+            body=log["body"] or "",
+            tags=json.loads(log["tags"]) if log["tags"] else [],
+        )
+        result = publisher.retract(article, {"message": log.get("message", "")})
+
+        if result.get("success"):
+            # 更新发布日志状态
+            conn2 = get_db()
+            conn2.execute(
+                "UPDATE publish_log SET status=?, retracted_at=datetime('now') WHERE id=?",
+                ("retracted", log_id),
+            )
+            conn2.commit()
+            conn2.close()
+            flash(f"✅ 撤回成功: {result.get('message', '')}", "success")
+            # 如果是 GitHub Pages，提醒部署
+            if acct["platform"] == "github_pages_blog":
+                flash("⏳ 请执行「部署」操作将变更同步到 GitHub Pages", "info")
+        else:
+            flash(f"❌ 撤回失败: {result.get('error', '未知错误')}", "error")
+    except Exception as e:
+        flash(f"❌ 撤回异常: {e}", "error")
+
+    return redirect(url_for("publish_manage"))
+
+
+@app.route("/publish/re-publish/<int:log_id>")
+@login_required
+def publish_republish(log_id):
+    """重新发布已撤回的文章"""
+    conn = get_db()
+    log = conn.execute(
+        "SELECT * FROM publish_log WHERE id=?",
+        (log_id,)
+    ).fetchone()
+    if not log:
+        conn.close()
+        flash("发布记录不存在", "error")
+        return redirect(url_for("index"))
+
+    # 重置发布日志状态
+    conn.execute(
+        "UPDATE publish_log SET status='published', retracted_at=NULL, created_at=datetime('now') WHERE id=?",
+        (log_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    flash("✅ 已标记为重新发布，请手动执行发布操作", "success")
+    return redirect(url_for("publish_manage"))
+
+
+# ─── 发布管理 ──────────────────────────────────
+@app.route("/publish/manage")
+@login_required
+def publish_manage():
+    """发布管理页面 — 查看所有发布状态，支持撤回"""
+    conn = get_db()
+
+    # 所有发布记录（含撤回的）
+    logs = conn.execute(
+        "SELECT pl.*, pa.account_name, pa.platform, a.title as article_title "
+        "FROM publish_log pl "
+        "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
+        "LEFT JOIN articles a ON pl.article_id=a.id "
+        "WHERE a.user_id=? OR ? "
+        "ORDER BY pl.created_at DESC LIMIT 50",
+        (current_user.id, current_user.is_admin)
+    ).fetchall()
+
+    # 按文章分组统计
+    articles = conn.execute(
+        "SELECT a.*, "
+        "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL)) as pub_count, "
+        "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.status='retracted') as ret_count "
+        "FROM articles a WHERE a.user_id=? ORDER BY a.updated_at DESC",
+        (current_user.id,)
+    ).fetchall()
+
+    conn.close()
+
+    return render_template("publish_manage.html",
+                         logs=[dict(l) for l in logs],
+                         articles=[dict(a) for a in articles])
 
 # ─── 部署管理 ──────────────────────────────────
 @app.route("/deployers")
