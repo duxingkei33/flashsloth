@@ -128,6 +128,7 @@ function toggleNotion(sel) {
                 <th>标题</th>
                 <th>标签</th>
                 <th>状态</th>
+                <th>已发布到</th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -147,6 +148,21 @@ function toggleNotion(sel) {
                     <span class="badge badge-success">已发布</span>
                     {% else %}
                     <span class="badge badge-warning">草稿</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% set plist = publish_map.get(post.id, []) %}
+                    {% if plist %}
+                    <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                        {% for pl in plist %}
+                        <span class="badge badge-info" style="font-size:11px;"
+                              {% if pl.url %}title="{{ pl.url }}"{% endif %}>
+                            {{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span style="color:#999;font-size:12px;">-</span>
                     {% endif %}
                 </td>
                 <td>
