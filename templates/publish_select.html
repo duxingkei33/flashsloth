@@ -10,17 +10,42 @@
         {% endif %}
     </p>
 
+    {% if published %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px;margin-bottom:16px;">
+        <h4 style="margin:0 0 8px;color:#166534;font-size:14px;">✅ 已发布到以下平台</h4>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            {% for p in published %}
+            <span class="badge badge-success" style="font-size:12px;padding:4px 8px;"
+                  {% if p.url %}title="{{ p.url }}"{% endif %}>
+                {{ p.platform }}{% if p.account_name %}:{{ p.account_name }}{% endif %}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <form method="post" action="/publish">
         <input type="hidden" name="article_id" value="{{ post.id }}">
         <p style="font-weight:600;margin-bottom:8px;">选择发布到哪些平台账号：</p>
         {% if accounts %}
         <div style="display:grid;gap:8px;">
             {% for a in accounts %}
+            {% set already_published = false %}
+            {% for p in published %}
+                {% if p.account_id == a.id %}
+                    {% set already_published = true %}
+                {% endif %}
+            {% endfor %}
             <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;
-                          border:1px solid #ddd;border-radius:6px;cursor:pointer;">
-                <input type="checkbox" name="account_ids" value="{{ a.id }}">
+                          border:1px solid {{ '#bbf7d0' if already_published else '#ddd' }};border-radius:6px;cursor:pointer;
+                          background:{{ '#f0fdf4' if already_published else '#fff' }};">
+                <input type="checkbox" name="account_ids" value="{{ a.id }}"
+                       {% if already_published %}checked disabled{% endif %}>
                 <span class="badge badge-info">{{ a.platform }}</span>
                 <span>{{ a.account_name }}</span>
+                {% if already_published %}
+                <span style="font-size:11px;color:#166534;margin-left:auto;">✅ 已发布</span>
+                {% endif %}
             </label>
             {% endfor %}
         </div>
