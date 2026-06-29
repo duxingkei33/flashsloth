@@ -81,19 +81,51 @@ class DiscuzForumReader:
                 url = f"{self.site_url}/forum.php?mod=forumdisplay&fid={fid}&page={page}&orderby=dateline"
                 r = self.session.get(url, timeout=15)
 
-                # 解析帖子列表
-                # Discuz! 典型结构: <th><a href="forum.php?mod=viewthread&tid=123" ...>标题</a>
+                # 解析帖子列表 — 多种格式兼容
+                # 格式1: viewthread&tid=123 (标准 Discuz!)
                 for m in re.finditer(
-                    r'<a[^>]*href="forum\.php\?mod=viewthread&amp;tid=(\d+)"[^>]*>(.*?)</a>',
+                    r'href="[^"]*viewthread[^"]*tid=(\d+)"[^>]*>(.*?)</a>',
                     r.text, re.DOTALL
                 ):
-                    tid, title = m.group(1), unescape(re.sub(r"<[^>]+>", "", m.group(2))).strip()
-                    if not title or any(t["tid"] == tid for t in threads):
+                    tid = m.group(1)
+                    title = unescape(re.sub(r"<[^>]+>", "", m.group(2))).strip()
+                    if not title or title in ["", "&nbsp;"]:
+                        continue
+                    if any(t["tid"] == tid for t in threads):
+                        continue
+                    title = re.sub(r'<span[^>]*>.*?</span>', '', title).strip()
+                    if not title:
                         continue
                     threads.append({
                         "tid": tid,
                         "title": title,
                         "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
+                        "fid": fid,
+                    })
+
+                # 格式2: thread-123-1-1.html (mydigit.cn 等)
+                for m2 in re.finditer(
+                    r'<span[^>]*class="s xst"[^>]*>(.*?)</span>',
+                    r.text, re.DOTALL
+                ):
+                    title = unescape(m2.group(1)).strip()
+                    if not title or len(title) < 3:
+                        continue
+                    # Look for thread-X URL before this span
+                    start = max(0, m2.start() - 400)
+                    snippet = r.text[start:m2.start()]
+                    tid_m = re.search(r'thread-(\d+)-\d+-\d+\.html', snippet)
+                    if not tid_m:
+                        tid_m = re.search(r'tid=(\d+)', snippet)
+                    if not tid_m:
+                        continue
+                    tid = tid_m.group(1)
+                    if any(t["tid"] == tid for t in threads):
+                        continue
+                    threads.append({
+                        "tid": tid,
+                        "title": title,
+                        "url": f"{self.site_url}/thread-{tid}-1-1.html",
                         "fid": fid,
                     })
 
