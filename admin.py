@@ -243,6 +243,19 @@ def index():
         "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
         (current_user.id,)
     ).fetchall()
+
+    # 每篇文章的发布记录（用于显示已发布到的平台）
+    publish_map = {}
+    for post in posts:
+        pid = post["id"]
+        plogs = conn.execute(
+            "SELECT pl.*, pa.account_name, pa.platform FROM publish_log pl "
+            "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
+            "WHERE pl.article_id=? AND pl.success=1 "
+            "ORDER BY pl.created_at DESC",
+            (pid,),
+        ).fetchall()
+        publish_map[pid] = [dict(l) for l in plogs]
     pconfig = conn.execute(
         "SELECT * FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
         (current_user.id,)
@@ -275,6 +288,7 @@ def index():
                          account_map=account_map,
                          deployers=dep_list,
                          deployer_map=deployer_map,
+                         publish_map=publish_map,
                          provider=pconfig,
                          now=datetime.now())
 
@@ -1229,6 +1243,9 @@ def deployer_run(cid):
         if result.get("success"):
             msg = result.get("message", "部署成功")
             flash(f"✅ {msg}", "success")
+            # GitHub Pages 部署延迟提示
+            if row["deployer_name"] == "github_pages":
+                flash("⏳ GitHub Pages 需要 1-2 分钟刷新，请稍后访问站点确认", "info")
         else:
             flash(f"❌ 部署失败: {result.get('error', '未知错误')}", "error")
     except Exception as e:
