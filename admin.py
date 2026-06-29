@@ -15,6 +15,7 @@ import sqlite3
 
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import get_publisher, list_publishers
+from flashsloth.core.deployer import get_deployer, list_deployers
 from flashsloth.core.config import load_config
 from flashsloth.core.storage import get_storage, list_storages, LocalStorage
 # 导入插件触发注册
@@ -26,6 +27,7 @@ import flashsloth.plugins.publisher_zhihu      # noqa
 import flashsloth.plugins.publisher_csdn       # noqa
 import flashsloth.plugins.publisher_discuz     # noqa
 import flashsloth.plugins.publisher_github_pages  # noqa
+import flashsloth.plugins.deployer_github_pages  # noqa
 import flashsloth.plugins.storage_alist        # noqa
 
 app = Flask(__name__)
@@ -105,6 +107,25 @@ def init_db():
             action TEXT DEFAULT 'register',
             expires_at TEXT,
             used INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS deployer_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            deployer_name TEXT NOT NULL,
+            display_name TEXT,
+            config_json TEXT DEFAULT '{}',
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS deploy_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            config_id INTEGER,
+            deployer_name TEXT NOT NULL,
+            success INTEGER DEFAULT 0,
+            url TEXT,
+            error TEXT,
+            message TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
         );
     """)
     conn.commit()
@@ -236,10 +257,22 @@ def index():
     for a in accounts:
         account_map.setdefault(a["platform"], []).append(dict(a))
 
+    # 部署器信息
+    dep_list = list_deployers()
+    deployer_configs = conn.execute(
+        "SELECT * FROM deployer_configs WHERE user_id=? AND is_active=1",
+        (current_user.id,)
+    ).fetchall()
+    deployer_map = {}
+    for d in deployer_configs:
+        deployer_map.setdefault(d["deployer_name"], []).append(dict(d))
+
     return render_template("index.html",
                          posts=posts, logs=logs,
                          publishers=pub_list,
                          account_map=account_map,
+                         deployers=dep_list,
+                         deployer_map=deployer_map,
                          provider=pconfig,
                          now=datetime.now())
 
@@ -1094,6 +1127,146 @@ def publish_select(pid):
 
     return render_template("publish_select.html",
                          post=post, accounts=accounts)
+
+# ─── 部署管理 ──────────────────────────────────
+@app.route("/deployers")
+@login_required
+def deployers_page():
+    """部署配置管理页"""
+    conn = get_db()
+    configs = conn.execute(
+        "SELECT * FROM deployer_configs WHERE user_id=? ORDER BY created_at DESC",
+        (current_user.id,)
+    ).fetchall()
+    logs = conn.execute(
+        "SELECT * FROM deploy_log ORDER BY created_at DESC LIMIT 20"
+    ).fetchall()
+    conn.close()
+
+    deployer_list = list_deployers()
+    return render_template("deployers.html",
+                         deployers=deployer_list,
+                         configs=configs,
+                         logs=logs)
+
+
+@app.route("/deployers/add", methods=["POST"])
+@login_required
+def deployer_add():
+    """添加部署配置"""
+    deployer_name = request.form.get("deployer_name", "")
+    display_name = request.form.get("display_name", "")
+    if not deployer_name:
+        flash("请选择部署器类型", "error")
+        return redirect(url_for("deployers_page"))
+
+    # 收集配置
+    dl = list_deployers()
+    cfg = {}
+    for d in dl:
+        if d["name"] == deployer_name:
+            display_name = display_name or d["display_name"]
+            for field in d["config_fields"]:
+                val = request.form.get(f"cfg_{field['key']}", "")
+                if val:
+                    cfg[field["key"]] = val
+            break
+
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO deployer_configs (user_id, deployer_name, display_name, config_json) VALUES (?, ?, ?, ?)",
+        (current_user.id, deployer_name, display_name, json.dumps(cfg))
+    )
+    conn.commit()
+    conn.close()
+    flash(f"部署配置「{display_name}」已添加", "success")
+    return redirect(url_for("deployers_page"))
+
+
+@app.route("/deployers/delete/<int:cid>")
+@login_required
+def deployer_delete(cid):
+    """删除部署配置"""
+    conn = get_db()
+    conn.execute("DELETE FROM deployer_configs WHERE id=? AND user_id=?",
+                 (cid, current_user.id))
+    conn.commit()
+    conn.close()
+    flash("部署配置已删除", "success")
+    return redirect(url_for("deployers_page"))
+
+
+@app.route("/deployers/deploy/<int:cid>")
+@login_required
+def deployer_run(cid):
+    """执行部署"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM deployer_configs WHERE id=? AND user_id=?",
+        (cid, current_user.id)
+    ).fetchone()
+    if not row:
+        conn.close()
+        flash("部署配置不存在", "error")
+        return redirect(url_for("deployers_page"))
+
+    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+    try:
+        deployer = get_deployer(row["deployer_name"], cfg)
+        result = deployer.deploy()
+        conn.execute(
+            "INSERT INTO deploy_log (config_id, deployer_name, success, url, error, message) VALUES (?, ?, ?, ?, ?, ?)",
+            (cid, row["deployer_name"],
+             1 if result.get("success") else 0,
+             result.get("url", ""),
+             result.get("error", ""),
+             result.get("message", ""))
+        )
+        conn.commit()
+        conn.close()
+        if result.get("success"):
+            msg = result.get("message", "部署成功")
+            flash(f"✅ {msg}", "success")
+        else:
+            flash(f"❌ 部署失败: {result.get('error', '未知错误')}", "error")
+    except Exception as e:
+        conn.execute(
+            "INSERT INTO deploy_log (config_id, deployer_name, success, error) VALUES (?, ?, 0, ?)",
+            (cid, row["deployer_name"], str(e))
+        )
+        conn.commit()
+        conn.close()
+        flash(f"❌ 部署异常: {e}", "error")
+
+    return redirect(url_for("deployers_page"))
+
+
+@app.route("/deployers/test/<int:cid>")
+@login_required
+def deployer_test(cid):
+    """测试部署配置连接"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM deployer_configs WHERE id=? AND user_id=?",
+        (cid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not row:
+        flash("部署配置不存在", "error")
+        return redirect(url_for("deployers_page"))
+
+    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+    try:
+        deployer = get_deployer(row["deployer_name"], cfg)
+        result = deployer.test_connection()
+        if result.get("success"):
+            flash(f"✅ 连接正常: {result.get('status', '')}", "success")
+        else:
+            flash(f"❌ 连接失败: {result.get('error', '')}", "error")
+    except Exception as e:
+        flash(f"❌ 测试异常: {e}", "error")
+
+    return redirect(url_for("deployers_page"))
 
 # ─── 启动 ───────────────────────────────────────
 if __name__ == "__main__":
