@@ -16,6 +16,7 @@ import sqlite3
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import get_publisher, list_publishers
 from flashsloth.core.config import load_config
+from flashsloth.core.storage import get_storage, list_storages, LocalStorage
 # 导入插件触发注册
 import flashsloth.plugins.publisher_wordpress  # noqa
 import flashsloth.plugins.publisher_wechat     # noqa
@@ -24,6 +25,7 @@ import flashsloth.plugins.publisher_rss        # noqa
 import flashsloth.plugins.publisher_zhihu      # noqa
 import flashsloth.plugins.publisher_csdn       # noqa
 import flashsloth.plugins.publisher_discuz     # noqa
+import flashsloth.plugins.storage_alist        # noqa
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
@@ -827,6 +829,182 @@ def test_account(aid):
         return jsonify({"success": False, "error": "该平台不支持连接测试"})
     except Exception as e:
         return jsonify({"success": False, "error": f"测试异常: {e}"})
+
+
+# ─── 存储管理 ──────────────────────────────────
+STORAGE_DB_TYPE = "storage_config"
+
+
+@app.route("/storage/settings")
+@login_required
+def storage_settings():
+    """存储设置页面"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM provider_config WHERE user_id=? AND provider_type=? ORDER BY id DESC LIMIT 1",
+        (current_user.id, STORAGE_DB_TYPE),
+    ).fetchone()
+    conn.close()
+
+    current_cfg = json.loads(row["config_json"]) if row else {}
+    storages = list_storages()
+    return render_template("storage_settings.html",
+                         storages=storages,
+                         current=current_cfg,
+                         enabled=bool(current_cfg.get("backend")))
+
+
+@app.route("/api/storage/save", methods=["POST"])
+@login_required
+def storage_save():
+    """保存存储配置"""
+    backend = request.json.get("backend", "")
+    config = request.json.get("config", {})
+
+    conn = get_db()
+    existing = conn.execute(
+        "SELECT id FROM provider_config WHERE user_id=? AND provider_type=? ORDER BY id DESC LIMIT 1",
+        (current_user.id, STORAGE_DB_TYPE),
+    ).fetchone()
+
+    payload = json.dumps({"backend": backend, **config})
+    if existing:
+        conn.execute(
+            "UPDATE provider_config SET config_json=?, updated_at=datetime('now') WHERE id=?",
+            (payload, existing["id"]),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO provider_config (user_id, provider_type, config_json) VALUES (?, ?, ?)",
+            (current_user.id, STORAGE_DB_TYPE, payload),
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "存储配置已保存"})
+
+
+@app.route("/api/storage/test", methods=["POST"])
+@login_required
+def storage_test():
+    """测试存储连接"""
+    backend = request.json.get("backend", "local")
+    config = request.json.get("config", {})
+    try:
+        storage = get_storage(backend, config)
+        result = storage.test_connection()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/storage/list", methods=["POST"])
+@login_required
+def storage_list():
+    """列文件目录"""
+    path = request.json.get("path", "/")
+    try:
+        storage = _get_active_storage()
+        if not storage:
+            return jsonify({"success": False, "error": "未配置存储"})
+        items = storage.list(path)
+        return jsonify({"success": True, "items": items, "path": path})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/storage/upload", methods=["POST"])
+@login_required
+def storage_upload():
+    """上传文件到存储"""
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "未选择文件"})
+
+    file = request.files["file"]
+    article_id = request.form.get("article_id", type=int)
+    remote_path = request.form.get("path", "")
+
+    try:
+        storage = _get_active_storage()
+        if not storage:
+            return jsonify({"success": False, "error": "未配置存储"})
+
+        file_data = file.read()
+        filename = file.filename
+
+        if remote_path:
+            # 上传到指定路径
+            result = storage.upload_bytes(file_data, remote_path)
+        elif article_id:
+            # 上传为文章附件
+            result = storage.upload_article_attachment_bytes(file_data, article_id, filename)
+        else:
+            # 按类型自动归类
+            cat = storage.ensure_category_dir("resource")
+            remote = f"/resource/{filename}"
+            result = storage.upload_bytes(file_data, storage.full_path(remote))
+
+        return jsonify({
+            "success": True,
+            "path": result.get("path", ""),
+            "size": result.get("size", 0),
+            "url": storage.get_url(result.get("path", "")),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/storage/mkdir", methods=["POST"])
+@login_required
+def storage_mkdir():
+    """创建目录"""
+    path = request.json.get("path", "")
+    if not path:
+        return jsonify({"success": False, "error": "缺少路径"})
+    try:
+        storage = _get_active_storage()
+        if not storage:
+            return jsonify({"success": False, "error": "未配置存储"})
+        storage.mkdir(storage.full_path(path))
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/storage/delete", methods=["POST"])
+@login_required
+def storage_delete():
+    """删除文件/目录"""
+    path = request.json.get("path", "")
+    if not path:
+        return jsonify({"success": False, "error": "缺少路径"})
+    try:
+        storage = _get_active_storage()
+        if not storage:
+            return jsonify({"success": False, "error": "未配置存储"})
+        storage.delete(storage.full_path(path))
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+def _get_active_storage():
+    """获取当前用户配置的存储后端"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM provider_config WHERE user_id=? AND provider_type=? ORDER BY id DESC LIMIT 1",
+        (current_user.id, STORAGE_DB_TYPE),
+    ).fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+    backend = cfg.pop("backend", "local")
+    try:
+        return get_storage(backend, cfg)
+    except Exception:
+        return None
 
 
 @app.route("/publish", methods=["POST"])
