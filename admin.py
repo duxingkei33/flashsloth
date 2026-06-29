@@ -1135,6 +1135,14 @@ def publish_select(pid):
         "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
         (current_user.id,)
     ).fetchall()
+    # 获取该文章已发布的记录
+    published = conn.execute(
+        "SELECT pl.*, pa.account_name, pa.platform FROM publish_log pl "
+        "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
+        "WHERE pl.article_id=? AND pl.success=1 "
+        "ORDER BY pl.created_at DESC",
+        (pid,),
+    ).fetchall()
     conn.close()
 
     if not post:
@@ -1142,7 +1150,8 @@ def publish_select(pid):
         return redirect(url_for("index"))
 
     return render_template("publish_select.html",
-                         post=post, accounts=accounts)
+                         post=post, accounts=accounts,
+                         published=[dict(p) for p in published])
 
 # ─── 部署管理 ──────────────────────────────────
 @app.route("/deployers")
