@@ -18,6 +18,9 @@ from flashsloth.core.publisher import get_publisher, list_publishers
 from flashsloth.core.deployer import get_deployer, list_deployers
 from flashsloth.core.config import load_config
 from flashsloth.core.storage import get_storage, list_storages, LocalStorage
+from flashsloth.core.captcha_handler import get_handler, CaptchaProvider
+from flashsloth.core.ai_provider import (get_router, list_ai_providers,
+                                          get_ai_provider, AIRequest)
 # 导入插件触发注册
 import flashsloth.plugins.publisher_wordpress  # noqa
 import flashsloth.plugins.publisher_wechat     # noqa
@@ -908,6 +911,523 @@ def discuz_login_with_captcha():
                 break
 
     return jsonify({"success": False, "error": err_text})
+
+
+# ─── 通用验证码处理 API ─────────────────────────
+
+
+@app.route("/api/captcha/status/<int:aid>", methods=["GET"])
+@login_required
+def captcha_check_login(aid):
+    """检查账号是否需要登录（发布前调用）"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    # 检查是否已有有效 cookie
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    cookie = cfg.get("cookie", "")
+    if not cookie:
+        return jsonify({"logged_in": False, "reason": "no_cookie", "needs_login": True})
+
+    # 尝试用SDK adapter检查登录状态
+    try:
+        from sdk.adapter import get_adapter
+        adapter = get_adapter(acct["platform"], cfg)
+        if adapter and hasattr(adapter, "test_connection"):
+            result = adapter.test_connection()
+            if result.get("success"):
+                return jsonify({"logged_in": True, "needs_login": False})
+            return jsonify({
+                "logged_in": False,
+                "reason": "cookie_expired",
+                "needs_login": True,
+                "error": result.get("error", "Cookie 已过期"),
+            })
+    except Exception:
+        pass
+
+    return jsonify({"logged_in": True, "needs_login": False})
+
+
+@app.route("/api/captcha/start/<int:aid>", methods=["POST"])
+@login_required
+def captcha_start_login(aid):
+    """启动登录流程 — 获取验证码并返回 base64 图片"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    site_url = request.json.get("site_url", "") or (
+        json.loads(acct["config_json"]).get("site_url", "") if acct["config_json"] else ""
+    )
+    platform = acct["platform"]
+
+    # 根据平台类型执行不同的验证码获取逻辑
+    import requests as _requests
+
+    try:
+        sess = _requests.Session()
+        sess.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        })
+
+        # 访问登录页
+        login_url = f"{site_url}/member.php?mod=logging&action=login"
+        r = sess.get(login_url, timeout=20)
+
+        formhash = re.search(r'name="formhash"\s+value="([^"]+)"', r.text)
+        form_action = re.search(
+            r'<form[^>]*name="login"[^>]*action="([^"]*)"', r.text
+        )
+        seccode_span = re.search(r'id="seccode_([^"]+)"', r.text)
+
+        if not formhash or not form_action or not seccode_span:
+            # 可能不需要验证码，尝试直接密码登录
+            return jsonify({
+                "success": True,
+                "needs_captcha": False,
+                "message": "该平台不需要验证码，可直接登录",
+            })
+
+        formhash = formhash.group(1)
+        loginhash = re.search(r"loginhash=([a-zA-Z0-9]+)", form_action.group(1))
+        loginhash = loginhash.group(1) if loginhash else ""
+        seccodehash = seccode_span.group(1)
+
+        # 刷新验证码
+        sess.get(
+            f"{site_url}/misc.php?mod=seccode&action=update&idhash={seccodehash}&{int(time.time())}",
+            timeout=15,
+        )
+        time.sleep(0.3)
+        js = sess.get(
+            f"{site_url}/misc.php?mod=seccode&action=update&idhash={seccodehash}&{int(time.time())}",
+            timeout=15,
+        )
+        upd = re.search(r"update=(\d+)", js.text)
+        if not upd:
+            return jsonify({"success": False, "error": "无法获取验证码图片"})
+        upd = upd.group(1)
+
+        # 下载验证码图片
+        img = sess.get(
+            f"{site_url}/misc.php?mod=seccode&update={upd}&idhash={seccodehash}",
+            timeout=15,
+            headers={"Accept": "image/*", "Referer": login_url},
+        )
+        if len(img.content) < 100:
+            return jsonify({"success": False, "error": "验证码图片获取失败"})
+
+        img_b64 = base64.b64encode(img.content).decode()
+
+        # 生成 token 并存 session 信息
+        token = hashlib.md5(f"{current_user.id}_{aid}_{time.time()}".encode()).hexdigest()[:16]
+
+        conn = get_db()
+        sess_data = json.dumps({
+            "cookies": {c.name: c.value for c in sess.cookies},
+            "seccodehash": seccodehash,
+            "loginhash": loginhash,
+            "formhash": formhash,
+            "site_url": site_url,
+            "account_id": aid,
+            "username": json.loads(acct["config_json"]).get("username", "") if acct["config_json"] else "",
+            "password": json.loads(acct["config_json"]).get("password", "") if acct["config_json"] else "",
+        })
+        conn.execute(
+            "INSERT INTO verify_codes (target, code, action) VALUES (?, ?, 'captcha_session')",
+            (f"user_{current_user.id}_{token}", sess_data),
+        )
+        conn.commit()
+        conn.close()
+
+        # 检查是否配置了自动接码
+        captcha_provider = acct["captcha_provider"] if acct["captcha_provider"] else "manual"
+
+        return jsonify({
+            "success": True,
+            "needs_captcha": True,
+            "token": token,
+            "image": f"data:image/png;base64,{img_b64}",
+            "seccodehash": seccodehash,
+            "attempt": 1,
+            "max_attempts": 3,
+            "captcha_provider": captcha_provider,
+            "message": f"请输入验证码（第1次，最多3次）",
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": f"获取验证码异常: {e}"})
+
+
+@app.route("/api/captcha/submit", methods=["POST"])
+@login_required
+def captcha_submit():
+    """提交验证码 — 完成登录或返回新验证码"""
+    token = request.json.get("token", "")
+    captcha_code = request.json.get("captcha", "").strip()
+    if not token or not captcha_code:
+        return jsonify({"success": False, "error": "缺少 token 或验证码"})
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM verify_codes WHERE target=? AND action='captcha_session' AND used=0",
+        (f"user_{current_user.id}_{token}",),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "会话已过期，请重新获取验证码"})
+
+    # 标记使用
+    conn.execute("UPDATE verify_codes SET used=1 WHERE id=?", (row["id"],))
+    conn.commit()
+
+    sess_data = json.loads(row["code"])
+    site_url = sess_data["site_url"]
+    account_id = sess_data.get("account_id", 0)
+    attempt = request.json.get("attempt", 1)
+    max_attempts = request.json.get("max_attempts", 3)
+
+    import requests as _requests
+    session = _requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    })
+    for name, val in sess_data["cookies"].items():
+        session.cookies.set(name, val, domain=site_url.replace("https://", "").replace("http://", ""))
+
+    # 1. 验证验证码
+    check_url = f"{site_url}/misc.php?mod=seccode&action=check&inajax=1"
+    check_resp = session.post(
+        check_url, data={"secverify": captcha_code, "idhash": sess_data["seccodehash"]}, timeout=10
+    )
+    if "succeed" not in check_resp.text:
+        conn.close()
+        # 验证码错误 → 是否需要新验证码？
+        if attempt < max_attempts:
+            return jsonify({
+                "success": True,
+                "logged_in": False,
+                "new_challenge": True,
+                "error": f"验证码错误（第{attempt}次），将获取新验证码",
+                "attempt": attempt,
+                "max_attempts": max_attempts,
+            })
+        return jsonify({
+            "success": False,
+            "error": f"验证码错误，已用尽{max_attempts}次机会",
+            "attempt": attempt,
+            "max_attempts": max_attempts,
+        })
+
+    # 2. 登录
+    username = request.json.get("username") or sess_data.get("username", "")
+    password = request.json.get("password") or sess_data.get("password", "")
+
+    login_url = (
+        f"{site_url}/member.php?mod=logging&action=login"
+        f"&loginsubmit=yes&loginhash={sess_data['loginhash']}"
+    )
+    login_data = {
+        "formhash": sess_data["formhash"],
+        "referer": site_url + "/",
+        "loginfield": "username",
+        "username": username,
+        "password": password,
+        "questionid": "0",
+        "answer": "",
+        "seccodehash": sess_data["seccodehash"],
+        "seccodemodid": "member::logging",
+        "seccodeverify": captcha_code,
+        "cookietime": "2592000",
+    }
+    resp = session.post(login_url, data=login_data, timeout=20, allow_redirects=True)
+
+    # 3. 检查结果
+    auth = [c for c in session.cookies if "auth" in c.name.lower()]
+    if auth:
+        # 登录成功
+        cookie_str = "; ".join([f"{c.name}={c.value}" for c in session.cookies])
+
+        # 更新账号配置中的 cookie
+        if account_id:
+            acct_row = conn.execute(
+                "SELECT config_json FROM platform_accounts WHERE id=?", (account_id,)
+            ).fetchone()
+            if acct_row:
+                cfg = json.loads(acct_row["config_json"]) if acct_row["config_json"] else {}
+                cfg["cookie"] = cookie_str
+                conn.execute(
+                    "UPDATE platform_accounts SET config_json=? WHERE id=?",
+                    (json.dumps(cfg), account_id),
+                )
+                conn.commit()
+
+        conn.close()
+        return jsonify({
+            "success": True,
+            "logged_in": True,
+            "message": "登录成功 ✅",
+            "cookies": cookie_str,
+            "attempt": attempt,
+            "max_attempts": max_attempts,
+        })
+
+    conn.close()
+
+    # 提取错误信息
+    err_text = "登录失败"
+    for p in [
+        r'<div[^>]*class="alert_error"[^>]*>([\s\S]*?)</div>',
+        r'<p[^>]*class="alert_info"[^>]*>(.*?)</p>',
+    ]:
+        m = re.search(p, resp.text, re.DOTALL)
+        if m:
+            t = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+            if t and len(t) < 300:
+                err_text = t
+                break
+
+    # 检查是否又出现验证码（第二次验证码）
+    new_seccode = re.search(r'id="seccode_([^"]+)"', resp.text)
+    if new_seccode and attempt < max_attempts:
+        next_attempt = attempt + 1
+        # 获取新验证码
+        new_hash = new_seccode.group(1)
+        session.get(
+            f"{site_url}/misc.php?mod=seccode&action=update&idhash={new_hash}&{int(time.time())}",
+            timeout=15,
+        )
+        time.sleep(0.3)
+        js = session.get(
+            f"{site_url}/misc.php?mod=seccode&action=update&idhash={new_hash}&{int(time.time())}",
+            timeout=15,
+        )
+        upd = re.search(r"update=(\d+)", js.text)
+        if upd:
+            img = session.get(
+                f"{site_url}/misc.php?mod=seccode&update={upd.group(1)}&idhash={new_hash}",
+                timeout=15,
+                headers={"Accept": "image/*"},
+            )
+            if len(img.content) >= 100:
+                new_img_b64 = base64.b64encode(img.content).decode()
+
+                # 存储新的session
+                new_sess_data = dict(sess_data)
+                new_sess_data["cookies"] = {c.name: c.value for c in session.cookies}
+                new_sess_data["seccodehash"] = new_hash
+                new_token = hashlib.md5(f"{current_user.id}_{account_id}_{time.time()}".encode()).hexdigest()[:16]
+
+                conn = get_db()
+                conn.execute(
+                    "INSERT INTO verify_codes (target, code, action) VALUES (?, ?, 'captcha_session')",
+                    (f"user_{current_user.id}_{new_token}", json.dumps(new_sess_data)),
+                )
+                conn.commit()
+                conn.close()
+
+                return jsonify({
+                    "success": True,
+                    "logged_in": False,
+                    "new_challenge": True,
+                    "token": new_token,
+                    "image": f"data:image/png;base64,{new_img_b64}",
+                    "seccodehash": new_hash,
+                    "error": f"验证码通过，但仍需第二次验证码（第{next_attempt}次）",
+                    "attempt": next_attempt,
+                    "max_attempts": max_attempts,
+                })
+
+    return jsonify({
+        "success": False,
+        "error": err_text,
+        "attempt": attempt,
+        "max_attempts": max_attempts,
+    })
+
+
+@app.route("/api/captcha/provider/<int:aid>", methods=["GET", "POST"])
+@login_required
+def captcha_provider_config(aid):
+    """获取/更新账号的验证码处理配置"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+
+    if not acct:
+        conn.close()
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    if request.method == "GET":
+        return jsonify({
+            "success": True,
+            "provider": acct["captcha_provider"] or "manual",
+            "config": json.loads(acct["captcha_config"]) if acct.get("captcha_config") else {},
+        })
+
+    # POST: 更新
+    data = request.json
+    provider = data.get("provider", "manual")
+    config = data.get("config", {})
+
+    conn.execute(
+        "UPDATE platform_accounts SET captcha_provider=?, captcha_config=? WHERE id=?",
+        (provider, json.dumps(config), aid),
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "验证码配置已更新"})
+
+
+@app.route("/api/captcha/list")
+@login_required
+def captcha_list_available():
+    """列出可用的验证码处理方式"""
+    return jsonify({
+        "success": True,
+        "providers": [
+            {"value": "manual", "label": "手动输入（弹窗）", "description": "在后台弹出验证码图片，手动输入"},
+            {"value": "ttshitu", "label": "图鉴自动识别", "description": "通过 ttshitu.com API 自动识别验证码（需配置密钥）"},
+            {"value": "2captcha", "label": "2captcha", "description": "通过 2captcha.com API 自动识别验证码（需配置密钥）"},
+        ],
+    })
+
+
+# ─── AI 能力配置 API ────────────────────────────
+
+
+@app.route("/api/ai/providers")
+@login_required
+def ai_list_providers():
+    """列出所有AI Provider及其能力"""
+    providers = list_ai_providers()
+    return jsonify({"success": True, "providers": providers})
+
+
+@app.route("/api/ai/config")
+@login_required
+def ai_get_config():
+    """获取AI能力路由配置"""
+    router = get_router()
+    return jsonify({
+        "success": True,
+        "capabilities": {k: v for k, v in router._capability_configs.items()},
+        "providers": router._provider_configs,
+    })
+
+
+@app.route("/api/ai/config", methods=["POST"])
+@login_required
+def ai_update_config():
+    """更新AI能力路由配置"""
+    data = request.json
+    if not data:
+        return jsonify({"success": False, "error": "缺少配置数据"})
+
+    router = get_router()
+    if "capabilities" in data:
+        for cap, cfg in data["capabilities"].items():
+            router.set_capability_config(cap, cfg)
+    if "providers" in data:
+        for provider, cfg in data["providers"].items():
+            router.set_provider_config(provider, cfg)
+    router.save_config()
+
+    return jsonify({"success": True, "message": "AI配置已更新"})
+
+
+@app.route("/api/ai/generate", methods=["POST"])
+@login_required
+def ai_generate():
+    """调用AI生成内容"""
+    data = request.json
+    capability = data.get("capability", "writing")
+    prompt = data.get("prompt", "")
+
+    if not prompt:
+        return jsonify({"success": False, "error": "缺少提示词"})
+
+    router = get_router()
+    result = router.call(
+        capability=capability,
+        prompt=prompt,
+        temperature=data.get("temperature", 0.7),
+        max_tokens=data.get("max_tokens", 4096),
+        model=data.get("model", ""),
+    )
+
+    return jsonify({
+        "success": result.success,
+        "content": result.content,
+        "images": result.images,
+        "audio": result.audio,
+        "model": result.model,
+        "provider": result.provider,
+        "error": result.error,
+    })
+
+
+@app.route("/api/ai/generate/parallel", methods=["POST"])
+@login_required
+def ai_generate_parallel():
+    """并行调用AI（适合批量画图）"""
+    data = request.json
+    capability = data.get("capability", "image_gen")
+    prompts = data.get("prompts", [])
+
+    if not prompts:
+        return jsonify({"success": False, "error": "缺少prompts列表"})
+
+    router = get_router()
+    results = router.call_parallel(capability=capability, prompts=prompts)
+
+    return jsonify({
+        "success": True,
+        "results": [
+            {
+                "success": r.success,
+                "content": r.content,
+                "images": r.images,
+                "audio": r.audio,
+                "provider": r.provider,
+                "model": r.model,
+                "error": r.error,
+            }
+            for r in results
+        ],
+    })
+
+
+@app.route("/ai/settings")
+@login_required
+def ai_settings_page():
+    """AI配置管理页面"""
+    router = get_router()
+    providers = list_ai_providers()
+    config = {
+        "capabilities": router._capability_configs,
+        "providers": router._provider_configs,
+    }
+    return render_template("ai_settings.html",
+                         providers=providers,
+                         config=config)
 
 
 @app.route("/api/accounts/test/<int:aid>", methods=["POST"])

@@ -77,6 +77,7 @@
             <a href="/deployers" style="color:#ffd700;">部署</a>
             <a href="/storage/settings">存储</a>
             <a href="/settings">设置</a>
+            <a href="/ai/settings" style="color:#00d4ff;">🤖 AI</a>
         </div>
         <div>
             <span style="font-size: 13px; opacity: .8;">{{ current_user.username }}</span>
@@ -95,5 +96,241 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </div>
+
+<!-- ═══ 验证码弹窗 ═══ -->
+<div id="captchaModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.5);z-index:9999;justify-content:center;align-items:center;">
+  <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:90%;
+              box-shadow:0 4px 24px rgba(0,0,0,.2);text-align:center;">
+    <h3 id="captchaTitle" style="margin:0 0 8px;color:#1a1a2e;">🔐 请输入验证码</h3>
+    <p id="captchaMsg" style="color:#666;font-size:13px;margin:0 0 16px;"></p>
+    <div id="captchaImageBox" style="margin:12px auto;border:1px solid #ddd;border-radius:6px;
+         padding:8px;display:inline-block;">
+      <img id="captchaImage" src="" style="max-width:200px;display:block;" alt="验证码">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin:12px 0;">
+      <input id="captchaInput" type="text" placeholder="输入验证码"
+             style="width:160px;padding:10px 12px;border:2px solid #4361ee;border-radius:6px;
+                    font-size:16px;text-align:center;letter-spacing:4px;" autocomplete="off">
+    </div>
+    <div id="captchaAttemptInfo" style="font-size:12px;color:#999;margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;justify-content:center;">
+      <button id="captchaSubmitBtn" class="btn btn-primary" style="padding:10px 32px;font-size:15px;"
+              onclick="submitCaptcha()">确认</button>
+      <button class="btn btn-sm" style="background:#ddd;color:#666;padding:10px 16px;"
+              onclick="cancelCaptcha()">取消</button>
+    </div>
+    <div id="captchaError" style="color:#e63946;font-size:13px;margin-top:8px;display:none;"></div>
+  </div>
+</div>
+
+<script>
+// 验证码状态
+var _captchaState = {
+  aid: 0,
+  token: '',
+  attempt: 1,
+  maxAttempts: 3,
+  resolve: null,
+  reject: null,
+  onSuccess: null,  // 登录成功回调
+};
+
+// 打开验证码弹窗
+function openCaptchaModal(aid, options) {
+  options = options || {};
+  _captchaState.aid = aid;
+  _captchaState.onSuccess = options.onSuccess || null;
+
+  document.getElementById('captchaModal').style.display = 'flex';
+  document.getElementById('captchaError').style.display = 'none';
+  document.getElementById('captchaError').textContent = '';
+  document.getElementById('captchaInput').value = '';
+  document.getElementById('captchaInput').focus();
+
+  // 获取验证码
+  fetchCaptcha(aid);
+}
+
+// 获取验证码
+function fetchCaptcha(aid) {
+  var msgEl = document.getElementById('captchaMsg');
+  msgEl.textContent = '正在获取验证码...';
+  document.getElementById('captchaSubmitBtn').disabled = true;
+
+  fetch('/api/captcha/start/' + aid, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({}),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.success) {
+      showCaptchaError(data.error || '获取验证码失败');
+      return;
+    }
+    if (!data.needs_captcha) {
+      msgEl.textContent = '无需验证码，尝试自动登录...';
+      // 尝试直接登录
+      directLogin(aid);
+      return;
+    }
+    _captchaState.token = data.token;
+    _captchaState.attempt = data.attempt || 1;
+    _captchaState.maxAttempts = data.max_attempts || 3;
+    document.getElementById('captchaImage').src = data.image;
+    document.getElementById('captchaTitle').textContent = '🔐 请输入验证码';
+    msgEl.textContent = data.message || '请输入图中的验证码';
+    document.getElementById('captchaAttemptInfo').textContent =
+      '第 ' + _captchaState.attempt + ' 次，共 ' + _captchaState.maxAttempts + ' 次';
+    document.getElementById('captchaSubmitBtn').disabled = false;
+    document.getElementById('captchaInput').focus();
+  })
+  .catch(function(err) {
+    showCaptchaError('请求失败: ' + err.message);
+  });
+}
+
+// 提交验证码
+function submitCaptcha() {
+  var code = document.getElementById('captchaInput').value.trim();
+  if (!code) {
+    showCaptchaError('请输入验证码');
+    return;
+  }
+
+  document.getElementById('captchaSubmitBtn').disabled = true;
+  document.getElementById('captchaError').style.display = 'none';
+  document.getElementById('captchaMsg').textContent = '正在验证...';
+
+  fetch('/api/captcha/submit', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      token: _captchaState.token,
+      captcha: code,
+      attempt: _captchaState.attempt,
+      max_attempts: _captchaState.maxAttempts,
+    }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.success) {
+      showCaptchaError(data.error || '登录失败');
+      document.getElementById('captchaSubmitBtn').disabled = false;
+      return;
+    }
+    if (data.logged_in) {
+      // ✅ 登录成功
+      document.getElementById('captchaTitle').textContent = '✅ 登录成功';
+      document.getElementById('captchaMsg').textContent = data.message || '登录成功！';
+      document.getElementById('captchaImageBox').style.display = 'none';
+      document.getElementById('captchaInput').style.display = 'none';
+      document.getElementById('captchaSubmitBtn').style.display = 'none';
+      document.getElementById('captchaAttemptInfo').textContent = '';
+
+      // 调用成功回调
+      setTimeout(function() {
+        closeCaptchaModal();
+        if (_captchaState.onSuccess) {
+          _captchaState.onSuccess(data);
+        }
+      }, 800);
+      return;
+    }
+    if (data.new_challenge) {
+      // 需要新验证码（第2次/第3次）
+      _captchaState.token = data.token || '';
+      _captchaState.attempt = data.attempt || (_captchaState.attempt + 1);
+      _captchaState.maxAttempts = data.max_attempts || 3;
+
+      document.getElementById('captchaImage').src = data.image || document.getElementById('captchaImage').src;
+      document.getElementById('captchaTitle').textContent = '🔄 请输入新验证码';
+      document.getElementById('captchaMsg').textContent = data.error || '需要再次输入验证码';
+      document.getElementById('captchaAttemptInfo').textContent =
+        '第 ' + _captchaState.attempt + ' 次，共 ' + _captchaState.maxAttempts + ' 次';
+      document.getElementById('captchaInput').value = '';
+      document.getElementById('captchaSubmitBtn').disabled = false;
+      document.getElementById('captchaInput').focus();
+      return;
+    }
+    // 未知状态
+    showCaptchaError(data.error || '登录失败');
+    document.getElementById('captchaSubmitBtn').disabled = false;
+  })
+  .catch(function(err) {
+    showCaptchaError('请求异常: ' + err.message);
+    document.getElementById('captchaSubmitBtn').disabled = false;
+  });
+}
+
+// 无需验证码直接登录
+function directLogin(aid) {
+  fetch('/api/accounts/test/' + aid, {
+    method: 'POST',
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      document.getElementById('captchaTitle').textContent = '✅ 已登录';
+      document.getElementById('captchaMsg').textContent = '登录状态正常';
+      setTimeout(function() {
+        closeCaptchaModal();
+        if (_captchaState.onSuccess) {
+          _captchaState.onSuccess(data);
+        }
+      }, 500);
+    } else {
+      showCaptchaError(data.error || '登录状态异常');
+      document.getElementById('captchaSubmitBtn').disabled = false;
+    }
+  })
+  .catch(function(err) {
+    showCaptchaError('检查登录状态失败');
+    document.getElementById('captchaSubmitBtn').disabled = false;
+  });
+}
+
+// 发布前检查登录 + 弹验证码
+function checkLoginAndPublish(aid, publishCallback) {
+  // 先检查登录状态
+  fetch('/api/captcha/status/' + aid)
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.needs_login) {
+      // 需要登录 → 弹验证码
+      openCaptchaModal(aid, {
+        onSuccess: function(loginData) {
+          // 登录成功后继续发布
+          if (publishCallback) publishCallback(loginData);
+        },
+      });
+    } else {
+      // 已登录，直接发布
+      if (publishCallback) publishCallback({logged_in: true});
+    }
+  })
+  .catch(function(err) {
+    if (publishCallback) publishCallback({error: err.message, logged_in: false});
+  });
+}
+
+function showCaptchaError(msg) {
+  var el = document.getElementById('captchaError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function closeCaptchaModal() {
+  document.getElementById('captchaModal').style.display = 'none';
+}
+
+function cancelCaptcha() {
+  closeCaptchaModal();
+  if (_captchaState.reject) {
+    _captchaState.reject(new Error('用户取消'));
+  }
+}
+</script>
 </body>
 </html>
