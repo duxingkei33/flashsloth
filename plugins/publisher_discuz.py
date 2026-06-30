@@ -8,7 +8,10 @@ Discuz! Publisher — 发帖 + 密码/验证码登录 + Cookie 方式
 import re, json, time, random
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
-from flashsloth.plugins.browser_session import HumanSession
+try:
+    from flashsloth.plugins.browser_session import HumanSession
+except ImportError:
+    from plugins.browser_session import HumanSession
 
 
 @register
@@ -253,6 +256,41 @@ class DiscuzPublisher(Publisher):
                     fields[m.group(1)] = m.group(2)
         return fields
 
+    def _md_to_html(self, md_text: str) -> str:
+        """简单的 Markdown 到 HTML 转换（无需安装 markdown 包）"""
+        import html as html_mod
+        text = html_mod.escape(md_text)
+        # 代码块
+        text = re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', text, flags=re.DOTALL)
+        # 行内代码
+        text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+        # 粗体
+        text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+        text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', text)
+        # 斜体
+        text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
+        text = re.sub(r'_(.*?)_', r'<em>\1</em>', text)
+        # 图片
+        text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1">', text)
+        # 链接
+        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+        # 标题
+        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+        text = re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=re.MULTILINE)
+        text = re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
+        # 列表
+        text = re.sub(r'^- (.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
+        text = re.sub(r'^\* (.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
+        # 段落
+        parts = []
+        for para in text.split('\n\n'):
+            para = para.strip()
+            if para and not para.startswith('<'):
+                para = f'<p>{para}</p>'
+            if para:
+                parts.append(para)
+        return '\n'.join(parts)
+
     def _get_thread_categories(self, fid: str) -> list[dict]:
         """获取板块的主题分类（typeid）"""
         try:
@@ -311,12 +349,13 @@ class DiscuzPublisher(Publisher):
             typeid = categories[0]["id"]
 
         # 第3步：组装表单数据
+        body_html = self._md_to_html(article.body) if article.body else ""
         data = {
             "formhash": formhash,
             "posttime": form_fields.get("posttime", ""),
             "wysiwyg": "0",
             "subject": article.title,
-            "message": article.to_html(),
+            "message": body_html,
             "typeid": typeid or form_fields.get("typeid", ""),
             "readperm": form_fields.get("readperm", ""),
             "price": form_fields.get("price", "0"),
