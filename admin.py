@@ -1341,13 +1341,27 @@ def publish_manage():
     ).fetchall()
 
     # 按文章分组统计
-    articles = conn.execute(
+    articles_raw = conn.execute(
         "SELECT a.*, "
         "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL)) as pub_count, "
         "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.status='retracted') as ret_count "
         "FROM articles a WHERE a.user_id=? ORDER BY a.updated_at DESC",
         (current_user.id,)
     ).fetchall()
+
+    # 给每篇文章附上已发布的 URL 列表
+    articles = []
+    for a in articles_raw:
+        a = dict(a)
+        pub_urls = conn.execute(
+            "SELECT platform, url, account_name, deploy_status FROM publish_log pl "
+            "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
+            "WHERE pl.article_id=? AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL) "
+            "ORDER BY pl.created_at DESC",
+            (a['id'],)
+        ).fetchall()
+        a['published_urls'] = [dict(u) for u in pub_urls]
+        articles.append(a)
 
     conn.close()
 

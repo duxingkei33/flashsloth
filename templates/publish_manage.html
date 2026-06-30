@@ -18,6 +18,7 @@
                 <th>状态</th>
                 <th>已发布</th>
                 <th>已撤回</th>
+                <th>链接</th>
             </tr>
         </thead>
         <tbody>
@@ -37,6 +38,25 @@
                     <span class="badge badge-warning">{{ a.ret_count }} 次撤回</span>
                     {% else %}
                     <span style="color:#999;">-</span>
+                    {% endif %}
+                </td>
+                <td style="max-width:300px;">
+                    {% if a.published_urls %}
+                    {% for pu in a.published_urls %}
+                    <div style="font-size:12px;margin:2px 0;">
+                        <span class="badge badge-info" style="font-size:10px;">{{ pu.platform }}</span>
+                        {% if pu.url %}
+                        <a href="{{ pu.url }}" target="_blank" style="color:#4361ee;text-decoration:none;" title="{{ pu.url }}">
+                            🔗 {{ pu.url.split('/')[-1][:30] if pu.url.split('/')|length > 4 else '查看' }}
+                        </a>
+                        {% if pu.deploy_status == 'deployed' %}
+                        <span style="color:#16a34a;font-size:10px;">✅</span>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <span style="color:#999;font-size:12px;">-</span>
                     {% endif %}
                 </td>
             </tr>
