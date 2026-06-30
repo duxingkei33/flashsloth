@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}签到管理 - FlashSloth{% endblock %}
+{% block content %}
+
+<h1 style="margin-bottom: 20px; font-size: 1.4em;">📅 签到管理</h1>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="num">{{ today_count }}</div>
+        <div class="label">今日签到</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ logs|length }}</div>
+        <div class="label">最近记录</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ accounts|length }}</div>
+        <div class="label">可用账号</div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2>签到状态</h2>
+        <form method="post" action="/api/signin/run" id="signin-form" style="display:inline;">
+            <button type="submit" class="btn btn-success" onclick="this.disabled=true;this.innerHTML='⏳ 签到中...'">
+                🔄 立即签到所有
+            </button>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>账号</th>
+                <th>平台</th>
+                <th>站点</th>
+                <th>状态</th>
+                <th>上次签到</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in accounts %}
+            {% set cfg = a.config_json|from_json %}
+            {% set site = cfg.get('site_url', a.platform)|replace('https://','')|replace('http://','') %}
+            <tr>
+                <td><strong>{{ a.account_name }}</strong></td>
+                <td><span class="badge badge-info">{{ a.platform }}</span></td>
+                <td style="font-size:12px;color:#666;">{{ site }}</td>
+                <td>
+                    {% set last = logs|selectattr('account_id', 'equalto', a.id)|first %}
+                    {% if last and last.success %}
+                        <span class="badge badge-success">✅</span>
+                    {% else %}
+                        <span class="badge badge-secondary">⏸️</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:12px;color:#888;">
+                    {% if last %}{{ last.created_at }}{% else %}从未{% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;color:#999;">暂无账号配置</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>最近签到记录</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>账号</th>
+                <th>平台</th>
+                <th>状态</th>
+                <th>信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in logs %}
+            <tr>
+                <td style="font-size:12px;color:#888;">{{ l.created_at }}</td>
+                <td>{{ l.account_name }}</td>
+                <td><span class="badge badge-info">{{ l.platform }}</span></td>
+                <td>
+                    {% if l.success and l.already_signed %}
+                        <span class="badge badge-warning">已签到</span>
+                    {% elif l.success %}
+                        <span class="badge badge-success">成功</span>
+                    {% else %}
+                        <span class="badge badge-danger">失败</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:12px;max-width:300px;word-break:break-all;">
+                    {{ l.message or l.error or '-' }}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;color:#999;">暂无记录</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
