@@ -1819,10 +1819,11 @@ def publish_retract(log_id):
         result = publisher.retract(article, log_dict)
 
         if result.get("success"):
-            # 更新发布日志状态
+            # 更新发布日志状态（含部署状态）
+            deploy_update = ", deploy_status='retracted'" if acct["platform"] in ("github_pages_blog",) else ""
             conn2 = get_db()
             conn2.execute(
-                "UPDATE publish_log SET status=?, retracted_at=datetime('now') WHERE id=?",
+                f"UPDATE publish_log SET status=?, retracted_at=datetime('now'){deploy_update} WHERE id=?",
                 ("retracted", log_id),
             )
             conn2.commit()
@@ -1830,7 +1831,7 @@ def publish_retract(log_id):
             flash(f"✅ 撤回成功: {result.get('message', '')}", "success")
             # 如果是 GitHub Pages，提醒部署
             if acct["platform"] == "github_pages_blog":
-                flash("⏳ 请执行「部署」操作将变更同步到 GitHub Pages", "info")
+                flash("⏳ 请执行「部署」操作将变更同步到 GitHub Pages（文章已删除，部署后线上生效）", "info")
         else:
             flash(f"❌ 撤回失败: {result.get('error', '未知错误')}", "error")
     except Exception as e:
