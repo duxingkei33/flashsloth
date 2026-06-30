@@ -1826,6 +1826,12 @@ def publish_retract(log_id):
                 f"UPDATE publish_log SET status=?, retracted_at=datetime('now'){deploy_update} WHERE id=?",
                 ("retracted", log_id),
             )
+            # 同步更新文章状态为 draft
+            if log.get("article_id"):
+                conn2.execute(
+                    "UPDATE articles SET status='draft', updated_at=datetime('now') WHERE id=?",
+                    (log["article_id"],),
+                )
             conn2.commit()
             conn2.close()
             flash(f"✅ 撤回成功: {result.get('message', '')}", "success")
