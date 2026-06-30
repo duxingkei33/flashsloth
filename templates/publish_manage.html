@@ -4,8 +4,50 @@
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h2 style="margin:0;">📡 发布管理</h2>
-    <a href="/" class="btn btn-sm btn-primary">← 返回仪表盘</a>
+    <div style="display:flex;gap:8px;">
+        <button id="refreshPendingBtn" class="btn btn-sm btn-info" onclick="checkPending()">🔄 刷新状态</button>
+        <a href="/" class="btn btn-sm btn-primary">← 返回仪表盘</a>
+    </div>
 </div>
+
+<script>
+async function checkPending() {
+    const btn = document.getElementById('refreshPendingBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 检查中...';
+    try {
+        const res = await fetch('/api/publish/check-pending');
+        const data = await res.json();
+        let msg = '';
+        if (data.ok) {
+            if (data.checked === 0) {
+                msg = '没有待审核的帖子';
+            } else {
+                msg = `检查了 ${data.checked} 个帖子`;
+                if (data.updated > 0) {
+                    msg += `，✅ ${data.updated} 个已更新为「已发布」`;
+                } else {
+                    msg += '，状态不变，仍在审核中';
+                }
+                // 如果有明细，显示警告信息
+                const errors = data.details.filter(d => d.error && !d.updated);
+                if (errors.length > 0) {
+                    console.warn('检查明细:', data.details);
+                }
+            }
+        } else {
+            msg = '检查失败';
+        }
+        alert(msg);
+        location.reload();  // 刷新页面展示最新状态
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 刷新状态';
+    }
+}
+</script>
 
 <!-- 文章发布统计 -->
 <div class="card">
