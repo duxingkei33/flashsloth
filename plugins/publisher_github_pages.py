@@ -109,6 +109,7 @@ class GitHubPagesBlogPublisher(Publisher):
         md_content = f"""---
 title: {article.title}
 date: {date_str}
+slug: {slug}
 summary: {article.summary or ''}
 tags:
 {tags_yaml}
