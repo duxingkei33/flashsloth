@@ -99,6 +99,25 @@ class AIProvider(ABC):
 
 
 # ═══════════════════════════════════════════════
+# 注册中心
+# ═══════════════════════════════════════════════
+
+_registry: dict[str, type[AIProvider]] = {}
+# 能力 → [provider列表] （按权重排序）
+_capability_map: dict[str, list[str]] = {}
+
+
+def register_ai_provider(cls):
+    """装饰器：注册AI Provider"""
+    _registry[cls.name] = cls
+    for cap in cls.capabilities:
+        if cap not in _capability_map:
+            _capability_map[cap] = []
+        _capability_map[cap].append(cls.name)
+    return cls
+
+
+# ═══════════════════════════════════════════════
 # Provider 实现示例
 # ═══════════════════════════════════════════════
 
@@ -237,25 +256,6 @@ class DeepSeekProvider(AIProvider):
             content = data["choices"][0]["message"]["content"]
             return AIResponse(content=content, provider="deepseek", model=request.model or "deepseek-chat")
         return AIResponse(success=False, error=str(data), provider="deepseek")
-
-
-# ═══════════════════════════════════════════════
-# 注册中心
-# ═══════════════════════════════════════════════
-
-_registry: dict[str, type[AIProvider]] = {}
-# 能力 → [provider列表] （按权重排序）
-_capability_map: dict[str, list[str]] = {}
-
-
-def register_ai_provider(cls):
-    """装饰器：注册AI Provider"""
-    _registry[cls.name] = cls
-    for cap in cls.capabilities:
-        if cap not in _capability_map:
-            _capability_map[cap] = []
-        _capability_map[cap].append(cls.name)
-    return cls
 
 
 def get_ai_provider(name: str, config: Optional[dict] = None) -> Optional[AIProvider]:
