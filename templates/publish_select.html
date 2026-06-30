@@ -15,10 +15,17 @@
         <h4 style="margin:0 0 8px;color:#166534;font-size:14px;">✅ 已发布到以下平台</h4>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
             {% for p in published %}
+            {% if p.url %}
+            <a href="{{ p.url }}" target="_blank" style="text-decoration:none;">
+            {% endif %}
             <span class="badge badge-success" style="font-size:12px;padding:4px 8px;"
-                  {% if p.url %}title="{{ p.url }}"{% endif %}>
+                  title="{{ p.url or p.platform }}">
                 {{ p.platform }}{% if p.account_name %}:{{ p.account_name }}{% endif %}
+                {% if p.url %}🔗{% endif %}
             </span>
+            {% if p.url %}
+            </a>
+            {% endif %}
             {% endfor %}
         </div>
     </div>
