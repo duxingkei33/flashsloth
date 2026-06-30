@@ -76,7 +76,7 @@
             </div>
             {% endfor %}
         </div>
-        <button type="submit" class="btn btn-success" style="margin-top:16px;width:100%;padding:12px;">
+        <button type="submit" class="btn btn-success" style="margin-top:16px;width:100%;padding:12px;" id="publishBtn">
             📤 发布到所选平台
         </button>
         {% else %}
@@ -123,5 +123,45 @@ function toggleForumSelect(checkbox, forumDivId) {
         div.style.display = checkbox.checked ? 'block' : 'none';
     }
 }
+
+// 发布前检查登录状态，需要验证码的先弹窗
+document.getElementById('publishBtn').addEventListener('click', function(e) {
+    var checked = document.querySelectorAll('input[name="account_ids"]:checked:not(:disabled)');
+    var discuzAccounts = [];
+    checked.forEach(function(cb) {
+        // 查找对应的平台名（在前面的label里）
+        var label = cb.closest('label');
+        if (label) {
+            var badge = label.querySelector('.badge-info');
+            if (badge && (badge.textContent.indexOf('amobbs') >= 0 ||
+                          badge.textContent.indexOf('discuz') >= 0 ||
+                          badge.textContent.indexOf('mydigit') >= 0)) {
+                discuzAccounts.push(parseInt(cb.value));
+            }
+        }
+    });
+
+    if (discuzAccounts.length === 0) {
+        return; // 没有需要检查登录的账号，正常提交
+    }
+
+    // 检查第一个 discuz 类账号的登录状态
+    e.preventDefault();
+    var btn = document.getElementById('publishBtn');
+    btn.textContent = '⏳ 检查登录状态...';
+    btn.disabled = true;
+
+    var checked = discuzAccounts[0];
+    checkLoginAndPublish(checked, function(loginData) {
+        btn.textContent = '📤 发布到所选平台';
+        btn.disabled = false;
+        if (loginData.logged_in) {
+            // 登录成功，提交表单
+            document.querySelector('form').submit();
+        } else if (loginData.error) {
+            alert('发布失败：' + loginData.error);
+        }
+    });
+});
 </script>
 {% endblock %}
