@@ -2,7 +2,7 @@
 FlashSloth Admin — 商用级多平台内容发布后台
 功能：注册/登录/验证码/改密 / Provider选择 / Publisher多账号 / 一键发布
 """
-import os, sys, json, random, string, hashlib, hmac, time, base64, re
+import os, sys, json, random, string, hashlib, hmac, time, base64, re, io, shutil, zipfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import (Flask, render_template, request, redirect, url_for,
@@ -1832,12 +1832,68 @@ def publish_retract(log_id):
                     "UPDATE articles SET status='draft', updated_at=datetime('now') WHERE id=?",
                     (log["article_id"],),
                 )
-            conn2.commit()
             conn2.close()
             flash(f"✅ 撤回成功: {result.get('message', '')}", "success")
-            # 如果是 GitHub Pages，提醒部署
+            # 如果是 GitHub Pages，自动部署（hugo rebuild + git push）
             if acct["platform"] == "github_pages_blog":
-                flash("⏳ 请执行「部署」操作将变更同步到 GitHub Pages（文章已删除，部署后线上生效）", "info")
+                try:
+                    blog_dir = os.path.dirname(os.path.dirname(cfg.get("posts_dir", "")))
+                    if blog_dir and os.path.isdir(blog_dir):
+                        # 1. Hugo rebuild
+                        import subprocess
+                        hugo_bin = "/opt/data/bin/hugo"
+                        if os.path.isfile(hugo_bin):
+                            hugo_result = subprocess.run(
+                                [hugo_bin], cwd=blog_dir,
+                                capture_output=True, text=True, timeout=60
+                            )
+                            if hugo_result.returncode != 0:
+                                flash(f"⚠️ Hugo构建失败: {hugo_result.stderr[:200]}", "warning")
+                        # 2. Git commit + push (用deployer配置的repo_dir)
+                        deploy_row = conn2.execute(
+                            "SELECT config_json FROM deployer_configs WHERE deployer_name='github_pages' LIMIT 1"
+                        ).fetchone()
+                        if deploy_row:
+                            dep_cfg = json.loads(deploy_row["config_json"])
+                            repo_dir = dep_cfg.get("repo_dir", "")
+                            token = dep_cfg.get("github_token", "")
+                            username = dep_cfg.get("github_username", "")
+                            if repo_dir and token and os.path.isdir(repo_dir):
+                                auth_url = f"https://{username}:{token}@github.com/{username}/{username}.github.io.git"
+                                cmds = [
+                                    ["git", "-C", repo_dir, "add", "-A"],
+                                ]
+                                for cmd in cmds:
+                                    subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                                ts = __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')
+                                subprocess.run(
+                                    ["git", "-C", repo_dir, "commit", "-m", f"retract: auto-sync @ {ts}"],
+                                    capture_output=True, text=True, timeout=30
+                                )
+                                # 先保存原remote，临时换带token的
+                                old_remote = subprocess.run(
+                                    ["git", "-C", repo_dir, "remote", "get-url", "origin"],
+                                    capture_output=True, text=True, timeout=10
+                                ).stdout.strip()
+                                subprocess.run(
+                                    ["git", "-C", repo_dir, "remote", "set-url", "origin", auth_url],
+                                    capture_output=True, text=True, timeout=10
+                                )
+                                push_result = subprocess.run(
+                                    ["git", "-C", repo_dir, "push", "origin", dep_cfg.get("branch", "main")],
+                                    capture_output=True, text=True, timeout=30
+                                )
+                                # 恢复remote
+                                subprocess.run(
+                                    ["git", "-C", repo_dir, "remote", "set-url", "origin", old_remote],
+                                    capture_output=True, text=True, timeout=10
+                                )
+                                if push_result.returncode == 0:
+                                    flash("✅ 撤回内容已自动部署到 GitHub Pages，1-2分钟生效", "success")
+                                else:
+                                    flash(f"⚠️ 推送失败: {push_result.stderr[:200]}", "warning")
+                except Exception as e:
+                    flash(f"⚠️ 自动部署异常: {e}", "warning")
         else:
             flash(f"❌ 撤回失败: {result.get('error', '未知错误')}", "error")
     except Exception as e:
@@ -2460,6 +2516,110 @@ def api_signin_run():
     output = buf.getvalue()
 
     return jsonify({"success": True, "output": output})
+
+
+# ─── 数据导出导入 ──────────────────────────────────
+@app.route("/api/export")
+@login_required
+def api_export():
+    """导出全部数据为 zip 包"""
+    import tempfile
+    base = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(base, "flashsloth.db")
+    uploads_dir = os.path.join(base, "static", "uploads")
+    config_path = os.path.join(base, "flashsloth.yml")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if os.path.exists(db_path):
+            zf.write(db_path, "flashsloth.db")
+        if os.path.exists(uploads_dir):
+            for root, dirs, files in os.walk(uploads_dir):
+                for fn in files:
+                    fpath = os.path.join(root, fn)
+                    arcname = os.path.relpath(fpath, base)
+                    zf.write(fpath, arcname)
+        if os.path.exists(config_path):
+            zf.write(config_path, "flashsloth.yml")
+        info = {
+            "exported_at": datetime.now().isoformat(),
+            "version": "1.0",
+        }
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path)
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+            info["tables"] = [r[0] for r in rows]
+            conn.close()
+        zf.writestr("manifest.json", json.dumps(info, ensure_ascii=False, indent=2))
+
+    buf.seek(0)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    resp = make_response(buf.getvalue())
+    resp.headers["Content-Type"] = "application/zip"
+    resp.headers["Content-Disposition"] = f'attachment; filename="flashsloth_backup_{ts}.zip"'
+    return resp
+
+
+@app.route("/api/import", methods=["POST"])
+@login_required
+def api_import():
+    """导入 zip 备份包恢复数据"""
+    import tempfile
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "未选择文件"}), 400
+    f = request.files["file"]
+    if not f.filename.endswith(".zip"):
+        return jsonify({"success": False, "error": "仅支持 .zip 文件"}), 400
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(base, "flashsloth.db")
+    uploads_dir = os.path.join(base, "static", "uploads")
+
+    tmpdir = tempfile.mkdtemp(prefix="fs_import_")
+    try:
+        f.save(os.path.join(tmpdir, "import.zip"))
+        with zipfile.ZipFile(os.path.join(tmpdir, "import.zip"), "r") as zf:
+            zf.extractall(tmpdir)
+        manifest_path = os.path.join(tmpdir, "manifest.json")
+        if not os.path.exists(manifest_path):
+            return jsonify({"success": False, "error": "无效备份包: 缺少 manifest.json"}), 400
+        with open(manifest_path) as mf:
+            manifest = json.load(mf)
+
+        # 自动备份当前数据
+        bak_dir = os.path.join(base, "static", "backups")
+        os.makedirs(bak_dir, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        bak_path = os.path.join(bak_dir, f"pre_import_backup_{ts}")
+        os.makedirs(bak_path)
+        if os.path.exists(db_path):
+            shutil.copy2(db_path, os.path.join(bak_path, "flashsloth.db"))
+        if os.path.exists(uploads_dir):
+            shutil.copytree(uploads_dir, os.path.join(bak_path, "uploads"),
+                            dirs_exist_ok=True)
+
+        # 恢复
+        import_db = os.path.join(tmpdir, "flashsloth.db")
+        if os.path.exists(import_db):
+            shutil.copy2(import_db, db_path)
+        import_uploads = os.path.join(tmpdir, "static", "uploads")
+        if os.path.exists(import_uploads):
+            shutil.copytree(import_uploads, uploads_dir, dirs_exist_ok=True)
+        import_config = os.path.join(tmpdir, "flashsloth.yml")
+        if os.path.exists(import_config):
+            shutil.copy2(import_config, os.path.join(base, "flashsloth.yml"))
+
+        return jsonify({
+            "success": True,
+            "message": f"导入成功！原数据已备份到 static/backups/pre_import_backup_{ts}/",
+            "tables": manifest.get("tables", []),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": f"导入失败: {e}"}), 500
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # ─── 启动 ───────────────────────────────────────
