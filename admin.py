@@ -1750,6 +1750,59 @@ def api_forum_clear_old():
     return jsonify({"success": True, "deleted": deleted})
 
 
+# ─── 签到管理 ──────────────────────────────────
+@app.route("/signin")
+@login_required
+def signin_page():
+    """签到页面 — 查看状态 + 手动签到"""
+    conn = get_db()
+
+    # 所有活跃账号
+    accounts = conn.execute(
+        "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY platform, account_name"
+    ).fetchall()
+
+    # 最近签到记录
+    logs = conn.execute(
+        "SELECT * FROM signin_log ORDER BY created_at DESC LIMIT 30"
+    ).fetchall()
+
+    # 统计
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_count = conn.execute(
+        "SELECT COUNT(*) FROM signin_log WHERE date(created_at)=? AND success=1",
+        (today,)
+    ).fetchone()[0]
+
+    conn.close()
+
+    return render_template("signin.html",
+                         accounts=[dict(a) for a in accounts],
+                         logs=[dict(l) for l in logs],
+                         today_count=today_count)
+
+
+@app.route("/api/signin/run", methods=["POST"])
+@login_required
+def api_signin_run():
+    """手动执行签到"""
+    account_id = request.form.get("account_id", type=int)
+
+    # 动态加载 orchestrator
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from plugins.forum_signin import main as run_signin_main
+
+    # 捕获输出
+    import io
+    from contextlib import redirect_stdout
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        run_signin_main()
+    output = buf.getvalue()
+
+    return jsonify({"success": True, "output": output})
+
+
 # ─── 启动 ───────────────────────────────────────
 if __name__ == "__main__":
     init_db()
