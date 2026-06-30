@@ -220,13 +220,28 @@ tags:
             }
 
     def _slugify(self, title: str) -> str:
-        """使用 pymdownx slugify 生成与 MkDocs Material 一致的 slug"""
+        """生成英文 URL slug
+
+        使用 pymdownx slugify 生成与 MkDocs Material 一致的 slug。
+        中文标题自动转拼音，确保 URL 国际化友好。
+        """
         global _slugger
+
+        # 中文转拼音
+        raw = title
+        try:
+            import pypinyin
+            # 检查是否包含中文字符
+            if any('\u4e00' <= c <= '\u9fff' for c in title):
+                raw = ''.join(pypinyin.lazy_pinyin(title, style=pypinyin.Style.NORMAL))
+        except ImportError:
+            pass  # 没有 pypinyin 则用原始标题
+
         if _slugger is not None:
-            return _slugger(title, "-")
+            return _slugger(raw, "-")
         # fallback：降级算法
         import re
-        slug = title.lower().strip()
+        slug = raw.lower().strip()
         slug = re.sub(r'[\s_]+', '-', slug)
         slug = re.sub(r'[^\w\-]', '', slug)
         slug = re.sub(r'-{2,}', '-', slug)

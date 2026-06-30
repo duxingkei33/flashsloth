@@ -5,9 +5,15 @@ GitHub Pages Platform Adapter — 将文章发布到 GitHub Pages 博客
 包装现有 plugins/publisher_github_pages.py 和 plugins/deployer_github_pages.py。
 
 支持的接口:
-  - publish()     写入 Markdown 文章到 posts 目录
-  - deploy()      git commit + push 部署到 GitHub Pages
-  - retract()     撤回已发布的文章（删除 Markdown 文件）
+  - sign_in()     不支持（GitHub Pages 无签到）
+  - publish()     写入 Markdown 文章到 posts 目录 ✅
+  - retract()     撤回已发布的文章（删除 Markdown 文件）✅
+  - fetch_posts() 不支持（非内容源）
+  - fetch_replies() 不支持
+  - fetch_thread_detail() 不支持
+  - reply_comment() 不支持
+  - browse_forum() 不支持（非论坛）
+  - deploy()      git commit + push 部署到 GitHub Pages ✅
 """
 import os
 from typing import Optional
@@ -129,6 +135,37 @@ class GitHubPagesAdapter(PlatformAdapter):
             missing.append("博客文章目录")
         return missing
 
+    # ─── 签到 ─────────────────────────────────────
+    def sign_in(self, check_only: bool = False) -> dict:
+        """GitHub Pages 无签到功能"""
+        return {"supported": False}
+
+    # ─── 采集帖子 ─────────────────────────────────
+    def fetch_posts(self, hours: int = 24, max_pages: int = 3, **kwargs) -> list:
+        """GitHub Pages 非内容源，不支持采集"""
+        return []
+
+    # ─── 采集回复 ─────────────────────────────────
+    def fetch_replies(self, thread_ids: list = None, **kwargs) -> list:
+        """GitHub Pages 非评论平台"""
+        return []
+
+    # ─── 读帖详情 ─────────────────────────────────
+    def fetch_thread_detail(self, thread_id: str) -> None:
+        """GitHub Pages 不支持按 ID 获取文章详情"""
+        return None
+
+    # ─── 回复评论 ─────────────────────────────────
+    def reply_comment(self, thread_id: str, content: str, comment_id: str = None) -> dict:
+        """GitHub Pages 不支持回复评论"""
+        return {"supported": False}
+
+    # ─── 逛论坛 ───────────────────────────────────
+    def browse_forum(self, **kwargs) -> dict:
+        """GitHub Pages 非论坛"""
+        return {"supported": False}
+
+    # ─── 发布 ─────────────────────────────────────
     def _make_publisher(self) -> object:
         """创建 GitHub Pages 博客发布器"""
         from plugins.publisher_github_pages import GitHubPagesBlogPublisher
