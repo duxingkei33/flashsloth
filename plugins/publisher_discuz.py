@@ -787,8 +787,22 @@ class DiscuzPublisher(Publisher):
             # 支持两种 URL 格式：tid=123 和 thread-123-1-1.html
             tid = re.search(r"tid=(\d+)", r2.url) or re.search(r"thread-(\d+)-", r2.url)
             if tid:
-                return {"success": True, "tid": tid.group(1),
-                        "url": r2.url, "error": "", "message": "js_redirect"}
+                tid_val = tid.group(1)
+                # 验证帖子的真实状态（审核中/已发布）
+                time.sleep(1.5)
+                verify = self._verify_thread_exists(tid_val, title=article.title)
+                if verify["status"] == "published":
+                    return {"success": True, "tid": tid_val,
+                            "url": verify.get("url", r2.url),
+                            "error": "", "message": "published"}
+                elif verify["status"] == "pending_review":
+                    return {"success": True, "tid": tid_val,
+                            "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid_val}",
+                            "error": "帖子已发布，等待管理员审核",
+                            "message": "pending_review"}
+                return {"success": True, "tid": tid_val,
+                        "url": r2.url, "error": "",
+                        "message": "js_redirect"}
             return {"success": True, "tid": "", "url": redirect_url,
                     "error": "JS跳转后未找到tid", "message": "js_redirect_no_tid"}
 
