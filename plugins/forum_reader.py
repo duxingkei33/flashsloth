@@ -103,25 +103,46 @@ class DiscuzForumReader:
                         "fid": fid,
                     })
 
-                # 格式2: thread-123-1-1.html (mydigit.cn 等)
+                # 格式2: thread-123-1-1.html (mydigit.cn 等 — 标题在 <a> 标签内)
                 for m2 in re.finditer(
+                    r'href="thread-(\d+)-1-1\.html"[^>]*>(.*?)</a>',
+                    r.text, re.DOTALL
+                ):
+                    tid = m2.group(1)
+                    title = unescape(re.sub(r"<[^>]+>", "", m2.group(2))).strip()
+                    if not title or len(title) < 3 or title in ["", "&nbsp;"]:
+                        continue
+                    # 跳过导航/功能链接
+                    if any(skip in title.lower() for skip in ["关于我们", "联系我们", "法律条款"]):
+                        continue
+                    title = re.sub(r'<span[^>]*>.*?</span>', '', title).strip()
+                    if not title:
+                        continue
+                    if any(t["tid"] == tid for t in threads):
+                        continue
+                    threads.append({
+                        "tid": tid,
+                        "title": title,
+                        "url": f"{self.site_url}/thread-{tid}-1-1.html",
+                        "fid": fid,
+                    })
+
+                # 格式3: 兼容旧版 class=s xst 格式
+                for m3 in re.finditer(
                     r'<span[^>]*class="s xst"[^>]*>(.*?)</span>',
                     r.text, re.DOTALL
                 ):
-                    title = unescape(m2.group(1)).strip()
+                    title = unescape(m3.group(1)).strip()
                     if not title or len(title) < 3:
                         continue
-                    # Look for thread-X URL before this span
-                    start = max(0, m2.start() - 400)
-                    snippet = r.text[start:m2.start()]
-                    tid_m = re.search(r'thread-(\d+)-\d+-\d+\.html', snippet)
+                    start = max(0, m3.start() - 400)
+                    snippet = r.text[start:m3.start()]
+                    tid_m = re.search(r'thread-(\d+)-\\d+-\\d+\\.html', snippet)
                     if not tid_m:
                         tid_m = re.search(r'tid=(\d+)', snippet)
-                    if not tid_m:
+                    if not tid_m or any(t["tid"] == tid_m.group(1) for t in threads):
                         continue
                     tid = tid_m.group(1)
-                    if any(t["tid"] == tid for t in threads):
-                        continue
                     threads.append({
                         "tid": tid,
                         "title": title,
@@ -147,9 +168,9 @@ class DiscuzForumReader:
             # 提取正文
             content = ""
             for pattern in [
-                r'<td[^>]*class="t_f"[^>]*>([\\s\\S]*?)</td>',
-                r'<div[^>]*class="t_fsz"[^>]*>([\\s\\S]*?)</div>',
-                r'<div[^>]*class="postmessage"[^>]*>([\\s\\S]*?)</div>',
+                r'<td[^>]*class="t_f"[^>]*>(.*?)</td>',
+                r'<div[^>]*class="t_fsz"[^>]*>(.*?)</div>',
+                r'<div[^>]*class="postmessage"[^>]*>(.*?)</div>',
             ]:
                 m = re.search(pattern, r.text, re.DOTALL)
                 if m:
@@ -161,7 +182,7 @@ class DiscuzForumReader:
             author = ""
             for pattern in [
                 r'<a[^>]*class="xw1"[^>]*>([^<]+)</a>',
-                r'<div[^>]*class="authi"[^>]*>([\\s\\S]*?)<',
+                r'<div[^>]*class="authi"[^>]*>(.*?)<',
             ]:
                 m = re.search(pattern, r.text)
                 if m:
@@ -187,7 +208,7 @@ class DiscuzForumReader:
                 )
                 # 提取回复列表
                 post_divs = re.findall(
-                    r'<div[^>]*class="plc"[^>]*>([\\s\\S]*?)</div>\s*</div>',
+                    r'<div[^>]*class="plc"[^>]*>(.*?)</div>\s*</div>',
                     r.text, re.DOTALL
                 )
                 for i, div in enumerate(post_divs):
