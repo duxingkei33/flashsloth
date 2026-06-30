@@ -1146,15 +1146,26 @@ def publish():
         forum_fid = request.form.get(f"forum_fid_{aid}")
         if forum_fid:
             cfg["fid"] = forum_fid
+
+        # 去重：检查是否已发布到该账号
+        existing = conn.execute(
+            "SELECT id FROM publish_log WHERE article_id=? AND account_id=? AND success=1",
+            (article_id, aid)
+        ).fetchone()
+        if existing:
+            results.append({"success": True, "error": "", "message": "already_published"})
+            continue
+
         try:
             publisher = get_publisher(acct["platform"], cfg)
             result = publisher.publish(article)
+            publish_status = result.get("message", "published") if result["success"] else "failed"
             conn.execute(
-                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (article_id, aid, acct["platform"],
                  1 if result["success"] else 0,
                  result.get("url", ""), result.get("error", ""),
-                 result.get("message", "")),
+                 result.get("message", ""), publish_status),
             )
             results.append(result)
         except Exception as e:
@@ -1171,7 +1182,19 @@ def publish():
     conn.close()
 
     success_count = sum(1 for r in results if r["success"])
-    flash(f"发布完成: {success_count}/{len(results)} 成功", "success")
+    already_published = sum(1 for r in results if r.get("message") == "already_published")
+    pending_count = sum(1 for r in results if r.get("message") == "pending_review")
+    parts = []
+    if success_count:
+        parts.append(f"{success_count} 成功")
+    if already_published:
+        parts.append(f"{already_published} 已发布跳过")
+    if pending_count:
+        parts.append(f"{pending_count} 待审核")
+    failed = len(results) - success_count - already_published
+    if failed:
+        parts.append(f"{failed} 失败")
+    flash(f"发布完成: {'; '.join(parts)}", "success" if success_count else "error")
     return redirect(url_for("index"))
 
 # ─── 批量发布页面 ──────────────────────────────
