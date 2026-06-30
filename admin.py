@@ -31,6 +31,12 @@ import flashsloth.plugins.deployer_github_pages  # noqa
 import flashsloth.plugins.storage_alist        # noqa
 import flashsloth.plugins.forum_reader          # noqa
 import flashsloth.plugins.forum_signin           # noqa
+# SDK 平台适配器（触发注册）
+import flashsloth.sdk.adapters.mydigit           # noqa
+import flashsloth.sdk.adapters.amobbs            # noqa
+import flashsloth.sdk.adapters.csdn              # noqa
+import flashsloth.sdk.adapters.notion            # noqa
+import flashsloth.sdk.adapters.github_pages      # noqa
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
