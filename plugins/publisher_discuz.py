@@ -256,40 +256,95 @@ class DiscuzPublisher(Publisher):
                     fields[m.group(1)] = m.group(2)
         return fields
 
-    def _md_to_html(self, md_text: str) -> str:
-        """简单的 Markdown 到 HTML 转换（无需安装 markdown 包）"""
-        import html as html_mod
-        text = html_mod.escape(md_text)
-        # 代码块
-        text = re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', text, flags=re.DOTALL)
-        # 行内代码
-        text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+    def _format_for_discuz(self, body: str) -> str:
+        """将文章内容转换为 Discuz! 兼容格式
+
+        Discuz 接受 HTML 标签（p, h1-h6, strong, em, ul/li 等），
+        但禁用了 <img> 和 <a> 标签，需转为 BBCode：
+          - <img> → [img]url[/img]
+          - <a> → [url=...]text[/url]
+
+        输入支持：
+        - 纯 Markdown（###、**bold**、![img](url) 等）
+        - 纯 HTML（<p>、<h3>、<img> 等）
+        - 混合内容（Markdown 文本 + HTML 标签）
+
+        不会双重转义。
+        """
+        import re as _re
+
+        text = body
+
+        # ── 第1步：处理 Markdown 语法（支持混合内容中的 Markdown 片段） ──
+        # 标题 (先处理，防干扰)
+        text = _re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=_re.MULTILINE)
         # 粗体
-        text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
-        text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', text)
+        text = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+        text = _re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
         # 斜体
-        text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-        text = re.sub(r'_(.*?)_', r'<em>\1</em>', text)
-        # 图片
-        text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1">', text)
-        # 链接
-        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
-        # 标题
-        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
-        text = re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=re.MULTILINE)
-        text = re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
-        # 列表
-        text = re.sub(r'^- (.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
-        text = re.sub(r'^\* (.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
-        # 段落
+        text = _re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+        text = _re.sub(r'_(.+?)_', r'<em>\1</em>', text)
+        # 行内代码
+        text = _re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+        # 列表（仅处理未包在 HTML 里的 Markdown 列表）
+        text = _re.sub(r'^- (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^\* (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
+        # 代码块
+        text = _re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', text, flags=_re.DOTALL)
+
+        # ── 第2步：段落包裹（仅包裹未被 HTML 标签包围的文本段落） ──
         parts = []
         for para in text.split('\n\n'):
             para = para.strip()
-            if para and not para.startswith('<'):
+            if not para:
+                continue
+            # 如果段落不以 HTML 标签开头，包 <p>
+            if not _re.match(r'^\s*<', para):
                 para = f'<p>{para}</p>'
-            if para:
-                parts.append(para)
-        return '\n'.join(parts)
+            parts.append(para)
+        text = '\n'.join(parts)
+
+        # ── 第3步：统一转换 Discuz 不接受的标签为 BBCode ──
+        # <img src="..."> → [img]url[/img]（兼容自闭合和非自闭合）
+        text = _re.sub(
+            r'<img[^>]*src="([^"]+)"[^>]*>',
+            lambda m: self._make_img_bbcode(m.group(1)),
+            text,
+            flags=_re.IGNORECASE,
+        )
+        # Markdown 图片引用 ![]() 也转（可能前面没被处理）
+        text = _re.sub(
+            r'!\[([^\]]*)\]\(([^)]+)\)',
+            lambda m: self._make_img_bbcode(m.group(2)),
+            text,
+        )
+        # <a href="..."> → [url=...]...[/url]
+        text = _re.sub(
+            r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>',
+            r'[url=\1]\2[/url]',
+            text,
+            flags=_re.IGNORECASE | _re.DOTALL,
+        )
+
+        return text.strip()
+
+    def _make_img_bbcode(self, src: str, alt: str = '') -> str:
+        """将图片路径转为 [img]BBCode。
+
+        本地 /static/uploads/ 路径转为绝对 URL（通过 FRP 公网地址），
+        外部 URL 直接使用。
+        """
+        # 本地路径 → 绝对 URL
+        if src.startswith('/'):
+            base = self.config.get('public_url', '').rstrip('/')
+            if base:
+                src = base + src
+        # 非三方 CDN 图片才加尺寸限制
+        if not any(d in src for d in ['picsum.photos', 'unsplash.com']):
+            return f'[img]{src}[/img]'
+        return f'[img]{src}[/img]'
 
     def _get_thread_categories(self, fid: str) -> list[dict]:
         """获取板块的主题分类（typeid）"""
@@ -452,7 +507,7 @@ class DiscuzPublisher(Publisher):
             typeid = categories[0]["id"]
 
         # 第3步：组装表单数据
-        body_html = self._md_to_html(article.body) if article.body else ""
+        body_html = self._format_for_discuz(article.body) if article.body else ""
         data = {
             "formhash": formhash,
             "posttime": form_fields.get("posttime", ""),
