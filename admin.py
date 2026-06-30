@@ -1912,6 +1912,95 @@ def publish_manage():
                          logs=[dict(l) for l in logs],
                          articles=[dict(a) for a in articles])
 
+# ─── 检查待审核帖子状态 ────────────────────────────
+@app.route("/api/publish/check-pending")
+@login_required
+def api_check_pending():
+    """检查所有待审核帖子的实际状态，更新 DB 并返回结果"""
+    conn = get_db()
+
+    pending_logs = conn.execute(
+        "SELECT pl.*, pa.platform, pa.config_json, pa.account_name "
+        "FROM publish_log pl "
+        "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
+        "WHERE pl.status='pending_review' AND pl.success=1 "
+        "AND (pa.user_id=? OR ?) "
+        "ORDER BY pl.created_at DESC",
+        (current_user.id, current_user.is_admin)
+    ).fetchall()
+
+    if not pending_logs:
+        conn.close()
+        return jsonify({"ok": True, "checked": 0, "updated": 0, "details": []})
+
+    results = []
+    updated_count = 0
+
+    for log in pending_logs:
+        log = dict(log)
+        tid = None
+        platform = log.get("platform", "")
+
+        # 从 URL 提取帖子 ID
+        if log.get("url"):
+            # 支持 thread-N-1-1.html 和 tid=N 两种格式
+            m = re.search(r'thread[=\-/]?(\d+)|[?&]tid=(\d+)', log["url"])
+            if m:
+                tid = m.group(1) or m.group(2)
+        if not tid and log.get("id"):
+            tid = str(log["id"])
+
+        result = {
+            "log_id": log["id"],
+            "platform": platform,
+            "account": log.get("account_name", ""),
+            "url": log.get("url", ""),
+            "tid": tid,
+            "old_status": "pending_review",
+            "new_status": "pending_review",
+            "updated": False,
+        }
+
+        if platform == "discuz" and tid:
+            cfg_str = log.get("config_json", "{}")
+            cfg = json.loads(cfg_str) if cfg_str else {}
+            if not cfg:
+                result["error"] = "无法获取账号配置"
+                results.append(result)
+                continue
+
+            try:
+                publisher = get_publisher("discuz", cfg)
+                verify = publisher._verify_thread_exists(tid)
+                if verify["status"] == "published":
+                    conn.execute(
+                        "UPDATE publish_log SET status='published', message='published' WHERE id=?",
+                        (log["id"],)
+                    )
+                    result["new_status"] = "published"
+                    result["updated"] = True
+                    result["title"] = verify.get("title", "")
+                    result["url"] = verify.get("url", log.get("url", ""))
+                    updated_count += 1
+                else:
+                    result["error"] = verify.get("title", "仍为待审核状态")
+            except Exception as e:
+                result["error"] = f"检查异常: {e}"
+        else:
+            result["error"] = f"平台 {platform} 暂不支持自动检查"
+
+        results.append(result)
+
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "ok": True,
+        "checked": len(results),
+        "updated": updated_count,
+        "details": results,
+    })
+
+
 # ─── 部署管理 ──────────────────────────────────
 @app.route("/deployers")
 @login_required

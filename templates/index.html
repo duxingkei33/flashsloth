@@ -201,7 +201,10 @@ function toggleNotion(sel) {
 
 <!-- 📋 发布记录 -->
 <div class="card">
-    <h2>📋 发布记录 <a href="/publish/manage" style="font-size:13px;font-weight:normal;margin-left:8px;">查看全部 →</a></h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;">📋 发布记录 <a href="/publish/manage" style="font-size:13px;font-weight:normal;margin-left:8px;">查看全部 →</a></h2>
+        <button id="refreshPendingBtn2" class="btn btn-sm btn-info" onclick="checkPending2()" style="font-size:12px;">🔄 刷新状态</button>
+    </div>
     {% if logs %}
     <table>
         <thead><tr><th>时间</th><th>平台</th><th>账号</th><th>状态</th><th>结果</th></tr></thead>
@@ -254,3 +257,33 @@ function toggleNotion(sel) {
     {% endif %}
 </div>
 {% endblock %}
+
+<script>
+async function checkPending2() {
+    const btn = document.getElementById('refreshPendingBtn2');
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    try {
+        const res = await fetch('/api/publish/check-pending');
+        const data = await res.json();
+        let msg = '';
+        if (data.ok) {
+            if (data.checked === 0) {
+                msg = '没有待审核的帖子';
+            } else {
+                msg = `检查了 ${data.checked} 个，`;
+                msg += data.updated > 0 ? `✅ ${data.updated} 个通过审核` : '全部仍在审核中';
+            }
+        } else {
+            msg = '检查失败';
+        }
+        alert(msg);
+        location.reload();
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 刷新状态';
+    }
+}
+</script>
