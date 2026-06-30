@@ -1,11 +1,14 @@
 """
 AI逛论坛 — FlashSloth 插件
 自动登录配置的论坛账号，抓取新帖子，AI 筛选推荐
+使用人机浏览器模拟，避免反爬
 """
-import re, requests, json, time, hashlib
+import re, json, time
 from datetime import datetime, timedelta
 from html import unescape
 from typing import Optional
+
+from flashsloth.plugins.browser_session import HumanSession
 
 # ─── Discuz! 论坛抓取器 ─────────────────────────
 
@@ -14,25 +17,11 @@ class DiscuzForumReader:
 
     def __init__(self, site_url: str, cookies: str = "", username: str = "", password: str = ""):
         self.site_url = site_url.rstrip("/")
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/125.0.0.0 Safari/537.36",
-        })
-        self._parse_cookies(cookies)
+        self.browser = HumanSession(base_url=site_url, min_delay=0.5, max_delay=2.0)
+        if cookies:
+            self.browser.set_cookies(cookies)
         self.username = username
         self.password = password
-
-    def _parse_cookies(self, cookie_str: str):
-        if not cookie_str:
-            return
-        for item in cookie_str.split(";"):
-            item = item.strip()
-            if "=" in item:
-                k, v = item.split("=", 1)
-                domain = self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
-                self.session.cookies.set(k.strip(), v.strip(), domain=domain)
 
     def _get_domain(self) -> str:
         return self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
@@ -40,10 +29,10 @@ class DiscuzForumReader:
     def is_logged_in(self) -> bool:
         """检查登录状态"""
         try:
-            r = self.session.get(f"{self.site_url}/home.php?mod=space&do=profile", timeout=10)
+            r = self.browser.get("/home.php?mod=space&do=profile")
             if self.username and self.username in r.text:
                 return True
-            for c in self.session.cookies:
+            for c in self.browser.session.cookies:
                 if "auth" in c.name.lower():
                     return True
             return "login" not in r.url.lower()
@@ -53,15 +42,15 @@ class DiscuzForumReader:
     def get_forum_list(self) -> list[dict]:
         """获取板块列表"""
         try:
-            r = self.session.get(f"{self.site_url}/forum.php", timeout=15)
+            r = self.browser.get("/forum.php")
             forums = []
-            # 标准 Discuz! 格式: forum.php?mod=forumdisplay&fid=X
+            # 标准 Discuz! 格式
             pat1 = re.compile(r'<a[^>]*href="forum\.php\?mod=forumdisplay&fid=(\d+)"[^>]*>([^<]+)</a>')
             for m in pat1.finditer(r.text):
                 fid, name = m.group(1), unescape(m.group(2)).strip()
                 if fid not in [f["fid"] for f in forums]:
                     forums.append({"fid": fid, "name": name})
-            # 兼容格式: forum-X-1.html (mydigit.cn 等)
+            # 兼容 mydigit.cn 格式
             pat2 = re.compile(r'forum-(\d+)-1\.html[^>]*>([^<]+)</a>')
             for m in pat2.finditer(r.text):
                 fid, name = m.group(1), unescape(m.group(2)).strip()
@@ -74,14 +63,11 @@ class DiscuzForumReader:
     def get_new_threads(self, fid: str, hours: int = 24, max_pages: int = 3) -> list[dict]:
         """获取指定板块的新帖子"""
         threads = []
-        cutoff = datetime.now() - timedelta(hours=hours)
-
         for page in range(1, max_pages + 1):
             try:
-                url = f"{self.site_url}/forum.php?mod=forumdisplay&fid={fid}&page={page}&orderby=dateline"
-                r = self.session.get(url, timeout=15)
+                url = f"/forum.php?mod=forumdisplay&fid={fid}&page={page}&orderby=dateline"
+                r = self.browser.get(url)
 
-                # 解析帖子列表 — 多种格式兼容
                 # 格式1: viewthread&tid=123 (标准 Discuz!)
                 for m in re.finditer(
                     r'href="[^"]*viewthread[^"]*tid=(\d+)"[^>]*>(.*?)</a>',
@@ -97,13 +83,12 @@ class DiscuzForumReader:
                     if not title:
                         continue
                     threads.append({
-                        "tid": tid,
-                        "title": title,
+                        "tid": tid, "title": title,
                         "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
                         "fid": fid,
                     })
 
-                # 格式2: thread-123-1-1.html (mydigit.cn 等 — 标题在 <a> 标签内)
+                # 格式2: thread-123-1-1.html (mydigit.cn — 标题在 <a> 内)
                 for m2 in re.finditer(
                     r'href="thread-(\d+)-1-1\.html"[^>]*>(.*?)</a>',
                     r.text, re.DOTALL
@@ -112,22 +97,18 @@ class DiscuzForumReader:
                     title = unescape(re.sub(r"<[^>]+>", "", m2.group(2))).strip()
                     if not title or len(title) < 3 or title in ["", "&nbsp;"]:
                         continue
-                    # 跳过导航/功能链接
                     if any(skip in title.lower() for skip in ["关于我们", "联系我们", "法律条款"]):
                         continue
                     title = re.sub(r'<span[^>]*>.*?</span>', '', title).strip()
-                    if not title:
-                        continue
-                    if any(t["tid"] == tid for t in threads):
+                    if not title or any(t["tid"] == tid for t in threads):
                         continue
                     threads.append({
-                        "tid": tid,
-                        "title": title,
+                        "tid": tid, "title": title,
                         "url": f"{self.site_url}/thread-{tid}-1-1.html",
                         "fid": fid,
                     })
 
-                # 格式3: 兼容旧版 class=s xst 格式
+                # 格式3: 兼容旧版 class=s xst
                 for m3 in re.finditer(
                     r'<span[^>]*class="s xst"[^>]*>(.*?)</span>',
                     r.text, re.DOTALL
@@ -137,20 +118,18 @@ class DiscuzForumReader:
                         continue
                     start = max(0, m3.start() - 400)
                     snippet = r.text[start:m3.start()]
-                    tid_m = re.search(r'thread-(\d+)-\\d+-\\d+\\.html', snippet)
+                    tid_m = re.search(r'thread-(\d+)-\d+-\d+\.html', snippet)
                     if not tid_m:
                         tid_m = re.search(r'tid=(\d+)', snippet)
                     if not tid_m or any(t["tid"] == tid_m.group(1) for t in threads):
                         continue
                     tid = tid_m.group(1)
                     threads.append({
-                        "tid": tid,
-                        "title": title,
+                        "tid": tid, "title": title,
                         "url": f"{self.site_url}/thread-{tid}-1-1.html",
                         "fid": fid,
                     })
 
-                # 检查是否有下一页
                 if "next" not in r.text and "下一页" not in r.text:
                     break
             except:
@@ -161,11 +140,7 @@ class DiscuzForumReader:
     def get_thread_detail(self, tid: str) -> Optional[dict]:
         """获取帖子详情（首帖内容）"""
         try:
-            r = self.session.get(
-                f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
-                timeout=15
-            )
-            # 提取正文
+            r = self.browser.get(f"/forum.php?mod=viewthread&tid={tid}")
             content = ""
             for pattern in [
                 r'<td[^>]*class="t_f"[^>]*>(.*?)</td>',
@@ -178,11 +153,9 @@ class DiscuzForumReader:
                     content = re.sub(r"\s+", " ", content)[:2000]
                     break
 
-            # 提取作者
             author = ""
             for pattern in [
                 r'<a[^>]*class="xw1"[^>]*>([^<]+)</a>',
-                r'<div[^>]*class="authi"[^>]*>(.*?)<',
             ]:
                 m = re.search(pattern, r.text)
                 if m:
@@ -194,7 +167,7 @@ class DiscuzForumReader:
                 "content": content or "(无法提取内容)",
                 "author": author or "未知",
             }
-        except Exception as e:
+        except:
             return None
 
     def get_replies_to_my_threads(self, my_thread_tids: list[str], max_pages: int = 2) -> list[dict]:
@@ -202,24 +175,20 @@ class DiscuzForumReader:
         replies = []
         for tid in my_thread_tids:
             try:
-                r = self.session.get(
-                    f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
-                    timeout=15
-                )
-                # 提取回复列表
+                r = self.browser.get(f"/forum.php?mod=viewthread&tid={tid}")
                 post_divs = re.findall(
                     r'<div[^>]*class="plc"[^>]*>(.*?)</div>\s*</div>',
                     r.text, re.DOTALL
                 )
                 for i, div in enumerate(post_divs):
-                    if i == 0:  # 跳过首帖
+                    if i == 0:
                         continue
                     reply_author = ""
                     m = re.search(r'<a[^>]*class="xw1"[^>]*>([^<]+)</a>', div)
                     if m:
                         reply_author = unescape(m.group(1)).strip()
                     reply_content = re.sub(r"<[^>]+>", " ", div)[:500].strip()
-                    if reply_author != self.username:  # 不是自己的回复
+                    if reply_author != self.username:
                         replies.append({
                             "thread_tid": tid,
                             "author": reply_author,
@@ -234,7 +203,7 @@ class DiscuzForumReader:
 # ─── AI 筛选引擎 ────────────────────────────────
 
 class InterestFilter:
-    """基于关键词和 LLM 的帖子筛选引擎"""
+    """基于关键词的帖子筛选引擎"""
 
     def __init__(self, interesting_tags: list[str] = None):
         self.interesting_tags = interesting_tags or [
@@ -248,29 +217,25 @@ class InterestFilter:
         ]
 
     def score_by_keywords(self, title: str, content: str = "") -> tuple[int, list[str]]:
-        """关键词打分，返回 (分数, 匹配关键词)"""
         text = (title + " " + content).lower()
         hits = []
         for tag in self.interesting_tags:
             if tag.lower() in text:
                 hits.append(tag)
-        # 标题命中权重高
         title_hits = [t for t in hits if t.lower() in title.lower()]
         score = len(hits) * 5 + len(title_hits) * 10
         return score, hits
 
     def filter_threads(self, threads: list[dict]) -> list[dict]:
-        """筛选帖子，附加 AI 评分"""
         results = []
         for t in threads:
             score, tags = self.score_by_keywords(t.get("title", ""), t.get("content", ""))
-            if score >= 10:  # 至少命中一个重要关键词或在标题中命中
+            if score >= 10:
                 results.append({
                     **t,
                     "ai_score": score,
                     "ai_tags": tags,
                     "ai_summary": f"[{', '.join(tags[:3])}] {t.get('title', '')}",
                 })
-        # 按分数排序
         results.sort(key=lambda x: x["ai_score"], reverse=True)
         return results
