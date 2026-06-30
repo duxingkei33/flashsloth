@@ -122,6 +122,12 @@ class GitHubPagesDeployer(Deployer):
             commit_msg = f"{self.commit_prefix}: {changed_count} file(s) @ {timestamp}"
             self._run_git("commit", "-m", commit_msg)
 
+            # 先 pull（rebase）避免远程落后导致 push 失败
+            try:
+                self._run_git("pull", "--rebase", "origin", self.branch)
+            except subprocess.CalledProcessError:
+                pass  # 第一次部署没有 upstream 或 rebase 冲突都跳过
+
             # git push
             push_out = self._run_git("push", "origin", self.branch)
 
