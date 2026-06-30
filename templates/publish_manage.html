@@ -91,7 +91,14 @@
                 <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                     <a href="/post/edit/{{ log.article_id }}" style="color:#4361ee;">{{ log.article_title or '(已删除)' }}</a>
                 </td>
-                <td><span class="badge badge-info">{{ log.platform }}</span></td>
+                <td>
+                    {% if log.url %}
+                    <a href="{{ log.url }}" target="_blank" class="badge badge-info"
+                       style="cursor:pointer;" title="{{ log.url }}">{{ log.platform }}</a>
+                    {% else %}
+                    <span class="badge badge-info">{{ log.platform }}</span>
+                    {% endif %}
+                </td>
                 <td style="font-size:13px;">{{ log.account_name or '-' }}</td>
                 <td>
                     {% if log.status == 'retracted' %}

@@ -156,10 +156,14 @@ function toggleNotion(sel) {
                     {% if plist %}
                     <div style="display:flex;gap:3px;flex-wrap:wrap;">
                         {% for pl in plist %}
-                        <span class="badge badge-info" style="font-size:11px;"
-                              {% if pl.url %}title="{{ pl.url }}"{% endif %}>
-                            {{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}
-                        </span>
+                        {% if pl.url %}
+                        <a href="{{ pl.url }}" target="_blank"
+                           class="badge badge-info platform-link"
+                           style="font-size:11px;cursor:pointer;"
+                           title="{{ pl.url }}">{{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</a>
+                        {% else %}
+                        <span class="badge badge-info" style="font-size:11px;">{{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
+                        {% endif %}
                         {% endfor %}
                     </div>
                     {% else %}
@@ -205,7 +209,14 @@ function toggleNotion(sel) {
             {% for log in logs %}
             <tr>
                 <td style="font-size:12px;color:#666;">{{ log.created_at[:16] }}</td>
-                <td><span class="badge badge-info">{{ log.platform }}</span></td>
+                <td>
+                    {% if log.url %}
+                    <a href="{{ log.url }}" target="_blank" class="badge badge-info"
+                       style="cursor:pointer;" title="{{ log.url }}">{{ log.platform }}</a>
+                    {% else %}
+                    <span class="badge badge-info">{{ log.platform }}</span>
+                    {% endif %}
+                </td>
                 <td style="font-size:13px;">{{ log.account_name or '-' }}</td>
                 <td>
                     {% if log.status == 'pending_review' %}
