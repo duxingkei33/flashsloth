@@ -1,16 +1,47 @@
 """
-论坛每日签到 — FlashSloth 插件
-支持 Discuz! 论坛的 k_misign 插件签到系统
-由 Hermes cron 调度，随机白天时间执行
+论坛签到 Orchestrator — 由 Hermes cron 调度
+
+架构：
+  core/signin.py              — SigninBase 基类 + 注册中心（加载为 core_signin 模块）
+  plugins/signin_*.py         — 各平台签到实现（from core_signin import SigninBase, register）
+  plugins/forum_signin.py     — 本文件：遍历账号 → 自动匹配插件 → 签到 → 记录日志
+
+扩展：新增论坛签到 → 在 plugins/ 下建 signin_xxx.py，
+      继承 SigninBase + @register 即可自动生效。
 """
-import re, json, sqlite3, sys, os
+import sys, os, json, importlib.util as _iu
 from datetime import datetime, timezone, timedelta
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-try:
-    from flashsloth.plugins.browser_session import HumanSession
-except ImportError:
-    from plugins.browser_session import HumanSession
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
+os.environ["FLASHSLOT_SKIP_AUTH"] = "1"
+
+import sqlite3
+
+# ─── 预先加载 core/signin.py 注册为 core_signin 模块 ─────
+# 这样做 signin_*.py 插件可以 from core_signin import ... 共享同一个 registry
+_core_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "core", "signin.py")
+_spec = _iu.spec_from_file_location("core_signin", _core_path)
+_core_mod = _iu.module_from_spec(_spec)
+sys.modules["core_signin"] = _core_mod  # 预注册到 sys.modules
+_spec.loader.exec_module(_core_mod)
+
+get_signin_for_account = _core_mod.get_signin_for_account
+list_signins = _core_mod.list_signins
+SigninBase = _core_mod.SigninBase
+
+# ─── 动态导入所有 signin_*.py 插件 ─────────────────────
+_plugins_dir = os.path.join(os.path.dirname(__file__))
+for _f in sorted(os.listdir(_plugins_dir)):
+    if _f.startswith("signin_") and _f.endswith(".py") and _f != "__init__.py":
+        _path = os.path.join(_plugins_dir, _f)
+        _name = _f.replace(".py", "")
+        _spec2 = _iu.spec_from_file_location(_name, _path)
+        _mod = _iu.module_from_spec(_spec2)
+        sys.modules[_name] = _mod  # 预注册，应对内部交叉引用
+        _spec2.loader.exec_module(_mod)
+
+# 验证注册状态
+_available = list_signins()
 
 CST = timezone(timedelta(hours=8))
 DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
@@ -19,153 +50,128 @@ DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
 def get_db():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
-def load_account(account_id: int):
-    """加载指定账号配置"""
+def ensure_signin_log_table():
     conn = get_db()
-    row = conn.execute(
-        "SELECT * FROM platform_accounts WHERE id=? AND is_active=1",
-        (account_id,)
-    ).fetchone()
-    conn.close()
-    if not row:
-        return None
-    d = dict(row)
-    d["config"] = json.loads(d.get("config_json", "{}"))
-    return d
-
-
-def do_signin(account) -> dict:
-    """执行签到，返回结果"""
-    site_url = account["config"].get("site_url", "").rstrip("/")
-    cookie = account["config"].get("cookie", "")
-    username = account["config"].get("username", account["account_name"])
-
-    if not site_url or not cookie:
-        return {"success": False, "error": "缺少 site_url 或 cookie"}
-
-    browser = HumanSession(base_url=site_url, min_delay=0.5, max_delay=2.0)
-    browser.set_cookies(cookie)
-
-    # 1. 先访问签到页面获取 formhash
-    sign_url = site_url.rstrip("/") + "/k_misign-sign.html"
-    resp = browser.get(sign_url)
-
-    # 检查登录状态
-    uid_match = re.search(r"discuz_uid\s*=\s*'(\d+)'", resp.text)
-    if not uid_match or uid_match.group(1) == "0":
-        return {"success": False, "error": "Cookie 无效，未登录"}
-
-    # 检查是否已签到（不同论坛格式不同）
-    sign_status_texts = ["已签", "已签到", "签到成功", "今日已签", "您的签到排名"]
-    already_signed = any(t in resp.text for t in sign_status_texts)
-    if already_signed:
-        return {"success": True, "error": "", "already_signed": True,
-                "message": "今天已签到"}
-
-    # 2. 获取 formhash
-    formhash = None
-    for pattern in [
-        r'name="formhash"[^>]+value="([^"]+)"',
-        r'formhash\s*=\s*"([^"]+)"',
-        r'formhash=([a-zA-Z0-9]+)',
-    ]:
-        match = re.search(pattern, resp.text)
-        if match:
-            formhash = match.group(1)
-            break
-
-    if not formhash:
-        # 尝试从签到链接提取
-        link_match = re.search(
-            r'k_misign:sign&operation=qiandao&formhash=([a-zA-Z0-9]+)',
-            resp.text
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS signin_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            platform TEXT NOT NULL,
+            account_name TEXT NOT NULL,
+            site_url TEXT NOT NULL,
+            success INTEGER DEFAULT 0,
+            already_signed INTEGER DEFAULT 0,
+            error TEXT DEFAULT '',
+            message TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
         )
-        if link_match:
-            formhash = link_match.group(1)
+    """)
+    conn.commit()
+    conn.close()
 
-    if not formhash:
-        return {"success": False, "error": "无法获取 formhash"}
 
-    # 3. 执行签到（AJAX 接口）
-    qiandao_url = (
-        f"{site_url}/plugin.php?id=k_misign:sign"
-        f"&operation=qiandao&formhash={formhash}&format=empty"
+def log_signin(account_id, platform, account_name, site_url,
+               success, already_signed, error="", message=""):
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO signin_log (account_id, platform, account_name, site_url, success, already_signed, error, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (account_id, platform, account_name, site_url,
+         1 if success else 0, 1 if already_signed else 0,
+         error[:200], message[:200])
     )
-    sign_resp = browser.get(qiandao_url)
-
-    # 验证结果：重新加载签到页看是否已签到
-    import time
-    time.sleep(1)
-    verify_resp = browser.get(sign_url)
-
-    sign_status_texts = ["已签", "已签到", "签到成功", "今日已签", "您的签到排名"]
-    if any(t in verify_resp.text for t in sign_status_texts):
-        return {"success": True, "error": "", "already_signed": False,
-                "message": "签到成功 ✅"}
-
-    # 检查 AJAX 返回值
-    if sign_resp.text.strip():
-        msg = sign_resp.text.strip()[:200]
-        # 有些论坛在 XML 里返回签到成功
-        if "今日已签" in msg or "签到成功" in msg or "succeed" in msg.lower():
-            return {"success": True, "error": "", "already_signed": False,
-                    "message": "签到成功 ✅"}
-        return {"success": False, "error": f"签到失败: {msg}"}
-
-    return {"success": False, "error": "签到失败，未知原因"}
+    conn.commit()
+    conn.close()
 
 
 def main():
-    """主入口 — 由 Hermes cron 调用"""
     now = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-    lines = [f"🦥 每日签到 — {now}", ""]
+    lines = [f"🦥 签到 — {now}", ""]
 
-    # 遍历 discuz 平台账号
+    ensure_signin_log_table()
+
+    available = list_signins()
+    if not available:
+        print("❌ 没有已注册的签到插件")
+        return
+
+    lines.append(f"📦 可用签到插件: {len(available)} 个")
+    for s in available:
+        lines.append(f"   • {s['display_name']} (平台: {s['platform']})")
+    lines.append("")
+
     conn = get_db()
     accounts = conn.execute(
-        "SELECT * FROM platform_accounts WHERE platform='discuz' AND is_active=1"
+        "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY platform, account_name"
     ).fetchall()
     conn.close()
 
-    any_success = False
+    if not accounts:
+        print("❌ 没有活跃的账号")
+        return
+
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
+
     for row in accounts:
         account = dict(row)
         account["config"] = json.loads(account.get("config_json", "{}"))
         site_url = account["config"].get("site_url", "")
         site_name = site_url.replace("https://", "").replace("http://", "").split("/")[0]
+        label = f"{account['account_name']} ({site_name})"
 
-        lines.append(f"📡 {account['account_name']} ({site_name})")
-
-        # 快速检查：只有安装 k_misign 插件的论坛才能签到
-        import requests as _req
-        try:
-            test_url = site_url.rstrip("/") + "/k_misign-sign.html"
-            check = _req.get(test_url, timeout=5, headers={
-                "User-Agent": "Mozilla/5.0"
-            })
-            if check.status_code != 200 or "k_misign" not in check.text.lower():
-                lines.append(f"   ⏭️ 跳过：该论坛未安装 k_misign 签到插件")
-                continue
-        except Exception:
-            lines.append(f"   ⏭️ 跳过：无法访问签到页面")
+        plugin = get_signin_for_account(account)
+        if not plugin:
+            lines.append(f"⏭️ {label} — 无匹配签到插件，跳过")
+            skip_count += 1
             continue
 
-        result = do_signin(account)
-        if result["success"]:
-            any_success = True
-            if result.get("already_signed"):
-                lines.append(f"   ℹ️ 今天已签到")
+        try:
+            result = plugin.signin()
+            success = result.get("success", False)
+            already = result.get("already_signed", False)
+            err = result.get("error", "")
+            msg = result.get("message", "")
+
+            log_signin(
+                account_id=account["id"],
+                platform=account["platform"],
+                account_name=account["account_name"],
+                site_url=site_url,
+                success=success,
+                already_signed=already,
+                error=err,
+                message=msg,
+            )
+
+            if success:
+                success_count += 1
+                if already:
+                    lines.append(f"ℹ️ {label} — 今天已签到")
+                else:
+                    lines.append(f"✅ {label} — {msg}")
             else:
-                lines.append(f"   ✅ {result['message']}")
-        else:
-            lines.append(f"   ❌ {result['error']}")
+                fail_count += 1
+                lines.append(f"❌ {label} — {err or '签到失败'}")
+        except Exception as e:
+            fail_count += 1
+            lines.append(f"❌ {label} — 异常: {e}")
+            log_signin(
+                account_id=account["id"],
+                platform=account["platform"],
+                account_name=account["account_name"],
+                site_url=site_url,
+                success=False,
+                already_signed=False,
+                error=str(e),
+            )
 
-    if not any_success:
-        lines.append("\n⚠️ 所有账号签到均失败，请检查 Cookie 是否有效")
-
+    lines.append("")
+    lines.append(f"📊 统计: ✅ {success_count} | ⏭️ {skip_count} | ❌ {fail_count} | 总计 {success_count + skip_count + fail_count} 个账号")
     print("\n".join(lines))
 
 
