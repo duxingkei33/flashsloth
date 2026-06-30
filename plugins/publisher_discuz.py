@@ -313,14 +313,81 @@ class DiscuzPublisher(Publisher):
         except:
             return []
 
+    def _verify_thread_exists(self, tid: str) -> dict:
+        """验证帖子真实状态：可见、待审核、不存在"""
+        try:
+            resp = self.browser.get(f"/forum.php?mod=viewthread&tid={tid}")
+            body_class = re.search(r'class="pg_(\w+)"', resp.text)
+            page_class = body_class.group(1) if body_class else ""
+
+            # 页面特征判断
+            if "viewthread" in resp.url and "tid" in resp.url:
+                if "审核" in resp.text or "待审核" in resp.text:
+                    return {"status": "pending_review", "visible": False,
+                            "title": "帖子已提交，等待审核"}
+                if "抱歉" in resp.text[:500] or "没有找到" in resp.text[:500]:
+                    return {"status": "not_found", "visible": False,
+                            "title": "帖子未找到（可能已被删除或审核中）"}
+                url = resp.url
+                title_m = re.search(r"<title>(.*?)</title>", resp.text)
+                title = title_m.group(1) if title_m else ""
+                return {"status": "published", "visible": True,
+                        "url": url, "title": title}
+
+            if "login" in resp.url.lower():
+                return {"status": "login_required", "visible": False,
+                        "title": "需重新登录"}
+
+            return {"status": "unknown", "visible": False,
+                    "title": f"状态不明 (page: {page_class}, url: {resp.url})"}
+        except Exception as e:
+            return {"status": "error", "visible": False, "title": str(e)}
+
+    def _check_duplicate_title(self, fid: str, title: str) -> bool:
+        """检查论坛最近帖子中是否已有相同标题（去重）"""
+        try:
+            resp = self.browser.get(
+                f"/forum.php?mod=forumdisplay&fid={fid}"
+                f"&filter=lastpost&orderby=lastpost"
+            )
+            # 检查 mydigit.cn 格式
+            for m in re.finditer(
+                r'href="thread-\d+-1-1\.html"[^>]*>(.*?)</a>',
+                resp.text, re.DOTALL
+            ):
+                existing = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+                if existing.lower() == title.lower()[:30]:
+                    return True
+            # 标准 Discuz 格式
+            for m in re.finditer(
+                r'href="[^"]*viewthread[^"]*tid=(\d+)"[^>]*>(.*?)</a>',
+                resp.text, re.DOTALL
+            ):
+                existing = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+                if existing.lower() == title.lower()[:30]:
+                    return True
+            return False
+        except:
+            return False
+
     def _publish_thread(self, article: Article, fid: str) -> dict:
         """完整发帖流程：模拟真人操作"""
+        # 第0步：去重检查
+        if self._check_duplicate_title(fid, article.title):
+            return {"success": False,
+                    "error": f"该标题已在 fid={fid} 中存在（去重），跳过发布",
+                    "url": "", "id": "", "message": "skip_duplicate"}
+
         # 第1步：导航到论坛首页
         self.browser.get("/forum.php")
 
-        # 第2步：访问发帖页面，提取所有表单字段
+        # 第2步：访问发帖页面
         post_url = f"/forum.php?mod=post&action=newthread&fid={fid}"
         resp = self.browser.get(post_url)
+
+        # 检测发帖页面是否正常（是否有 formhash）
+        body_class = re.search(r'class="pg_(\w+)"', resp.text)
+        page_class = body_class.group(1) if body_class else ""
 
         # 提取 formhash
         formhash = None
@@ -335,8 +402,22 @@ class DiscuzPublisher(Publisher):
                 break
 
         if not formhash:
-            return {"success": False, "error": "无法获取 formhash，请检查版块 ID",
-                    "url": "", "id": ""}
+            # 尝试从页面提取错误信息
+            msg = ""
+            for cls in ["alert_error", "alert_info"]:
+                m = re.search(f'<div[^>]*class="{cls}"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
+                if m:
+                    msg = re.sub(r"<[^>]+>", " ", m.group(1)).strip()[:200]
+                    break
+            if not msg:
+                msg_text = re.search(r'<div[^>]*id="messagetext"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
+                if msg_text:
+                    msg = re.sub(r"<[^>]+>", " ", msg_text.group(1)).strip()[:200]
+            if not msg and "提示信息" in resp.text:
+                msg = "账号无发帖权限（提示信息页面，无发帖表单）"
+            if not msg:
+                msg = f"无法获取发帖表单 (page: {page_class})，请检查账号权限"
+            return {"success": False, "error": msg, "url": "", "id": ""}
 
         # 提取表单隐藏字段
         form_fields = self._extract_form_fields(resp.text)
@@ -345,7 +426,6 @@ class DiscuzPublisher(Publisher):
         categories = self._get_thread_categories(fid)
         typeid = ""
         if categories:
-            # 如果有分类，选第一个可用
             typeid = categories[0]["id"]
 
         # 第3步：组装表单数据
@@ -365,7 +445,6 @@ class DiscuzPublisher(Publisher):
             "replycredit_membertimes": "1",
             "replycredit_random": "100",
         }
-        # 合并从表单提取的其他字段
         for key in form_fields:
             if key not in data:
                 data[key] = form_fields[key]
@@ -375,22 +454,50 @@ class DiscuzPublisher(Publisher):
             f"{self.site_url}/forum.php?mod=post&action=newthread"
             f"&fid={fid}&extra=&topicsubmit=yes"
         )
-        # 模拟真人输入后提交
         time.sleep(random.uniform(0.5, 1.5))
         resp = self.browser.post(submit_url, data=data)
 
-        # 第5步：检查结果
+        # 第5步：分析响应状态
+        response_page_class = ""
+        bc = re.search(r'class="pg_(\w+)"', resp.text)
+        if bc:
+            response_page_class = bc.group(1)
+
+        # 检查是否有 tid 在 URL 中
         tid_match = re.search(r"tid=(\d+)", resp.url)
         if tid_match:
             tid = tid_match.group(1)
-            return {
-                "success": True,
-                "tid": tid,
-                "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
-                "error": "",
-            }
+            # 验证帖子的真实状态
+            time.sleep(1.5)  # 等论坛处理
+            verify = self._verify_thread_exists(tid)
+            if verify["status"] == "published":
+                return {
+                    "success": True, "tid": tid,
+                    "url": verify.get("url", resp.url),
+                    "error": "", "message": "published",
+                }
+            elif verify["status"] == "pending_review":
+                return {
+                    "success": True, "tid": tid,
+                    "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
+                    "error": "帖子已发布，等待管理员审核",
+                    "message": "pending_review",
+                }
+            else:
+                return {
+                    "success": True, "tid": tid,
+                    "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
+                    "error": f"已创建但状态不明: {verify.get('title', '')}",
+                    "message": "uncertain",
+                }
 
-        # 检查是否有 alert_error
+        # 没有 tid，检查错误
+        if response_page_class == "index":
+            return {"success": False,
+                    "error": "发帖后跳转回首页，帖子可能已创建但不可见，或账号无权限。请检查账号发帖权限",
+                    "url": "", "id": ""}
+
+        # 检查 alert_error
         err_match = re.search(
             r'<div[^>]*class="alert_error"[^>]*>(.*?)</div>', resp.text, re.DOTALL
         )
@@ -398,7 +505,7 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": err_match.group(1).strip()[:500],
                     "url": "", "id": ""}
 
-        # 检查 messagetext（可能包含空错误）或提示信息
+        # 检查 messagetext
         msg_match = re.search(
             r'<div[^>]*id="messagetext"[^>]*>(.*?)</div>', resp.text, re.DOTALL
         )
@@ -407,7 +514,7 @@ class DiscuzPublisher(Publisher):
             if text:
                 return {"success": False, "error": text[:500], "url": "", "id": ""}
 
-        # 检查 JS 跳转（发帖成功后可能通过 JS 跳转）
+        # 检查 JS 跳转
         js_match = re.search(
             r'window\.location\s*=\s*["\']([^"\']+)["\']', resp.text
         )
@@ -415,22 +522,25 @@ class DiscuzPublisher(Publisher):
             redirect_url = js_match.group(1)
             if not redirect_url.startswith("http"):
                 redirect_url = self.site_url + "/" + redirect_url.lstrip("/")
-            # 跟进 JS 跳转
             time.sleep(1)
-            r2 = requests.get(redirect_url, timeout=15)
+            import requests as req_mod
+            r2 = req_mod.get(redirect_url, timeout=15)
             tid = re.search(r"tid=(\d+)", r2.url)
             if tid:
-                return {
-                    "success": True,
-                    "tid": tid.group(1),
-                    "url": r2.url,
-                    "error": "",
-                }
-            return {"success": True, "tid": "", "url": redirect_url, "error": ""}
+                return {"success": True, "tid": tid.group(1),
+                        "url": r2.url, "error": "", "message": "js_redirect"}
+            return {"success": True, "tid": "", "url": redirect_url,
+                    "error": "JS跳转后未找到tid", "message": "js_redirect_no_tid"}
 
-        if "发新主题" not in resp.text and "发表回复" not in resp.text:
-            # 可能成功了但没有 tid（某些论坛配置）
-            return {"success": True, "tid": "", "url": self.site_url, "error": ""}
+        if response_page_class == "viewthread":
+            # 已经在帖子页面（无重定向的情况）
+            tid_in_body = re.search(r"tid=(\d+)", resp.text)
+            if tid_in_body:
+                return {"success": True, "tid": tid_in_body.group(1),
+                        "url": resp.url, "error": "", "message": "direct_viewthread"}
+            return {"success": True, "tid": "", "url": resp.url,
+                    "error": "", "message": "viewthread_no_tid"}
 
-        return {"success": False, "error": "发帖失败，请检查版块权限或是否有主题分类未选择",
+        return {"success": False,
+                "error": f"发帖失败 (page: {response_page_class})，请检查版块权限或主题分类",
                 "url": "", "id": ""}

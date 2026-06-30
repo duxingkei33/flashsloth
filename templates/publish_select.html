@@ -31,9 +31,17 @@
         <div style="display:grid;gap:8px;">
             {% for a in accounts %}
             {% set already_published = false %}
+            {% set skip_reason = '' %}
             {% for p in published %}
                 {% if p.account_id == a.id %}
                     {% set already_published = true %}
+                    {% if p.status == 'pending_review' %}
+                        {% set skip_reason = '⏳ 待审核' %}
+                    {% elif p.status == 'failed' %}
+                        {% set skip_reason = '❌ 失败' %}
+                    {% else %}
+                        {% set skip_reason = '✅ 已发布' %}
+                    {% endif %}
                 {% endif %}
             {% endfor %}
             <div style="border:1px solid {{ '#bbf7d0' if already_published else '#ddd' }};border-radius:6px;
@@ -45,7 +53,7 @@
                     <span class="badge badge-info">{{ a.platform }}</span>
                     <span>{{ a.account_name }}</span>
                     {% if already_published %}
-                    <span style="font-size:11px;color:#166534;margin-left:auto;">✅ 已发布</span>
+                        <span style="font-size:11px;color:#166534;margin-left:auto;">{{ skip_reason }}</span>
                     {% endif %}
                 </label>
                 {% if a.platform == 'discuz' and not already_published %}

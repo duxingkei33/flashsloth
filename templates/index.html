@@ -200,7 +200,7 @@ function toggleNotion(sel) {
     <h2>📋 发布记录 <a href="/publish/manage" style="font-size:13px;font-weight:normal;margin-left:8px;">查看全部 →</a></h2>
     {% if logs %}
     <table>
-        <thead><tr><th>时间</th><th>平台</th><th>账号</th><th>结果</th></tr></thead>
+        <thead><tr><th>时间</th><th>平台</th><th>账号</th><th>状态</th><th>结果</th></tr></thead>
         <tbody>
             {% for log in logs %}
             <tr>
@@ -208,8 +208,25 @@ function toggleNotion(sel) {
                 <td><span class="badge badge-info">{{ log.platform }}</span></td>
                 <td style="font-size:13px;">{{ log.account_name or '-' }}</td>
                 <td>
+                    {% if log.status == 'pending_review' %}
+                    <span class="badge badge-warning">⏳ 待审核</span>
+                    {% elif log.status == 'published' %}
+                    <span class="badge badge-success">✅ 已发布</span>
+                    {% elif log.status == 'failed' %}
+                    <span class="badge badge-danger">❌ 失败</span>
+                    {% elif log.status == 'skip_duplicate' %}
+                    <span class="badge badge-info">⏭️ 去重跳过</span>
+                    {% else %}
+                    <span class="badge badge-secondary">{{ log.status or '-' }}</span>
+                    {% endif %}
+                </td>
+                <td>
                     {% if log.success %}
-                    <span class="badge badge-success">✅</span>
+                        {% if log.url %}
+                        <a href="{{ log.url }}" target="_blank" class="btn btn-sm btn-success" style="font-size:11px;">🔗 查看</a>
+                        {% else %}
+                        <span style="color:#2ec4b6;font-size:12px;">✔️</span>
+                        {% endif %}
                     {% else %}
                     <details style="display:inline-block;cursor:pointer;">
                         <summary style="color:#e63946;font-size:12px;">❌ 查看错误</summary>
