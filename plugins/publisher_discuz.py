@@ -29,14 +29,12 @@ class DiscuzPublisher(Publisher):
          "placeholder": "论坛登录密码"},
         {"key": "cookie", "label": "Cookie（Cookie模式）", "type": "password", "required": False,
          "placeholder": "登录后从浏览器 F12 复制 Cookie"},
-        {"key": "fid", "label": "版块 ID", "type": "text", "required": True,
-         "placeholder": "发帖目标版块的 fid，如 42"},
     ]
 
     def __init__(self, config: dict):
         super().__init__(config)
         self.site_url = config.get("site_url", "").rstrip("/")
-        self.fid = config.get("fid", "")
+        self.fid = config.get("fid", "")  # 兼容旧配置，新配置在 publish() 时传入
         self.login_mode = config.get("login_mode", "cookie")
         self.username = config.get("username", "")
         self.password = config.get("password", "")
@@ -64,8 +62,6 @@ class DiscuzPublisher(Publisher):
         missing = []
         if not self.site_url:
             missing.append("论坛地址")
-        if not self.fid:
-            missing.append("版块 ID")
         if self.login_mode == "cookie" and not self.config.get("cookie", ""):
             missing.append("Cookie")
         if self.login_mode == "password" and not self.username:
@@ -191,14 +187,20 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": "Cookie 无效或已过期，请重新登录",
                     "url": "", "id": ""}
 
+        # 优先使用发布时传入的 fid，其次使用配置中的 fid
+        fid = kwargs.get("fid", self.fid)
+        if not fid:
+            return {"success": False, "error": "请选择要发布到的版块",
+                    "url": "", "id": ""}
+
         try:
-            formhash = self._get_formhash()
+            formhash = self._get_formhash(fid)
             if not formhash:
-                return {"success": False, "error": "无法获取 formhash，请检查版块 ID",
+                return {"success": False, "error": f"无法获取 formhash，请检查版块 ID ({fid})",
                         "url": "", "id": ""}
 
             html_body = article.to_html()
-            result = self._post_thread(formhash, article.title, html_body)
+            result = self._post_thread(formhash, article.title, html_body, fid)
 
             if result["success"]:
                 return {
@@ -221,8 +223,9 @@ class DiscuzPublisher(Publisher):
                 return True
         return "login" not in resp.url.lower()
 
-    def _get_formhash(self) -> str | None:
-        post_url = f"{self.site_url}/forum.php?mod=post&action=newthread&fid={self.fid}"
+    def _get_formhash(self, fid: str = None) -> str | None:
+        fid = fid or self.fid
+        post_url = f"{self.site_url}/forum.php?mod=post&action=newthread&fid={fid}"
         resp = self.session.get(post_url, timeout=15)
         for pattern in [
             r'name="formhash"[^>]+value="([^"]+)"',
@@ -234,10 +237,11 @@ class DiscuzPublisher(Publisher):
                 return match.group(1)
         return None
 
-    def _post_thread(self, formhash: str, title: str, content_html: str) -> dict:
+    def _post_thread(self, formhash: str, title: str, content_html: str, fid: str = None) -> dict:
+        fid = fid or self.fid
         post_url = (
             f"{self.site_url}/forum.php?mod=post&action=newthread"
-            f"&fid={self.fid}&extra=&topicsubmit=yes"
+            f"&fid={fid}&extra=&topicsubmit=yes"
         )
         data = {
             "formhash": formhash,

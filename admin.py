@@ -34,6 +34,7 @@ import flashsloth.plugins.forum_reader          # noqa
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
 app.config["DEBUG"] = False
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # 首次启动生成的随机 admin 凭证（见 init_db）
 _BOOT_CREDENTIALS = None
@@ -252,8 +253,18 @@ def dict_get_filter(d, key, default=""):
 @login_required
 def index():
     conn = get_db()
+    # 真实总数（不限 20 条）
+    total_articles = conn.execute(
+        "SELECT COUNT(*) FROM articles WHERE user_id=?", (current_user.id,)
+    ).fetchone()[0]
+    total_published = conn.execute(
+        "SELECT COUNT(*) FROM articles WHERE user_id=? AND status='published'", (current_user.id,)
+    ).fetchone()[0]
+    total_accounts = conn.execute(
+        "SELECT COUNT(*) FROM platform_accounts WHERE user_id=? AND is_active=1", (current_user.id,)
+    ).fetchone()[0]
     posts = conn.execute(
-        "SELECT * FROM articles WHERE user_id=? ORDER BY updated_at DESC LIMIT 20",
+        "SELECT * FROM articles WHERE user_id=? ORDER BY updated_at DESC LIMIT 50",
         (current_user.id,)
     ).fetchall()
     logs = conn.execute(
@@ -323,6 +334,9 @@ def index():
                          publish_map=publish_map,
                          deploy_status_map=deploy_status_map,
                          provider=pconfig,
+                         total_articles=total_articles,
+                         total_published=total_published,
+                         total_accounts=total_accounts,
                          now=datetime.now())
 
 # ─── 登录 ───────────────────────────────────────
@@ -1128,6 +1142,10 @@ def publish():
             continue
 
         cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+        # 检查是否有发布时选择的板块（Discuz 等论坛）
+        forum_fid = request.form.get(f"forum_fid_{aid}")
+        if forum_fid:
+            cfg["fid"] = forum_fid
         try:
             publisher = get_publisher(acct["platform"], cfg)
             result = publisher.publish(article)
@@ -1663,6 +1681,34 @@ def api_forum_mark_read(rid):
     conn.commit()
     conn.close()
     return jsonify({"success": True})
+
+
+@app.route("/api/forum-reader/get-forums/<int:account_id>")
+@login_required
+def api_get_forums(account_id):
+    """获取 Discuz 论坛板块列表"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (account_id, current_user.id)
+    ).fetchone()
+    conn.close()
+
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    site_url = cfg.get("site_url", "")
+    cookies = cfg.get("cookie", "")
+    username = cfg.get("username", acct["account_name"])
+
+    if not site_url:
+        return jsonify({"success": False, "error": "论坛地址未配置"})
+
+    reader = DiscuzForumReader(site_url, cookies=cookies, username=username)
+    forums = reader.get_forum_list()
+
+    return jsonify({"success": True, "forums": forums})
 
 
 @app.route("/api/forum-reader/clear-old")
