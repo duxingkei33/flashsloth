@@ -98,7 +98,64 @@
     </form>
 </div>
 
+<!-- 数据导出导入 -->
+<div class="card" id="migration">
+    <h2>📦 数据迁移</h2>
+    <p style="color:#666;font-size:13px;margin-bottom:16px;">
+        导出全部数据（数据库 + 上传文件 + 配置），方便迁移到新平台。
+        导入时会自动备份当前数据。
+    </p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <button id="exportBtn" class="btn btn-primary" onclick="exportData()">📦 导出数据</button>
+        <input id="importFile" type="file" accept=".zip" style="display:none">
+        <button class="btn btn-success" onclick="document.getElementById('importFile').click()">⬆️ 选择备份文件</button>
+        <button id="importBtn" class="btn btn-warning" onclick="importData()">⬆️ 导入数据</button>
+    </div>
+    <p style="color:#999;font-size:12px;margin-top:12px;">
+        导出包含：数据库(账号/文章/发布记录)、上传图片/附件、配置文件<br>
+        导入前会自动备份当前数据到 static/backups/
+    </p>
+</div>
+
 <script>
+// ─── 数据导出导入 ───
+async function exportData() {
+    const btn = document.getElementById('exportBtn');
+    btn.disabled = true; btn.textContent = '打包中...';
+    try {
+        const resp = await fetch('/api/export');
+        if (!resp.ok) { alert('导出失败: ' + await resp.text()); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'flashsloth_backup.zip';
+        document.body.appendChild(a); a.click();
+        a.remove(); URL.revokeObjectURL(url);
+        alert('✅ 导出成功！');
+    } catch(e) { alert('❌ 导出失败: ' + e.message); }
+    finally { btn.disabled = false; btn.textContent = '📦 导出数据'; }
+}
+async function importData() {
+    const fileInput = document.getElementById('importFile');
+    const file = fileInput.files[0];
+    if (!file) { alert('请先选择备份文件'); return; }
+    if (!confirm('⚠️ 导入将覆盖当前数据！原数据会自动备份。\n确认继续？')) return;
+    const btn = document.getElementById('importBtn');
+    btn.disabled = true; btn.textContent = '导入中...';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        const resp = await fetch('/api/import', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.success) {
+            alert('✅ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ 导入失败: ' + (data.error || '未知错误'));
+        }
+    } catch(e) { alert('❌ 导入失败: ' + e.message); }
+    finally { btn.disabled = false; btn.textContent = '⬆️ 导入数据'; }
+}
 // Provider 切换显示 Notion 字段
 document.querySelector('select[name="provider_type"]')?.addEventListener('change', function() {
     document.getElementById('notion-fields').style.display =
