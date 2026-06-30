@@ -1706,6 +1706,29 @@ def publish():
         conn.execute("UPDATE articles SET status='published', updated_at=datetime('now') WHERE id=?", (article_id,))
 
     conn.commit()
+
+    # ── 自动部署：发布成功后自动触发所有活跃部署器 ──
+    if any(r["success"] for r in results):
+        deployers = conn.execute(
+            "SELECT * FROM deployer_configs WHERE user_id=? AND is_active=1",
+            (current_user.id,)
+        ).fetchall()
+        for dep in deployers:
+            cfg = json.loads(dep["config_json"]) if dep["config_json"] else {}
+            try:
+                deployer = get_deployer(dep["deployer_name"], cfg)
+                result = deployer.deploy()
+                if result.get("success"):
+                    conn.execute(
+                        "UPDATE publish_log SET deploy_status='deployed' WHERE article_id=? AND (deploy_status IS NULL OR deploy_status='pending')",
+                        (article_id,),
+                    )
+                    if dep["deployer_name"] == "github_pages":
+                        flash("⏳ GitHub Pages 需要 1-2 分钟刷新，请稍后查看", "info")
+            except Exception:
+                pass  # 部署失败不阻塞发布结果
+        conn.commit()
+
     conn.close()
 
     success_count = sum(1 for r in results if r["success"])
