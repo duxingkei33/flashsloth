@@ -36,17 +36,29 @@
                     {% set already_published = true %}
                 {% endif %}
             {% endfor %}
-            <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;
-                          border:1px solid {{ '#bbf7d0' if already_published else '#ddd' }};border-radius:6px;cursor:pointer;
-                          background:{{ '#f0fdf4' if already_published else '#fff' }};">
-                <input type="checkbox" name="account_ids" value="{{ a.id }}"
-                       {% if already_published %}checked disabled{% endif %}>
-                <span class="badge badge-info">{{ a.platform }}</span>
-                <span>{{ a.account_name }}</span>
-                {% if already_published %}
-                <span style="font-size:11px;color:#166534;margin-left:auto;">✅ 已发布</span>
+            <div style="border:1px solid {{ '#bbf7d0' if already_published else '#ddd' }};border-radius:6px;
+                        background:{{ '#f0fdf4' if already_published else '#fff' }};padding:10px 12px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" name="account_ids" value="{{ a.id }}"
+                           onchange="toggleForumSelect(this, 'forum_{{ a.id }}')"
+                           {% if already_published %}checked disabled{% endif %}>
+                    <span class="badge badge-info">{{ a.platform }}</span>
+                    <span>{{ a.account_name }}</span>
+                    {% if already_published %}
+                    <span style="font-size:11px;color:#166534;margin-left:auto;">✅ 已发布</span>
+                    {% endif %}
+                </label>
+                {% if a.platform == 'discuz' and not already_published %}
+                <div id="forum_{{ a.id }}" style="margin-top:8px;padding-left:24px;display:none;">
+                    <label style="font-size:13px;color:#666;">选择版块：</label>
+                    <select name="forum_fid_{{ a.id }}" class="forum-select"
+                            style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;margin-top:4px;"
+                            data-account-id="{{ a.id }}">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
                 {% endif %}
-            </label>
+            </div>
             {% endfor %}
         </div>
         <button type="submit" class="btn btn-success" style="margin-top:16px;width:100%;padding:12px;">
@@ -61,4 +73,40 @@
     </form>
     <a href="/" class="btn" style="background:#eee;margin-top:12px;display:inline-block;">返回</a>
 </div>
+
+<script>
+// 自动加载 Discuz 账号的板块列表
+document.querySelectorAll('.forum-select').forEach(function(sel) {
+    const accountId = sel.dataset.accountId;
+    sel.disabled = true;
+    sel.innerHTML = '<option value="">加载板块中...</option>';
+
+    fetch('/api/forum-reader/get-forums/' + accountId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.forums && data.forums.length > 0) {
+                sel.innerHTML = '<option value="">-- 请选择版块 --</option>';
+                data.forums.forEach(function(f) {
+                    var opt = document.createElement('option');
+                    opt.value = f.fid;
+                    opt.textContent = f.name + ' (ID:' + f.fid + ')';
+                    sel.appendChild(opt);
+                });
+                sel.disabled = false;
+            } else {
+                sel.innerHTML = '<option value="">获取板块失败</option>';
+            }
+        })
+        .catch(function() {
+            sel.innerHTML = '<option value="">加载失败</option>';
+        });
+});
+
+function toggleForumSelect(checkbox, forumDivId) {
+    var div = document.getElementById(forumDivId);
+    if (div) {
+        div.style.display = checkbox.checked ? 'block' : 'none';
+    }
+}
+</script>
 {% endblock %}
