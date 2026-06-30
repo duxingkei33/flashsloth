@@ -271,30 +271,36 @@ class DiscuzPublisher(Publisher):
             images.append({'src': m.group(2), 'alt': m.group(1), 'type': 'markdown'})
         return images
 
-    def _upload_images_to_forum(self, body: str, fid: str) -> tuple[str, dict]:
-        """扫描 body 中的图片，上传到论坛附件，替换为 [img=0,1]DISCUZUPLOAD...[/img]
+    def _upload_images_to_forum(self, body: str, fid: str,
+                                 page_html: str = None) -> tuple[str, dict, list]:
+        """扫描 body 中的图片，上传到论坛附件
 
-        返回: (替换后的 body, {原路径: discuz_upload_token})
+        返回: (替换后的 body, {原路径: discuz_upload_token}, [localid_列表])
         """
         import os, re as _re
 
         images = self._extract_images_from_body(body)
         if not images:
-            return body, {}
+            return body, {}, []
 
-        # 找上传参数（从发帖页面获取 uid, hash）
-        r = self.browser.get(f"/forum.php?mod=post&action=newthread&fid={fid}")
-        uid_m = _re.search(r'\"uid\":\"(\d+)\"', r.text)
-        hash_m = _re.search(r'\"hash\":\"([a-f0-9]+)\"', r.text)
+        # 从指定页面或 newthread 页面提取上传参数
+        if page_html:
+            html = page_html
+        else:
+            r = self.browser.get(f"/forum.php?mod=post&action=newthread&fid={fid}")
+            html = r.text
+
+        uid_m = _re.search(r'\"uid\":\"(\d+)\"', html)
+        hash_m = _re.search(r'\"hash\":\"([a-f0-9]+)\"', html)
         uid = uid_m.group(1) if uid_m else ''
         hash_val = hash_m.group(1) if hash_m else ''
 
         if not uid or not hash_val:
-            # 没有上传接口参数，走外链模式
-            return body, {}
+            return body, {}, []
 
         upload_url = f"{self.site_url}/misc.php?mod=swfupload&action=swfupload&operation=upload&fid={fid}&simple=1"
         token_map = {}
+        local_ids = []
         fs_upload_dir = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads"
         )
@@ -312,7 +318,6 @@ class DiscuzPublisher(Publisher):
             elif src.startswith('static/uploads/'):
                 local_path = os.path.join(fs_upload_dir, src[len('static/uploads/'):])
             elif not src.startswith('http'):
-                # 相对路径或文件名，尝试在 fs_upload_dir 下找
                 local_path = os.path.join(fs_upload_dir, os.path.basename(src))
 
             if not local_path or not os.path.isfile(local_path):
@@ -330,31 +335,33 @@ class DiscuzPublisher(Publisher):
                         timeout=30,
                     )
                 raw = resp.text.strip()
-                # DISCUZUPLOAD|0|AID|1|0
                 if raw and 'DISCUZUPLOAD' in raw:
                     token_map[src] = raw
+                    # DISCUZUPLOAD|localid|AID|w|h  →  localid 是第二部分
+                    parts = raw.split('|')
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        local_ids.append(parts[1])
                 elif raw and raw.isdigit():
                     token_map[src] = f"DISCUZUPLOAD|0|{raw}|1|0"
+                    local_ids.append('0')
             except Exception:
                 continue
 
         # 替换 body 中的图片引用
         result = body
         for orig_src, token in token_map.items():
-            # HTML <img> 标签
             result = _re.sub(
                 rf'<img[^>]*src="{_re.escape(orig_src)}"[^>]*>',
                 f'[img=0,1]{token}[/img]',
                 result,
             )
-            # Markdown ![]()
             result = _re.sub(
                 rf'!\[([^\]]*)\]\({_re.escape(orig_src)}\)',
                 f'[img=0,1]{token}[/img]',
                 result,
             )
 
-        return result, token_map
+        return result, token_map, local_ids
 
     def _format_for_discuz(self, body: str, attachment_tokens: dict = None) -> str:
         """将文章内容转换为 Discuz! 兼容格式
@@ -454,14 +461,18 @@ class DiscuzPublisher(Publisher):
             fid: 版块 ID
             article: 新内容
         """
-        # 1. 上传图片为附件
-        body_with_tokens, token_map = self._upload_images_to_forum(article.body or "", fid)
+        # 0. 先定义编辑页 URL
+        edit_page_url = f"/forum.php?mod=post&action=edit&fid={fid}&tid={tid}&pid={pid}&page=1"
+        # 1. 上传图片为附件（从编辑页面提取 uid/hash）
+        resp = self.browser.get(edit_page_url)
+        body_with_tokens, token_map, local_ids = self._upload_images_to_forum(
+            article.body or "", fid, page_html=resp.text
+        )
         # 2. 格式化内容
         body_formatted = self._format_for_discuz(body_with_tokens, token_map)
 
-        # 3. 获取编辑表单
-        edit_page_url = f"/forum.php?mod=post&action=edit&fid={fid}&tid={tid}&pid={pid}&page=1"
-        resp = self.browser.get(edit_page_url)
+        # 3. 从已获取的编辑页提取表单参数
+        # resp 是第1步中 GET 编辑页面得到的结果
 
         # 提取 formhash + 所有隐藏字段
         formhash_m = re.search(r'name="formhash"[^>]+value="([^"]+)"', resp.text)
@@ -491,6 +502,9 @@ class DiscuzPublisher(Publisher):
         for k, v in form_fields.items():
             if k not in data:
                 data[k] = v
+        # 上传的附件 localid — 关联上传文件到帖子
+        for lid in local_ids:
+            data.setdefault("localid[]", []).append(lid)
 
         time.sleep(random.uniform(0.5, 1.5))
         resp = self.browser.post(edit_page_url, data=data)
@@ -677,7 +691,9 @@ class DiscuzPublisher(Publisher):
             typeid = categories[0]["id"]
 
         # 第3步：上传图片到论坛附件 + 组装表单数据
-        body_with_tokens, token_map = self._upload_images_to_forum(article.body or "", fid)
+        body_with_tokens, token_map, local_ids = self._upload_images_to_forum(
+            article.body or "", fid, page_html=resp.text
+        )
         body_html = self._format_for_discuz(body_with_tokens, token_map) if article.body else ""
         data = {
             "formhash": formhash,
@@ -697,6 +713,9 @@ class DiscuzPublisher(Publisher):
         for key in form_fields:
             if key not in data:
                 data[key] = form_fields[key]
+        # 上传的附件 localid — 关联上传文件到帖子
+        for lid in local_ids:
+            data.setdefault("localid[]", []).append(lid)
 
         # 第4步：提交帖子
         submit_url = (
