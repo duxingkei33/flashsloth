@@ -121,6 +121,9 @@ tags:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
+            # —— 图片处理：将文章中的图片拷贝到 Hugo 静态目录 ——
+            self._copy_article_images(article.body)
+
             post_slug = filename.replace(".md", "")
             # 生成 MkDocs 兼容的 URL: /YYYY/MM/DD/slug/
             if self.post_url_prefix:
@@ -251,3 +254,47 @@ tags:
         slug = re.sub(r'-{2,}', '-', slug)
         slug = slug.strip('-')
         return slug[:80] or "post"
+
+    def _copy_article_images(self, body: str) -> None:
+        """扫描文章 body 中的图片引用，从 FlashSloth 上传目录拷贝到 Hugo 静态目录
+
+        图片路径如 /static/uploads/img_1.jpg → 拷贝到 hugo_blog/static/static/uploads/
+        这样 Hugo 构建后 /static/uploads/img_1.jpg 可正确访问。
+        """
+        import re, shutil
+
+        fs_uploads = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "static", "uploads"
+        )
+
+        # 从 posts_dir (/opt/data/xxx/blog/content/posts/) 推导 blog 根目录
+        blog_root = os.path.dirname(os.path.dirname(os.path.dirname(self.posts_dir)))
+        hugo_static = os.path.join(blog_root, "static")
+
+        if not os.path.isdir(fs_uploads):
+            return
+
+        # 匹配 <img src="..." /> 中的 src 路径
+        for m in re.finditer(r'src="([^"]+)"', body):
+            src_path = m.group(1)
+            # 只处理 /static/uploads/ 路径
+            if not src_path.startswith("/static/uploads/"):
+                continue
+            rel_path = src_path[len("/static/uploads/"):]
+            src_file = os.path.join(fs_uploads, rel_path)
+            if not os.path.isfile(src_file):
+                continue
+
+            # 目标路径：保留 /static/uploads/ 前导路径
+            # Hugo 的 static/ 目录内容从站点根路径服务
+            # 要 URL /static/uploads/img.jpg => 文件放 static/static/uploads/img.jpg
+            target_dir = os.path.join(hugo_static, "static", "uploads")
+            target_file = os.path.join(target_dir, rel_path)
+            os.makedirs(target_dir, exist_ok=True)
+
+            # 如果已存在且一致则跳过
+            if os.path.isfile(target_file) and os.path.getsize(target_file) == os.path.getsize(src_file):
+                continue
+
+            shutil.copy2(src_file, target_file)
