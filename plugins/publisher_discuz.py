@@ -256,71 +256,174 @@ class DiscuzPublisher(Publisher):
                     fields[m.group(1)] = m.group(2)
         return fields
 
-    def _format_for_discuz(self, body: str) -> str:
+    def _extract_images_from_body(self, body: str) -> list[dict]:
+        """从文章 body 中提取所有图片引用
+
+        返回 [{src, alt, type}] 列表，type='html' | 'markdown'
+        """
+        import re as _re
+        images = []
+        # <img src="..." alt="...">
+        for m in _re.finditer(r'<img[^>]*src="([^"]+)"[^>]*(?:alt="([^"]*)")?[^>]*>', body, _re.IGNORECASE):
+            images.append({'src': m.group(1), 'alt': m.group(2) or '', 'type': 'html'})
+        # ![alt](url)
+        for m in _re.finditer(r'!\[([^\]]*)\]\(([^)]+)\)', body):
+            images.append({'src': m.group(2), 'alt': m.group(1), 'type': 'markdown'})
+        return images
+
+    def _upload_images_to_forum(self, body: str, fid: str) -> tuple[str, dict]:
+        """扫描 body 中的图片，上传到论坛附件，替换为 [img=0,1]DISCUZUPLOAD...[/img]
+
+        返回: (替换后的 body, {原路径: discuz_upload_token})
+        """
+        import os, re as _re
+
+        images = self._extract_images_from_body(body)
+        if not images:
+            return body, {}
+
+        # 找上传参数（从发帖页面获取 uid, hash）
+        r = self.browser.get(f"/forum.php?mod=post&action=newthread&fid={fid}")
+        uid_m = _re.search(r'\"uid\":\"(\d+)\"', r.text)
+        hash_m = _re.search(r'\"hash\":\"([a-f0-9]+)\"', r.text)
+        uid = uid_m.group(1) if uid_m else ''
+        hash_val = hash_m.group(1) if hash_m else ''
+
+        if not uid or not hash_val:
+            # 没有上传接口参数，走外链模式
+            return body, {}
+
+        upload_url = f"{self.site_url}/misc.php?mod=swfupload&action=swfupload&operation=upload&fid={fid}&simple=1"
+        token_map = {}
+        fs_upload_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads"
+        )
+
+        for img in images:
+            src = img['src']
+            if src in token_map:
+                continue
+
+            # 尝试找本地文件
+            local_path = None
+            if src.startswith('/static/uploads/'):
+                rel = src[len('/static/uploads/'):]
+                local_path = os.path.join(fs_upload_dir, rel)
+            elif src.startswith('static/uploads/'):
+                local_path = os.path.join(fs_upload_dir, src[len('static/uploads/'):])
+            elif not src.startswith('http'):
+                # 相对路径或文件名，尝试在 fs_upload_dir 下找
+                local_path = os.path.join(fs_upload_dir, os.path.basename(src))
+
+            if not local_path or not os.path.isfile(local_path):
+                continue
+
+            # 上传
+            try:
+                import mimetypes
+                mime = mimetypes.guess_type(local_path)[0] or 'image/jpeg'
+                with open(local_path, 'rb') as f:
+                    resp = self.browser.session.post(
+                        upload_url,
+                        files={'Filedata': (os.path.basename(local_path), f, mime)},
+                        data={'uid': uid, 'hash': hash_val, 'type': 'image'},
+                        timeout=30,
+                    )
+                raw = resp.text.strip()
+                # DISCUZUPLOAD|0|AID|1|0
+                if raw and 'DISCUZUPLOAD' in raw:
+                    token_map[src] = raw
+                elif raw and raw.isdigit():
+                    token_map[src] = f"DISCUZUPLOAD|0|{raw}|1|0"
+            except Exception:
+                continue
+
+        # 替换 body 中的图片引用
+        result = body
+        for orig_src, token in token_map.items():
+            # HTML <img> 标签
+            result = _re.sub(
+                rf'<img[^>]*src="{_re.escape(orig_src)}"[^>]*>',
+                f'[img=0,1]{token}[/img]',
+                result,
+            )
+            # Markdown ![]()
+            result = _re.sub(
+                rf'!\[([^\]]*)\]\({_re.escape(orig_src)}\)',
+                f'[img=0,1]{token}[/img]',
+                result,
+            )
+
+        return result, token_map
+
+    def _format_for_discuz(self, body: str, attachment_tokens: dict = None) -> str:
         """将文章内容转换为 Discuz! 兼容格式
 
         Discuz 接受 HTML 标签（p, h1-h6, strong, em, ul/li 等），
-        但禁用了 <img> 和 <a> 标签，需转为 BBCode：
-          - <img> → [img]url[/img]
-          - <a> → [url=...]text[/url]
+        但禁用了 <img> 和 <a> 标签，需转为 BBCode。
 
-        输入支持：
-        - 纯 Markdown（###、**bold**、![img](url) 等）
-        - 纯 HTML（<p>、<h3>、<img> 等）
-        - 混合内容（Markdown 文本 + HTML 标签）
-
-        不会双重转义。
+        attachment_tokens: {原路径: DISCUZUPLOAD|...} — 已上传的附件 token，
+                         有此 token 的图片用 [img=0,1]token[/img] 格式。
         """
         import re as _re
+        attachment_tokens = attachment_tokens or {}
 
         text = body
 
-        # ── 第1步：处理 Markdown 语法（支持混合内容中的 Markdown 片段） ──
-        # 标题 (先处理，防干扰)
+        # ── 第1步：先处理已上传的附件（替换为 Discuz 附件标签） ──
+        for orig_src, token in attachment_tokens.items():
+            # HTML
+            text = _re.sub(
+                rf'<img[^>]*src="{_re.escape(orig_src)}"[^>]*>',
+                f'[img=0,1]{token}[/img]',
+                text,
+            )
+            # Markdown
+            text = _re.sub(
+                rf'!\[([^\]]*)\]\({_re.escape(orig_src)}\)',
+                f'[img=0,1]{token}[/img]',
+                text,
+            )
+
+        # ── 第2步：处理 Markdown 语法 ──
         text = _re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
         text = _re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
         text = _re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=_re.MULTILINE)
-        # 粗体
         text = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
         text = _re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
-        # 斜体
         text = _re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
         text = _re.sub(r'_(.+?)_', r'<em>\1</em>', text)
-        # 行内代码
         text = _re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-        # 列表（仅处理未包在 HTML 里的 Markdown 列表）
         text = _re.sub(r'^- (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
         text = _re.sub(r'^\* (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
-        # 代码块
         text = _re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', text, flags=_re.DOTALL)
 
-        # ── 第2步：段落包裹（仅包裹未被 HTML 标签包围的文本段落） ──
+        # ── 第3步：段落包裹 ──
         parts = []
         for para in text.split('\n\n'):
             para = para.strip()
             if not para:
                 continue
-            # 如果段落不以 HTML 标签开头，包 <p>
             if not _re.match(r'^\s*<', para):
                 para = f'<p>{para}</p>'
             parts.append(para)
         text = '\n'.join(parts)
 
-        # ── 第3步：统一转换 Discuz 不接受的标签为 BBCode ──
-        # <img src="..."> → [img]url[/img]（兼容自闭合和非自闭合）
+        # ── 第4步：处理剩余未上传的 <img> 和 <a> ──
+        # 剩余 <img> → 外链 [img]
         text = _re.sub(
             r'<img[^>]*src="([^"]+)"[^>]*>',
             lambda m: self._make_img_bbcode(m.group(1)),
             text,
             flags=_re.IGNORECASE,
         )
-        # Markdown 图片引用 ![]() 也转（可能前面没被处理）
+        # 剩余 ![]() → 外链 [img]
         text = _re.sub(
             r'!\[([^\]]*)\]\(([^)]+)\)',
             lambda m: self._make_img_bbcode(m.group(2)),
             text,
         )
-        # <a href="..."> → [url=...]...[/url]
+        # <a> → [url]
         text = _re.sub(
             r'<a\s+href="([^"]+)"[^>]*>(.*?)</a>',
             r'[url=\1]\2[/url]',
@@ -336,15 +439,82 @@ class DiscuzPublisher(Publisher):
         本地 /static/uploads/ 路径转为绝对 URL（通过 FRP 公网地址），
         外部 URL 直接使用。
         """
-        # 本地路径 → 绝对 URL
         if src.startswith('/'):
             base = self.config.get('public_url', '').rstrip('/')
             if base:
                 src = base + src
-        # 非三方 CDN 图片才加尺寸限制
-        if not any(d in src for d in ['picsum.photos', 'unsplash.com']):
-            return f'[img]{src}[/img]'
         return f'[img]{src}[/img]'
+
+    def edit_post(self, tid: str, pid: str, fid: str, article: Article) -> dict:
+        """编辑已发布的帖子，重新上传图片为附件
+
+        参数:
+            tid: 帖子 ID
+            pid: 帖子回复 ID（从 thread 页面提取）
+            fid: 版块 ID
+            article: 新内容
+        """
+        # 1. 上传图片为附件
+        body_with_tokens, token_map = self._upload_images_to_forum(article.body or "", fid)
+        # 2. 格式化内容
+        body_formatted = self._format_for_discuz(body_with_tokens, token_map)
+
+        # 3. 获取编辑表单
+        edit_page_url = f"/forum.php?mod=post&action=edit&fid={fid}&tid={tid}&pid={pid}&page=1"
+        resp = self.browser.get(edit_page_url)
+
+        # 提取 formhash + 所有隐藏字段
+        formhash_m = re.search(r'name="formhash"[^>]+value="([^"]+)"', resp.text)
+        if not formhash_m:
+            return {"success": False, "error": "无法获取编辑表单"}
+        formhash = formhash_m.group(1)
+
+        form_fields = self._extract_form_fields(resp.text)
+        posttime = form_fields.get("posttime", "")
+
+        # 4. 提交编辑
+        data = {
+            "formhash": formhash,
+            "posttime": posttime,
+            "wysiwyg": "1",
+            "fid": fid,
+            "tid": tid,
+            "pid": pid,
+            "page": "1",
+            "delete": "0",
+            "save": "",
+            "subject": article.title,
+            "message": body_formatted,
+            "editsubmit": "true",
+        }
+        # 补齐 form_fields 中缺失的字段
+        for k, v in form_fields.items():
+            if k not in data:
+                data[k] = v
+
+        time.sleep(random.uniform(0.5, 1.5))
+        resp = self.browser.post(edit_page_url, data=data)
+
+        # 5. 判断结果
+        if "forumdisplay" in resp.url:
+            return {"success": True, "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
+                    "message": "edit_success"}
+        if "提示信息" in resp.text:
+            msg = re.search(r'<div[^>]*id="messagetext"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
+            txt = re.sub(r"<[^>]+>", " ", msg.group(1)).strip()[:200] if msg else "未知"
+            # 提示信息也可能是成功的（需审核）
+            if "审核" in txt or "等待" in txt:
+                return {"success": True, "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
+                        "error": txt, "message": "edit_pending_review"}
+            return {"success": False, "error": txt}
+
+        # 编辑页重新加载 → 检查是否有错误
+        err = re.search(r'<div[^>]*class="alert_error"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
+        if err:
+            return {"success": False, "error": re.sub(r"<[^>]+>", " ", err.group(1)).strip()[:300]}
+
+        return {"success": True, "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
+                "message": "edit_done"}
 
     def _get_thread_categories(self, fid: str) -> list[dict]:
         """获取板块的主题分类（typeid）"""
@@ -506,8 +676,9 @@ class DiscuzPublisher(Publisher):
         if categories:
             typeid = categories[0]["id"]
 
-        # 第3步：组装表单数据
-        body_html = self._format_for_discuz(article.body) if article.body else ""
+        # 第3步：上传图片到论坛附件 + 组装表单数据
+        body_with_tokens, token_map = self._upload_images_to_forum(article.body or "", fid)
+        body_html = self._format_for_discuz(body_with_tokens, token_map) if article.body else ""
         data = {
             "formhash": formhash,
             "posttime": form_fields.get("posttime", ""),
