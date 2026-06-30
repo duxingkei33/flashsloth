@@ -1,2 +1,7 @@
-"""FlashSloth SDK Adapters — 所有平台适配器"""
-from .zhihu import ZhihuAdapter  # noqa
+"""适配器导入"""
+
+from .mydigit import MydigitAdapter  # noqa
+from .amobbs import AmobbsAdapter  # noqa
+from .csdn import CSDNAdapter  # noqa
+from .github_pages import GitHubPagesAdapter  # noqa
+from .notion import NotionAdapter  # noqa
