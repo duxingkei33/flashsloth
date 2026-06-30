@@ -28,7 +28,39 @@
                 启用此账号
             </label>
         </div>
-        <div style="display:flex;gap:8px;">
+        <hr style="margin:16px 0;border:none;border-top:1px solid #eee;">
+        <h3 style="font-size:14px;color:#666;margin-bottom:12px;">🛡️ 验证码处理</h3>
+        <div class="form-group">
+            <label>验证码处理方式</label>
+            <select name="captcha_provider" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+                <option value="manual" {{ 'selected' if account.captcha_provider == 'manual' or not account.captcha_provider else '' }}>手动输入（弹窗）</option>
+                <option value="ttshitu" {{ 'selected' if account.captcha_provider == 'ttshitu' else '' }}>图鉴自动识别 (ttshitu)</option>
+                <option value="2captcha" {{ 'selected' if account.captcha_provider == '2captcha' else '' }}>2captcha 自动识别</option>
+            </select>
+            <div id="captchaConfigTtshitu" style="display:none;margin-top:8px;">
+                <input type="text" name="captcha_ttshitu_username" placeholder="图鉴用户名"
+                       style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;margin-bottom:4px;"
+                       value="{{ captcha_config.get('ttshitu_username', '') if captcha_config else '' }}">
+                <input type="password" name="captcha_ttshitu_password" placeholder="图鉴密码"
+                       style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;"
+                       value="{{ captcha_config.get('ttshitu_password', '') if captcha_config else '' }}">
+            </div>
+            <div id="captchaConfig2captcha" style="display:none;margin-top:8px;">
+                <input type="password" name="captcha_2captcha_key" placeholder="2captcha API Key"
+                       style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;"
+                       value="{{ captcha_config.get('two_captcha_key', '') if captcha_config else '' }}">
+            </div>
+        </div>
+        <script>
+        function toggleCaptchaConfig() {
+            var val = document.querySelector('select[name="captcha_provider"]').value;
+            document.getElementById('captchaConfigTtshitu').style.display = val === 'ttshitu' ? 'block' : 'none';
+            document.getElementById('captchaConfig2captcha').style.display = val === '2captcha' ? 'block' : 'none';
+        }
+        document.querySelector('select[name="captcha_provider"]').addEventListener('change', toggleCaptchaConfig);
+        toggleCaptchaConfig();
+        </script>
+        <div style="display:flex;gap:8px;margin-top:16px;">
             <button type="submit" class="btn btn-primary">保存</button>
             <a href="/accounts" class="btn" style="background:#eee;">取消</a>
         </div>
