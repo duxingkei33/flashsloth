@@ -313,8 +313,11 @@ class DiscuzPublisher(Publisher):
         except:
             return []
 
-    def _verify_thread_exists(self, tid: str) -> dict:
-        """验证帖子真实状态：可见、待审核、不存在"""
+    def _verify_thread_exists(self, tid: str, title: str = "") -> dict:
+        """验证帖子真实状态：可见、待审核、不存在
+
+        像人一样去个人中心→我的帖子双重确认
+        """
         try:
             resp = self.browser.get(f"/forum.php?mod=viewthread&tid={tid}")
             body_class = re.search(r'class="pg_(\w+)"', resp.text)
@@ -330,9 +333,29 @@ class DiscuzPublisher(Publisher):
                             "title": "帖子未找到（可能已被删除或审核中）"}
                 url = resp.url
                 title_m = re.search(r"<title>(.*?)</title>", resp.text)
-                title = title_m.group(1) if title_m else ""
+                title_text = title_m.group(1) if title_m else ""
+
+                # 双重确认：去个人中心→我的帖子看看
+                try:
+                    from plugins.forum_reader import DiscuzForumReader
+                    site_url = self.config.get("site_url", "").rstrip("/")
+                    cookie = self.config.get("cookie", "")
+                    reader = DiscuzForumReader(site_url, cookies=cookie,
+                                               username=self.username)
+                    my_posts = reader.check_thread_in_my_posts(tid, title or title_text)
+                    if my_posts["status"] == "published":
+                        return {"status": "published", "visible": True,
+                                "url": url, "title": title_text,
+                                "my_posts_verified": True}
+                    elif my_posts["status"] == "pending_review":
+                        return {"status": "pending_review", "visible": False,
+                                "title": "帖子不在'我的帖子'列表中，但直接访问可见（可能审核中）",
+                                "my_posts_verified": False}
+                except Exception:
+                    pass  # 降级为直接验证结果
+
                 return {"status": "published", "visible": True,
-                        "url": url, "title": title}
+                        "url": url, "title": title_text}
 
             if "login" in resp.url.lower():
                 return {"status": "login_required", "visible": False,
@@ -469,7 +492,7 @@ class DiscuzPublisher(Publisher):
             tid = tid_match.group(1)
             # 验证帖子的真实状态
             time.sleep(1.5)  # 等论坛处理
-            verify = self._verify_thread_exists(tid)
+            verify = self._verify_thread_exists(tid, title=article.title)
             if verify["status"] == "published":
                 return {
                     "success": True, "tid": tid,

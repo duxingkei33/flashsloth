@@ -30,6 +30,7 @@ import flashsloth.plugins.publisher_github_pages  # noqa
 import flashsloth.plugins.deployer_github_pages  # noqa
 import flashsloth.plugins.storage_alist        # noqa
 import flashsloth.plugins.forum_reader          # noqa
+import flashsloth.plugins.forum_signin           # noqa
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()

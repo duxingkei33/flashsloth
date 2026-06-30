@@ -173,6 +173,82 @@ class DiscuzForumReader:
         except:
             return None
 
+    def check_thread_in_my_posts(self, tid: str, title: str = "") -> dict:
+        """像人一样去个人中心→我的帖子，确认帖子真实状态
+
+        Returns:
+            {"status": "published"|"pending_review"|"not_found"|"error",
+             "title": ..., "url": ..., "match": bool}
+        """
+        try:
+            # 访问个人中心→我的帖子
+            resp = self.browser.get("/home.php?mod=space&do=thread&view=me")
+            if "我的帖子" not in resp.text and "我的主题" not in resp.text:
+                # 试试带UID的URL
+                resp = self.browser.get("/home.php?mod=space&uid=0&do=thread&view=me")
+
+            # 在当前页和后续页查找帖子
+            found = False
+            page_urls = [resp.url]
+            # 先看当前页
+            for url, ttl in re.findall(
+                r'href="(thread-\d+-1-1\.html)"[^>]*>(.*?)</a>',
+                resp.text, re.DOTALL
+            ):
+                found_tid = re.search(r"thread-(\d+)-", url)
+                if found_tid and found_tid.group(1) == tid:
+                    found = True
+                    break
+                if title:
+                    clean = re.sub(r"<[^>]+>", "", ttl).strip()
+                    if title[:30].lower() == clean[:30].lower():
+                        found = True
+                        break
+
+            # 找翻页
+            if not found:
+                page_links = re.findall(
+                    r'href="(home\.php\?mod=space[^"]*page=(\d+))"',
+                    resp.text
+                )
+                for link, pg in page_links:
+                    if int(pg) > 5:
+                        break
+                    r2 = self.browser.get("/" + link)
+                    for url, ttl in re.findall(
+                        r'href="(thread-\d+-1-1\.html)"[^>]*>(.*?)</a>',
+                        r2.text, re.DOTALL
+                    ):
+                        found_tid = re.search(r"thread-(\d+)-", url)
+                        if found_tid and found_tid.group(1) == tid:
+                            found = True
+                            break
+                        if title:
+                            clean = re.sub(r"<[^>]+>", "", ttl).strip()
+                            if title[:30].lower() == clean[:30].lower():
+                                found = True
+                                break
+                    if found:
+                        break
+
+            if found:
+                return {"status": "published", "visible": True,
+                        "match": True, "title": "在'我的帖子'中找到"}
+            else:
+                # 不在列表中，可能待审核/被删
+                # 再试试直接访问帖子检查
+                detail = self.get_thread_detail(tid)
+                if detail and detail.get("content") and len(detail["content"]) > 20:
+                    return {"status": "pending_review", "visible": False,
+                            "match": False,
+                            "title": "帖子不在'我的帖子'列表中，但直接访问可看到内容（可能审核中）"}
+                return {"status": "not_found", "visible": False,
+                        "match": False,
+                        "title": "帖子不在'我的帖子'列表中，也无法直接访问"}
+        except Exception as e:
+            return {"status": "error", "visible": False,
+                    "match": False, "title": str(e)}
+
     def get_replies_to_my_threads(self, my_thread_tids: list[str], max_pages: int = 2) -> list[dict]:
         """检查我发的帖子的最新回复"""
         replies = []
