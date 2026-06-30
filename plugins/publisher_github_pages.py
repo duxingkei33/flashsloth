@@ -223,20 +223,23 @@ tags:
     def _slugify(self, title: str) -> str:
         """生成英文 URL slug
 
-        使用 pymdownx slugify 生成与 MkDocs Material 一致的 slug。
-        中文标题自动转拼音，确保 URL 国际化友好。
+        中文标题不使用拼音，自动生成随机英文 slug。
+        用户可在文章 frontmatter 中设置 slug 覆盖此值。
         """
         global _slugger
 
-        # 中文转拼音
+        # 检查是否包含中文字符
+        has_chinese = any('\u4e00' <= c <= '\u9fff' for c in title)
+
+        if has_chinese:
+            # 中文标题 → 随机英文 slug，不要拼音
+            import hashlib
+            raw = title.encode('utf-8')
+            short_hash = hashlib.md5(raw).hexdigest()[:6]
+            return f"post-{short_hash}"
+
+        # 纯英文/数字标题 → 正常 slugify
         raw = title
-        try:
-            import pypinyin
-            # 检查是否包含中文字符
-            if any('\u4e00' <= c <= '\u9fff' for c in title):
-                raw = ''.join(pypinyin.lazy_pinyin(title, style=pypinyin.Style.NORMAL))
-        except ImportError:
-            pass  # 没有 pypinyin 则用原始标题
 
         if _slugger is not None:
             return _slugger(raw, "-")
