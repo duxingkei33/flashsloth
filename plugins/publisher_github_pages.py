@@ -258,8 +258,9 @@ tags:
     def _copy_article_images(self, body: str) -> None:
         """扫描文章 body 中的图片引用，从 FlashSloth 上传目录拷贝到 Hugo 静态目录
 
-        图片路径如 /static/uploads/img_1.jpg → 拷贝到 hugo_blog/static/static/uploads/
-        这样 Hugo 构建后 /static/uploads/img_1.jpg 可正确访问。
+        支持 Markdown 图片语法 ![alt](path) 和 HTML <img src="path" /> 两种格式。
+        图片路径如 /static/uploads/article_13/01.jpg → 拷贝到 hugo_blog/static/static/uploads/article_13/
+        这样 Hugo 构建后 /static/uploads/article_13/01.jpg 可正确访问。
         """
         import re, shutil
 
@@ -268,19 +269,31 @@ tags:
             "static", "uploads"
         )
 
-        # 从 posts_dir (/opt/data/xxx/blog/content/posts/) 推导 blog 根目录
+        # 从 posts_dir (.../blog/content/posts/) 推导 blog 根目录
         blog_root = os.path.dirname(os.path.dirname(os.path.dirname(self.posts_dir)))
         hugo_static = os.path.join(blog_root, "static")
 
         if not os.path.isdir(fs_uploads):
             return
 
-        # 匹配 <img src="..." /> 中的 src 路径
+        # 收集所有图片路径
+        img_paths = set()
+
+        # 1) 匹配 Markdown 图片: ![alt](/static/uploads/...)
+        for m in re.finditer(r'!\[.*?\]\(([^)]+)\)', body):
+            src = m.group(1)
+            # 去掉 URL 参数
+            src = src.split(" ")[0].split("?")[0].split("#")[0]
+            if src.startswith("/static/uploads/"):
+                img_paths.add(src)
+
+        # 2) 匹配 HTML img 标签: <img src="/static/uploads/..." />
         for m in re.finditer(r'src="([^"]+)"', body):
-            src_path = m.group(1)
-            # 只处理 /static/uploads/ 路径
-            if not src_path.startswith("/static/uploads/"):
-                continue
+            src = m.group(1)
+            if src.startswith("/static/uploads/"):
+                img_paths.add(src)
+
+        for src_path in img_paths:
             rel_path = src_path[len("/static/uploads/"):]
             src_file = os.path.join(fs_uploads, rel_path)
             if not os.path.isfile(src_file):
@@ -288,12 +301,10 @@ tags:
 
             # 目标路径：保留 /static/uploads/ 前导路径
             # Hugo 的 static/ 目录内容从站点根路径服务
-            # 要 URL /static/uploads/img.jpg => 文件放 static/static/uploads/img.jpg
-            target_dir = os.path.join(hugo_static, "static", "uploads")
-            target_file = os.path.join(target_dir, rel_path)
-            os.makedirs(target_dir, exist_ok=True)
+            # 要 URL /static/uploads/xxx => 文件放 static/static/uploads/xxx
+            target_file = os.path.join(hugo_static, "static", "uploads", rel_path)
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
 
-            # 如果已存在且一致则跳过
             if os.path.isfile(target_file) and os.path.getsize(target_file) == os.path.getsize(src_file):
                 continue
 
