@@ -520,7 +520,7 @@ class DiscuzPublisher(Publisher):
                     "error": "发帖后跳转回首页，帖子可能已创建但不可见，或账号无权限。请检查账号发帖权限",
                     "url": "", "id": ""}
 
-        # 检查 alert_error
+        # 检查 alert_error（真正的错误）
         err_match = re.search(
             r'<div[^>]*class="alert_error"[^>]*>(.*?)</div>', resp.text, re.DOTALL
         )
@@ -528,18 +528,9 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": err_match.group(1).strip()[:500],
                     "url": "", "id": ""}
 
-        # 检查 messagetext
-        msg_match = re.search(
-            r'<div[^>]*id="messagetext"[^>]*>(.*?)</div>', resp.text, re.DOTALL
-        )
-        if msg_match:
-            text = re.sub(r"<[^>]+>", "", msg_match.group(1)).strip()
-            if text:
-                return {"success": False, "error": text[:500], "url": "", "id": ""}
-
-        # 检查 JS 跳转
+        # 检查 JS 跳转（发帖成功，可能需审核或自动跳转到帖子页）
         js_match = re.search(
-            r'window\.location\s*=\s*["\']([^"\']+)["\']', resp.text
+            r'window\.location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', resp.text
         )
         if js_match:
             redirect_url = js_match.group(1)
@@ -548,7 +539,8 @@ class DiscuzPublisher(Publisher):
             time.sleep(1)
             import requests as req_mod
             r2 = req_mod.get(redirect_url, timeout=15)
-            tid = re.search(r"tid=(\d+)", r2.url)
+            # 支持两种 URL 格式：tid=123 和 thread-123-1-1.html
+            tid = re.search(r"tid=(\d+)", r2.url) or re.search(r"thread-(\d+)-", r2.url)
             if tid:
                 return {"success": True, "tid": tid.group(1),
                         "url": r2.url, "error": "", "message": "js_redirect"}
