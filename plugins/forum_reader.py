@@ -8,7 +8,10 @@ from datetime import datetime, timedelta
 from html import unescape
 from typing import Optional
 
-from flashsloth.plugins.browser_session import HumanSession
+try:
+    from flashsloth.plugins.browser_session import HumanSession
+except ImportError:
+    from plugins.browser_session import HumanSession
 
 # ─── Discuz! 论坛抓取器 ─────────────────────────
 
