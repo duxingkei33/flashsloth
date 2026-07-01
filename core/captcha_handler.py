@@ -82,7 +82,7 @@ class CaptchaHandler:
 
     def __init__(self, db_path: str = ""):
         self._db_path = db_path or os.environ.get(
-            "FLASHSLOTH_DB",
+            "FLASHSLOTH_DB_PATH",
             os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db"),
         )
         self._challenges: dict[str, CaptchaChallenge] = {}
