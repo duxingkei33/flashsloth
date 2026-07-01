@@ -291,38 +291,151 @@ class MydigitAdapter(PlatformAdapter):
         except Exception as e:
             return []
 
-    # ─── 采集回复 ─────────────────────────────────
+    # ─── 采集回复（增强版） ─────────────────────────
 
     def fetch_replies(self, thread_ids: list[str] = None, **kwargs) -> list[Comment]:
         """
-        采集指定帖子的回复。
-        使用 DiscuzForumReader.get_replies_to_my_threads()。
+        采集指定帖子的全部回复。
+        使用 DiscuzReplyExtractor 获取完整回复列表。
         """
         if not thread_ids:
             return []
 
         try:
-            reader = self._make_reader()
-            raw_replies = reader.get_replies_to_my_threads(
-                my_thread_tids=thread_ids,
-                max_pages=kwargs.get("max_pages", 2),
+            from plugins.reply_monitor import DiscuzReplyExtractor
+            extractor = DiscuzReplyExtractor(
+                site_url=self.site_url,
+                cookies=self.cookie,
+                username=self.username,
             )
 
             comments = []
-            for r in raw_replies:
-                comment = Comment(
-                    id="",
-                    author=r.get("author", ""),
-                    content=r.get("content", ""),
-                    created_at=None,
-                    parent_id="",
-                    thread_id=r.get("thread_tid", ""),
-                )
-                comments.append(comment)
+            for tid in thread_ids:
+                import time, random
+                time.sleep(random.uniform(0.5, 2.0))  # 真人延迟
+
+                result = extractor.get_replies_for_thread(tid)
+                for r in result.get("replies", []):
+                    comment = Comment(
+                        id=r.get("pid", ""),
+                        author=r.get("author", ""),
+                        content=r.get("content", ""),
+                        created_at=r.get("time", None),
+                        parent_id="",
+                        thread_id=tid,
+                    )
+                    comments.append(comment)
             return comments
 
         except Exception as e:
-            return []
+            # 降级到旧的简易方法
+            try:
+                reader = self._make_reader()
+                raw_replies = reader.get_replies_to_my_threads(
+                    my_thread_tids=thread_ids,
+                    max_pages=kwargs.get("max_pages", 2),
+                )
+                comments = []
+                for r in raw_replies:
+                    comment = Comment(
+                        id="",
+                        author=r.get("author", ""),
+                        content=r.get("content", ""),
+                        created_at=None,
+                        parent_id="",
+                        thread_id=r.get("thread_tid", ""),
+                    )
+                    comments.append(comment)
+                return comments
+            except:
+                return []
+
+    # ─── 回复评论（模拟人发帖） ─────────────────────
+
+    def reply_comment(self, thread_id: str, content: str, comment_id: str = None) -> dict:
+        """
+        回复帖子，模拟真人操作。
+        """
+        if not thread_id or not content:
+            return {"supported": True, "success": False, "error": "缺少参数"}
+
+        try:
+            from plugins.browser_session import HumanSession
+            import time, random
+
+            browser = HumanSession(
+                base_url=self.site_url, min_delay=1.0, max_delay=3.0
+            )
+            if self.cookie:
+                browser.set_cookies(self.cookie)
+
+            # 1. 先浏览帖子
+            browser.get(f"/forum.php?mod=viewthread&tid={thread_id}")
+            time.sleep(random.uniform(2, 4))
+
+            # 2. 获取 formhash
+            formhash = browser.get_formhash(
+                f"/forum.php?mod=viewthread&tid={thread_id}"
+            )
+            if not formhash:
+                return {
+                    "supported": True, "success": False,
+                    "error": "无法获取 formhash，Cookie 可能过期",
+                }
+
+            # 3. 模拟打字延迟
+            time.sleep(random.uniform(0.5, 1.5))
+
+            # 4. 提交回复
+            post_data = {
+                "formhash": formhash,
+                "message": content,
+                "replysubmit": "yes",
+                "posttime": str(int(time.time()) - random.randint(10, 60)),
+                "wysiwyg": "0",
+            }
+
+            resp = browser.post(
+                f"/forum.php?mod=post&action=reply&tid={thread_id}"
+                f"&extra=&replysubmit=yes&infloat=yes&handlekey=fastpost",
+                data=post_data,
+            )
+
+            # 5. 检查结果
+            text = resp.text
+            if "回复发布成功" in text or "发表于" in text:
+                return {
+                    "supported": True, "success": True,
+                    "message": "回复成功 ✅",
+                    "url": f"{self.site_url}/forum.php?mod=viewthread&tid={thread_id}",
+                }
+            if "您的请求来路不正确" in text:
+                return {
+                    "supported": True, "success": False,
+                    "error": "表单验证失败（来路不正确）",
+                }
+
+            # 提取错误
+            err = ""
+            for pat in [
+                r'<div[^>]*class="alert_error"[^>]*>([\\s\\S]*?)</div>',
+                r'<p[^>]*class="alert_info"[^>]*>(.*?)</p>',
+            ]:
+                m = __import__('re').search(pat, text, __import__('re').DOTALL)
+                if m:
+                    err = __import__('re').sub(r"<[^>]+>", "", m.group(1)).strip()[:100]
+                    break
+
+            return {
+                "supported": True, "success": False,
+                "error": err or "回复失败，可能被论坛拦截",
+            }
+
+        except Exception as e:
+            return {
+                "supported": True, "success": False,
+                "error": f"回复异常: {e}",
+            }
 
     # ─── 读帖详情 ─────────────────────────────────
 
