@@ -119,12 +119,21 @@ function toggleNotion(sel) {
 <div class="card" id="articles">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <h2 style="margin:0;">📝 文章 <span style="font-size:13px;color:#999;font-weight:normal;">（共 {{ total_articles }} 篇，已发布 {{ total_published }} 篇）</span></h2>
-        <a href="/post/new" class="btn btn-success">+ 新建</a>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <div id="batchBar" style="display:none;gap:8px;align-items:center;background:#eef0ff;padding:6px 12px;border-radius:8px;">
+                <span id="selectedCount" style="font-size:13px;color:#4361ee;font-weight:bold;">已选 0 篇</span>
+                <button class="btn btn-sm btn-success" onclick="batchPublish()">📤 批量发布</button>
+                <button class="btn btn-sm btn-danger" onclick="batchRetract()">↩️ 批量撤回</button>
+                <button class="btn btn-sm btn-danger" onclick="batchDelete()">🗑️ 批量删除</button>
+            </div>
+            <a href="/post/new" class="btn btn-success">+ 新建</a>
+        </div>
     </div>
     {% if posts %}
     <table>
         <thead>
             <tr>
+                <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
                 <th>标题</th>
                 <th>标签</th>
                 <th>状态</th>
@@ -136,6 +145,7 @@ function toggleNotion(sel) {
         <tbody>
             {% for post in posts %}
             <tr>
+                <td><input type="checkbox" class="article-checkbox" value="{{ post.id }}" onchange="updateBatchBar()"></td>
                 <td><a href="/post/edit/{{ post.id }}" style="color:#4361ee;">{{ post.title or '(无标题)' }}</a></td>
                 <td>
                     {% if post.tags %}
@@ -192,6 +202,14 @@ function toggleNotion(sel) {
             {% endfor %}
         </tbody>
     </table>
+    
+    <!-- 底部批量操作栏 -->
+    <div id="bottomBatchBar" style="display:none;justify-content:center;gap:12px;padding:16px;background:#f0f2ff;border-radius:0 0 8px 8px;border-top:1px solid #dde;">
+        <span id="bottomSelectedCount" style="font-size:14px;color:#4361ee;font-weight:bold;line-height:32px;">已选 0 篇</span>
+        <button class="btn btn-success" onclick="batchPublish()">📤 批量发布</button>
+        <button class="btn btn-primary" onclick="batchRetract()">↩️ 批量撤回</button>
+        <button class="btn btn-danger" onclick="batchDelete()">🗑️ 批量删除</button>
+    </div>
     {% else %}
     <p style="color:#999;text-align:center;padding:40px 0;">
         还没有文章，<a href="/post/new">创建第一篇</a>
@@ -256,8 +274,6 @@ function toggleNotion(sel) {
     <p style="color:#999;text-align:center;padding:20px 0;">暂无发布记录</p>
     {% endif %}
 </div>
-{% endblock %}
-
 <script>
 async function checkPending2() {
     const btn = document.getElementById('refreshPendingBtn2');
@@ -286,4 +302,89 @@ async function checkPending2() {
         btn.textContent = '🔄 刷新状态';
     }
 }
+
+// ── 批量操作 ──────────────────────────────────
+function toggleAll(master) {
+    document.querySelectorAll('.article-checkbox').forEach(cb => cb.checked = master.checked);
+    updateBatchBar();
+}
+
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.article-checkbox:checked')).map(cb => parseInt(cb.value));
+}
+
+function updateBatchBar() {
+    const ids = getSelectedIds();
+    const bar = document.getElementById('batchBar');
+    const bottomBar = document.getElementById('bottomBatchBar');
+    const count = document.getElementById('selectedCount');
+    const bottomCount = document.getElementById('bottomSelectedCount');
+    const show = ids.length > 0;
+    if (show) {
+        bar.style.display = 'flex';
+        count.textContent = '已选 ' + ids.length + ' 篇';
+        if (bottomBar) { bottomBar.style.display = 'flex'; }
+        if (bottomCount) { bottomCount.textContent = '已选 ' + ids.length + ' 篇'; }
+    } else {
+        bar.style.display = 'none';
+        if (bottomBar) { bottomBar.style.display = 'none'; }
+    }
+}
+
+async function batchDelete() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return alert('请先勾选文章');
+    if (!confirm(`确定删除所选 ${ids.length} 篇文章？不可恢复！`)) return;
+    const res = await fetch('/api/articles/batch-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids})
+    });
+    const data = await res.json();
+    if (data.success) {
+        alert(`✅ 成功删除 ${data.deleted} 篇文章`);
+        location.reload();
+    } else {
+        alert('❌ ' + (data.error || '删除失败'));
+    }
+}
+
+async function batchPublish() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return alert('请先勾选文章');
+    if (!confirm(`确定发布所选 ${ids.length} 篇文章到 GitHub Pages？`)) return;
+    const res = await fetch('/api/articles/batch-publish', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids})
+    });
+    const data = await res.json();
+    if (data.success) {
+        const ok = data.results.filter(r => r.success).length;
+        const fail = data.results.filter(r => !r.success).length;
+        alert(`✅ 发布完成: ${ok} 成功, ${fail} 失败`);
+        location.reload();
+    } else {
+        alert('❌ ' + (data.error || '发布失败'));
+    }
+}
+
+async function batchRetract() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return alert('请先勾选文章');
+    if (!confirm(`确定撤回所选 ${ids.length} 篇文章的发布？`)) return;
+    const res = await fetch('/api/articles/batch-retract', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids})
+    });
+    const data = await res.json();
+    if (data.success) {
+        alert(`✅ 撤回操作完成`);
+        location.reload();
+    } else {
+        alert('❌ ' + (data.error || '撤回失败'));
+    }
+}
 </script>
+{% endblock %}

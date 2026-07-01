@@ -734,6 +734,141 @@ def delete_post(pid):
     flash("文章已删除", "success")
     return redirect(url_for("index"))
 
+
+# ─── 批量操作 API ──────────────────────────────
+@app.route("/api/articles/batch-delete", methods=["POST"])
+@login_required
+def batch_delete_articles():
+    """批量删除文章"""
+    ids = request.json.get("ids", [])
+    if not ids:
+        return jsonify({"success": False, "error": "请选择文章"})
+    conn = get_db()
+    placeholders = ",".join("?" for _ in ids)
+    conn.execute(
+        f"DELETE FROM articles WHERE id IN ({placeholders}) AND user_id=?",
+        (*ids, current_user.id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "deleted": len(ids)})
+
+
+@app.route("/api/articles/batch-publish", methods=["POST"])
+@login_required
+def batch_publish_articles():
+    """批量发布文章到 GitHub Pages（账号 ID=2）"""
+    ids = request.json.get("ids", [])
+    if not ids:
+        return jsonify({"success": False, "error": "请选择文章"})
+    from flashsloth.core.article import Article
+    results = []
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=2 AND user_id=?", (current_user.id,)
+    ).fetchone()
+    if not acct:
+        conn.close()
+        return jsonify({"success": False, "error": "未找到 GitHub Pages 发布账号"})
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    for pid in ids:
+        post = conn.execute(
+            "SELECT * FROM articles WHERE id=? AND user_id=?", (pid, current_user.id)
+        ).fetchone()
+        if not post:
+            results.append({"id": pid, "success": False, "error": "文章不存在"})
+            continue
+        existing = conn.execute(
+            "SELECT id FROM publish_log WHERE article_id=? AND account_id=? AND success=1",
+            (pid, acct["id"])
+        ).fetchone()
+        if existing:
+            results.append({"id": pid, "success": True, "message": "already_published"})
+            continue
+        try:
+            publisher = get_publisher(acct["platform"], cfg)
+            article = Article(
+                title=post["title"], body=post["body"],
+                summary=post["summary"],
+                tags=json.loads(post["tags"]) if post["tags"] else [],
+            )
+            result = publisher.publish(article)
+            publish_status = result.get("message", "published") if result["success"] else "failed"
+            conn.execute(
+                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?,?,?,?,?,?,?,?)",
+                (pid, acct["id"], acct["platform"],
+                 1 if result["success"] else 0,
+                 result.get("url", ""), result.get("error", ""),
+                 result.get("message", ""), publish_status),
+            )
+            if result["success"]:
+                conn.execute("UPDATE articles SET status='published', updated_at=datetime('now') WHERE id=?", (pid,))
+            results.append({"id": pid, "success": result["success"], "message": result.get("message", "")})
+        except Exception as e:
+            results.append({"id": pid, "success": False, "error": str(e)})
+    # 触发部署器
+    if any(r["success"] for r in results):
+        deployers = conn.execute(
+            "SELECT * FROM deployer_configs WHERE user_id=? AND is_active=1", (current_user.id,)
+        ).fetchall()
+        for dep in deployers:
+            dep_cfg = json.loads(dep["config_json"]) if dep["config_json"] else {}
+            try:
+                deployer = get_deployer(dep["deployer_name"], dep_cfg)
+                dep_result = deployer.deploy()
+                if dep_result.get("success"):
+                    conn.execute(
+                        "UPDATE publish_log SET deploy_status='deployed' WHERE article_id IN ({}) AND (deploy_status IS NULL OR deploy_status='pending')".format(
+                            ",".join("?" for _ in ids)),
+                        (*ids,),
+                    )
+            except Exception:
+                pass
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "results": results})
+
+
+@app.route("/api/articles/batch-retract", methods=["POST"])
+@login_required
+def batch_retract_articles():
+    """批量撤回文章发布"""
+    ids = request.json.get("ids", [])
+    if not ids:
+        return jsonify({"success": False, "error": "请选择文章"})
+    conn = get_db()
+    results = []
+    for pid in ids:
+        logs = conn.execute(
+            "SELECT pl.*, a.title, a.body, a.tags FROM publish_log pl "
+            "LEFT JOIN articles a ON pl.article_id=a.id "
+            "WHERE pl.article_id=? AND pl.success=1 AND (a.user_id=? OR ?)",
+            (pid, current_user.id, current_user.is_admin)
+        ).fetchall()
+        for log in logs:
+            acct = conn.execute("SELECT * FROM platform_accounts WHERE id=?", (log["account_id"],)).fetchone()
+            if not acct:
+                continue
+            cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+            try:
+                publisher = get_publisher(acct["platform"], cfg)
+                article = Article(
+                    title=log["title"] or "", body=log["body"] or "",
+                    summary="", tags=json.loads(log["tags"]) if log["tags"] else [],
+                )
+                r = publisher.retract(article, dict(log))
+                if r.get("success"):
+                    conn.execute("UPDATE publish_log SET retracted_at=datetime('now'), success=0 WHERE id=?", (log["id"],))
+                    conn.execute("UPDATE articles SET status='draft', updated_at=datetime('now') WHERE id=?", (pid,))
+                    results.append({"id": pid, "success": True})
+                else:
+                    results.append({"id": pid, "success": False, "error": r.get("error", "撤回失败")})
+            except Exception as e:
+                results.append({"id": pid, "success": False, "error": str(e)})
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "results": results})
+
 # ─── 发布 ───────────────────────────────────────
 # ─── Discuz! 验证码登录 API ─────────────────────
 @app.route("/api/discuz/captcha", methods=["POST"])
