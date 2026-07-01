@@ -26,11 +26,11 @@
                 <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('img-input').click()">🖼️ 上传图片</button>
                 <button type="button" class="btn btn-sm btn-success" onclick="openStorageBrowser()">☁️ 从存储选择</button>
                 <input type="file" id="img-input" accept="image/*" style="display:none" onchange="uploadImage(this)">
-                <button type="button" class="btn btn-sm btn-warning" onclick="togglePreview()" id="preview-btn">👁️ 预览</button>
+                <button type="button" class="btn btn-sm btn-warning" onclick="togglePreview()" id="preview-btn">✏️ 编辑</button>
             </div>
             <div id="editor-container" style="display:flex;gap:16px;">
                 <textarea name="body" placeholder="在这里写文章..." id="article-body" style="flex:1;min-height:400px;">{{ post.body if post else '' }}</textarea>
-                <div id="preview-panel" style="flex:1;min-height:400px;border:1px solid #ddd;border-radius:6px;padding:16px;overflow-y:auto;display:none;background:#fff;font-size:14px;line-height:1.7;"></div>
+                <div id="preview-panel" style="flex:1;min-height:400px;border:1px solid #ddd;border-radius:6px;padding:16px;overflow-y:auto;background:#fff;font-size:14px;line-height:1.7;"></div>
             </div>
         </div>
         <div style="display:flex;gap:8px;">
@@ -239,10 +239,12 @@ function renderPreview() {
 // 输入时自动更新预览
 document.addEventListener('DOMContentLoaded', function() {
     const textarea = document.getElementById('article-body');
+    const panel = document.getElementById('preview-panel');
     textarea.addEventListener('input', function() {
         if (previewVisible) renderPreview();
     });
-    // 默认开启预览
+    // 默认显示预览
+    panel.style.display = 'block';
     renderPreview();
 });
 
