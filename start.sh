@@ -27,13 +27,39 @@ if [ ! -f "${DATA_DIR}/flashsloth.db" ] && [ -f "flashsloth.db" ]; then
     echo "✅ 迁移完成"
 fi
 
-# ── 3. 激活虚拟环境 ────────────────────────────────
+# ── 3. 持久化 uploads 目录 ────────────────────────
+_UPLOAD_DIR="${DATA_DIR}/uploads"
+mkdir -p "${_UPLOAD_DIR}"
+
+# 检查 static/uploads 是否存在且为符号链接
+if [ -L "static/uploads" ]; then
+    # 已经是符号链接，确认指向正确
+    _LINK_TARGET="$(readlink "static/uploads")"
+    if [ "${_LINK_TARGET}" != "${_UPLOAD_DIR}" ]; then
+        echo "🔄 更新 uploads 符号链接: ${_LINK_TARGET} → ${_UPLOAD_DIR}"
+        rm -f "static/uploads"
+        ln -sf "${_UPLOAD_DIR}" "static/uploads"
+    fi
+elif [ -d "static/uploads" ]; then
+    # 是真目录，迁移到持久目录
+    echo "📦 迁移 static/uploads 到持久目录..."
+    rsync -a static/uploads/ "${_UPLOAD_DIR}/"
+    rm -rf "static/uploads"
+    ln -sf "${_UPLOAD_DIR}" "static/uploads"
+    echo "✅ 迁移完成（共 $(find "${_UPLOAD_DIR}" -type f 2>/dev/null | wc -l) 个文件）"
+elif [ ! -e "static/uploads" ]; then
+    # 不存在，创建符号链接
+    ln -sf "${_UPLOAD_DIR}" "static/uploads"
+    echo "🔗 已创建 uploads 符号链接"
+fi
+
+# ── 4. 激活虚拟环境 ────────────────────────────────
 if [ -d "${VENV_DIR}" ]; then
     source "${VENV_DIR}/bin/activate"
     echo "🐍 虚拟环境: ${VENV_DIR}"
 fi
 
-# ── 4. 设置生产环境变量 ──────────────────────────
+# ── 5. 设置生产环境变量 ──────────────────────────
 export FLASHSLOTH_DB_PATH="${DATA_DIR}/flashsloth.db"
 echo "🗄️  数据库: ${FLASHSLOTH_DB_PATH}"
 
@@ -46,7 +72,7 @@ fi
 export FLASHSLOTH_SECRET="$(cat "${_SECRET_FILE}")"
 echo "🔐 FLASHSLOTH_SECRET 已固定（重启不丢 session）"
 
-# ── 5. 启动 Flask 应用 ────────────────────────────
+# ── 6. 启动 Flask 应用 ────────────────────────────
 echo "🌐 http://0.0.0.0:5000"
 echo ""
 exec python3 admin.py
