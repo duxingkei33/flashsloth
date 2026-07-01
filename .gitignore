@@ -17,6 +17,7 @@ storage/
 frpc.toml
 data/
 static/uploads/
+static/uploads
 *.jpg
 *.jpeg
 *.png
