@@ -147,6 +147,10 @@ async function checkPending() {
                     <span class="badge badge-warning" title="撤回时间: {{ log.retracted_at[:16] if log.retracted_at else '' }}">
                         ↩️ 已撤回
                     </span>
+                    {% elif log.status == 'pending_review' %}
+                    <span class="badge badge-warning" style="background:#f59e0b;color:#fff;">
+                        🕐 待审核
+                    </span>
                     {% elif log.success %}
                     <span class="badge badge-success">✅ 已发布</span>
                     {% else %}
