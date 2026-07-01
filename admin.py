@@ -163,6 +163,17 @@ def init_db():
     """)
     conn.commit()
 
+    # 签到调度表
+    conn.execute("""CREATE TABLE IF NOT EXISTS signin_schedules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL UNIQUE,
+        time_start TEXT DEFAULT '08:00',
+        time_end TEXT DEFAULT '08:00',
+        enabled INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.commit()
+
     # ─── 首次运行：自动生成随机 admin 账号 ───
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if user_count == 0:
@@ -248,11 +259,11 @@ def load_user(user_id):
 @app.template_filter("from_json")
 def from_json_filter(val):
     if not val:
-        return []
+        return {}
     try:
         return json.loads(val)
     except:
-        return []
+        return {}
 
 @app.template_filter("dict_get")
 def dict_get_filter(d, key, default=""):
@@ -2612,6 +2623,11 @@ def signin_page():
         "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY platform, account_name"
     ).fetchall()
 
+    # 签到调度配置（每个账号一条）
+    schedules = {}
+    for s in conn.execute("SELECT * FROM signin_schedules").fetchall():
+        schedules[s["account_id"]] = dict(s)
+
     # 最近签到记录
     logs = conn.execute(
         "SELECT * FROM signin_log ORDER BY created_at DESC LIMIT 30"
@@ -2629,7 +2645,8 @@ def signin_page():
     return render_template("signin.html",
                          accounts=[dict(a) for a in accounts],
                          logs=[dict(l) for l in logs],
-                         today_count=today_count)
+                         today_count=today_count,
+                         schedules=schedules)
 
 
 @app.route("/api/signin/run", methods=["POST"])
@@ -2651,6 +2668,35 @@ def api_signin_run():
     output = buf.getvalue()
 
     return jsonify({"success": True, "output": output})
+
+
+@app.route("/api/signin/schedules", methods=["POST"])
+@login_required
+def api_signin_schedules():
+    """批量保存签到时间调度"""
+    data = request.get_json(force=True)
+    schedules = data.get("schedules", [])  # [{account_id, time_start, time_end, enabled}]
+    conn = get_db()
+    count = 0
+    for s in schedules:
+        aid = s.get("account_id")
+        if not aid:
+            continue
+        ts = s.get("time_start", "08:00")
+        te = s.get("time_end", "08:00")
+        en = s.get("enabled", 1)
+        conn.execute(
+            """INSERT INTO signin_schedules (account_id, time_start, time_end, enabled)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(account_id) DO UPDATE SET
+               time_start=excluded.time_start, time_end=excluded.time_end,
+               enabled=excluded.enabled, updated_at=datetime('now')""",
+            (aid, ts, te, en)
+        )
+        count += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "saved": count})
 
 
 # ─── 数据导出导入 ──────────────────────────────────

@@ -19,6 +19,67 @@
     </div>
 </div>
 
+<!-- ⏰ 签到时间调度 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2>⏰ 签到时间调度</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:12px;color:#888;">定点</span>
+            <input type="time" id="batchTimeStart" value="08:00" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+            <span style="font-size:12px;color:#888;">~ 随机至</span>
+            <input type="time" id="batchTimeEnd" value="10:00" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;">
+            <button class="btn btn-sm btn-primary" onclick="applyBatchTime()">📋 应用到选中</button>
+            <button class="btn btn-sm btn-success" onclick="saveAllSchedules()">💾 保存</button>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:32px;"><input type="checkbox" id="scheduleSelectAll" onchange="toggleScheduleAll(this)"></th>
+                <th>账号</th>
+                <th>平台</th>
+                <th>启用</th>
+                <th style="min-width:160px;">签到时间</th>
+                <th style="min-width:160px;">随机至</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in accounts %}
+            {% set sched = schedules.get(a.id, {}) %}
+            {% set ts = sched.get('time_start', '08:00') %}
+            {% set te = sched.get('time_end', '08:00') %}
+            {% set en = sched.get('enabled', 1) %}
+            <tr>
+                <td><input type="checkbox" class="schedule-checkbox" value="{{ a.id }}" onchange="updateScheduleBar()"></td>
+                <td><strong>{{ a.account_name }}</strong></td>
+                <td><span class="badge badge-info">{{ a.platform }}</span></td>
+                <td>
+                    <input type="checkbox" class="schedule-enabled" data-aid="{{ a.id }}" {% if en %}checked{% endif %}>
+                </td>
+                <td>
+                    <input type="time" class="schedule-start" data-aid="{{ a.id }}"
+                           value="{{ ts }}" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:120px;">
+                </td>
+                <td>
+                    <input type="time" class="schedule-end" data-aid="{{ a.id }}"
+                           value="{{ te }}" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:120px;">
+                    {% if ts != te %}
+                    <span style="font-size:11px;color:#e67e22;margin-left:4px;">🎲 随机</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align:center;color:#999;">暂无账号配置</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div style="margin-top:8px;font-size:12px;color:#888;">
+        💡 如果「签到时间」和「随机至」不一样，系统会在该时段内随机签到。
+        如果两者相同，则在固定时间签到。未配置则默认 08:00 定点签到。
+    </div>
+</div>
+
+<!-- 签到状态 -->
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2>签到状态</h2>
@@ -35,18 +96,34 @@
                 <th>账号</th>
                 <th>平台</th>
                 <th>站点</th>
+                <th>调度</th>
                 <th>状态</th>
                 <th>上次签到</th>
             </tr>
         </thead>
         <tbody>
             {% for a in accounts %}
+            {% set sched = schedules.get(a.id, {}) %}
+            {% set ts = sched.get('time_start', '08:00') %}
+            {% set te = sched.get('time_end', '08:00') %}
+            {% set en = sched.get('enabled', 1) %}
             {% set cfg = a.config_json|from_json %}
             {% set site = cfg.get('site_url', a.platform)|replace('https://','')|replace('http://','') %}
             <tr>
                 <td><strong>{{ a.account_name }}</strong></td>
                 <td><span class="badge badge-info">{{ a.platform }}</span></td>
                 <td style="font-size:12px;color:#666;">{{ site }}</td>
+                <td style="font-size:12px;">
+                    {% if en %}
+                        {% if ts != te %}
+                            <span style="color:#e67e22;">{{ ts }} ~ {{ te }} 🎲</span>
+                        {% else %}
+                            <span style="color:#4361ee;">{{ ts }} 定点</span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color:#999;">已暂停</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% set last = logs|selectattr('account_id', 'equalto', a.id)|first %}
                     {% if last and last.success %}
@@ -60,7 +137,7 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" style="text-align:center;color:#999;">暂无账号配置</td></tr>
+            <tr><td colspan="6" style="text-align:center;color:#999;">暂无账号配置</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -104,4 +181,64 @@
     </table>
 </div>
 
+<script>
+// ── 调度全选 ──────────────────────────────────
+function toggleScheduleAll(master) {
+    document.querySelectorAll('.schedule-checkbox').forEach(cb => cb.checked = master.checked);
+}
+
+function getSelectedScheduleIds() {
+    return Array.from(document.querySelectorAll('.schedule-checkbox:checked')).map(cb => parseInt(cb.value));
+}
+
+// ── 批量应用时间到选中 ────────────────────────
+function applyBatchTime() {
+    const ids = getSelectedScheduleIds();
+    if (ids.length === 0) return alert('请先勾选要设置的账号');
+    const start = document.getElementById('batchTimeStart').value;
+    const end = document.getElementById('batchTimeEnd').value;
+    ids.forEach(function(aid) {
+        var startEl = document.querySelector('.schedule-start[data-aid="' + aid + '"]');
+        var endEl = document.querySelector('.schedule-end[data-aid="' + aid + '"]');
+        if (startEl) startEl.value = start;
+        if (endEl) endEl.value = end;
+    });
+    alert('✅ 已应用到 ' + ids.length + ' 个账号，点击「保存」生效');
+}
+
+// ── 保存所有调度 ──────────────────────────────
+function saveAllSchedules() {
+    var schedules = [];
+    document.querySelectorAll('.schedule-checkbox').forEach(function(cb) {
+        var aid = parseInt(cb.value);
+        var startEl = document.querySelector('.schedule-start[data-aid="' + aid + '"]');
+        var endEl = document.querySelector('.schedule-end[data-aid="' + aid + '"]');
+        var enEl = document.querySelector('.schedule-enabled[data-aid="' + aid + '"]');
+        schedules.push({
+            account_id: aid,
+            time_start: startEl ? startEl.value : '08:00',
+            time_end: endEl ? endEl.value : '08:00',
+            enabled: enEl ? (enEl.checked ? 1 : 0) : 1
+        });
+    });
+
+    fetch('/api/signin/schedules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({schedules: schedules})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) {
+            alert('✅ 已保存 ' + d.saved + ' 个签到时间配置');
+            location.reload();
+        } else {
+            alert('❌ 保存失败: ' + (d.error || '未知错误'));
+        }
+    })
+    .catch(function(e) {
+        alert('❌ 保存失败: ' + e.message);
+    });
+}
+</script>
 {% endblock %}
