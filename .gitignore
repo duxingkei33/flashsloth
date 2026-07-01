@@ -30,3 +30,5 @@ static/uploads
 # Keep template files
 !frpc.toml.template
 !flashsloth.yml.template
+*.db-wal
+*.db-shm
