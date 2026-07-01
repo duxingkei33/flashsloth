@@ -2162,7 +2162,7 @@ def publish_manage():
     for a in articles_raw:
         a = dict(a)
         pub_urls = conn.execute(
-            "SELECT platform, url, account_name, deploy_status FROM publish_log pl "
+            "SELECT pl.platform, pl.url, pa.account_name, pl.deploy_status FROM publish_log pl "
             "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
             "WHERE pl.article_id=? AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL) "
             "ORDER BY pl.created_at DESC",
