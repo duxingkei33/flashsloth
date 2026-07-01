@@ -319,8 +319,9 @@ def index():
         (current_user.id,)
     ).fetchall()
     logs = conn.execute(
-        "SELECT pl.*, pa.account_name FROM publish_log pl "
+        "SELECT pl.*, pa.account_name, a.title as article_title FROM publish_log pl "
         "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
+        "LEFT JOIN articles a ON pl.article_id=a.id "
         "ORDER BY pl.created_at DESC LIMIT 20"
     ).fetchall()
     accounts = conn.execute(
@@ -341,15 +342,15 @@ def index():
         ).fetchall()
         publish_map[pid] = [dict(l) for l in plogs]
 
-    # 每篇文章的 deploy 状态（最新一次发布记录）
+    # 每篇文章的 deploy 状态：只要有一个已发布记录是 deployed 就算已部署
     deploy_status_map = {}
     for post in posts:
         pid = post["id"]
-        latest = conn.execute(
-            "SELECT deploy_status FROM publish_log WHERE article_id=? AND success=1 ORDER BY id DESC LIMIT 1",
+        deployed_one = conn.execute(
+            "SELECT id FROM publish_log WHERE article_id=? AND success=1 AND deploy_status='deployed' LIMIT 1",
             (pid,),
         ).fetchone()
-        deploy_status_map[pid] = latest["deploy_status"] if latest else None
+        deploy_status_map[pid] = "deployed" if deployed_one else "pending"
     pconfig = conn.execute(
         "SELECT * FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
         (current_user.id,)
