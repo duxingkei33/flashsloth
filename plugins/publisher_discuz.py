@@ -564,7 +564,7 @@ class DiscuzPublisher(Publisher):
 
             # 页面特征判断
             if "viewthread" in resp.url and "tid" in resp.url:
-                if "审核" in resp.text or "待审核" in resp.text:
+                if "等待审核" in resp.text or "审核中" in resp.text:
                     return {"status": "pending_review", "visible": False,
                             "title": "帖子已提交，等待审核"}
                 if "抱歉" in resp.text[:500] or "没有找到" in resp.text[:500]:
@@ -575,6 +575,8 @@ class DiscuzPublisher(Publisher):
                 title_text = title_m.group(1) if title_m else ""
 
                 # 双重确认：去个人中心→我的帖子看看
+                # 帖子直接可见（viewthread+tid），已确认发布。
+                # "我的帖子"是辅助验证，没找到也认为是已发布（可能分页/缓存原因）
                 try:
                     from plugins.forum_reader import DiscuzForumReader
                     site_url = self.config.get("site_url", "").rstrip("/")
@@ -586,10 +588,7 @@ class DiscuzPublisher(Publisher):
                         return {"status": "published", "visible": True,
                                 "url": url, "title": title_text,
                                 "my_posts_verified": True}
-                    elif my_posts["status"] == "pending_review":
-                        return {"status": "pending_review", "visible": False,
-                                "title": "帖子不在'我的帖子'列表中，但直接访问可见（可能审核中）",
-                                "my_posts_verified": False}
+                    # 即使"我的帖子"找不到，只要帖子直接可见就算已发布
                 except Exception:
                     pass  # 降级为直接验证结果
 
