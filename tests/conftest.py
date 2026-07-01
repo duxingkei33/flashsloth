@@ -216,3 +216,28 @@ def logged_in_page(browser_page):
     # 确认已登录（不在登录页了）
     assert "login" not in page.url.lower(), f"浏览器登录失败，仍在登录页: {page.url}"
     return page
+
+
+# ── 自动清理测试数据 ──────────────────────────
+@pytest.fixture(scope="session", autouse=True)
+def auto_cleanup():
+    """每次测试会话结束后清理测试产生的脏数据"""
+    yield
+    try:
+        conn = sqlite3.connect(os.environ.get(
+            "FLASHSLOTH_DB_PATH",
+            os.path.join(os.path.dirname(__file__), "..", "flashsloth.db")
+        ))
+        for pattern in ["[测试]%", "[浏览器测试]%"]:
+            try:
+                cur = conn.execute("SELECT id FROM articles WHERE title LIKE ?", (pattern,))
+                ids = [str(r[0]) for r in cur.fetchall()]
+                if ids:
+                    conn.execute(f"DELETE FROM publish_log WHERE article_id IN ({','.join('?' for _ in ids)})", ids)
+                    conn.execute(f"DELETE FROM articles WHERE id IN ({','.join('?' for _ in ids)})", ids)
+            except sqlite3.OperationalError:
+                pass  # 表不存在时跳过（测试用内存DB）
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
