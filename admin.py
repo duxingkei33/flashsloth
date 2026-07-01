@@ -243,7 +243,7 @@ def init_db():
     )""")
     conn.commit()
     # 兼容旧 DB — 追加列
-    for col in ['reply_time', 'reply_pid']:
+    for col in ['reply_time', 'reply_pid', 'is_auto_replied']:
         try:
             conn.execute(f"ALTER TABLE comment_replies ADD COLUMN {col} TEXT DEFAULT ''")
         except Exception:
@@ -2734,11 +2734,74 @@ def api_cm_auto_reply(reply_id):
         tone=tone,
     )
 
+    # 如果开启了自动回复，自动提交并记录
+    if mon_cfg and mon_cfg.get("auto_reply"):
+        from flashsloth.plugins.browser_session import HumanSession
+        try:
+            browser = HumanSession(base_url=cfg.get("site_url", ""), min_delay=1.0, max_delay=3.0)
+            if cfg.get("cookie"):
+                browser.set_cookies(cfg["cookie"])
+            browser.get(f"/forum.php?mod=viewthread&tid={reply['thread_tid']}")
+            import time, random
+            time.sleep(random.uniform(2, 4))
+            formhash = browser.get_formhash(f"/forum.php?mod=viewthread&tid={reply['thread_tid']}")
+            if formhash:
+                time.sleep(random.uniform(0.5, 1.5))
+                post_data = {
+                    "formhash": formhash,
+                    "message": reply_text,
+                    "replysubmit": "yes",
+                    "posttime": str(int(time.time()) - random.randint(10, 60)),
+                    "wysiwyg": "0",
+                }
+                resp = browser.post(
+                    f"/forum.php?mod=post&action=reply&tid={reply['thread_tid']}"
+                    f"&extra=&replysubmit=yes&infloat=yes&handlekey=fastpost",
+                    data=post_data,
+                )
+                auto_success = "回复发布成功" in resp.text or "发表于" in resp.text
+                auto_error = "" if auto_success else "自动提交失败"
+                conn = get_db()
+                conn.execute(
+                    "INSERT INTO auto_reply_log (reply_id, article_id, account_id, platform, "
+                    "thread_tid, reply_content, ai_model, success, error) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (reply_id, reply["article_id"], reply["account_id"],
+                     reply["platform"], reply["thread_tid"],
+                     reply_text[:500], style,
+                     1 if auto_success else 0, auto_error)
+                )
+                conn.commit()
+                conn.close()
+                if auto_success:
+                    conn = get_db()
+                    conn.execute(
+                        "UPDATE comment_replies SET is_auto_replied=1 WHERE id=?",
+                        (reply_id,)
+                    )
+                    conn.commit()
+                    conn.close()
+                    return jsonify({
+                        "success": True,
+                        "reply_text": reply_text,
+                        "tid": reply["thread_tid"],
+                        "site_url": cfg.get("site_url", ""),
+                        "account_id": reply["account_id"],
+                        "reply_id": reply_id,
+                        "auto_submitted": True,
+                        "message": "🤖 已自动回复",
+                    })
+        except Exception as e:
+            pass  # 自动回复失败不阻塞
+
     return jsonify({
         "success": True,
         "reply_text": reply_text,
         "tid": reply["thread_tid"],
         "site_url": cfg.get("site_url", ""),
+        "account_id": reply["account_id"],
+        "reply_id": reply_id,
+        "auto_submitted": False,
     })
 
 

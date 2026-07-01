@@ -9,7 +9,7 @@
 3. AI 生成智能回帖
 4. 多论坛统一管理（mydigit / amobbs / csdn 等）
 """
-import re, json, time, random
+import re, json, time, random, os
 from datetime import datetime, timedelta
 from html import unescape
 from typing import Optional
@@ -217,28 +217,29 @@ class ReplyMonitor:
         self._conn = None
 
     def get_db(self):
-        if self._conn is None:
-            import sqlite3
-            # 使用环境变量或默认路径
-            if self.db_path:
-                db = self.db_path
-            else:
-                db = os.environ.get(
-                    "FLASHSLOTH_DB_PATH",
-                    "/home/duxingkei/.hermes/flashsloth_data/flashsloth.db"
-                )
-            self._conn = sqlite3.connect(db, timeout=15)
-            self._conn.row_factory = sqlite3.Row
-        return self._conn
+        """获取新数据库连接（每次调用都创建，避免线程冲突）"""
+        import sqlite3
+        # 使用环境变量或默认路径
+        if self.db_path:
+            db = self.db_path
+        else:
+            db = os.environ.get(
+                "FLASHSLOTH_DB_PATH",
+                "/home/duxingkei/.hermes/flashsloth_data/flashsloth.db"
+            )
+        conn = sqlite3.connect(db, timeout=15, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
 
     def close_db(self):
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        """不需要缓存连接了，但保留方法兼容"""
+        pass
 
-    def get_published_threads(self, account_id: int) -> list[dict]:
+    def get_published_threads(self, account_id: int, conn=None) -> list[dict]:
         """获取某个账号已发布的帖子列表"""
-        conn = self.get_db()
+        if conn is None:
+            conn = self.get_db()
         rows = conn.execute(
             "SELECT pl.*, a.title as article_title FROM publish_log pl "
             "LEFT JOIN articles a ON pl.article_id=a.id "
@@ -360,6 +361,7 @@ class ReplyMonitor:
 
         conn.commit()
 
+        conn.close()
         return {
             "success": True,
             "checked": checked_count,
@@ -386,6 +388,7 @@ class ReplyMonitor:
                 "account_id": acct["id"],
                 **result,
             })
+        conn.close()
         return results
 
     def get_stats(self) -> dict:
@@ -571,9 +574,3 @@ class AutoReplyEngine:
         if text and text[-1] not in '。！？~.:!?~\n':
             text += '。'
         return text
-
-
-try:
-    import os as _os
-except ImportError:
-    pass

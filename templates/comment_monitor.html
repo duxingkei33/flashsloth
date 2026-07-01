@@ -317,13 +317,18 @@ function openReplies(articleId, tid) {
             html += '<span class="author">👤 ' + (r.reply_author || '匿名') + '</span>';
             if (r.reply_time) { html += '<span class="time">' + r.reply_time + '</span>'; }
             if (r.is_new) { html += '<span class="badge badge-danger" style="font-size:10px;margin-left:6px;">NEW</span>'; }
+            if (r.is_auto_replied && r.is_auto_replied !== '0') {
+                html += '<span class="badge badge-info" style="font-size:10px;margin-left:6px;background:#e8f0fe;color:#4361ee;">🤖 自动回复</span>';
+            }
             html += '</div>';
             html += '<div class="content">' + (r.reply_content || '') + '</div>';
             html += '<div style="margin-top:6px;display:flex;gap:6px;">';
             html += '<a href="' + r.thread_url + '" target="_blank" class="btn btn-sm" style="background:#ffd700;color:#333;">↗ 跳转回复</a>';
             if (r.is_new) {
                 html += '<button class="btn btn-sm btn-primary" onclick="markRead([' + r.id + '])">✅ 标为已读</button>';
-                html += '<button class="btn btn-sm btn-success" onclick="autoReply(' + r.id + ')">🤖 AI回复</button>';
+                if (!r.is_auto_replied || r.is_auto_replied === '0') {
+                    html += '<button class="btn btn-sm btn-success" onclick="autoReply(' + r.id + ')">🤖 AI回复</button>';
+                }
             }
             html += '</div>';
             html += '</div>';
@@ -375,6 +380,8 @@ function markAllRead() {
 }
 
 // ── AI 自动回复 ──
+var _pendingAutoReply = null;
+
 function autoReply(replyId) {
     showToast('🤖 AI 正在生成回复...', 'success');
 
@@ -386,46 +393,42 @@ function autoReply(replyId) {
             return;
         }
 
-        // 显示回复预览和确认按钮
-        var container = document.getElementById('reply-' + replyId);
-        if (!container) return;
-
-        var panel = document.createElement('div');
-        panel.className = 'reply-panel';
-        panel.style.display = 'block';
-        panel.innerHTML = '<div style="margin-bottom:8px;"><strong>🤖 AI 建议回复：</strong></div>' +
-            '<div class="reply-text">' + d.reply_text + '</div>' +
-            '<div style="display:flex;gap:8px;">' +
-            '<button class="btn btn-success btn-sm" onclick="submitReply(' + replyId + ', \'' + encodeURIComponent(d.reply_text) + '\', \'' + d.tid + '\', ' + d.site_url.match(/account_id=(\d+)/) ? '' : '0' + ')">📤 提交回复</button>' +
-            '<button class="btn btn-sm" style="background:#ddd;" onclick="this.parentElement.parentElement.style.display=\'none\'">取消</button>' +
-            '</div>';
-
-        // 需要获取 account_id
-        // 从界面获取
-        var firstBtn = container.querySelector('.btn-success');
-        if (firstBtn) {
-            panel.querySelector('button').onclick = function() {
-                submitReply(replyId, d.reply_text, d.tid, 0);
-            };
+        // 如果已自动提交，直接提示并刷新
+        if (d.auto_submitted) {
+            showToast(d.message || '🤖 已自动回复', 'success');
+            setTimeout(function() { location.reload(); }, 1500);
+            return;
         }
 
-        container.appendChild(panel);
+        // 弹确认框
+        _pendingAutoReply = {
+            replyId: replyId,
+            replyText: d.reply_text,
+            tid: d.tid,
+            accountId: d.account_id,
+            siteUrl: d.site_url,
+        };
+
+        document.getElementById('aiReplyPreview').textContent = d.reply_text;
+        document.getElementById('aiReplyModal').style.display = 'flex';
     })
     .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
 }
 
-function submitReply(replyId, replyText, tid, accountId) {
+function confirmAiReply() {
+    if (!_pendingAutoReply) return;
+    var p = _pendingAutoReply;
+    document.getElementById('aiReplyModal').style.display = 'none';
+
     showToast('📤 正在提交回复到论坛...', 'success');
 
-    // 从当前页面获取 account_id from the reply data
-    // 这个需要从后端获取
     fetch('/api/comment-monitor/reply-submit', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-            tid: tid,
-            reply_text: decodeURIComponent(replyText),
-            account_id: accountId
+            tid: p.tid,
+            reply_text: p.replyText,
+            account_id: p.accountId,
         })
     })
     .then(r => r.json())
@@ -436,11 +439,19 @@ function submitReply(replyId, replyText, tid, accountId) {
         } else {
             showToast('❌ ' + (d.error || '提交失败'), 'error');
             if (d.need_human) {
-                alert('⚠️ 论坛拦截了自动回复，请手动打开链接回复。\n\n错误: ' + (d.error || '未知'));
+                alert('⚠️ 论坛拦截了自动回复，请手动打开链接回复。\n\n错误: ' + (d.error || '未知') + '\n\n回复内容:\n' + p.replyText);
             }
         }
     })
     .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
+
+    _pendingAutoReply = null;
+}
+
+function cancelAiReply() {
+    document.getElementById('aiReplyModal').style.display = 'none';
+    showToast('已取消回复', 'success');
+    _pendingAutoReply = null;
 }
 
 // ── 保存配置 ──
@@ -504,5 +515,30 @@ document.querySelectorAll('.cfg-auto-reply').forEach(function(cb) {
 document.getElementById('repliesModal').addEventListener('click', function(e) {
     if (e.target === this) closeRepliesModal();
 });
+
+// AI回复模态框外部点击也关闭
+document.getElementById('aiReplyModal').addEventListener('click', function(e) {
+    if (e.target === this) cancelAiReply();
+});
 </script>
+
+<!-- ═══ AI 回复确认弹窗 ═══ -->
+<div class="replies-modal" id="aiReplyModal" style="display:none;">
+    <div class="replies-modal-inner" style="max-width:550px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:16px;margin:0;">🤖 AI 建议回复</h3>
+            <button onclick="cancelAiReply()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:12px;">
+            <div id="aiReplyPreview" style="font-size:14px;line-height:1.6;color:#333;white-space:pre-wrap;"></div>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px;">
+            💡 确认后系统将使用浏览器模拟发帖，提交到论坛
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-sm" style="background:#ddd;color:#333;padding:8px 24px;" onclick="cancelAiReply()">取消</button>
+            <button class="btn btn-success" style="padding:8px 24px;" onclick="confirmAiReply()">✅ 确认发布</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
