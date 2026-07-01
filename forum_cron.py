@@ -9,7 +9,7 @@ sys.path.insert(0, "/opt/data/flashsloth")
 os.environ["FLASHSLOT_SKIP_AUTH"] = "1"
 
 import sqlite3
-DB = "/opt/data/flashsloth/flashsloth.db"
+DB = os.environ.get("FLASHSLOTH_DB_PATH") or "/opt/data/flashsloth/flashsloth.db"
 CST = timezone(timedelta(hours=8))
 
 def get_db():

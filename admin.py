@@ -49,7 +49,10 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 # 首次启动生成的随机 admin 凭证（见 init_db）
 _BOOT_CREDENTIALS = None
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "flashsloth.db")
+# 数据分离：可通过 FLASHSLOTH_DB_PATH 环境变量覆盖数据库路径
+# 默认使用项目根目录的 flashsloth.db（向后兼容）
+_DEFAULT_DB = os.path.join(os.path.dirname(__file__), "flashsloth.db")
+DB_PATH = os.environ.get("FLASHSLOTH_DB_PATH") or _DEFAULT_DB
 
 # ─── 数据库 ─────────────────────────────────────
 def get_db():
@@ -864,7 +867,32 @@ def batch_publish_articles():
                 pass
     conn.commit()
     conn.close()
-    return jsonify({"success": True, "results": results})
+    return jsonify({"success": True, "results": results, "published": len(ids)})
+
+
+@app.route("/api/articles", methods=["GET"])
+@login_required
+def api_articles():
+    """获取文章列表（JSON），用于前端 AJAX 和测试"""
+    conn = get_db()
+    posts = conn.execute(
+        "SELECT * FROM articles WHERE user_id=? ORDER BY updated_at DESC LIMIT 100",
+        (current_user.id,)
+    ).fetchall()
+    conn.close()
+    articles = []
+    for p in posts:
+        articles.append({
+            "id": p["id"],
+            "title": p["title"],
+            "status": p["status"],
+            "tags": json.loads(p["tags"]) if p["tags"] else [],
+            "source": p["source"],
+            "summary": p["summary"],
+            "created_at": p["created_at"],
+            "updated_at": p["updated_at"],
+        })
+    return jsonify({"articles": articles})
 
 
 @app.route("/api/articles/batch-retract", methods=["POST"])

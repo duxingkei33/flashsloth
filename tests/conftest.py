@@ -29,7 +29,10 @@ else:
     ADMIN_PASS = "test1234"
 
 # ── 数据库路径（仅用于 setup/teardown） ────────────────────
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "flashsloth.db")
+# 优先使用 FLASHSLOTH_DB_PATH 环境变量（与 admin.py 一致），
+# 否则默认项目根目录的 flashsloth.db（dev 模式）
+_DEFAULT_DB = os.path.join(os.path.dirname(__file__), "..", "flashsloth.db")
+DB_PATH = os.environ.get("FLASHSLOTH_DB_PATH") or _DEFAULT_DB
 
 
 # ═══════════════════════════════════════════════════════════

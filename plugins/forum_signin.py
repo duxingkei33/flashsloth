@@ -44,7 +44,9 @@ for _f in sorted(os.listdir(_plugins_dir)):
 _available = list_signins()
 
 CST = timezone(timedelta(hours=8))
-DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
+# 优先使用 FLASHSLOTH_DB_PATH 环境变量（与 admin.py 一致）
+DB = os.environ.get("FLASHSLOTH_DB_PATH") or \
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
 
 
 def get_db():
