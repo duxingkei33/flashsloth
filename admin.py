@@ -56,7 +56,7 @@ DB_PATH = os.environ.get("FLASHSLOTH_DB_PATH") or _DEFAULT_DB
 
 # ─── 数据库 ─────────────────────────────────────
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -837,7 +837,7 @@ def batch_publish_articles():
             result = publisher.publish(article)
             publish_status = result.get("message", "published") if result["success"] else "failed"
             conn.execute(
-                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?,?,?,?,?,?,?,?)",
                 (pid, acct["id"], acct["platform"],
                  1 if result["success"] else 0,
                  result.get("url", ""), result.get("error", ""),
@@ -1890,7 +1890,7 @@ def publish():
             result = publisher.publish(article)
             publish_status = result.get("message", "published") if result["success"] else "failed"
             conn.execute(
-                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (article_id, aid, acct["platform"],
                  1 if result["success"] else 0,
                  result.get("url", ""), result.get("error", ""),
@@ -1899,7 +1899,7 @@ def publish():
             results.append(result)
         except Exception as e:
             conn.execute(
-                "INSERT INTO publish_log (article_id, account_id, platform, success, error) VALUES (?, ?, ?, 0, ?)",
+                "INSERT OR REPLACE INTO publish_log (article_id, account_id, platform, success, error) VALUES (?, ?, ?, 0, ?)",
                 (article_id, aid, acct["platform"], str(e)),
             )
             results.append({"success": False, "error": str(e)})
