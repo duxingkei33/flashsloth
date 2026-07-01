@@ -40,6 +40,7 @@ import flashsloth.sdk.adapters.amobbs            # noqa
 import flashsloth.sdk.adapters.csdn              # noqa
 import flashsloth.sdk.adapters.notion            # noqa
 import flashsloth.sdk.adapters.github_pages      # noqa
+import flashsloth.sdk.adapters.giscus             # noqa
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
@@ -193,7 +194,7 @@ def init_db():
         pass
     conn.commit()
 
-    # 签到调度表
+    # ─── 签到调度表 ────────────────────────────────
     conn.execute("""CREATE TABLE IF NOT EXISTS signin_schedules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id INTEGER NOT NULL UNIQUE,
@@ -201,6 +202,67 @@ def init_db():
         time_end TEXT DEFAULT '08:00',
         enabled INTEGER DEFAULT 1,
         updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.commit()
+
+    # ─── 评论监控配置表 ────────────────────────────
+    conn.execute("""CREATE TABLE IF NOT EXISTS comment_monitor_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL UNIQUE,
+        enabled INTEGER DEFAULT 1,
+        slot_morning TEXT DEFAULT '12:00-12:30',
+        slot_afternoon TEXT DEFAULT '15:00-15:30',
+        slot_evening TEXT DEFAULT '20:00-20:30',
+        auto_reply INTEGER DEFAULT 0,
+        reply_style TEXT DEFAULT 'friendly',
+        reply_tone TEXT DEFAULT '热心帮助',
+        max_replies_per_day INTEGER DEFAULT 3,
+        notify_replies INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.commit()
+
+    # ─── 评论回复表 ────────────────────────────────
+    conn.execute("""CREATE TABLE IF NOT EXISTS comment_replies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id INTEGER NOT NULL,
+        account_id INTEGER NOT NULL,
+        platform TEXT NOT NULL,
+        forum_name TEXT DEFAULT '',
+        thread_tid TEXT NOT NULL,
+        thread_title TEXT DEFAULT '',
+        thread_url TEXT DEFAULT '',
+        reply_author TEXT DEFAULT '',
+        reply_content TEXT DEFAULT '',
+        reply_time TEXT DEFAULT '',
+        reply_pid TEXT DEFAULT '',
+        is_read INTEGER DEFAULT 0,
+        is_new INTEGER DEFAULT 1,
+        source TEXT DEFAULT 'auto',
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.commit()
+    # 兼容旧 DB — 追加列
+    for col in ['reply_time', 'reply_pid']:
+        try:
+            conn.execute(f"ALTER TABLE comment_replies ADD COLUMN {col} TEXT DEFAULT ''")
+        except Exception:
+            pass
+    conn.commit()
+
+    # ─── 自动回复日志表 ────────────────────────────
+    conn.execute("""CREATE TABLE IF NOT EXISTS auto_reply_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reply_id INTEGER,
+        article_id INTEGER,
+        account_id INTEGER,
+        platform TEXT DEFAULT '',
+        thread_tid TEXT DEFAULT '',
+        reply_content TEXT DEFAULT '',
+        ai_model TEXT DEFAULT '',
+        success INTEGER DEFAULT 0,
+        error TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
     )""")
     conn.commit()
 
@@ -2416,6 +2478,358 @@ def deployer_test(cid):
         flash(f"❌ 测试异常: {e}", "error")
 
     return redirect(url_for("deployers_page"))
+
+# ─── 评论监控 ──────────────────────────────────
+from flashsloth.plugins.reply_monitor import ReplyMonitor, DiscuzReplyExtractor, AutoReplyEngine
+
+_reply_monitor = ReplyMonitor()
+
+@login_required
+@app.route("/comment-monitor")
+def comment_monitor():
+    """评论监控主页 — 所有帖子 + 回复统一管理"""
+    conn = get_db()
+    # 所有论坛账号
+    discuz_accounts = conn.execute(
+        "SELECT * FROM platform_accounts WHERE platform='discuz' AND is_active=1 "
+        "AND config_json LIKE '%site_url%' ORDER BY account_name"
+    ).fetchall()
+
+    # 监控配置
+    configs = {}
+    for cfg in conn.execute("SELECT * FROM comment_monitor_config").fetchall():
+        configs[cfg["account_id"]] = dict(cfg)
+
+    # 统计
+    data = _reply_monitor.get_stats()
+    all_posts = data["all_posts"]
+    stats = data["stats"]
+
+    # 合并：为每个帖子附加回复统计
+    stat_map = {}
+    for s in stats:
+        key = f"{s['article_id']}_{s['thread_tid']}"
+        stat_map[key] = s
+
+    forum_posts = []
+    for p in all_posts:
+        key = f"{p['article_id']}_{p['tid']}"
+        s = stat_map.get(key, {})
+        forum_posts.append({
+            **p,
+            "reply_count": s.get("reply_count", 0) if s else 0,
+            "unread_count": s.get("unread_count", 0) if s else 0,
+            "last_reply_at": s.get("last_reply_at", "") if s else "",
+            "forum_name": s.get("forum_name", "") if s else "",
+        })
+
+    # 按平台分组
+    grouped = {}
+    for p in forum_posts:
+        site = p.get("site_url", "").replace("https://", "").split(".")[0]
+        key = site or p["platform"]
+        grouped.setdefault(key, []).append(p)
+
+    # 总未读
+    total_unread = conn.execute(
+        "SELECT COUNT(*) FROM comment_replies WHERE is_read=0"
+    ).fetchone()[0]
+
+    conn.close()
+
+    return render_template("comment_monitor.html",
+                         grouped=grouped,
+                         discuz_accounts=[dict(a) for a in discuz_accounts],
+                         configs=configs,
+                         total_unread=total_unread,
+                         now=datetime.now())
+
+
+@login_required
+@app.route("/api/comment-monitor/check/<int:account_id>", methods=["POST"])
+def api_cm_check(account_id):
+    """手动触发回复检查"""
+    result = _reply_monitor.check_account_replies(account_id)
+    return jsonify(result)
+
+
+@login_required
+@app.route("/api/comment-monitor/check-all", methods=["POST"])
+def api_cm_check_all():
+    """检查所有论坛账号"""
+    results = _reply_monitor.check_all_accounts()
+    total_new = sum(r.get("new_replies", 0) for r in results)
+    return jsonify({
+        "success": True,
+        "total_new": total_new,
+        "accounts": results,
+    })
+
+
+@login_required
+@app.route("/api/comment-monitor/config/<int:account_id>", methods=["GET", "POST"])
+def api_cm_config(account_id):
+    """获取/更新评论监控配置"""
+    conn = get_db()
+
+    if request.method == "GET":
+        cfg = conn.execute(
+            "SELECT * FROM comment_monitor_config WHERE account_id=?",
+            (account_id,)
+        ).fetchone()
+        conn.close()
+        if cfg:
+            return jsonify({"success": True, "config": dict(cfg)})
+        # 默认配置
+        return jsonify({
+            "success": True,
+            "config": {
+                "account_id": account_id,
+                "enabled": 1,
+                "slot_morning": "12:00-12:30",
+                "slot_afternoon": "15:00-15:30",
+                "slot_evening": "20:00-20:30",
+                "auto_reply": 0,
+                "reply_style": "friendly",
+                "reply_tone": "热心帮助",
+                "max_replies_per_day": 3,
+                "notify_replies": 1,
+            }
+        })
+
+    # POST: 保存配置
+    data = request.json
+    conn.execute(
+        """INSERT INTO comment_monitor_config
+           (account_id, enabled, slot_morning, slot_afternoon, slot_evening,
+            auto_reply, reply_style, reply_tone, max_replies_per_day, notify_replies)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(account_id) DO UPDATE SET
+           enabled=excluded.enabled, slot_morning=excluded.slot_morning,
+           slot_afternoon=excluded.slot_afternoon, slot_evening=excluded.slot_evening,
+           auto_reply=excluded.auto_reply, reply_style=excluded.reply_style,
+           reply_tone=excluded.reply_tone, max_replies_per_day=excluded.max_replies_per_day,
+           notify_replies=excluded.notify_replies, updated_at=datetime('now')""",
+        (account_id,
+         data.get("enabled", 1),
+         data.get("slot_morning", "12:00-12:30"),
+         data.get("slot_afternoon", "15:00-15:30"),
+         data.get("slot_evening", "20:00-20:30"),
+         data.get("auto_reply", 0),
+         data.get("reply_style", "friendly"),
+         data.get("reply_tone", "热心帮助"),
+         data.get("max_replies_per_day", 3),
+         data.get("notify_replies", 1))
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "配置已保存"})
+
+
+@login_required
+@app.route("/api/comment-monitor/replies/<int:article_id>")
+def api_cm_replies(article_id):
+    """获取某篇文章在某个论坛的全部回复"""
+    platform = request.args.get("platform", "")
+    thread_tid = request.args.get("tid", "")
+    conn = get_db()
+    if thread_tid:
+        rows = conn.execute(
+            "SELECT * FROM comment_replies WHERE article_id=? AND thread_tid=? "
+            "ORDER BY created_at DESC",
+            (article_id, thread_tid)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM comment_replies WHERE article_id=? "
+            "ORDER BY created_at DESC",
+            (article_id,)
+        ).fetchall()
+    conn.close()
+    return jsonify({
+        "success": True,
+        "replies": [dict(r) for r in rows],
+        "total": len(rows),
+    })
+
+
+@login_required
+@app.route("/api/comment-monitor/mark-read", methods=["POST"])
+def api_cm_mark_read():
+    """标记回复为已读"""
+    reply_ids = request.json.get("ids", [])
+    all_replies = request.json.get("all", False)
+    conn = get_db()
+    if all_replies:
+        conn.execute("UPDATE comment_replies SET is_read=1")
+    elif reply_ids:
+        placeholders = ",".join("?" for _ in reply_ids)
+        conn.execute(
+            f"UPDATE comment_replies SET is_read=1 WHERE id IN ({placeholders})",
+            reply_ids
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+@login_required
+@app.route("/api/comment-monitor/auto-reply/<int:reply_id>", methods=["POST"])
+def api_cm_auto_reply(reply_id):
+    """AI 自动回帖"""
+    conn = get_db()
+    reply = conn.execute("SELECT * FROM comment_replies WHERE id=?", (reply_id,)).fetchone()
+    if not reply:
+        conn.close()
+        return jsonify({"success": False, "error": "回复不存在"})
+
+    reply = dict(reply)
+
+    # 获取账号配置
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=?", (reply["account_id"],)
+    ).fetchone()
+    if not acct:
+        conn.close()
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    acct_dict = dict(acct)
+    cfg = json.loads(acct_dict.get("config_json", "{}"))
+
+    # 获取监控配置
+    mon_cfg = conn.execute(
+        "SELECT * FROM comment_monitor_config WHERE account_id=?",
+        (reply["account_id"],)
+    ).fetchone()
+    style = "friendly"
+    tone = "热心帮助"
+    if mon_cfg:
+        style = mon_cfg["reply_style"] or "friendly"
+        tone = mon_cfg["reply_tone"] or "热心帮助"
+
+    conn.close()
+
+    # 获取帖子原文（用浏览器的简短抓取）
+    try:
+        extractor = DiscuzReplyExtractor(
+            site_url=cfg.get("site_url", ""),
+            cookies=cfg.get("cookie", ""),
+            username=cfg.get("username", acct_dict["account_name"]),
+        )
+        detail = extractor.get_replies_for_thread(reply["thread_tid"])
+        thread_content = ""
+        if detail["replies"]:
+            thread_content = detail["replies"][0]["content"] if detail["replies"] else ""
+    except:
+        thread_content = ""
+
+    # AI 生成回复
+    engine = AutoReplyEngine()
+    reply_text = engine.generate_reply(
+        thread_title=reply["thread_title"] or "",
+        thread_content=thread_content or "",
+        reply_content=reply["reply_content"] or "",
+        reply_author=reply["reply_author"] or "",
+        style=style,
+        tone=tone,
+    )
+
+    return jsonify({
+        "success": True,
+        "reply_text": reply_text,
+        "tid": reply["thread_tid"],
+        "site_url": cfg.get("site_url", ""),
+    })
+
+
+@login_required
+@app.route("/api/comment-monitor/reply-submit", methods=["POST"])
+def api_cm_reply_submit():
+    """将生成的回复提交到论坛（用浏览器模拟发帖）"""
+    tid = request.json.get("tid", "")
+    reply_text = request.json.get("reply_text", "")
+    account_id = request.json.get("account_id", 0)
+
+    if not tid or not reply_text or not account_id:
+        return jsonify({"success": False, "error": "缺少参数"})
+
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND is_active=1",
+        (account_id,)
+    ).fetchone()
+    conn.close()
+
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    acct_dict = dict(acct)
+    cfg = json.loads(acct_dict.get("config_json", "{}"))
+    site_url = cfg.get("site_url", "")
+
+    try:
+        browser = HumanSession(base_url=site_url, min_delay=1.0, max_delay=3.0)
+        if cfg.get("cookie"):
+            browser.set_cookies(cfg["cookie"])
+
+        # 模拟人的操作：先看帖子，再回复
+        browser.get(f"/forum.php?mod=viewthread&tid={tid}")
+        time.sleep(random.uniform(2, 4))
+
+        # 获取 formhash
+        formhash = browser.get_formhash(f"/forum.php?mod=viewthread&tid={tid}")
+        if not formhash:
+            return jsonify({"success": False, "error": "无法获取 formhash，Cookie 可能过期"})
+
+        # 模拟打字延迟，分段写入
+        time.sleep(random.uniform(0.5, 1.5))
+
+        # 提交回复
+        post_data = {
+            "formhash": formhash,
+            "message": reply_text,
+            "replysubmit": "yes",
+            "posttime": str(int(time.time()) - random.randint(10, 60)),
+            "wysiwyg": "0",
+        }
+
+        resp = browser.post(
+            f"/forum.php?mod=post&action=reply&tid={tid}&extra=&replysubmit=yes&infloat=yes&handlekey=fastpost",
+            data=post_data,
+        )
+
+        # 检查是否成功
+        if "回复发布成功" in resp.text or "发表于" in resp.text or tid in resp.text:
+            return jsonify({
+                "success": True,
+                "message": "回复成功 ✅",
+                "url": f"{site_url}/forum.php?mod=viewthread&tid={tid}",
+            })
+        if "您的请求来路不正确" in resp.text:
+            return jsonify({"success": False, "error": "表单验证失败（来路不正确）"})
+        if "抱歉" in resp.text and "限制" in resp.text:
+            return jsonify({"success": False, "error": "发帖受限（尚在禁言期或需要审核）"})
+
+        # 提取错误信息
+        err = ""
+        for pat in [
+            r'<div[^>]*class="alert_error"[^>]*>([\\s\\S]*?)</div>',
+            r'<p[^>]*class="alert_info"[^>]*>(.*?)</p>',
+        ]:
+            m = re.search(pat, resp.text, re.DOTALL)
+            if m:
+                err = re.sub(r"<[^>]+>", "", m.group(1)).strip()[:100]
+                break
+
+        return jsonify({
+            "success": False,
+            "error": err or "回复失败，可能被论坛拦截",
+            "need_human": True,
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": f"提交异常: {e}"})
+
 
 # ─── AI 逛论坛 ──────────────────────────────────
 from flashsloth.plugins.forum_reader import DiscuzForumReader, InterestFilter
