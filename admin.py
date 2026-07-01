@@ -110,6 +110,10 @@ def init_db():
             success INTEGER DEFAULT 0,
             url TEXT,
             error TEXT,
+            message TEXT DEFAULT '',
+            status TEXT DEFAULT 'published',
+            deploy_status TEXT DEFAULT 'pending',
+            retracted_at TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS forum_recommendations (
@@ -161,6 +165,29 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
     """)
+    conn.commit()
+
+    # ── 兼容旧 DB — publish_log 追加列 ────────────
+    try:
+        conn.execute("ALTER TABLE publish_log ADD COLUMN message TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE publish_log ADD COLUMN status TEXT DEFAULT 'published'")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE publish_log ADD COLUMN deploy_status TEXT DEFAULT 'pending'")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE publish_log ADD COLUMN retracted_at TEXT")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE publish_log ADD COLUMN updated_at TEXT")
+    except Exception:
+        pass
     conn.commit()
 
     # 签到调度表
