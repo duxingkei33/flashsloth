@@ -33,9 +33,18 @@ if [ -d "${VENV_DIR}" ]; then
     echo "🐍 虚拟环境: ${VENV_DIR}"
 fi
 
-# ── 4. 设置生产数据库路径 ──────────────────────────
+# ── 4. 设置生产环境变量 ──────────────────────────
 export FLASHSLOTH_DB_PATH="${DATA_DIR}/flashsloth.db"
 echo "🗄️  数据库: ${FLASHSLOTH_DB_PATH}"
+
+# 固定 Secret Key，防止重启后 session 失效
+_SECRET_FILE="${DATA_DIR}/.secret_key"
+if [ ! -f "${_SECRET_FILE}" ]; then
+    python3 -c "import secrets; print(secrets.token_hex(32))" > "${_SECRET_FILE}"
+    echo "🔑 已生成固定密钥"
+fi
+export FLASHSLOTH_SECRET="$(cat "${_SECRET_FILE}")"
+echo "🔐 FLASHSLOTH_SECRET 已固定（重启不丢 session）"
 
 # ── 5. 启动 Flask 应用 ────────────────────────────
 echo "🌐 http://0.0.0.0:5000"
