@@ -6,10 +6,21 @@
 
 import pytest
 import re
+import os
 
 BASE_URL = "http://localhost:5000"
-ADMIN_USER = "admin_ohk2yp"
-ADMIN_PASS = "test1234"
+
+# 自动检测引导凭证
+_BOOT_FILE = os.path.join(os.path.dirname(__file__), "..", ".boot_credentials")
+ADMIN_USER = "admin"
+ADMIN_PASS = "admin"
+if os.path.exists(_BOOT_FILE):
+    with open(_BOOT_FILE) as f:
+        for line in f:
+            if line.startswith("username:"):
+                ADMIN_USER = line.split(":", 1)[1].strip()
+            elif line.startswith("password:"):
+                ADMIN_PASS = line.split(":", 1)[1].strip()
 
 
 class TestLoginUI:
