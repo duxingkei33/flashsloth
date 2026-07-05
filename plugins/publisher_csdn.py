@@ -1,5 +1,5 @@
 """
-CSDN Publisher — Playwright 浏览器自动化（严格 Playwright，无 requests/curl）
+CSDN Publisher — Playwright 浏览器自动化（sync API）
 
 基于实际探索结果：
 - 编辑器: https://editor.csdn.net/md/?not_checkout=1
@@ -8,16 +8,16 @@ CSDN Publisher — Playwright 浏览器自动化（严格 Playwright，无 reque
 - 存草稿: button:has-text('保存草稿')
 - 发布: button:has-text('发布文章')
 """
-import re, json, os, urllib.parse
+import re, json, os
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
-from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 
 EDITOR_URL = "https://editor.csdn.net/md/?not_checkout=1"
 BLOG_URL = "https://blog.csdn.net"
 
+
 def _parse_cookies(cookie_str: str) -> list:
-    """解析 CSDN Cookie 为 Playwright 格式"""
     cookies = []
     for pair in cookie_str.split(";"):
         pair = pair.strip()
@@ -61,10 +61,6 @@ class CSDNPublisher(Publisher):
              {"value": "reprint", "label": "转载"},
              {"value": "translated", "label": "翻译"},
          ]},
-        {"key": "category", "label": "默认分类", "type": "text", "required": False,
-         "placeholder": "分类名称（可选）"},
-        {"key": "tags", "label": "默认标签", "type": "text", "required": False,
-         "placeholder": "逗号分隔的标签（可选）"},
     ]
     supports_draft = True
 
@@ -72,225 +68,181 @@ class CSDNPublisher(Publisher):
         super().__init__(config)
         self.cookie_str = config.get("cookie", "")
         self.article_type = config.get("article_type", "original")
-        self._cookies = None
 
-    @property
-    def cookies(self) -> list:
-        if self._cookies is None and self.cookie_str:
-            self._cookies = _parse_cookies(self.cookie_str)
-        return self._cookies or []
+    def _cookies(self):
+        return _parse_cookies(self.cookie_str) if self.cookie_str else []
 
-    async def _ensure_browser(self, pw):
-        """创建浏览器上下文并注入 Cookie"""
-        browser = await pw.chromium.launch(headless=True, args=[
-            '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-        ])
-        ctx = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1920, "height": 1080},
-            locale="zh-CN",
-        )
-        if self.cookies:
-            await ctx.add_cookies(self.cookies)
-        return browser, ctx
+    def test_connection(self) -> dict:
+        """测试 Cookie 有效性"""
+        if not self.cookie_str:
+            return {"success": False, "error": "未配置 Cookie"}
+        try:
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True, args=[
+                    '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                ])
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+                )
+                ctx.add_cookies(self._cookies())
+                page = ctx.new_page()
+                page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(3000)
+                login_links = page.locator("a:has-text('登录')")
+                ok = login_links.count() == 0
+                browser.close()
+                if ok:
+                    return {"success": True, "error": "", "status": "已登录"}
+                return {"success": False, "error": "Cookie 已过期", "status": "Cookie过期"}
+        except Exception as e:
+            return {"success": False, "error": str(e), "status": "连接失败"}
 
-    async def verify_login(self) -> bool:
-        """验证 Cookie 是否有效"""
-        if not self.cookies:
-            return False
-        async with async_playwright() as pw:
-            browser, ctx = await self._ensure_browser(pw)
-            page = await ctx.new_page()
-            try:
-                await page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
-                await page.wait_for_timeout(3000)
-                # 检测是否登录
-                login_links = await page.query_selector_all("a:has-text('登录')")
-                user_els = await page.query_selector_all("[class*='avatar'], [class*='user-info']")
-                ok = len(login_links) == 0 or len(user_els) > 0
-                return ok
-            except:
-                return False
-            finally:
-                await page.close()
-                await browser.close()
-
-    async def publish(self, article: Article, dry_run: bool = False) -> dict:
+    def publish(self, article: Article, **kwargs) -> dict:
         """使用 Playwright 发布到 CSDN"""
-        if not self.cookies:
-            raise PublishError("未配置 Cookie")
+        if not self.cookie_str:
+            return {"success": False, "error": "未配置 Cookie", "url": "", "id": ""}
 
-        result = {"url": "", "status": "unknown", "platform_id": ""}
+        save_as_draft = kwargs.get("save_as_draft", True)
+        result = {"success": False, "url": "", "id": "", "error": "", "message": ""}
 
-        async with async_playwright() as pw:
-            browser, ctx = await self._ensure_browser(pw)
-            page = await ctx.new_page()
+        try:
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True, args=[
+                    '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                ])
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+                )
+                ctx.add_cookies(self._cookies())
+                page = ctx.new_page()
 
-            try:
-                # 1. 预热 — 先访问首页建立会话
-                await page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
-                await page.wait_for_timeout(2000)
-                self.logger.info("✅ 首页加载完成")
+                try:
+                    # 1. 预热 — 先访问首页建立会话
+                    page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
+                    page.wait_for_timeout(2000)
+                    self.logger.info("✅ 首页加载完成")
 
-                # 2. 打开编辑器
-                await page.goto(EDITOR_URL, wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(5000)  # 等 JS 渲染
+                    # 2. 打开编辑器
+                    page.goto(EDITOR_URL, wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(5000)
 
-                # 检查是否跳转登录
-                if "passport" in page.url or "login" in page.url.lower():
-                    raise PublishError("Cookie 已过期，需重新登录")
+                    if "passport" in page.url or "login" in page.url.lower():
+                        raise PublishError("Cookie 已过期，需重新登录")
 
-                self.logger.info(f"✅ 编辑器已打开: {page.url}")
+                    self.logger.info(f"✅ 编辑器已打开")
 
-                # 3. 填写标题
-                title_input = await page.query_selector("input[placeholder*='标题']")
-                if title_input:
-                    await title_input.fill(article.title[:100])
-                    self.logger.info(f"✅ 标题: {article.title[:40]}...")
-                else:
-                    raise PublishError("找不到标题输入框")
-
-                # 4. 填写正文（Markdown 模式）
-                body = article.body or article.content or ""
-                if body:
-                    # 使用 JS 直接设置 editor 内容
-                    # CSDN 编辑器实际是 contenteditable div
-                    editor_div = await page.query_selector(".editor__inner.markdown-highlighting, .editor")
-                    if editor_div:
-                        await editor_div.evaluate(f"el => el.innerText = {json.dumps(body)}")
-                        self.logger.info(f"✅ 正文已填写 ({len(body)} chars)")
+                    # 3. 填写标题
+                    title_input = page.locator("input[placeholder*='标题']").first
+                    if title_input.count() > 0:
+                        title_input.fill(article.title[:100])
+                        self.logger.info(f"✅ 标题: {article.title[:40]}...")
                     else:
-                        # 备用：通过 CodeMirror API
-                        await page.evaluate(f"""
-                            (() => {{
-                                const el = document.querySelector('.editor');
-                                if (el) el.innerText = {json.dumps(body)};
-                            }})()
-                        """)
-                        self.logger.info("✅ 正文已通过 JS 备用方式填写")
+                        raise PublishError("找不到标题输入框")
 
-                # 5. 处理图片（纯 Playwright 方式）
-                image_warnings = []
-                if article.images:
-                    for img_path in article.images[:10]:
-                        try:
-                            # 通过编辑器上传 — 用拖拽或文件输入
-                            csdn_url = await self._upload_image_playwright(page, img_path)
-                            if csdn_url:
-                                # 替换正文中的本地 URL
-                                body = body.replace(img_path, csdn_url)
-                                body = body.replace(os.path.basename(img_path), csdn_url)
-                                self.logger.info(f"  ✅ 图片上传: {csdn_url[:50]}")
-                            else:
-                                image_warnings.append(f"图片上传失败: {img_path}")
-                        except Exception as e:
-                            image_warnings.append(f"图片异常: {str(e)[:60]}")
-
-                    # 重新填写带 CSDN 图床 URL 的正文
+                    # 4. 填写正文
+                    body = article.body or article.content or ""
                     if body:
-                        editor_div = await page.query_selector(".editor")
-                        if editor_div:
-                            await editor_div.evaluate(f"el => el.innerText = {json.dumps(body)}")
+                        editor_div = page.locator(".editor__inner.markdown-highlighting, .editor").first
+                        if editor_div.count() > 0:
+                            editor_div.evaluate(f"el => el.innerText = {json.dumps(body)}")
+                            self.logger.info(f"✅ 正文已填写 ({len(body)} chars)")
+                        else:
+                            page.evaluate(f"""
+                                (() => {{
+                                    const el = document.querySelector('.editor');
+                                    if (el) el.innerText = {json.dumps(body)};
+                                }})()
+                            """)
+                            self.logger.info("✅ 正文已通过JS填写")
 
-                if dry_run:
-                    result["status"] = "draft_saved"
-                    result["url"] = page.url
-                    return result
+                    # 5. 处理图片
+                    image_warnings = []
+                    body_text = body
+                    if article.images:
+                        for img_path in article.images[:10]:
+                            if os.path.isfile(img_path):
+                                csdn_url = self._upload_image(page, img_path)
+                                if csdn_url:
+                                    body_text = body_text.replace(img_path, csdn_url)
+                                    self.logger.info(f"  ✅ 图片: {csdn_url[:50]}")
+                                else:
+                                    image_warnings.append(f"图片上传失败: {img_path}")
+                        if body_text != body:
+                            editor_div = page.locator(".editor").first
+                            if editor_div.count() > 0:
+                                editor_div.evaluate(f"el => el.innerText = {json.dumps(body_text)}")
 
-                # 6. 存草稿
-                draft_btn = await page.query_selector("button:has-text('保存草稿')")
-                if draft_btn:
-                    await draft_btn.click()
-                    await page.wait_for_timeout(3000)
-                    self.logger.info("✅ 已存草稿")
-                    result["status"] = "draft_saved"
-                else:
-                    self.logger.warning("⚠️ 未找到存草稿按钮")
-                    result["status"] = "unknown"
+                    # 6. 存草稿或发布
+                    if save_as_draft:
+                        draft_btn = page.locator("button:has-text('保存草稿')").first
+                        if draft_btn.count() > 0 and draft_btn.is_visible():
+                            draft_btn.click()
+                            page.wait_for_timeout(3000)
+                            self.logger.info("✅ 已存草稿")
+                            result["message"] = "draft"
+                        else:
+                            self.logger.warning("⚠️ 未找到存草稿按钮")
+                    else:
+                        pub_btn = page.locator("button:has-text('发布文章')").first
+                        if pub_btn.count() > 0:
+                            pub_btn.click()
+                            page.wait_for_timeout(5000)
+                            self.logger.info("✅ 已发布")
+                            result["message"] = "published"
 
-                # 获取文章 URL
-                result["url"] = page.url
+                    # 尝试获取文章 ID
+                    html = page.content()
+                    for pattern in [r'article/details/(\d+)', r'articleId=(\d+)']:
+                        m = re.search(pattern, html + page.url)
+                        if m:
+                            result["id"] = m.group(1)
+                            result["url"] = f"{BLOG_URL}/duxingkei/article/details/{m.group(1)}"
+                            break
 
-                # 尝试从页面或URL中提取文章ID
-                page_html = await page.content()
-                for pattern in [r'article/details/(\d+)', r'articleId=(\d+)']:
-                    m = re.search(pattern, page_html + page.url)
-                    if m:
-                        result["platform_id"] = m.group(1)
-                        result["url"] = f"{BLOG_URL}/duxingkei/article/details/{m.group(1)}"
-                        break
+                    result["success"] = True
+                    if image_warnings:
+                        result["error"] = "; ".join(image_warnings[:3])
 
-            except PublishError:
-                raise
-            except Exception as e:
-                raise PublishError(f"CSDN 发布失败: {str(e)}") from e
-            finally:
-                await page.close()
-                await browser.close()
+                except PublishError:
+                    raise
+                except Exception as e:
+                    raise PublishError(f"CSDN 发布失败: {str(e)}") from e
+                finally:
+                    page.close()
+                    browser.close()
+
+        except PublishError as e:
+            result["error"] = str(e)
+        except Exception as e:
+            result["error"] = str(e)
 
         return result
 
-    async def _upload_image_playwright(self, page, local_path: str) -> str:
-        """纯 Playwright 方式上传图片到 CSDN
-
-        通过编辑器内置的图片上传功能（拖拽或文件选择器）
-        """
+    def _upload_image(self, page, local_path: str) -> str:
+        """纯 Playwright 上传图片"""
         if not os.path.isfile(local_path):
-            self.logger.warning(f"  ⚠️ 图片文件不存在: {local_path}")
             return ""
 
-        # 1. 找文件上传 input
-        file_input = await page.query_selector("input[type='file']")
-        if not file_input:
-            self.logger.warning("  ⚠️ 未找到 file input")
+        file_input = page.locator("input[type='file']").first
+        if file_input.count() == 0:
             return ""
 
-        # 2. 设置文件
         try:
-            await file_input.set_input_files(local_path)
-            await page.wait_for_timeout(5000)  # 等上传
-        except Exception as e:
-            self.logger.warning(f"  ⚠️ 文件选择失败: {e}")
-            return ""
-
-        # 3. 等待上传完成，从页面提取 CSDN 图片 URL
-        await page.wait_for_timeout(3000)
-        html = await page.content()
-        img_urls = re.findall(r'https://img-blog\.csdnimg\.cn/[^\s\"\'<>]+', html)
-        if img_urls:
-            return img_urls[0]
-
-        # 4. 备用：通过拖拽上传
-        try:
-            # 找到编辑器区域拖放
-            editor = await page.query_selector(".editor")
-            if editor:
-                # 创建 DataTransfer 事件
-                await page.evaluate(f"""
-                    (async () => {{
-                        const blob = new Blob(['fake'], {{ type: 'image/png' }});
-                        const file = new File([blob], '{os.path.basename(local_path)}', {{ type: 'image/png' }});
-                        const dt = new DataTransfer();
-                        dt.items.add(file);
-                        const el = document.querySelector('.editor');
-                        if (el) {{
-                            const event = new DragEvent('drop', {{ dataTransfer: dt }});
-                            el.dispatchEvent(event);
-                        }}
-                    }})()
-                """)
-                await page.wait_for_timeout(5000)
-                html = await page.content()
-                img_urls = re.findall(r'https://img-blog\.csdnimg\.cn/[^\s\"\'<>]+', html)
-                if img_urls:
-                    return img_urls[0]
+            file_input.set_input_files(local_path)
+            page.wait_for_timeout(5000)
+            html = page.content()
+            urls = re.findall(r'https://img-blog\.csdnimg\.cn/[^\s"\'<>]+', html)
+            if urls:
+                return urls[0]
         except:
             pass
-
-        self.logger.warning("  ⚠️ 图片上传后未检测到 CSDN 图床 URL")
         return ""
 
-    async def check_signin(self) -> dict:
-        """CSDN 签到"""
-        # CSDN 签到主要通过每日任务完成，暂不做签到验证
-        return {"success": False, "message": "CSDN 签到功能待实现"}
+    def upload_image(self, local_path: str) -> dict:
+        """上传图片到 CSDN 图床"""
+        url = self._upload_image(None, local_path)
+        if url:
+            return {"success": True, "url": url, "error": ""}
+        return {"success": False, "url": "", "error": "上传失败"}
