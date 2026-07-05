@@ -183,6 +183,98 @@ def publish():
    flash(f"发布完成: {'; '.join(parts)}", "success" if success_count else "error")
    return redirect(url_for("index"))
 
+
+# ─── 编译预览 ────────────────────────────────────
+@app.route("/compile/<int:pid>")
+@login_required
+def compile_preview(pid):
+    """编译文章并在各平台预览效果"""
+    conn = get_db()
+    post = conn.execute(
+        "SELECT * FROM articles WHERE id=? AND user_id=?",
+        (pid, current_user.id)
+    ).fetchone()
+    conn.close()
+
+    if not post:
+        flash("文章不存在", "error")
+        return redirect(url_for("index"))
+
+    try:
+        from core.compiler import Compiler
+    except ImportError:
+        from flashsloth.core.compiler import Compiler
+
+    article = Article(
+        title=post["title"],
+        body=post["body"],
+        tags=json.loads(post["tags"]) if post["tags"] else [],
+        summary=post["summary"],
+    )
+
+    compiler = Compiler()
+    # 编译到所有支持的平台
+    targets = None
+    results = compiler.compile(article, targets=targets)
+
+    return render_template("compile_preview.html",
+                         results=results,
+                         article_id=pid,
+                         title=post["title"],
+                         tags=", ".join(json.loads(post["tags"])) if post["tags"] else "")
+
+
+@app.route("/api/compile/<int:pid>")
+@login_required
+def api_compile(pid):
+    """编译 API — 返回 JSON 格式的编译结果"""
+    conn = get_db()
+    post = conn.execute(
+        "SELECT * FROM articles WHERE id=? AND user_id=?",
+        (pid, current_user.id)
+    ).fetchone()
+    conn.close()
+
+    if not post:
+        return jsonify({"success": False, "error": "文章不存在"})
+
+    try:
+        from core.compiler import Compiler
+    except ImportError:
+        from flashsloth.core.compiler import Compiler
+
+    targets = request.args.getlist("targets") or None
+
+    article = Article(
+        title=post["title"],
+        body=post["body"],
+        tags=json.loads(post["tags"]) if post["tags"] else [],
+        summary=post["summary"],
+    )
+
+    compiler = Compiler()
+    results = compiler.compile(article, targets=targets)
+
+    # 转为可序列化格式
+    serialized = {}
+    for platform, content in results.items():
+        serialized[platform] = {
+            "platform": content.platform,
+            "display_name": content.display_name,
+            "title": content.title,
+            "body": content.body,
+            "summary": content.summary,
+            "tags": content.tags,
+            "images": content.images,
+            "image_warnings": content.image_warnings,
+            "fields": content.fields,
+            "warnings": content.warnings,
+            "success": content.success,
+            "error": content.error,
+        }
+
+    return jsonify({"success": True, "results": serialized})
+
 # ─── 批量发布页面 ──────────────────────────────
 @app.route("/publish/select/<int:pid>")
 @login_required

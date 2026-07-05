@@ -27,6 +27,9 @@
                 <button type="button" class="btn btn-sm btn-success" onclick="openStorageBrowser()">☁️ 从存储选择</button>
                 <input type="file" id="img-input" accept="image/*" style="display:none" onchange="uploadImage(this)">
                 <button type="button" class="btn btn-sm btn-warning" onclick="togglePreview()" id="preview-btn">👁️ 预览</button>
+            {% if post %}
+            <a href="/compile/{{ post.id }}" class="btn btn-sm btn-info" style="text-decoration:none;">🔍 编译预览</a>
+            {% endif %}
             </div>
             <div id="editor-container" style="display:flex;gap:16px;">
                 <textarea name="body" placeholder="在这里写文章..." id="article-body" style="flex:1;min-height:400px;">{{ post.body if post else '' }}</textarea>
