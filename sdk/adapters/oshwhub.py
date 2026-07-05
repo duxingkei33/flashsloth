@@ -5,14 +5,14 @@ oshwhub.com 是嘉立创 EDA 生态的开源硬件分享平台，Next.js + Ant D
 非 Discuz 系平台，独立适配。
 
 能力清单：
-  - sign_in()             签到（不支持）
+  - sign_in()             签到（不支持，使用独立签到插件）
   - publish()             发布项目 ✅（通过 Playwright 浏览器自动化或 Cookie API）
   - retract()             撤回（不支持）
   - fetch_posts()         采集项目 ✅
   - fetch_replies()       采集评论（不支持）
   - fetch_thread_detail() 读项目详情 ✅
   - reply_comment()       回复评论（不支持）
-  - browse_forum()        逛平台（不支持）
+  - browse_forum()        逛平台 ✅
   - deploy()              部署（不支持）
 """
 from typing import Optional
@@ -410,7 +410,61 @@ class OshwhubAdapter(PlatformAdapter):
 
     # ─── 逛平台 ───────────────────────────────
     def browse_forum(self, **kwargs) -> dict:
-        return {"supported": False}
+        """浏览 OSHWHub 探索页，获取热门/最新开源项目"""
+        try:
+            import requests
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            }
+            if self.cookie:
+                headers["Cookie"] = self.cookie
+
+            resp = requests.get(f"{self.site_url}/explore", headers=headers, timeout=10)
+            projects = []
+            # 尝试 JSON API
+            api_headers = dict(headers)
+            api_headers["Accept"] = "application/json"
+            for api in ["/api/projects", "/api/v1/projects"]:
+                try:
+                    r = requests.get(f"{self.site_url}{api}", headers=api_headers, timeout=10)
+                    if r.status_code == 200:
+                        data = r.json()
+                        items = data
+                        if isinstance(data, dict):
+                            items = data.get("data", data.get("results", data.get("projects", [])))
+                        if isinstance(items, list):
+                            for p in items[:30]:
+                                title = p.get("title", p.get("name", ""))
+                                if title:
+                                    projects.append({
+                                        "title": title,
+                                        "url": f"{self.site_url}/{p.get('user', '')}/{p.get('id', '')}",
+                                        "author": p.get("user", p.get("author", "")),
+                                        "summary": p.get("description", "")[:100],
+                                    })
+                            break
+                except:
+                    continue
+
+            # 回退：从 HTML 提取
+            if not projects:
+                for m in re.finditer(
+                    r'<a[^>]*href="/([^"]+)"[^>]*>(.*?)</a>',
+                    resp.text, re.DOTALL
+                ):
+                    url = m.group(1)
+                    title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+                    if title and len(title) > 3 and "/" in url and not url.startswith("http"):
+                        projects.append({"title": title, "url": f"{self.site_url}/{url}"})
+
+            return {
+                "supported": True, "total": len(projects),
+                "filtered": 0, "new_saved": 0,
+                "projects": projects[:30],
+            }
+        except Exception as e:
+            return {"supported": True, "total": 0, "error": str(e)}
 
     # ─── 部署 ─────────────────────────────────
     def deploy(self, check_only: bool = False, **kwargs) -> dict:
