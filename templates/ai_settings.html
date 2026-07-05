@@ -2,7 +2,26 @@
 {% block title %}AI 能力配置{% endblock %}
 {% block content %}
 <h1 style="margin-bottom:20px;">🤖 AI 能力配置</h1>
-<p style="color:#666;margin-bottom:20px;">动态供应商注册表 — 选择供应商 → 填 API Key → 测试连接 → 保存</p>
+<p style="color:#666;margin-bottom:20px;">从数据库动态加载 — 先选择供应商 → 填别称 + API Key → 测试连接 → 自动保存</p>
+
+<style>
+.ai-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid #e0e0e0; border-radius:8px; margin-bottom:6px; transition:background .15s; flex-wrap:wrap; }
+.ai-row:hover { background:#f8f9fa; }
+.ai-row.disabled { opacity:.55; background:#f5f5f5; }
+.ai-icon { font-size:22px; flex-shrink:0; }
+.ai-name { font-weight:600; flex-shrink:0; min-width:100px; font-size:14px; }
+.ai-alias { color:#666; font-size:12px; flex-shrink:0; }
+.ai-website-link { font-size:12px; color:#4361ee; text-decoration:none; flex-shrink:0; }
+.ai-website-link:hover { text-decoration:underline; }
+.ai-status-badge { flex-shrink:0; min-width:80px; text-align:center; font-size:12px; }
+.ai-balance { flex-shrink:0; font-size:12px; color:#666; background:#f0f0f0; padding:2px 8px; border-radius:4px; }
+.ai-tools { display:flex; gap:6px; flex-shrink:0; margin-left:auto; }
+.ai-refresh-btn, .ai-toggle-btn, .ai-delete-btn { padding:3px 10px; border-radius:4px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:12px; }
+.ai-refresh-btn:hover { background:#e8f4fd; }
+.ai-toggle-btn.on { background:#d4edda; border-color:#22c55e; }
+.ai-toggle-btn.off { background:#f8d7da; border-color:#dc3545; }
+.ai-delete-btn:hover { background:#f8d7da; border-color:#dc3545; color:#dc3545; }
+</style>
 
 <!-- 顶部操作栏 -->
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
@@ -10,41 +29,43 @@
         <select id="providerSelector" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;min-width:220px;">
             <option value="">— 选择供应商添加 —</option>
         </select>
-        <button onclick="onAddProvider()" class="btn btn-success">➕ 添加供应商</button>
+        <button onclick="onAddProvider()" class="btn btn-success">➕ 添加</button>
         <button onclick="showAddCustomProvider()" class="btn btn-sm btn-info">✏️ 自定义</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="refreshAllBalances()" class="btn btn-sm btn-secondary">🔄 刷新余额</button>
+        <span id="aiCount" style="font-size:13px;color:#666;"></span>
     </div>
 </div>
 
-<!-- 已配置的供应商列表 -->
+<!-- 已配置的供应商列表（单列） -->
 <div class="card" style="padding:16px;">
     <h2 style="margin-bottom:12px;font-size:15px;">🔌 已配置的 AI 供应商</h2>
-    <div id="providerList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">
+    <div id="providerList">
         <p style="color:#999;padding:20px;text-align:center;">加载中...</p>
     </div>
 </div>
 
-<!-- 能力路由 -->
-<div class="card" style="padding:16px;margin-top:16px;">
-    <h2 style="margin-bottom:12px;font-size:15px;">📋 能力路由（哪个供应商处理什么任务）</h2>
-    <div id="capabilityConfig"></div>
-</div>
-
-<!-- ====== 添加供应商弹窗 ====== -->
+<!-- 添加供应商弹窗 -->
 <div id="addProviderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
-        <h2 style="margin-bottom:16px;font-size:18px;">➕ 添加 <span id="addProvName"></span></h2>
+        <h2 style="margin-bottom:16px;font-size:18px;">➕ <span id="addProvName"></span></h2>
+        <div class="form-group">
+            <label>别称 <span style="color:#999;font-size:12px;">（同一供应商可添加多个，必填）</span></label>
+            <input id="addField_alias" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="例如: 工作号、主力Key">
+        </div>
         <div id="addProvFields"></div>
         <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
-            <button onclick="saveProvider()" class="btn btn-primary">💾 保存</button>
-            <button onclick="testCurrentProvider()" class="btn btn-info" id="testCurrentBtn">🔍 测试连接</button>
+            <button onclick="testAndSaveProvider()" class="btn btn-primary">🔍 测试并保存</button>
+            <button onclick="testOnlyProvider()" class="btn btn-info" id="testOnlyBtn">🔍 仅测试</button>
             <button onclick="closeAddModal()" class="btn" style="background:#eee;">取消</button>
         </div>
         <div id="addProvTestResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
     </div>
 </div>
 
-<!-- ====== 自定义供应商弹窗 ====== -->
+<!-- 自定义供应商弹窗 -->
 <div id="customProvModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
@@ -67,42 +88,39 @@
 </div>
 
 <script>
-// ====== 页面数据 ======
-let registryData = null;
+// ====== 页面加载 ======
 let _currentProvider = null;
 
-// ====== 页面加载 ======
 document.addEventListener('DOMContentLoaded', function() {
-    loadProviders();
-    loadCapabilities();
+    loadRegistry();
+    loadConfigured();
 });
 
-function loadProviders() {
+function loadRegistry() {
     fetch('/api/ai/providers/list')
     .then(r => r.json())
     .then(data => {
-        registryData = data;
         renderProviderSelector(data);
-        renderProviderList(data);
-    })
-    .catch(() => {
-        document.getElementById('providerList').innerHTML =
-            '<p style="color:#999;padding:20px;text-align:center;">加载失败</p>';
-    });
-}
-
-function loadCapabilities() {
-    fetch('/api/ai/config')
-    .then(r => r.json())
-    .then(data => {
-        renderCapabilities(data.capabilities || {});
     })
     .catch(() => {});
 }
 
+function loadConfigured() {
+    fetch('/api/ai/providers/configured')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            renderConfiguredList(data.providers || []);
+            document.getElementById('aiCount').textContent = '已配置 ' + (data.providers || []).length + ' 个';
+        }
+    })
+    .catch(() => {
+        document.getElementById('providerList').innerHTML = '<p style="color:#999;padding:20px;text-align:center;">加载失败</p>';
+    });
+}
+
 function renderProviderSelector(data) {
     const sel = document.getElementById('providerSelector');
-    const cats = data.categories || {};
     const providers = data.providers || [];
     const catMap = {};
     providers.forEach(p => {
@@ -112,7 +130,7 @@ function renderProviderSelector(data) {
     });
     sel.innerHTML = '<option value="">— 选择供应商添加 —</option>';
     Object.entries(catMap).forEach(([cat, list]) => {
-        const catInfo = cats[cat] || {name: cat, icon: '📦'};
+        const catInfo = (data.categories || {})[cat] || {name: cat, icon: '📦'};
         const group = document.createElement('optgroup');
         group.label = catInfo.icon + ' ' + (catInfo.name || cat);
         list.forEach(p => {
@@ -126,46 +144,55 @@ function renderProviderSelector(data) {
     });
 }
 
-function renderProviderList(data) {
+function renderConfiguredList(providers) {
     const container = document.getElementById('providerList');
-    const providers = data.providers || [];
-    const configured = providers.filter(p => p.configured);
-    const unconfigured = providers.filter(p => !p.configured);
-
-    if (configured.length === 0 && unconfigured.length === 0) {
-        container.innerHTML = '<p style="color:#999;padding:20px;text-align:center;">暂无供应商，请从上方选择添加</p>';
+    if (!providers.length) {
+        container.innerHTML = '<p style="color:#999;padding:20px;text-align:center;">暂无已配置的供应商，请从上方选择添加</p>';
         return;
     }
 
-    let html = '';
-    configured.forEach(p => {
-        html += renderProviderCard(p, true);
+    // 按同类排序
+    const catOrder = ['chat', 'image', 'audio', 'video', 'embedding', 'custom'];
+    providers.sort((a, b) => {
+        const ai = catOrder.indexOf(a.category || 'custom');
+        const bi = catOrder.indexOf(b.category || 'custom');
+        if (ai !== bi) return ai - bi;
+        return (a.display_name || a.provider).localeCompare(b.display_name || b.provider);
     });
-    unconfigured.forEach(p => {
-        html += renderProviderCard(p, false);
+
+    let html = '';
+    providers.forEach(p => {
+        const enabled = p.enabled !== 0;
+        const status = p.status || 'untested';
+        const balance = p.balance || '';
+        const website = p.website || '';
+        const alias = p.alias || '';
+        const models = (p.models_list || []).slice(0,3).join(', ') + ((p.models_list || []).length > 3 ? '...' : '');
+
+        html += '<div class="ai-row ' + (enabled ? '' : 'disabled') + '" id="airow_' + p.id + '">' +
+            '<span class="ai-icon">' + (p.icon || '🤖') + '</span>' +
+            '<span class="ai-name">' + escapeHtml(p.display_name || p.provider) + '</span>' +
+            (alias ? '<span class="ai-alias">(' + escapeHtml(alias) + ')</span>' : '') +
+            (website ? '<a href="' + website + '" target="_blank" class="ai-website-link" title="' + website + '">🌐 官网</a>' : '') +
+            '<span class="ai-status-badge">' +
+                (status === 'connected'
+                    ? '<span class="badge badge-success">✅ 已连接</span>'
+                    : status === 'failed'
+                    ? '<span class="badge badge-danger">❌ 断开</span>'
+                    : '<span class="badge badge-warning">⏳ 未测</span>') +
+            '</span>' +
+            (balance ? '<span class="ai-balance" id="balance_' + p.id + '">💰 ' + escapeHtml(balance) + '</span>' : '') +
+            (models ? '<span style="font-size:11px;color:#999;flex-shrink:0;">' + escapeHtml(models) + '</span>' : '') +
+            '<span class="ai-tools">' +
+                '<button class="ai-refresh-btn" onclick="refreshBalance(' + p.id + ')" title="刷新余额">🔄</button>' +
+                '<button class="ai-toggle-btn ' + (enabled ? 'on' : 'off') + '" onclick="toggleProvider(' + p.id + ')" title="' + (enabled ? '已启用 - 点击禁用' : '已禁用 - 点击启用') + '">' +
+                    (enabled ? '🟢 启用' : '🔴 禁用') +
+                '</button>' +
+                '<button class="ai-delete-btn" onclick="deleteProvider(' + p.id + ')" title="从数据库删除">🗑️ 删除</button>' +
+            '</span>' +
+        '</div>';
     });
     container.innerHTML = html;
-}
-
-function renderProviderCard(p, configured) {
-    const cats = registryData?.categories || {};
-    const catInfo = cats[p.category] || {name: p.category || '其他', icon: '📦'};
-    return '<div style="border:1px solid ' + (configured ? '#22c55e' : '#ddd') + ';border-radius:8px;padding:14px;' +
-           'background:' + (configured ? '#f0fdf4' : '#fff') + ';">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-        '<span style="font-size:22px;">' + (p.icon || '🤖') + '</span>' +
-        '<div><strong>' + escapeHtml(p.display_name || p.name) + '</strong>' +
-        '<span style="color:#999;font-size:11px;display:block;">' + catInfo.icon + ' ' + catInfo.name +
-        ' · ' + (p.models || []).slice(0,3).join(', ') + (p.models?.length > 3 ? '...' : '') + '</span></div></div>' +
-        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-        '<span class="badge ' + (configured ? 'badge-success' : 'badge-warning') + '">' +
-        (configured ? '✅ 已配置' : '⚠️ 未配置') + '</span>' +
-        '<button class="btn btn-sm btn-primary" onclick="configureProvider(\'' + p.name + '\')">' +
-        (configured ? '✏️ 编辑' : '🔑 配置') + '</button>' +
-        (configured ? '<button class="btn btn-sm btn-info" onclick="testProvider(\'' + p.name + '\')">🔍 测试</button>' : '') +
-        '</div>' +
-        (configured ? '<div id="testResult_' + p.name + '" style="margin-top:6px;font-size:12px;display:none;"></div>' : '') +
-        '</div>';
 }
 
 // ====== 添加供应商 ======
@@ -180,8 +207,9 @@ function onAddProvider() {
 function showAddModal(p) {
     _currentProvider = p;
     document.getElementById('addProvName').textContent = (p.icon || '') + ' ' + (p.display_name || p.name);
+    document.getElementById('addField_alias').value = '';
+
     let fields = p.config_fields || [];
-    // 如果没有 api_base 字段但 provider 有默认 api_base，加一个
     if (p.api_base && !fields.find(f => f.key === 'api_base')) {
         fields.push({key: 'api_base', label: 'API Base URL', type: 'text', required: false, placeholder: p.api_base});
     }
@@ -201,155 +229,157 @@ function closeAddModal() {
     document.getElementById('addProviderModal').style.display = 'none';
 }
 
-function saveProvider() {
-    const p = _currentProvider;
-    if (!p) return;
-    const cfg = {api_key: document.getElementById('addField_api_key')?.value || ''};
-    const baseField = document.getElementById('addField_api_base');
-    if (baseField && baseField.value) cfg.api_base = baseField.value;
-    // 收集其他字段
-    (p.config_fields || []).forEach(f => {
-        const el = document.getElementById('addField_' + f.key);
-        if (el && f.key !== 'api_key' && f.key !== 'api_base') cfg[f.key] = el.value;
-    });
-    fetch('/api/ai/config', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({providers: {[p.name]: cfg}}),
-    }).then(r => r.json()).then(d => {
-        if (d.success) {
-            closeAddModal();
-            location.reload();
-        } else { alert('保存失败: ' + (d.error || '')); }
-    });
+function testOnlyProvider() {
+    _testConnection(false);
 }
 
-function testCurrentProvider() {
+function testAndSaveProvider() {
+    _testConnection(true);
+}
+
+function _testConnection(saveOnSuccess) {
     const p = _currentProvider;
     if (!p) return;
+    const alias = document.getElementById('addField_alias')?.value?.trim() || '';
     const apiKey = document.getElementById('addField_api_key')?.value || '';
     if (!apiKey) { alert('请先填写 API Key'); return; }
     const baseField = document.getElementById('addField_api_base');
     const apiBase = baseField?.value || '';
+    const apiFormat = p.api_format || 'openai';
 
-    // 先保存再测试
-    const cfg = {api_key: apiKey};
-    if (apiBase) cfg.api_base = apiBase;
-    fetch('/api/ai/config', {
+    const div = document.getElementById('addProvTestResult');
+    div.style.display = 'block';
+    div.style.background = '#fff3cd';
+    div.style.color = '#856404';
+    div.innerHTML = '⏳ 测试连接中（零 token 消耗）...';
+
+    // Step 1: 测试连接
+    fetch('/api/ai/providers/configured/test', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({providers: {[p.name]: cfg}}),
-    }).then(() => {
-        return fetch('/api/ai/test/' + p.name, {method: 'POST'});
-    }).then(r => r.json()).then(data => {
-        const div = document.getElementById('addProvTestResult');
-        div.style.display = 'block';
+        body: JSON.stringify({
+            provider: p.name,
+            api_key: apiKey,
+            api_base: apiBase,
+            api_format: apiFormat,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
         if (data.success) {
-            div.style.background = '#d4edda'; div.style.color = '#155724';
-            div.innerHTML = '✅ 连接成功！<br><span style="font-size:12px;">' +
-                (data.content ? escapeHtml(data.content.substring(0, 200)) : '') + '</span>';
+            div.style.background = '#d4edda';
+            div.style.color = '#155724';
+            div.innerHTML = '✅ ' + escapeHtml(data.message || '连接成功');
+
+            if (saveOnSuccess) {
+                // Step 2: 成功 → 保存到数据库
+                const models = (data.models || p.models || []).join(',');
+                return fetch('/api/ai/providers/configured', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        provider: p.name,
+                        alias: alias,
+                        api_key: apiKey,
+                        api_base: apiBase,
+                        api_format: apiFormat,
+                        models: JSON.stringify(data.models || p.models || []),
+                    }),
+                });
+            } else {
+                // 仅测试，不保存
+                div.innerHTML = '✅ ' + escapeHtml(data.message || '连接成功') +
+                    '<br><span style="font-size:12px;">这是仅测试结果，未保存。点击「测试并保存」以保存到数据库</span>';
+                return null;
+            }
         } else {
-            div.style.background = '#f8d7da'; div.style.color = '#721c24';
-            div.innerHTML = '❌ ' + escapeHtml(data.error || '测试失败');
+            div.style.background = '#f8d7da';
+            div.style.color = '#721c24';
+            div.innerHTML = '❌ ' + escapeHtml(data.error || '连接失败');
+            return null;
         }
-    }).catch(e => {
-        const div = document.getElementById('addProvTestResult');
-        div.style.display = 'block';
-        div.style.background = '#f8d7da'; div.style.color = '#721c24';
+    })
+    .then(saveResult => {
+        if (saveResult) {
+            return saveResult.json();
+        }
+        return null;
+    })
+    .then(data => {
+        if (data && data.success) {
+            div.innerHTML = '✅ ✅ 已保存到数据库！';
+            closeAddModal();
+            loadConfigured(); // 刷新列表
+        } else if (data && !data.success) {
+            div.style.background = '#f8d7da';
+            div.style.color = '#721c24';
+            div.innerHTML = '❌ 保存失败: ' + escapeHtml(data.error || '');
+        }
+    })
+    .catch(e => {
+        div.style.background = '#f8d7da';
+        div.style.color = '#721c24';
         div.innerHTML = '❌ 请求失败: ' + escapeHtml(e.message);
     });
 }
 
-// ====== 配置已存在的供应商 ======
-function configureProvider(name) {
-    const p = (registryData?.providers || []).find(x => x.name === name);
-    if (p) showAddModal(p);
-}
-function testProvider(name) {
-    const btn = document.querySelector('#testResult_' + name);
-    if (!btn) return;
-    btn.style.display = 'block';
-    btn.innerHTML = '⏳ 测试中...';
-    fetch('/api/ai/test/' + name, {method: 'POST'})
-    .then(r => r.json()).then(data => {
+// ====== 启用/禁用 ======
+function toggleProvider(id) {
+    fetch('/api/ai/providers/configured/' + id + '/toggle', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
         if (data.success) {
-            btn.style.background = '#d4edda'; btn.style.color = '#155724';
-            btn.innerHTML = '✅ 连接成功！' + (data.content ? ' "' + escapeHtml(data.content.substring(0, 100)) + '"' : '');
-        } else {
-            btn.style.background = '#f8d7da'; btn.style.color = '#721c24';
-            btn.innerHTML = '❌ ' + escapeHtml(data.error || '失败');
+            loadConfigured();
         }
-    }).catch(e => {
-        btn.style.background = '#f8d7da'; btn.style.color = '#721c24';
-        btn.innerHTML = '❌ 请求失败';
+    })
+    .catch(() => {});
+}
+
+// ====== 删除 ======
+function deleteProvider(id) {
+    if (!confirm('确认从数据库删除此 AI 供应商配置？')) return;
+    fetch('/api/ai/providers/configured/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured();
+        } else {
+            alert('删除失败: ' + (data.error || ''));
+        }
+    })
+    .catch(() => {});
+}
+
+// ====== 余额刷新 ======
+function refreshBalance(id) {
+    const el = document.getElementById('balance_' + id);
+    if (el) el.innerHTML = '⏳ 刷新中...';
+    fetch('/api/ai/providers/balance/refresh/' + id, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (el) el.innerHTML = '💰 ' + escapeHtml(data.balance || 'N/A');
+        } else {
+            if (el) el.innerHTML = '❌ 查询失败';
+        }
+    })
+    .catch(() => {
+        if (el) el.innerHTML = '❌ 查询失败';
     });
 }
 
-// ====== 能力路由 ======
-function renderCapabilities(caps) {
-    const div = document.getElementById('capabilityConfig');
-    const providers = registryData?.providers || [];
-    const capNames = ['writing', 'translate', 'image_gen', 'audio_gen', 'video_gen'];
-    let html = '<table><thead><tr><th>能力</th><th>供应商</th><th>模型</th><th>模式</th><th>操作</th></tr></thead><tbody>';
-    capNames.forEach(cap => {
-        const cfg = caps[cap] || {};
-        const provName = cfg.provider || (cfg.providers?.[0]?.name) || '';
-        const model = cfg.model || (cfg.providers?.[0]?.model) || '';
-        const mode = cfg.mode || 'fallback';
-        html += '<tr><td><strong>' + cap + '</strong></td>' +
-            '<td>' + provName + '</td>' +
-            '<td>' + model + '</td>' +
-            '<td>' + mode + '</td>' +
-            '<td><button class="btn btn-sm btn-primary" onclick="editCap(\'' + cap + '\')">编辑</button></td></tr>';
-    });
-    html += '</tbody></table>';
-    if (!Object.keys(caps).length) {
-        html += '<p style="color:#999;font-size:13px;">使用默认路由（自动发现第一个可用供应商）</p>';
-    }
-    div.innerHTML = html;
-}
-
-function editCap(cap) {
-    const providers = registryData?.providers || [];
-    const sel = providers.filter(p => (p.capabilities || []).includes(cap) || p.capabilities?.includes('*'));
-    const cfg = {};
-
-    let html = '<div class="form-group"><label>指定供应商</label>' +
-        '<select id="capProv" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">' +
-        '<option value="">自动发现</option>';
-    providers.filter(p => p.configured).forEach(p => {
-        html += '<option value="' + p.name + '">' + (p.icon || '') + ' ' + p.display_name + '</option>';
-    });
-    html += '</select></div>' +
-        '<div class="form-group"><label>模型（可选）</label>' +
-        '<input id="capModel" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>' +
-        '<button onclick="saveCap(\'' + cap + '\')" class="btn btn-primary">保存</button>' +
-        '<button onclick="closeEditModal()" class="btn" style="background:#eee;margin-left:8px;">取消</button>';
-
-    // Load existing
-    fetch('/api/ai/config').then(r => r.json()).then(data => {
-        const c = data.capabilities?.[cap] || {};
-        const el = document.getElementById('capProv');
-        if (el && c.provider) el.value = c.provider;
-        const el2 = document.getElementById('capModel');
-        if (el2 && c.model) el2.value = c.model;
-    }).catch(() => {});
-
-    showModal('能力路由: ' + cap, html);
-}
-
-function saveCap(cap) {
-    const provider = document.getElementById('capProv')?.value || '';
-    const model = document.getElementById('capModel')?.value || '';
-    const cfg = {};
-    if (provider) { cfg.provider = provider; if (model) cfg.model = model; }
-    fetch('/api/ai/config', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({capabilities: {[cap]: cfg}}),
-    }).then(r => r.json()).then(d => {
-        if (d.success) { closeEditModal(); location.reload(); }
-        else { alert('保存失败'); }
+function refreshAllBalances() {
+    const btn = document.querySelector('button[onclick="refreshAllBalances()"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 刷新中...'; }
+    fetch('/api/ai/providers/balance/refresh_all', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured();
+        }
+    })
+    .finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新余额'; }
     });
 }
 
@@ -374,26 +404,9 @@ function saveCustomProvider() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data),
     }).then(r => r.json()).then(d => {
-        if (d.success) { closeCustomModal(); location.reload(); }
+        if (d.success) { closeCustomModal(); loadRegistry(); }
         else { alert('保存失败: ' + (d.error || '')); }
     });
-}
-
-// ====== 通用弹窗 ======
-function showModal(title, body) {
-    const existing = document.getElementById('_genericModal');
-    if (existing) existing.remove();
-    const div = document.createElement('div');
-    div.id = '_genericModal';
-    div.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000;display:flex;align-items:center;justify-content:center;';
-    div.innerHTML = '<div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;">' +
-        '<h2 style="margin-bottom:16px;font-size:18px;">' + title + '</h2>' +
-        '<div>' + body + '</div></div>';
-    document.body.appendChild(div);
-}
-function closeEditModal() {
-    const el = document.getElementById('_genericModal');
-    if (el) el.remove();
 }
 
 function escapeHtml(text) {

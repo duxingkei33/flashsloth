@@ -48,15 +48,16 @@ class OshwhubPublisher(Publisher):
         "upload_image": "/api/file/upload",
     }
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict | None = None):
         super().__init__(config)
-        self.site_url = config.get("site_url", "https://oshwhub.com").rstrip("/")
-        self.login_mode = config.get("login_mode", "cookie")
-        self.username = config.get("username", "")
-        self.password = config.get("password", "")
+        cfg = self.config  # use self.config (handles None -> {})
+        self.site_url = cfg.get("site_url", "https://oshwhub.com").rstrip("/")
+        self.login_mode = cfg.get("login_mode", "cookie")
+        self.username = cfg.get("username", "")
+        self.password = cfg.get("password", "")
         self._session = None
         self._playwright_login = None
-        raw_cookie = config.get("cookie", "")
+        raw_cookie = cfg.get("cookie", "")
         if raw_cookie:
             self._init_session_with_cookie(raw_cookie)
 

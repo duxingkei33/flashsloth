@@ -49,6 +49,11 @@ app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
 app.config["DEBUG"] = False
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
+# ─── Jinja2 自定义过滤器 ───
+@app.template_filter("split")
+def jinja_split(value, sep):
+    return value.split(sep)
+
 # 首次启动生成的随机 admin 凭证（见 init_db）
 _BOOT_CREDENTIALS = None
 
@@ -163,7 +168,34 @@ def init_db():
             message TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS ai_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            provider TEXT NOT NULL,
+            alias TEXT NOT NULL DEFAULT '',
+            api_key TEXT NOT NULL DEFAULT '',
+            api_base TEXT DEFAULT '',
+            api_format TEXT DEFAULT 'openai',
+            models TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'untested',
+            created_at TEXT DEFAULT (datetime('now')),
+            balance TEXT DEFAULT '',
+            enabled INTEGER DEFAULT 1,
+            UNIQUE(user_id, provider, alias)
+        );
     """)
+    conn.commit()
+
+    # ─── 迁移：添加 ai_configs 新字段 ───
+    from flashsloth.core.provider_registry import get_registry
+    try:
+        conn.execute("ALTER TABLE ai_configs ADD COLUMN balance TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE ai_configs ADD COLUMN enabled INTEGER DEFAULT 1")
+    except Exception:
+        pass
     conn.commit()
 
     # ─── 首次运行：自动生成随机 admin 账号 ───
@@ -2740,6 +2772,128 @@ def signin_page():
                          signin_plugins=signin_plugins)
 
 
+# ═════════════════════════════════════════════════
+# 智能签到调度器 — FS 内置定时签到
+# ═════════════════════════════════════════════════
+
+_signin_scheduler_running = False
+_signin_scheduler_stop = threading.Event()
+
+
+def _start_signin_scheduler():
+    """启动内置签到调度线程（每分钟检查一次）"""
+    global _signin_scheduler_running
+    if _signin_scheduler_running:
+        return
+    _signin_scheduler_running = True
+    _signin_scheduler_stop.clear()
+
+    def _loop():
+        import time as _time
+        while not _signin_scheduler_stop.is_set():
+            try:
+                _tick_signin_scheduler()
+            except Exception as e:
+                pass  # 静默异常，防止调度器退出
+            _signin_scheduler_stop.wait(60)  # 每分钟检查一次
+        global _signin_scheduler_running
+        _signin_scheduler_running = False
+
+    t = threading.Thread(target=_loop, daemon=True, name="signin-scheduler")
+    t.start()
+
+
+def _tick_signin_scheduler():
+    """签到调度器的单次 tick — 检查每个启用的账号是否需要签到"""
+    import datetime as _dt
+    now = _dt.datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    now_minutes = now.hour * 60 + now.minute
+
+    conn = get_db()
+    # 检查全局是否启用
+    sched = conn.execute(
+        "SELECT config_json FROM provider_config WHERE provider_type='signin_schedule' LIMIT 1"
+    ).fetchone()
+    if not sched:
+        conn.close()
+        return
+    sched_cfg = json.loads(sched["config_json"]) if sched["config_json"] else {}
+    if not sched_cfg.get("enabled", False):
+        conn.close()
+        return
+
+    accounts = conn.execute(
+        "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY platform, account_name"
+    ).fetchall()
+    conn.close()
+
+    for a in accounts:
+        d = dict(a)
+        cfg = json.loads(d.get("config_json") or "{}")
+        d["config"] = cfg
+
+        if not cfg.get("signin_enabled", True):
+            continue
+
+        # 获取此账号的签到时间
+        signin_time_str = cfg.get("signin_time", "08:00")
+        parts = signin_time_str.split(":")
+        base_hour = int(parts[0]) if len(parts) > 0 else 8
+        base_min = int(parts[1]) if len(parts) > 1 else 0
+        base_minutes = base_hour * 60 + base_min
+
+        # 时间窗口：从设定的 base 时间开始，之后随机 1 小时
+        window_start = base_minutes
+        window_end = base_minutes + 60
+
+        if not (window_start <= now_minutes < window_end):
+            continue  # 不在时间窗口内
+
+        # 检查当天是否已经签过（从签到记录判断）
+        from plugins.forum_signin import ensure_signin_log_table
+        ensure_signin_log_table()
+        log_exists = conn.execute(
+            "SELECT COUNT(*) FROM signin_log WHERE account_id=? AND date(created_at)=? AND success=1",
+            (d["id"], today_str)
+        ).fetchone()[0]
+        if log_exists > 0:
+            continue  # 今天已经签过
+
+        # 检查该账号是否有签到插件
+        from core_signin import get_signin_for_account
+        plugin = get_signin_for_account(d)
+        if not plugin:
+            continue
+
+        # 执行签到
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(plugin.signin)
+            try:
+                result = fut.result(timeout=30)
+            except concurrent.futures.TimeoutError:
+                result = {"success": False, "already_signed": False,
+                          "error": "超时", "message": ""}
+            except Exception as ex:
+                result = {"success": False, "already_signed": False,
+                          "error": str(ex), "message": ""}
+
+        # 记录日志
+        site_url = cfg.get("site_url", "")
+        from plugins.forum_signin import log_signin
+        log_signin(
+            account_id=d["id"],
+            platform=d["platform"],
+            account_name=d["account_name"],
+            site_url=site_url,
+            success=result.get("success", False),
+            already_signed=result.get("already_signed", False),
+            error=result.get("error", ""),
+            message=result.get("message", ""),
+        )
+
+
 @app.route("/api/signin/account/<int:aid>", methods=["POST"])
 @login_required
 def api_signin_account(aid):
@@ -2852,8 +3006,29 @@ def api_signin_config():
                 (current_user.id, json.dumps(data))
             )
         conn.commit()
+
+        # 如果设置了 signin_time，自动同步到所有有签到功能的账号
+        synced = 0
+        if "signin_time" in data:
+            new_time = str(data["signin_time"])
+            accounts = conn.execute(
+                "SELECT id, config_json FROM platform_accounts WHERE user_id=?",
+                (current_user.id,)
+            ).fetchall()
+            for a in accounts:
+                acfg = json.loads(a["config_json"]) if a["config_json"] else {}
+                # 只更新有签到功能且显式设置了签到时间的账号
+                if "signin_time" in acfg or acfg.get("signin_enabled", True):
+                    acfg["signin_time"] = new_time
+                    conn.execute(
+                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
+                        (json.dumps(acfg), a["id"])
+                    )
+                    synced += 1
+            conn.commit()
+
         conn.close()
-        return jsonify({"success": True})
+        return jsonify({"success": True, "synced_count": synced})
 
     conn = get_db()
     row = conn.execute(
@@ -3278,6 +3453,270 @@ def oshwhub_login_close():
         return jsonify({"success": False, "error": str(e)})
 
 
+# ─── AI 供应商配置 API（全从数据库，零硬编码）───────────────────────
+
+@app.route("/api/ai/providers/configured", methods=["GET"])
+@login_required
+def api_ai_configured_list():
+    """从数据库查询已配置的 AI 供应商列表"""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM ai_configs WHERE user_id=? ORDER BY provider, alias",
+        (current_user.id,)
+    ).fetchall()
+    conn.close()
+
+    from core.provider_registry import get_registry
+    reg = get_registry()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        defn = reg.get(d["provider"])
+        d["display_name"] = defn.display_name if defn else d["provider"]
+        d["icon"] = defn.icon if defn else "🤖"
+        d["website"] = defn.website if defn else ""
+        d["api_format"] = d.get("api_format") or (defn.api_format if defn else "openai")
+        # 解析 models
+        try:
+            d["models_list"] = json.loads(d.get("models") or "[]")
+        except Exception:
+            d["models_list"] = []
+        if not d["models_list"] and defn:
+            d["models_list"] = defn.models
+        result.append(d)
+
+    return jsonify({"success": True, "providers": result})
+
+
+@app.route("/api/ai/providers/configured/test", methods=["POST"])
+@login_required
+def api_ai_configured_test():
+    """测试 AI 供应商连接（零 token 消耗 — 只测可达性 + Key 有效性）"""
+    data = request.get_json() or {}
+    provider_name = data.get("provider", "")
+    api_key = data.get("api_key", "")
+    api_base = data.get("api_base", "")
+    api_format = data.get("api_format", "openai")
+
+    if not provider_name or not api_key:
+        return jsonify({"success": False, "error": "供应商名和 API Key 不能为空"})
+
+    from core.provider_registry import get_registry
+    reg = get_registry()
+    defn = reg.get(provider_name)
+    base = api_base or (defn.api_base if defn else "")
+
+    if not base:
+        return jsonify({"success": False, "error": "缺少 API Base URL"})
+
+    import requests as _req
+    try:
+        base = base.rstrip("/")
+        if api_format == "openai":
+            # 调 /v1/models — 零 token 消耗，验证 API Key 有效
+            resp = _req.get(
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+            if resp.ok:
+                data = resp.json()
+                models = [m["id"] for m in data.get("data", [])]
+                return jsonify({
+                    "success": True,
+                    "message": f"连接成功，可用模型 {len(models)} 个",
+                    "models": models[:10],
+                })
+            err = resp.json().get("error", {}).get("message", str(resp.text[:200]))
+            return jsonify({"success": False, "error": f"连接失败: {err}"})
+
+        elif api_format == "anthropic":
+            resp = _req.get(
+                f"{base}/v1/models",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+                timeout=10,
+            )
+            if resp.ok:
+                return jsonify({"success": True, "message": "连接成功"})
+            err = resp.json().get("error", {}).get("message", str(resp.text[:200]))
+            return jsonify({"success": False, "error": f"连接失败: {err}"})
+
+        elif api_format == "gemini":
+            # Gemini 没有简单的 key 验证接口，检查基础 URL 可达
+            resp = _req.get(base.rstrip("/"), timeout=10)
+            if resp.ok or resp.status_code in (400, 403, 404):
+                return jsonify({"success": True, "message": "URL 可达（请用实际请求验证 Key）"})
+            return jsonify({"success": False, "error": f"连接失败: HTTP {resp.status_code}"})
+
+        return jsonify({"success": False, "error": f"不支持的格式: {api_format}"})
+    except _req.exceptions.Timeout:
+        return jsonify({"success": False, "error": "连接超时（10秒）"})
+    except _req.exceptions.ConnectionError:
+        return jsonify({"success": False, "error": "连接被拒绝 — 请检查 API Base URL"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"连接异常: {e}"})
+
+
+@app.route("/api/ai/providers/configured", methods=["POST"])
+@login_required
+def api_ai_configured_add():
+    """添加 AI 供应商配置（先测试连接，成功后保存）"""
+    data = request.get_json() or {}
+    provider = data.get("provider", "")
+    alias = data.get("alias", "").strip()
+    api_key = data.get("api_key", "")
+    api_base = data.get("api_base", "")
+    api_format = data.get("api_format", "openai")
+    models = data.get("models", "[]")
+    if isinstance(models, list):
+        models = json.dumps(models)
+
+    if not provider or not api_key:
+        return jsonify({"success": False, "error": "供应商和 API Key 必填"})
+
+    conn = get_db()
+    # 检查是否已存在
+    existing = conn.execute(
+        "SELECT id FROM ai_configs WHERE user_id=? AND provider=? AND alias=?",
+        (current_user.id, provider, alias)
+    ).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({"success": False, "error": f"该配置已存在（{provider} / {alias or '默认'}）"})
+
+    from core.provider_registry import get_registry
+    reg = get_registry()
+    defn = reg.get(provider)
+    fmt = api_format or (defn.api_format if defn else "openai")
+
+    conn.execute(
+        "INSERT INTO ai_configs (user_id, provider, alias, api_key, api_base, api_format, models, status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 'connected')",
+        (current_user.id, provider, alias, api_key, api_base, fmt, models)
+    )
+    conn.commit()
+    inserted_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.close()
+
+    return jsonify({"success": True, "id": inserted_id, "message": f"✅ {provider} ({alias or '默认'}) 已添加"})
+
+
+@app.route("/api/ai/providers/configured/<int:acid>", methods=["DELETE"])
+@login_required
+def api_ai_configured_delete(acid):
+    """从数据库删除 AI 供应商配置"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id FROM ai_configs WHERE id=? AND user_id=?",
+        (acid, current_user.id)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "配置不存在"})
+    conn.execute("DELETE FROM ai_configs WHERE id=?", (acid,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "已删除"})
+
+
+@app.route("/api/ai/providers/configured/<int:acid>/toggle", methods=["POST"])
+@login_required
+def api_ai_configured_toggle(acid):
+    """启用/禁用 AI 供应商配置"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT enabled FROM ai_configs WHERE id=? AND user_id=?",
+        (acid, current_user.id)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "配置不存在"})
+    new_val = 0 if row["enabled"] else 1
+    conn.execute("UPDATE ai_configs SET enabled=? WHERE id=?", (new_val, acid))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "enabled": bool(new_val)})
+
+
+# ─── 供应商余额查询（零 token 消耗）─────────────────────────
+
+# 供应商余额 API 配置（无 Key 硬编码，仅存 URL 模板）
+_BALANCE_API_TEMPLATES = {
+    "deepseek": {"url": "https://api.deepseek.com/user/balance", "auth": "bearer", "path": ["balance_infos", 0, "total_balance"]},
+    "openai": {"url": "https://api.openai.com/v1/dashboard/billing/credit_grants", "auth": "bearer", "path": ["total_grants", "total_used", "total_granted"]},
+}
+
+
+def _query_balance(provider: str, api_key: str, api_base: str = "") -> str:
+    """查询供应商余额（零 token 消耗），返回格式化字符串"""
+    import requests as _req
+    tmpl = _BALANCE_API_TEMPLATES.get(provider)
+    if not tmpl:
+        return "N/A"
+    url = tmpl["url"]
+    try:
+        resp = _req.get(
+            url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        if resp.ok:
+            data = resp.json()
+            if provider == "deepseek":
+                infos = data.get("balance_infos", [])
+                if infos:
+                    remaining = infos[0].get("total_balance", "?")
+                    currency = infos[0].get("currency", "¥")
+                    return f"{currency} {remaining}"
+            elif provider == "openai":
+                total_granted = data.get("total_granted", 0)
+                total_used = data.get("total_used", 0)
+                remaining = total_granted - total_used
+                return f"$ {remaining:.2f} / {total_granted:.2f}"
+        return "查询失败"
+    except Exception:
+        return "查询失败"
+
+
+@app.route("/api/ai/providers/balance/refresh_all", methods=["POST"])
+@login_required
+def api_ai_balance_refresh_all():
+    """刷新所有已配置供应商的余额（后台异步执行）"""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, provider, api_key, api_base FROM ai_configs WHERE user_id=? AND enabled=1",
+        (current_user.id,)
+    ).fetchall()
+    results = []
+    for r in rows:
+        balance = _query_balance(r["provider"], r["api_key"], r["api_base"] or "")
+        conn.execute("UPDATE ai_configs SET balance=? WHERE id=?", (balance, r["id"]))
+        results.append({"id": r["id"], "provider": r["provider"], "balance": balance})
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "results": results})
+
+
+@app.route("/api/ai/providers/balance/refresh/<int:acid>", methods=["POST"])
+@login_required
+def api_ai_balance_refresh_one(acid):
+    """刷新单个供应商的余额"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT provider, api_key, api_base FROM ai_configs WHERE id=? AND user_id=?",
+        (acid, current_user.id)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "配置不存在"})
+    balance = _query_balance(row["provider"], row["api_key"], row["api_base"] or "")
+    conn.execute("UPDATE ai_configs SET balance=? WHERE id=?", (balance, acid))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "balance": balance})
+
+
 # ─── 启动 ───────────────────────────────────────
 if __name__ == "__main__":
     init_db()
@@ -3295,4 +3734,7 @@ if __name__ == "__main__":
     else:
         print("  🔑 已有账号，请使用注册的账号登录")
     print("=" * 54)
+    # 启动内置签到调度器
+    _start_signin_scheduler()
+    print("  ⏰ 签到调度器已启动（每分钟检查）")
     app.run(host=host, port=port, debug=False)

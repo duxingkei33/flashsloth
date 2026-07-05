@@ -111,7 +111,10 @@
         {% if has_signin %}
         <input type="time" class="signin-time-input" value="{{ a.signin_time }}"
                onchange="saveSigninTime({{ a.id }}, this)"
-               title="设置此账号的签到时间">
+               title="设为此时间后，将在该时间起随机1小时内执行签到">
+        <span style="font-size:11px;color:#999;flex-shrink:0;">
+            → {{ a.signin_time[:2] }}:{{ a.signin_time[3:] }}~{{ '%02d'|format((a.signin_time[:2]|int + 1) % 24) }}:00 随机
+        </span>
         {% endif %}
 
         <!-- 签到插件名 -->
@@ -292,7 +295,14 @@ function saveGlobalConfig() {
     fetch('/api/signin/config', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({enabled, signin_time})
+        body: JSON.stringify({enabled, signin_time}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.synced_count !== undefined) {
+            // 全局时间同步成功，刷新页面以显示更新后的各账号时间
+            location.reload();
+        }
     })
     .catch(() => {});
 }
