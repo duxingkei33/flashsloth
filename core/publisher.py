@@ -66,6 +66,37 @@ class Publisher(ABC):
         """
         pass
 
+    def upload_image(self, local_path: str) -> dict:
+        """
+        上传一张图片到本平台图床。
+        
+        返回: {"success": bool, "url": str, "error": str}
+        
+        子类可实现此方法以支持图片上传管线。
+        不实现则走 fallback（SM.MS 等第三方图床）。
+        """
+        return {"success": False, "url": "", "error": "该平台未实现图片上传"}
+
+    def process_images(self, article: Article) -> Article:
+        """
+        对文章中的所有图片执行上传管线。
+        使用 ImagePipeline 统一处理。
+        
+        返回: 更新过图片 URL 的 Article 对象
+        """
+        try:
+            from core.image_pipeline import ImagePipeline
+        except ImportError:
+            from flashsloth.core.image_pipeline import ImagePipeline
+        
+        pipeline = ImagePipeline()
+        new_body, images = pipeline.process(
+            body=article.body,
+            platform_upload_fn=self.upload_image
+        )
+        article.body = new_body
+        return article
+
     def retract(self, article: Article, publish_log: dict = None) -> dict:
         """
         撤回已发布的文章（可选实现）。

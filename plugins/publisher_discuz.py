@@ -826,3 +826,61 @@ class DiscuzPublisher(Publisher):
         return {"success": False,
                 "error": f"发帖失败 (page: {response_page_class})，请检查版块权限或主题分类",
                 "url": "", "id": ""}
+
+
+    def upload_image(self, local_path: str) -> dict:
+        """
+        上传单张图片到 Discuz! 论坛附件。
+        使用论坛标准的 swfupload 接口上传。
+        """
+        if not os.path.isfile(local_path):
+            return {"success": False, "url": "", "error": f"文件不存在: {local_path}"}
+        fid = self.config.get("fid", "")
+        if not fid:
+            return {"success": False, "url": "", "error": "未设置版块ID (fid)"}
+        try:
+            r = self.browser.get(f"/forum.php?mod=post&action=newthread&fid={fid}")
+            uid_m = __import__("re").search(r'"uid":"(\d+)"', r.text)
+            hash_m = __import__("re").search(r'"hash":"([a-f0-9]+)"', r.text)
+            uid = uid_m.group(1) if uid_m else ""
+            hash_val = hash_m.group(1) if hash_m else ""
+            if not uid or not hash_val:
+                return {"success": False, "url": "", "error": "无法获取上传参数"}
+            upload_url = f"{self.site_url}/misc.php?mod=swfupload&action=swfupload&operation=upload&fid={fid}&simple=1"
+            import mimetypes
+            mime = mimetypes.guess_type(local_path)[0] or "image/jpeg"
+            with open(local_path, "rb") as fh:
+                resp = self.browser.session.post(
+                    upload_url,
+                    files={"Filedata": (__import__("os").path.basename(local_path), fh, mime)},
+                    data={"uid": uid, "hash": hash_val, "type": "image"},
+                    timeout=30,
+                )
+            raw = resp.text.strip()
+            if raw and "DISCUZUPLOAD" in raw:
+                parts = raw.split("|")
+                if len(parts) >= 3:
+                    return {"success": True, "url": f"{self.site_url}/forum.php?mod=attachment&aid={parts[2]}", "aid": parts[2]}
+                return {"success": True, "url": raw, "aid": parts[1] if len(parts) > 1 else ""}
+            if raw and raw.isdigit():
+                return {"success": True, "url": f"{self.site_url}/forum.php?mod=attachment&aid={raw}", "aid": raw}
+            return {"success": False, "url": "", "error": f"上传失败: {raw[:200]}"}
+        except Exception as e:
+            return {"success": False, "url": "", "error": f"Discuz 上传异常: {e}"}
+
+    def process_images_with_discuz(self, article):
+        """使用 Discuz 上传管线处理文章中的图片"""
+        if not article.body:
+            return article
+        fid = self.config.get("fid", "")
+        if not fid:
+            return article
+        try:
+            body_with_tokens, token_map, local_ids = self._upload_images_to_forum(
+                article.body or "", fid
+            )
+            if token_map:
+                article.body = body_with_tokens
+        except Exception:
+            pass
+        return article
