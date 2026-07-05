@@ -7,11 +7,11 @@
   - sign_in()            每日签到（不支持，闲鱼无签到功能）
   - publish()            发布商品（框架预留，实际发布需对接闲鱼开放平台 API）
   - retract()            下架商品（框架预留）
-  - fetch_posts()        采集商品列表（不支持）
+  - fetch_posts()        采集商品列表（Playwright 浏览器搜索 ✅）
   - fetch_replies()      采集留言/评论（不支持）
-  - fetch_thread_detail() 获取商品详情（不支持）
+  - fetch_thread_detail() 获取商品详情（Playwright 浏览器 ✅）
   - reply_comment()      回复买家留言（不支持）
-  - browse_forum()       逛闲鱼（不支持）
+  - browse_forum()       逛闲鱼（Playwright 浏览器 ✅）
   - deploy()             部署（不支持）
 
 登录方式：
@@ -180,17 +180,9 @@ class XianyuAdapter(PlatformAdapter):
 
     # ─── 采集 ─────────────────────────────────
 
-    def fetch_posts(self, hours: int = 24, max_pages: int = 3, **kwargs) -> list[Article]:
-        """闲鱼商品搜索暂不支持自动采集"""
-        return []
-
     def fetch_replies(self, thread_ids: list[str] = None, **kwargs) -> list[Comment]:
         """闲鱼留言暂不支持自动采集"""
         return []
-
-    def fetch_thread_detail(self, thread_id: str) -> Optional[Article]:
-        """获取商品详情（暂不支持）"""
-        return None
 
     # ─── 互动 ─────────────────────────────────
 
@@ -201,8 +193,191 @@ class XianyuAdapter(PlatformAdapter):
     # ─── 逛闲鱼 ───────────────────────────────
 
     def browse_forum(self, **kwargs) -> dict:
-        """闲鱼暂不支持自动浏览"""
-        return {"supported": False}
+        """
+        浏览闲鱼首页 / 搜索商品。
+
+        需要已登录的 Cookie（Playwright 模式或 Cookie 模式）。
+        通过 Playwright 打开 goofish.com 提取商品信息。
+        """
+        query = kwargs.get("q", "")
+        if not query:
+            query = kwargs.get("keyword", "")
+
+        # 尝试 Playwright 浏览器模式
+        try:
+            from plugins.xianyu_login import XianyuPlaywrightLogin
+            login = XianyuPlaywrightLogin()
+
+            # 如果已有 cookie，注入后直接浏览
+            if self.cookie:
+                login.cookie = self.cookie
+                login._ensure_browser()
+                # 访问 goofish 搜索页
+                search_url = f"https://goofish.com/search?q={query}" if query else "https://goofish.com"
+                login.page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+                import time
+                time.sleep(3)
+
+                # 提取商品列表
+                items = []
+                try:
+                    # 尝试提取商品卡片
+                    cards = login.page.query_selector_all("[class*='item'], [class*='card'], [class*='product']")
+                    for card in cards[:30]:
+                        try:
+                            title_el = card.query_selector("a, [class*='title'], [class*='name']")
+                            price_el = card.query_selector("[class*='price']")
+                            title = title_el.inner_text().strip() if title_el else ""
+                            price = price_el.inner_text().strip() if price_el else ""
+                            if title:
+                                items.append({"title": title, "price": price})
+                        except:
+                            continue
+                except:
+                    pass
+
+                login.close()
+                return {"supported": True, "total": len(items), "items": items[:20],
+                        "message": "需要登录闲鱼后才能浏览商品详情" if not items else ""}
+
+            return {"supported": True, "total": 0, "items": [],
+                    "error": "需要先登录闲鱼（Cookie 模式或 Playwright 模式）"}
+        except ImportError:
+            return {"supported": True, "total": 0, "items": [],
+                    "error": "缺少 Playwright，请安装: pip install playwright"}
+        except Exception as e:
+            return {"supported": True, "total": 0, "items": [],
+                    "error": f"浏览异常: {e}"}
+
+    def fetch_posts(self, hours: int = 24, max_pages: int = 3, **kwargs) -> list[Article]:
+        """
+        搜索闲鱼商品列表，返回 Article 列表。
+
+        需要已登录的 Cookie + Playwright 浏览器。
+        搜索关键词通过 kwargs['q'] 或 kwargs['keyword'] 传入。
+        """
+        query = kwargs.get("q") or kwargs.get("keyword") or ""
+        if not query:
+            return []
+
+        if not self.cookie:
+            return []
+
+        try:
+            from plugins.xianyu_login import XianyuPlaywrightLogin
+            login = XianyuPlaywrightLogin()
+            if self.cookie:
+                login.cookie = self.cookie
+            login._ensure_browser()
+
+            search_url = f"https://goofish.com/search?q={query}"
+            login.page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+            import time
+            time.sleep(3)
+
+            articles = []
+            cards = login.page.query_selector_all("[class*='item'], [class*='card'], [class*='product']")
+            for card in cards[:30]:
+                try:
+                    title_el = card.query_selector("a, [class*='title'], [class*='name']")
+                    price_el = card.query_selector("[class*='price']")
+                    link_el = card.query_selector("a[href]")
+                    title = title_el.inner_text().strip() if title_el else ""
+                    price = price_el.inner_text().strip() if price_el else ""
+                    href = link_el.get_attribute("href") if link_el else ""
+                    if title:
+                        articles.append(Article(
+                            title=title,
+                            source="xianyu",
+                            source_url=f"https://goofish.com{href}" if href and href.startswith("/") else href,
+                            body=f"价格: {price}" if price else "",
+                            summary=price,
+                            raw={"price": price},
+                        ))
+                except:
+                    continue
+
+            login.close()
+            return articles
+        except Exception:
+            return []
+
+    def fetch_thread_detail(self, thread_id: str) -> Optional[Article]:
+        """
+        获取闲鱼商品详情（需要已登录）。
+        thread_id 是商品 ID 或完整 URL。
+        """
+        if not thread_id or not self.cookie:
+            return None
+
+        # 支持传入完整 URL 或商品 ID
+        if thread_id.startswith("http"):
+            item_url = thread_id
+        else:
+            item_url = f"https://goofish.com/item/{thread_id}"
+
+        try:
+            from plugins.xianyu_login import XianyuPlaywrightLogin
+            login = XianyuPlaywrightLogin()
+            if self.cookie:
+                login.cookie = self.cookie
+            login._ensure_browser()
+            login.page.goto(item_url, wait_until="domcontentloaded", timeout=30000)
+            import time
+            time.sleep(3)
+
+            # 提取标题
+            title = ""
+            for sel in ["[class*='title'] h1", "h1", "[class*='name']"]:
+                try:
+                    el = login.page.query_selector(sel)
+                    if el:
+                        title = el.inner_text().strip()
+                        if title:
+                            break
+                except:
+                    continue
+
+            # 提取价格
+            price = ""
+            for sel in ["[class*='price']", "[class*='Price']"]:
+                try:
+                    el = login.page.query_selector(sel)
+                    if el:
+                        price = el.inner_text().strip()
+                        break
+                except:
+                    continue
+
+            # 提取描述
+            desc = ""
+            for sel in ["[class*='desc']", "[class*='Desc']", "[class*='detail']", "[class*='content']"]:
+                try:
+                    el = login.page.query_selector(sel)
+                    if el:
+                        desc = el.inner_text().strip()[:500]
+                        break
+                except:
+                    continue
+
+            login.close()
+
+            body_parts = []
+            if price:
+                body_parts.append(f"价格: {price}")
+            if desc:
+                body_parts.append(f"\n{desc}")
+
+            return Article(
+                title=title or f"闲鱼商品 {thread_id}",
+                body="\n".join(body_parts),
+                source="xianyu",
+                source_url=item_url,
+                source_id=thread_id,
+                summary=price,
+            )
+        except Exception:
+            return None
 
     # ─── 部署 ─────────────────────────────────
 
