@@ -385,27 +385,118 @@ class XianyuProductsPublisher(Publisher):
             "tags": article.tags or [],
         }
 
-        # ── 实际发布（占位 — 需对接闲鱼开放平台） ──
-        # 当前版本以登录 + Cookie 管理为主
-        # 实际发布商品需要：
-        #   1. 闲鱼开放平台 API 权限（阿里集团旗下平台）
-        #   2. 或 Playwright 浏览器模拟发布操作
-        return {
-            "success": False,
-            "url": "",
-            "id": "",
-            "error": (
-                "闲鱼商品发布需对接闲鱼开放平台 API（goofish.com），"
-                "当前版本尚未实现完整发布流程。\n"
-                "已准备商品数据:\n"
-                f"  标题: {product_data['title']}\n"
-                f"  价格: ¥{product_data['price']}\n"
-                f"  成色: {product_data['condition']}\n"
-                f"  图片数: {len(product_data['images'])}\n"
-                "请通过 Playwright 模拟或开放平台 API 实现实际发布。"
-            ),
-            "message": json.dumps(product_data, ensure_ascii=False),
-        }
+        # ── 实际发布 — 使用 Playwright 浏览器模拟 ──
+        try:
+            from plugins.xianyu_login import XianyuPlaywrightLogin
+            login = XianyuPlaywrightLogin()
+            login.cookie = self.config.get("cookie", "")
+            login._ensure_browser()
+
+            page = login.page
+            # 导航到闲鱼首页
+            page.goto("https://www.goofish.com", wait_until="domcontentloaded", timeout=30000)
+            import time
+            time.sleep(2)
+
+            # 导航到发布页面
+            page.goto("https://www.goofish.com/publish", wait_until="domcontentloaded", timeout=30000)
+            time.sleep(2)
+
+            # 填写标题
+            title_input = None
+            for sel in ["[class*='title'] input", "[class*='Title'] input",
+                        "input[placeholder*='标题']", "input[placeholder*='商品']",
+                        "textarea[placeholder*='标题']"]:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        title_input = el
+                        break
+                except:
+                    continue
+            if title_input:
+                title_input.fill(product_data["title"])
+
+            # 填写价格
+            price_input = None
+            for sel in ["[class*='price'] input", "input[placeholder*='价格']",
+                        "input[placeholder*='¥']", "[class*='Price'] input"]:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        price_input = el
+                        break
+                except:
+                    continue
+            if price_input:
+                price_input.fill(product_data["price"])
+
+            # 填写描述
+            desc_area = None
+            for sel in ["[class*='desc'] textarea", "[class*='describe'] textarea",
+                        "textarea[placeholder*='描述']", "textarea[placeholder*='说明']"]:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        desc_area = el
+                        break
+                except:
+                    continue
+            if desc_area:
+                desc_area.fill(product_data["description"])
+
+            # 点击提交/发布按钮
+            submit_btn = None
+            for sel in ["button:has-text('发布')", "button:has-text('提交')",
+                        "[class*='submit'] button", "button[class*='publish']"]:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        submit_btn = el
+                        break
+                except:
+                    continue
+
+            if submit_btn:
+                submit_btn.click()
+                time.sleep(3)
+
+                # 检查发布结果
+                current_url = page.url
+                page_text = page.inner_text("body")
+
+                if "成功" in page_text or "发布成功" in page_text or "publish success" in page_text.lower():
+                    login.close()
+                    return {
+                        "success": True, "url": current_url, "id": "",
+                        "message": "商品发布成功（需人工确认）",
+                    }
+
+                login.close()
+                return {
+                    "success": True, "url": current_url,
+                    "message": "商品发布流程已完成，请到闲鱼确认结果",
+                }
+
+            # 没找到提交按钮 — 截图返回让用户确认
+            screenshot = login.take_screenshot()
+            login.close()
+            return {
+                "success": False,
+                "error": "未找到发布按钮，页面结构可能已变更。请检查截图确认",
+                "image": screenshot,
+            }
+
+        except ImportError:
+            return {
+                "success": False,
+                "error": "缺少 Playwright 依赖，需要安装: pip install playwright 并安装浏览器",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"发布异常: {e}",
+            }
 
     def _has_valid_cookie(self) -> bool:
         """检查 Cookie 中是否包含关键认证字段"""
