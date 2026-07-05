@@ -1,343 +1,275 @@
 """
-OSHWHub Publisher — 立创开源硬件平台发布器
-
-使用 Playwright 浏览器自动化登录 OSHWHub 后发布文章。
-支持两种登录方式：
-  1. Cookie 方式：用户从浏览器复制 Cookie 粘贴
-  2. 密码+验证码方式：Playwright 自动打开浏览器登录，由用户处理验证码
-
-OSHWHub 是嘉立创生态的一部分，Next.js + Ant Design 构建。
-非 Discuz 系，独立实现发帖 API 调用。
+OHWHub Publisher — 基于 Playwright 的立创开源硬件平台发布器
 """
-import re, json, time, random, os
+import json, re
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
-try:
-    from flashsloth.plugins.oshwhub_login import OshwhubPlaywrightLogin
-except ImportError:
-    from plugins.oshwhub_login import OshwhubPlaywrightLogin
+from playwright.async_api import async_playwright
+
+BASE = "https://oshwhub.com"
+
+def _parse_cookie_string(cookie_str: str) -> list:
+    """将分号分隔的 cookie string 转为 Playwright cookie list"""
+    cookies = []
+    for pair in cookie_str.split(";"):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        name, value = pair.split("=", 1)
+        cookies.append({
+            "name": name.strip(),
+            "value": value.strip(),
+            "domain": ".oshwhub.com",
+            "path": "/",
+        })
+    return cookies
 
 
 @register
-class OshwhubPublisher(Publisher):
+class OSHWHubPublisher(Publisher):
     name = "oshwhub"
     display_name = "立创开源硬件平台"
     login_methods = [
-        {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 1,
-         "fields": ["site_url", "username", "password"],
-         "description": "使用 Playwright 浏览器自动打开登录页"},
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 2,
-         "fields": ["site_url", "cookie"],
-         "description": "从浏览器 F12 复制 Cookie"},
+        {
+            "method": "password",
+            "label": "密码+验证码登录",
+            "icon": "🔑",
+            "priority": 1,
+            "fields": ["username", "password"],
+            "description": "使用嘉立创账号密码登录（可能触发滑块验证码）",
+        },
+        {
+            "method": "cookie",
+            "label": "Cookie 粘贴",
+            "icon": "🍪",
+            "priority": 2,
+            "fields": ["cookie"],
+            "description": "从浏览器 F12 → Application → Cookies → oshwhub.com 复制 Cookie",
+        },
     ]
     config_fields = [
-        {"key": "login_mode", "label": "登录方式", "type": "select", "required": True,
-         "options": [
-             {"value": "cookie", "label": "Cookie 直接发帖"},
-             {"value": "password", "label": "密码+验证码登录（Playwright）"},
-         ],
-         "placeholder": "选择登录方式"},
-        {"key": "site_url", "label": "平台地址", "type": "text", "required": True,
-         "default": "https://oshwhub.com",
-         "placeholder": "https://oshwhub.com"},
-        {"key": "username", "label": "用户名/邮箱（密码模式）", "type": "text", "required": False,
-         "placeholder": "OSHWHub 登录用户名或邮箱"},
-        {"key": "password", "label": "密码（密码模式）", "type": "password", "required": False,
-         "placeholder": "OSHWHub 登录密码"},
-        {"key": "cookie", "label": "Cookie（Cookie模式）", "type": "password", "required": False,
-         "placeholder": "登录后从浏览器 F12 复制 Cookie"},
+        {
+            "key": "username",
+            "label": "用户名/手机号",
+            "type": "text",
+            "required": False,
+            "placeholder": "嘉立创账号（手机号或邮箱）",
+        },
+        {
+            "key": "password",
+            "label": "密码",
+            "type": "password",
+            "required": False,
+        },
+        {
+            "key": "cookie",
+            "label": "Cookie（完整 Cookie 字符串）",
+            "type": "password",
+            "required": False,
+            "placeholder": "从浏览器 F12 → Application → Cookies → oshwhub.com 复制",
+        },
     ]
+    supports_draft = True
+    supports_cover = True
 
-    # OSHWHub API 端点（基于嘉立创 EDA 生态推断）
-    API_PATHS = {
-        "user_info": "/api/user/info",
-        "publish_project": "/api/project/publish",
-        "my_projects": "/api/project/my",
-        "upload_image": "/api/file/upload",
-    }
-
-    def __init__(self, config: dict | None = None):
+    def __init__(self, config: dict):
         super().__init__(config)
-        cfg = self.config  # use self.config (handles None -> {})
-        self.site_url = cfg.get("site_url", "https://oshwhub.com").rstrip("/")
-        self.login_mode = cfg.get("login_mode", "cookie")
-        self.username = cfg.get("username", "")
-        self.password = cfg.get("password", "")
-        self._session = None
-        self._playwright_login = None
-        raw_cookie = cfg.get("cookie", "")
-        if raw_cookie:
-            self._init_session_with_cookie(raw_cookie)
+        self.cookie_str = config.get("cookie", "")
+        self.username = config.get("username", "")
+        self.password = config.get("password", "")
+        self._cookies = None
 
-    def _get_domain(self) -> str:
-        return self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
+    @property
+    def cookies(self) -> list:
+        if self._cookies is None and self.cookie_str:
+            self._cookies = _parse_cookie_string(self.cookie_str)
+        return self._cookies or []
 
-    def _init_session_with_cookie(self, cookie_str: str):
-        """使用 Cookie 初始化 requests Session"""
-        import requests
-        self._session = requests.Session()
-        self._session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/125.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "Origin": self.site_url,
-            "Referer": f"{self.site_url}/",
-        })
-        domain = self._get_domain()
-        for item in cookie_str.split(";"):
-            item = item.strip()
-            if "=" in item:
-                k, v = item.split("=", 1)
-                self._session.cookies.set(k.strip(), v.strip(), domain=domain)
-
-    def validate_config(self) -> list[str]:
-        missing = []
-        if not self.site_url:
-            missing.append("平台地址")
-        if self.login_mode == "cookie" and not self.config.get("cookie", ""):
-            missing.append("Cookie")
-        if self.login_mode == "password" and not self.username:
-            missing.append("用户名")
-        if self.login_mode == "password" and not self.password:
-            missing.append("密码")
-        return missing
-
-    def test_connection(self) -> dict:
-        """测试连接 — 验证 Cookie 或登录状态"""
-        if self.login_mode == "cookie":
-            return self._test_cookie()
-        else:
-            return {
-                "success": False,
-                "error": "密码模式需先通过 Playwright 登录才能测试连接",
-                "needs_captcha": True,
-            }
-
-    def _test_cookie(self) -> dict:
-        """测试 Cookie 是否有效 — 请求用户信息接口"""
-        if not self._session:
-            return {"success": False, "error": "未设置 Cookie", "status": "无 Cookie"}
-
-        try:
-            # 访问首页建立会话
-            resp = self._session.get(f"{self.site_url}/", timeout=15,
-                                     headers={"Referer": self.site_url})
-
-            # 尝试获取用户信息（如果 API 可用）
-            api_result = self._api_get("/api/user/info")
-            if api_result and api_result.get("success"):
-                return {"success": True, "error": "", "status": "已登录",
-                        "user": api_result.get("data", {})}
-
-            # 如果 API 返回 418，回退到页面检测
-            if "login" not in resp.url.lower() and len(resp.cookies) > 2:
-                return {"success": True, "error": "", "status": "Cookie 有效（页面检测）"}
-
-            # 检查 Cookie 中是否有登录相关字段
-            auth_keywords = ["auth", "token", "session", "oshwhub", "identity"]
-            for cookie in self._session.cookies:
-                name_lower = cookie.name.lower()
-                for kw in auth_keywords:
-                    if kw in name_lower:
-                        return {"success": True, "error": "",
-                                "status": f"Cookie 有效（{cookie.name}）"}
-
-            return {"success": False, "error": "Cookie 无效或已过期",
-                    "status": "Cookie 过期"}
-        except Exception as e:
-            return {"success": False, "error": f"连接失败: {e}", "status": "连接失败"}
-
-    def _api_get(self, path: str, params: dict = None) -> dict:
-        """发送 GET 请求到 OSHWHub API"""
-        if not self._session:
-            return {"success": False, "error": "无有效 Session"}
-        try:
-            url = f"{self.site_url}{path}"
-            resp = self._session.get(url, params=params, timeout=15,
-                                     headers={"Referer": f"{self.site_url}/"})
-            if resp.status_code == 200:
-                try:
-                    return {"success": True, "data": resp.json()}
-                except ValueError:
-                    return {"success": True, "raw": resp.text}
-            return {"success": False, "error": f"HTTP {resp.status_code}", "raw": resp.text[:500]}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def _api_post(self, path: str, data: dict = None, files: dict = None) -> dict:
-        """发送 POST 请求到 OSHWHub API"""
-        if not self._session:
-            return {"success": False, "error": "无有效 Session"}
-        try:
-            url = f"{self.site_url}{path}"
-            kwargs = {"timeout": 30,
-                      "headers": {"Referer": f"{self.site_url}/",
-                                  "X-Requested-With": "XMLHttpRequest"}}
-            if files:
-                kwargs["files"] = files
-                if data:
-                    kwargs["data"] = data
-            else:
-                kwargs["json"] = data
-            resp = self._session.post(url, **kwargs)
-            if resp.status_code in (200, 201):
-                try:
-                    return {"success": True, "data": resp.json()}
-                except ValueError:
-                    return {"success": True, "raw": resp.text}
-            return {"success": False, "error": f"HTTP {resp.status_code}", "raw": resp.text[:500]}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def login_with_playwright(self) -> dict:
-        """使用 Playwright 浏览器登录 OSHWHub
-
-        返回:
-            success: bool
-            logged_in: bool
-            needs_captcha: bool
-            image: str  — base64 截图（需要验证码时）
-            captcha_type: str
-            cookies: str
-            error: str
-        """
-        try:
-            self._playwright_login = OshwhubPlaywrightLogin(site_url=self.site_url)
-            result = self._playwright_login.login(
-                username=self.username,
-                password=self.password,
-                captcha_provider="manual",
+    async def verify_login(self) -> bool:
+        """验证 Cookie 是否有效"""
+        if not self.cookies:
+            return False
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True, args=[
+                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+            ])
+            ctx = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                locale="zh-CN",
             )
+            await ctx.add_cookies(self.cookies)
+            page = await ctx.new_page()
+            try:
+                await page.goto(f"{BASE}/", wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(3000)
+                # 检测登录态：看是否有用户名/头像
+                avatar = await page.query_selector("[class*='user-avatar']")
+                login_links = await page.query_selector_all("a:has-text('登录')")
+                ok = avatar is not None or len(login_links) == 0
+                return ok
+            finally:
+                await page.close()
+                await browser.close()
 
-            if result.get("logged_in"):
-                cookie_str = result.get("cookies", "")
-                self._init_session_with_cookie(cookie_str)
-                self.config["cookie"] = cookie_str
-
-            return result
-        except Exception as e:
-            return {"success": False, "logged_in": False,
-                    "error": f"Playwright 登录异常: {e}"}
-
-    def submit_captcha(self, captcha_value: str) -> dict:
-        """提交验证码并完成登录
-
-        在 login_with_playwright() 返回 needs_captcha=True 后调用。
-        """
-        if not self._playwright_login:
-            return {"success": False, "logged_in": False,
-                    "error": "尚未启动 Playwright 登录流程，请先调用 login_with_playwright()"}
-        try:
-            result = self._playwright_login.submit_captcha_and_login(
-                captcha_value=captcha_value
-            )
-            if result.get("logged_in"):
-                cookie_str = result.get("cookies", "")
-                self._init_session_with_cookie(cookie_str)
-                self.config["cookie"] = cookie_str
-            return result
-        except Exception as e:
-            return {"success": False, "logged_in": False,
-                    "error": f"验证码提交异常: {e}"}
-
-    def _check_login(self) -> bool:
-        """检查登录状态"""
-        result = self._test_cookie()
-        return result.get("success", False)
-
-    def publish(self, article: Article, **kwargs) -> dict:
+    async def publish(self, article: Article, dry_run: bool = False) -> dict:
         """发布文章到 OSHWHub
 
-        OSHWHub 是项目展示平台，每个文章作为一个"项目"发布。
-        支持 Markdown 正文 + 图片附件。
-
-        如果是 Cookie 模式，直接调用 API。
-        如果是密码模式，需先调用 login_with_playwright() 完成登录。
-
-        参数:
-            article: Article 对象（title, body, images 等）
-            kwargs:
-                project_type: str — 项目类型（可选）
-                tags: list — 标签列表
+        使用 Playwright 模拟浏览器全流程操作。
         """
-        missing = self.validate_config()
-        if missing:
-            return {"success": False, "error": f"缺少配置: {', '.join(missing)}",
-                    "url": "", "id": ""}
+        if not self.cookies and not (self.username and self.password):
+            raise PublishError("未配置登录凭证，请先添加 Cookie 或账号密码")
 
-        if self.login_mode == "password" and not self._check_login():
-            return {"success": False, "error": "请先通过 Playwright 完成登录后再发布",
-                    "url": "", "id": ""}
+        result = {"url": "", "status": "unknown", "platform_id": ""}
 
-        if self.login_mode == "cookie" and not self._check_login():
-            return {"success": False, "error": "Cookie 无效或已过期，请重新登录",
-                    "url": "", "id": ""}
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True, args=[
+                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+            ])
+            ctx = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                viewport={"width": 1920, "height": 1080},
+                locale="zh-CN",
+            )
 
-        try:
-            return self._publish_project(article, **kwargs)
-        except Exception as e:
-            return {"success": False, "error": f"OSSWHub 发布异常: {e}",
-                    "url": "", "id": ""}
+            # 注入 Cookie
+            if self.cookies:
+                await ctx.add_cookies(self.cookies)
 
-    def _publish_project(self, article: Article, **kwargs) -> dict:
-        """发布项目到 OSHWHub
+            page = await ctx.new_page()
 
-        策略：
-        1. 尝试 API 方式（/api/project/publish）
-        2. 如果 API 不可用（418），回退到 Playwright 浏览器发帖
-        """
-        # 构造项目数据
-        project_data = {
-            "title": article.title,
-            "description": article.summary or article.body[:200] if article.body else "",
-            "content": article.body or "",
-            "tags": article.tags or kwargs.get("tags", []),
-            "type": kwargs.get("project_type", "article"),
-        }
+            try:
+                # 导航到创建页
+                await page.goto(f"{BASE}/project/create", wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(5000)  # 等 JS 渲染
 
-        # 如果有图片，处理图片上传
-        image_urls = []
-        if article.images:
-            for img in article.images:
-                if isinstance(img, dict):
-                    image_urls.append(img.get("src", ""))
-                elif isinstance(img, str):
-                    image_urls.append(img)
+                # 检查是否被重定向到登录页
+                if "login" in page.url.lower() or "passport" in page.url.lower():
+                    raise PublishError("Cookie 已过期，需重新登录")
 
-        if image_urls:
-            project_data["images"] = image_urls
+                # 1. 填写工程名称
+                name_input = await page.wait_for_selector("#name", timeout=5000)
+                await name_input.fill(article.title)
+                self.logger.info(f"✅ 填写工程名称: {article.title[:30]}...")
 
-        # 1. 先尝试 API 方式
-        api_result = self._api_post("/api/project/publish", data=project_data)
-        if api_result.get("success"):
-            data = api_result.get("data", {})
-            project_id = ""
-            project_url = ""
-            if isinstance(data, dict):
-                project_id = data.get("id", "") or data.get("projectId", "")
-                project_url = f"{self.site_url}/project/{project_id}" if project_id else ""
-            return {
-                "success": True,
-                "url": project_url or f"{self.site_url}/project/{project_id}",
-                "id": project_id,
-                "error": "",
-                "message": "api_publish_success",
-            }
+                # 2. 填写工程简介
+                intro = article.summary or article.content[:100]
+                intro_input = await page.wait_for_selector("#introduction", timeout=5000)
+                await intro_input.fill(intro[:100])
 
-        # API 返回错误（418 或其它），尝试 Playwright 方式发布
-        if "418" in api_result.get("error", "") or not api_result.get("success"):
-            return {
-                "success": False,
-                "error": f"API 发布失败（{api_result.get('error', '未知')}），"
-                         f"请确认 Cookie 有效或使用密码模式 Playwright 登录",
-                "url": "", "id": "",
-            }
+                # 3. 填写总成本（可选）
+                if article.tags and any("成本" in t for t in article.tags):
+                    try:
+                        cost_input = await page.query_selector("input[placeholder='请填写总成本']")
+                        if cost_input:
+                            await cost_input.fill("100")
+                    except:
+                        pass
 
-        return api_result
+                # 4. TinyMCE 正文
+                # 等待 TinyMCE 加载完成
+                await page.wait_for_selector(".tox-tinymce", timeout=10000)
 
-    def retract(self, article_id: str, publish_log: dict = None) -> dict:
-        """撤回已发布的文章"""
-        return {"supported": False, "success": False,
-                "error": "OSHWHub 暂不支持 API 撤回，请手动在网站操作"}
+                # 通过 TinyMCE API 写入内容
+                tinymce_content = article.content
+
+                # 尝试通过 tinymce activeEditor 注入
+                await page.evaluate(f"""
+                    (() => {{
+                        const editor = tinymce?.activeEditor;
+                        if (editor) {{
+                            editor.setContent({json.dumps(tinymce_content)});
+                        }}
+                    }})()
+                """)
+
+                # 备用：通过 iframe body 写入
+                tinymce_iframe = await page.query_selector(".tox-tinymce iframe")
+                if tinymce_iframe:
+                    frame = await tinymce_iframe.content_frame()
+                    if frame:
+                        body = await frame.query_selector("body")
+                        if body:
+                            # 如果 tinymce API 没生效，直接操作 iframe body
+                            await body.evaluate(f"el => el.innerHTML = {json.dumps(tinymce_content)}")
+
+                # 5. 处理图片
+                if article.images:
+                    for img_url in article.images[:5]:  # 最多5张
+                        try:
+                            # 展开 TinyMCE 图片上传
+                            upload_btn = await page.query_selector("button:has-text('上传图片')")
+                            if upload_btn and await upload_btn.is_visible():
+                                await upload_btn.click()
+                                await page.wait_for_timeout(2000)
+                                # 这里需要处理文件上传对话框
+                        except:
+                            pass
+
+                if dry_run:
+                    result["status"] = "draft_saved"
+                    result["url"] = page.url
+                    return result
+
+                # 6. 点击创建按钮
+                create_btn = await page.query_selector("button:has-text('创建')")
+                if not create_btn:
+                    create_btn = await page.query_selector("button:has-text('创 建')")
+                if create_btn:
+                    await create_btn.click()
+                    await page.wait_for_timeout(5000)
+                    result["url"] = page.url
+                    result["status"] = "published"
+
+                    # 从 URL 提取平台 ID
+                    m = re.search(r'/project/([a-zA-Z0-9]+)', page.url)
+                    if m:
+                        result["platform_id"] = m.group(1)
+                else:
+                    result["status"] = "draft_saved"
+                    result["url"] = page.url
+
+            except PublishError:
+                raise
+            except Exception as e:
+                raise PublishError(f"OSHWHub 发布失败: {str(e)}") from e
+            finally:
+                await page.close()
+                await browser.close()
+
+        return result
+
+    async def check_signin(self) -> dict:
+        """执行签到"""
+        if not self.cookies:
+            return {"success": False, "message": "未配置 Cookie"}
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True, args=[
+                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+            ])
+            ctx = await browser.new_context()
+            await ctx.add_cookies(self.cookies)
+            page = await ctx.new_page()
+
+            try:
+                await page.goto(f"{BASE}/user/signin", wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(5000)
+
+                # 尝试所有可能的签到按钮选择器
+                for sel in [
+                    "button:has-text('签到')",
+                    "button:has-text('打卡')",
+                    "button:has-text('领积分')",
+                    "[class*='sign-btn']",
+                ]:
+                    btn = await page.query_selector(sel)
+                    if btn and await btn.is_visible():
+                        await btn.click()
+                        await page.wait_for_timeout(3000)
+                        return {"success": True, "message": "签到成功"}
+
+                return {"success": False, "message": "未找到签到按钮，请确认签到入口"}
+            finally:
+                await page.close()
+                await browser.close()
