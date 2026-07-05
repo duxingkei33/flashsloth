@@ -110,6 +110,10 @@ def publish():
        if forum_fid:
            cfg["fid"] = forum_fid
 
+       # 读取发布模式
+       mode = request.form.get(f"mode_{aid}", "publish")
+       cfg["publish_mode"] = mode
+
        # 去重：检查是否已发布到该账号
        existing = conn.execute(
            "SELECT id FROM publish_log WHERE article_id=? AND account_id=? AND success=1",
@@ -120,8 +124,31 @@ def publish():
            continue
 
        try:
+           # 编译文章到该平台格式
+           compiled_body = article.body
+           compiled_title = article.title
+           try:
+               from core.compiler import Compiler
+               comp = Compiler()
+               comp_results = comp.compile(article, targets=[acct["platform"]])
+               if acct["platform"] in comp_results:
+                   cr = comp_results[acct["platform"]]
+                   if cr.success:
+                       compiled_body = cr.body
+                       compiled_title = cr.title
+           except Exception:
+               pass  # 编译失败就用原始内容
+
+           # 用编译后的内容创建文章
+           compiled_article = Article(
+               title=compiled_title,
+               body=compiled_body,
+               summary=article.summary,
+               tags=article.tags,
+           )
+
            publisher = get_publisher(acct["platform"], cfg)
-           result = publisher.publish(article)
+           result = publisher.publish(compiled_article)
            publish_status = result.get("message", "published") if result["success"] else "failed"
            conn.execute(
                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

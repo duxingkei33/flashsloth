@@ -1,31 +1,74 @@
 {% extends "base.html" %}
 {% block title %}选择发布目标{% endblock %}
 {% block content %}
-<div class="card" style="max-width:600px;">
+<style>
+.account-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+.account-card-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    gap: 10px;
+}
+.account-card-header:hover { background: #f8f9fa; }
+.account-card-body {
+    padding: 10px 14px 14px 40px;
+    display: none;
+    background: #fafafa;
+    border-top: 1px solid #eee;
+}
+.account-card-body.active { display: block; }
+.mode-select {
+    display: flex;
+    gap: 16px;
+    margin: 6px 0;
+}
+.mode-select label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.compiled-preview {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 6px;
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+}
+</style>
+
+<div class="card" style="max-width:700px;">
     <h2>🚀 发布文章</h2>
-    <p style="color:#666;margin:8px 0 16px;">
-        <strong>{{ post.title }}</strong>
-        {% if post.tags %}
-        — 标签: {{ post.tags|from_json|join(', ') }}
-        {% endif %}
-    </p>
+    <div style="display:flex;justify-content:space-between;align-items:start;margin:8px 0 16px;">
+        <div>
+            <strong>{{ post.title }}</strong>
+            {% if post.tags %}
+            <span style="color:#999;font-size:13px;">— {{ post.tags|from_json|join(', ') }}</span>
+            {% endif %}
+        </div>
+        <a href="/compile/{{ post.id }}" class="btn btn-sm btn-info" target="_blank" style="text-decoration:none;">🔍 编译预览</a>
+    </div>
 
     {% if published %}
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px;margin-bottom:16px;">
-        <h4 style="margin:0 0 8px;color:#166534;font-size:14px;">✅ 已发布到以下平台</h4>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <strong style="color:#166534;font-size:14px;">✅ 已发布</strong>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
             {% for p in published %}
-            {% if p.url %}
-            <a href="{{ p.url }}" target="_blank" style="text-decoration:none;">
-            {% endif %}
-            <span class="badge badge-success" style="font-size:12px;padding:4px 8px;"
-                  title="{{ p.url or p.platform }}">
+            <span class="badge badge-success" style="font-size:11px;">
                 {{ p.platform }}{% if p.account_name %}:{{ p.account_name }}{% endif %}
-                {% if p.url %}🔗{% endif %}
+                {% if p.url %}<a href="{{ p.url }}" target="_blank" style="color:inherit;">🔗</a>{% endif %}
             </span>
-            {% if p.url %}
-            </a>
-            {% endif %}
             {% endfor %}
         </div>
     </div>
@@ -33,50 +76,65 @@
 
     <form method="post" action="/publish">
         <input type="hidden" name="article_id" value="{{ post.id }}">
-        <p style="font-weight:600;margin-bottom:8px;">选择发布到哪些平台账号：</p>
+        <p style="font-weight:600;margin-bottom:8px;">选择发布目标：</p>
+
         {% if accounts %}
-        <div style="display:grid;gap:8px;">
+        <div id="accounts-list">
             {% for a in accounts %}
             {% set already_published = false %}
             {% set skip_reason = '' %}
             {% for p in published %}
                 {% if p.account_id == a.id %}
                     {% set already_published = true %}
-                    {% if p.status == 'pending_review' %}
-                        {% set skip_reason = '⏳ 待审核' %}
-                    {% elif p.status == 'failed' %}
-                        {% set skip_reason = '❌ 失败' %}
-                    {% else %}
-                        {% set skip_reason = '✅ 已发布' %}
-                    {% endif %}
+                    {% if p.status == 'pending_review' %}{% set skip_reason = '⏳ 待审核' %}
+                    {% elif p.status == 'failed' %}{% set skip_reason = '❌ 失败' %}
+                    {% else %}{% set skip_reason = '✅ 已发布' %}{% endif %}
                 {% endif %}
             {% endfor %}
-            <div style="border:1px solid {{ '#bbf7d0' if already_published else '#ddd' }};border-radius:6px;
-                        background:{{ '#f0fdf4' if already_published else '#fff' }};padding:10px 12px;">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+
+            <div class="account-card">
+                <label class="account-card-header" style="cursor:pointer;">
                     <input type="checkbox" name="account_ids" value="{{ a.id }}"
-                           onchange="toggleForumSelect(this, 'forum_{{ a.id }}')"
-                           {% if already_published %}checked disabled{% endif %}>
+                           onchange="toggleCard(this, 'extras-{{ a.id }}')"
+                           {% if already_published and skip_reason in ('✅ 已发布', '⏳ 待审核') %}checked disabled{% endif %}>
                     <span class="badge badge-info">{{ a.platform }}</span>
                     <span>{{ a.account_name }}</span>
                     {% if already_published %}
-                        <span style="font-size:11px;color:#166534;margin-left:auto;">{{ skip_reason }}</span>
+                    <span style="font-size:11px;color:#166534;margin-left:auto;">{{ skip_reason }}</span>
                     {% endif %}
                 </label>
-                {% if a.platform == 'discuz' and not already_published %}
-                <div id="forum_{{ a.id }}" style="margin-top:8px;padding-left:24px;display:none;">
-                    <label style="font-size:13px;color:#666;">选择版块：</label>
-                    <select name="forum_fid_{{ a.id }}" class="forum-select"
-                            style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;margin-top:4px;"
-                            data-account-id="{{ a.id }}">
-                        <option value="">加载中...</option>
-                    </select>
+
+                <div id="extras-{{ a.id }}" class="account-card-body">
+                    <!-- 发布模式 -->
+                    <div style="margin-bottom:6px;">
+                        <strong style="font-size:13px;">发布模式：</strong>
+                        <div class="mode-select">
+                            <label><input type="radio" name="mode_{{ a.id }}" value="draft" checked> 📝 存草稿</label>
+                            <label><input type="radio" name="mode_{{ a.id }}" value="publish"> 📤 直接发布</label>
+                        </div>
+                    </div>
+
+                    {% if a.platform == 'discuz' %}
+                    <div style="margin-top:6px;">
+                        <label style="font-size:13px;color:#666;">选择版块：</label>
+                        <select name="forum_fid_{{ a.id }}" class="forum-select"
+                                style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;margin-top:4px;"
+                                data-account-id="{{ a.id }}">
+                            <option value="">加载中...</option>
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <!-- 编译预览（加载中占位） -->
+                    <div class="compiled-preview" id="preview-{{ a.id }}">
+                        <div style="color:#999;">⏳ 加载编译预览...</div>
+                    </div>
                 </div>
-                {% endif %}
             </div>
             {% endfor %}
         </div>
-        <button type="submit" class="btn btn-success" style="margin-top:16px;width:100%;padding:12px;" id="publishBtn">
+
+        <button type="submit" class="btn btn-success" style="margin-top:16px;width:100%;padding:12px;font-size:15px;" id="publishBtn">
             📤 发布到所选平台
         </button>
         {% else %}
@@ -86,25 +144,35 @@
         </p>
         {% endif %}
     </form>
-    <a href="/" class="btn" style="background:#eee;margin-top:12px;display:inline-block;">返回</a>
+    <a href="/" class="btn" style="background:#eee;margin-top:12px;display:inline-block;">← 返回</a>
 </div>
 
 <script>
-// 自动加载 Discuz 账号的板块列表
+// 展开收起
+function toggleCard(checkbox, extrasId) {
+    var div = document.getElementById(extrasId);
+    if (div) {
+        div.classList.toggle('active', checkbox.checked);
+        if (checkbox.checked) {
+            loadCompiledPreview(checkbox.value, extrasId.replace('extras-', ''));
+        }
+    }
+}
+
+// 加载板块列表
 document.querySelectorAll('.forum-select').forEach(function(sel) {
-    const accountId = sel.dataset.accountId;
+    var accountId = sel.dataset.accountId;
     sel.disabled = true;
     sel.innerHTML = '<option value="">加载板块中...</option>';
-
     fetch('/api/forum-reader/get-forums/' + accountId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success && data.forums && data.forums.length > 0) {
-                sel.innerHTML = '<option value="">-- 请选择版块 --</option>';
+                sel.innerHTML = '<option value="">-- 请选择板块 --</option>';
                 data.forums.forEach(function(f) {
                     var opt = document.createElement('option');
                     opt.value = f.fid;
-                    opt.textContent = f.name + ' (ID:' + f.fid + ')';
+                    opt.textContent = f.name;
                     sel.appendChild(opt);
                 });
                 sel.disabled = false;
@@ -117,51 +185,54 @@ document.querySelectorAll('.forum-select').forEach(function(sel) {
         });
 });
 
-function toggleForumSelect(checkbox, forumDivId) {
-    var div = document.getElementById(forumDivId);
-    if (div) {
-        div.style.display = checkbox.checked ? 'block' : 'none';
-    }
+// 加载编译预览
+function loadCompiledPreview(articleId, platform) {
+    var previewDiv = document.getElementById('preview-' + platform);
+    if (!previewDiv || previewDiv.style.display !== 'none') return;
+
+    fetch('/api/compile/' + articleId + '?targets=' + platform)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.results) {
+                var result = data.results[Object.keys(data.results)[0]];
+                if (result && result.success) {
+                    previewDiv.style.display = 'block';
+                    var warningsHtml = '';
+                    if (result.warnings && result.warnings.length) {
+                        warningsHtml = result.warnings.map(function(w) {
+                            return '<div style="color:#856404;background:#fff3cd;padding:2px 6px;border-radius:3px;margin:2px 0;font-size:11px;">⚠️ ' + w + '</div>';
+                        }).join('');
+                    }
+                    previewDiv.innerHTML = warningsHtml + '<pre style="margin:4px 0 0;font-size:11px;white-space:pre-wrap;word-break:break-all;">' + escapeHtml(result.body.substring(0, 500)) + '</pre>';
+                    if (result.body.length > 500) {
+                        previewDiv.innerHTML += '<div style="color:#999;font-size:11px;margin-top:4px;">...内容较长，仅显示前500字</div>';
+                    }
+                } else {
+                    previewDiv.style.display = 'block';
+                    previewDiv.innerHTML = '<div style="color:#999;font-size:11px;">编译预览不可用</div>';
+                }
+            }
+        })
+        .catch(function() {
+            previewDiv.style.display = 'block';
+            previewDiv.innerHTML = '<div style="color:#999;font-size:11px;">加载预览失败</div>';
+        });
 }
 
-// 发布前检查登录状态，需要验证码的先弹窗
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 发布按钮
 document.getElementById('publishBtn').addEventListener('click', function(e) {
     var checked = document.querySelectorAll('input[name="account_ids"]:checked:not(:disabled)');
-    var discuzAccounts = [];
-    checked.forEach(function(cb) {
-        // 查找对应的平台名（在前面的label里）
-        var label = cb.closest('label');
-        if (label) {
-            var badge = label.querySelector('.badge-info');
-            if (badge && (badge.textContent.indexOf('amobbs') >= 0 ||
-                          badge.textContent.indexOf('discuz') >= 0 ||
-                          badge.textContent.indexOf('mydigit') >= 0)) {
-                discuzAccounts.push(parseInt(cb.value));
-            }
-        }
-    });
-
-    if (discuzAccounts.length === 0) {
-        return; // 没有需要检查登录的账号，正常提交
+    if (checked.length === 0) {
+        e.preventDefault();
+        alert('请至少选择一个发布目标');
+        return;
     }
-
-    // 检查第一个 discuz 类账号的登录状态
-    e.preventDefault();
-    var btn = document.getElementById('publishBtn');
-    btn.textContent = '⏳ 检查登录状态...';
-    btn.disabled = true;
-
-    var checked = discuzAccounts[0];
-    checkLoginAndPublish(checked, function(loginData) {
-        btn.textContent = '📤 发布到所选平台';
-        btn.disabled = false;
-        if (loginData.logged_in) {
-            // 登录成功，提交表单
-            document.querySelector('form').submit();
-        } else if (loginData.error) {
-            alert('发布失败：' + loginData.error);
-        }
-    });
 });
 </script>
 {% endblock %}
