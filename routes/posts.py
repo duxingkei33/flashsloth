@@ -212,7 +212,11 @@ def publish():
            )
 
            publisher = get_publisher(acct["platform"], cfg)
-           result = publisher.publish(compiled_article)
+           # 根据发布模式传参
+           publish_kwargs = {}
+           if mode == "draft":
+               publish_kwargs["save_as_draft"] = True
+           result = publisher.publish(compiled_article, **publish_kwargs)
            publish_status = result.get("message", "published") if result["success"] else "failed"
            conn.execute(
                "INSERT INTO publish_log (article_id, account_id, platform, success, url, error, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
