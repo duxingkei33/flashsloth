@@ -202,6 +202,30 @@ class OpenAIProvider(AIProvider):
                 return AIResponse(content=content, model=request.model or "gpt-4o", provider="openai")
             return AIResponse(success=False, error=str(data), provider="openai")
 
+    def test_connection(self) -> dict:
+        """测试 OpenAI 连接"""
+        try:
+            import requests
+            base = self.api_base or "https://api.openai.com/v1"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": "Say OK if connected"}],
+                    "max_tokens": 16,
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if resp.ok:
+                content = data["choices"][0]["message"]["content"]
+                return {"success": True, "content": content, "model": "gpt-4o-mini", "provider": "openai"}
+            error_msg = data.get("error", {}).get("message", str(data))
+            return {"success": False, "error": f"API错误: {error_msg}"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}"}
+
 
 @register_ai_provider
 class DoubaoProvider(AIProvider):
@@ -237,8 +261,9 @@ class DeepSeekProvider(AIProvider):
 
     def generate(self, request: AIRequest) -> AIResponse:
         import requests
+        base = self.api_base or "https://api.deepseek.com/v1"
         resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
+            f"{base}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": request.model or "deepseek-chat",
@@ -256,6 +281,93 @@ class DeepSeekProvider(AIProvider):
             content = data["choices"][0]["message"]["content"]
             return AIResponse(content=content, provider="deepseek", model=request.model or "deepseek-chat")
         return AIResponse(success=False, error=str(data), provider="deepseek")
+
+    def test_connection(self) -> dict:
+        """测试 DeepSeek 连接"""
+        try:
+            import requests
+            base = self.api_base or "https://api.deepseek.com/v1"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": '回复"OK"表示连接正常'}],
+                    "max_tokens": 16,
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if resp.ok:
+                content = data["choices"][0]["message"]["content"]
+                return {"success": True, "content": content, "model": "deepseek-chat", "provider": "deepseek"}
+            error_msg = data.get("error", {}).get("message", str(data))
+            return {"success": False, "error": f"API错误: {error_msg}"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}"}
+
+
+@register_ai_provider
+class ZhipuProvider(AIProvider):
+    """智谱 GLM — 国产大模型，支持写作/翻译"""
+    name = "zhipu"
+    display_name = "智谱 (GLM)"
+    description = "智谱 GLM-4 — 国产高性价比写作/翻译"
+    icon = "🔬"
+    capabilities = ["writing", "translate"]
+    models = ["glm-4", "glm-4-flash", "glm-4v"]
+    config_fields = [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": True},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": False,
+         "placeholder": "https://open.bigmodel.cn/api/paas/v4"},
+    ]
+
+    def generate(self, request: AIRequest) -> AIResponse:
+        import requests
+        base = self.api_base or "https://open.bigmodel.cn/api/paas/v4"
+        resp = requests.post(
+            f"{base}/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={
+                "model": request.model or "glm-4-flash",
+                "messages": [
+                    {"role": "system", "content": f"你是一个{'翻译' if request.capability == 'translate' else '文章写作'}助手"},
+                    {"role": "user", "content": request.prompt},
+                ],
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+            },
+            timeout=120,
+        )
+        data = resp.json()
+        if resp.ok:
+            content = data["choices"][0]["message"]["content"]
+            return AIResponse(content=content, provider="zhipu", model=request.model or "glm-4-flash")
+        return AIResponse(success=False, error=str(data), provider="zhipu")
+
+    def test_connection(self) -> dict:
+        """测试智谱 GLM 连接"""
+        try:
+            import requests
+            base = self.api_base or "https://open.bigmodel.cn/api/paas/v4"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": "glm-4-flash",
+                    "messages": [{"role": "user", "content": "回复OK表示连接正常"}],
+                    "max_tokens": 16,
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if resp.ok:
+                content = data["choices"][0]["message"]["content"]
+                return {"success": True, "content": content, "model": "glm-4-flash", "provider": "zhipu"}
+            error_msg = data.get("error", {}).get("message", str(data))
+            return {"success": False, "error": f"API错误: {error_msg}"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}"}
 
 
 def get_ai_provider(name: str, config: Optional[dict] = None) -> Optional[AIProvider]:

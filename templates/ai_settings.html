@@ -30,8 +30,10 @@
 <!-- AI Provider 列表 -->
 <div class="card">
     <h2>🔌 可用 AI Provider</h2>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;">
     {% for p in providers %}
+    {% set pc = config.providers.get(p.name, {}) %}
+    {% set has_key = pc.get('api_key', '') != '' %}
     <div style="border:1px solid #ddd;border-radius:8px;padding:16px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:24px;">{{ p.icon }}</span>
@@ -46,20 +48,21 @@
             <span class="badge badge-info">{{ cap }}</span>
             {% endfor %}
         </div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
             {% for m in p.models %}
             <span style="font-size:11px;color:#999;background:#f5f5f5;padding:2px 6px;border-radius:4px;">{{ m }}</span>
             {% endfor %}
         </div>
-        <div style="margin-top:8px;">
-            {% set provider_cfg = config.providers.get(p.name, {}) %}
-            {% if provider_cfg.api_key %}
-            <span class="badge badge-success">✅ 已配置</span>
-            {% else %}
-            <span class="badge badge-warning">⚠️ 未配置API Key</span>
-            {% endif %}
-            <button class="btn btn-sm btn-primary" style="float:right;" onclick="editProvider('{{ p.name }}')">配置</button>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span id="status_{{ p.name }}" class="badge {{ 'badge-success' if has_key else 'badge-warning' }}">
+                {{ '✅ 已配置' if has_key else '⚠️ 未配置' }}
+            </span>
+            <button class="btn btn-sm btn-primary" onclick="editProvider('{{ p.name }}')">✏️ 配置</button>
+            <button class="btn btn-sm btn-info" onclick="testProvider('{{ p.name }}')" id="testBtn_{{ p.name }}"
+                    {{ 'disabled' if not has_key else '' }}>🔍 测试连接</button>
         </div>
+        <!-- 测试结果区域 -->
+        <div id="testResult_{{ p.name }}" style="display:none;margin-top:8px;padding:8px 12px;border-radius:6px;font-size:13px;"></div>
     </div>
     {% endfor %}
     </div>
@@ -72,7 +75,7 @@
         <h2 id="editModalTitle" style="margin-bottom:16px;"></h2>
         <div id="editModalBody"></div>
         <div style="display:flex;gap:8px;margin-top:16px;">
-            <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+            <button class="btn btn-primary" onclick="saveEdit()">💾 保存</button>
             <button class="btn" style="background:#eee;" onclick="closeEdit()">取消</button>
         </div>
     </div>
@@ -86,7 +89,6 @@ function editCapability(name) {
     _editingType = 'capability';
     _editingName = name;
     document.getElementById('editModalTitle').textContent = '编辑能力: ' + name;
-
     var html = '<div class="form-group"><label>主Provider</label>' +
         '<select id="editPrimary" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">' +
         '<option value="">自动发现</option>' +
@@ -96,7 +98,6 @@ function editCapability(name) {
         '</select></div>' +
         '<div class="form-group"><label>模型（可选）</label>' +
         '<input id="editModel" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="留空使用默认"></div>';
-
     document.getElementById('editModalBody').innerHTML = html;
     document.getElementById('editModal').style.display = 'flex';
 }
@@ -105,15 +106,12 @@ function editProvider(name) {
     _editingType = 'provider';
     _editingName = name;
     document.getElementById('editModalTitle').textContent = '配置 Provider: ' + name;
-
     var html = '<div class="form-group"><label>API Key</label>' +
         '<input id="editApiKey" type="password" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="输入API密钥"></div>' +
         '<div class="form-group"><label>API Base URL（可选）</label>' +
         '<input id="editApiBase" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="留空使用默认"></div>';
-
     document.getElementById('editModalBody').innerHTML = html;
     document.getElementById('editModal').style.display = 'flex';
-
     // 加载现有配置
     fetch('/api/ai/config')
         .then(function(r) { return r.json(); })
@@ -131,10 +129,7 @@ function saveEdit() {
         var primary = document.getElementById('editPrimary').value;
         var model = document.getElementById('editModel').value;
         var cfg = {};
-        if (primary) {
-            cfg.provider = primary;
-            if (model) cfg.model = model;
-        }
+        if (primary) { cfg.provider = primary; if (model) cfg.model = model; }
         fetch('/api/ai/config', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -148,7 +143,6 @@ function saveEdit() {
         var apiBase = document.getElementById('editApiBase').value;
         var cfg = {api_key: apiKey};
         if (apiBase) cfg.api_base = apiBase;
-
         fetch('/api/ai/config', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -162,6 +156,56 @@ function saveEdit() {
 
 function closeEdit() {
     document.getElementById('editModal').style.display = 'none';
+}
+
+// ====== 测试连接 ======
+function testProvider(name) {
+    var btn = document.getElementById('testBtn_' + name);
+    var resultDiv = document.getElementById('testResult_' + name);
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 测试中...';
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '⏳ 正在测试连接...';
+    resultDiv.style.background = '#f0f0f0';
+    resultDiv.style.color = '#666';
+
+    fetch('/api/ai/test/' + name, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.color = '#155724';
+            var html = '✅ <strong>连接成功！</strong><br>';
+            if (data.model) html += '<span style="font-size:12px;">模型: ' + data.model + '</span><br>';
+            if (data.content) {
+                var preview = data.content.length > 200 ? data.content.slice(0, 200) + '...' : data.content;
+                html += '<span style="font-size:12px;">回复: ' + escapeHtml(preview) + '</span>';
+            }
+            resultDiv.innerHTML = html;
+            // 更新状态徽章
+            document.getElementById('status_' + name).className = 'badge badge-success';
+            document.getElementById('status_' + name).textContent = '✅ 已配置';
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.color = '#721c24';
+            resultDiv.innerHTML = '❌ <strong>连接失败</strong><br><span style="font-size:12px;">' + escapeHtml(data.error || '未知错误') + '</span>';
+        }
+    })
+    .catch(function(e) {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = '❌ <strong>请求失败</strong><br><span style="font-size:12px;">' + escapeHtml(e.message) + '</span>';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '🔍 测试连接';
+    });
+}
+
+function escapeHtml(text) {
+    var d = document.createElement('div');
+    d.textContent = text || '';
+    return d.innerHTML;
 }
 </script>
 {% endblock %}

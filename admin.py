@@ -1553,6 +1553,24 @@ def ai_settings_page():
                          config=config)
 
 
+@app.route("/api/ai/test/<provider_name>", methods=["POST"])
+@login_required
+def api_ai_test(provider_name):
+    """测试AI Provider连接"""
+    router = get_router()
+    pc = router._provider_configs.get(provider_name, {})
+    if not pc.get("api_key"):
+        return jsonify({"success": False, "error": "未配置API Key"})
+
+    from core.ai_provider import get_ai_provider
+    provider = get_ai_provider(provider_name, pc)
+    if not provider:
+        return jsonify({"success": False, "error": f"未知Provider: {provider_name}"})
+
+    result = provider.test_connection()
+    return jsonify(result)
+
+
 @app.route("/api/accounts/test/<int:aid>", methods=["POST"])
 @login_required
 def test_account(aid):
