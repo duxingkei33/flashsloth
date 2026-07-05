@@ -46,7 +46,10 @@ class CSDNPublisher(Publisher):
     display_name = "CSDN"
     description = "通过 Selenium 浏览器自动化发布到 CSDN 博客"
     login_methods = [
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+        {"method": "password", "label": "浏览器自动登录", "icon": "🔑", "priority": 1,
+         "fields": ["cookie", "username"],
+         "description": "通过 Playwright 浏览器打开 CSDN 登录页，扫码或账号+验证码登录"},
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 2,
          "fields": ["cookie"],
          "description": "登录 CSDN 后从浏览器 F12 复制全站 Cookie"},
     ]
