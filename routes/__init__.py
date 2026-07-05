@@ -76,5 +76,8 @@ def configure_app():
     import flashsloth.routes.forum
     import flashsloth.routes.browser_login
     import flashsloth.routes.platforms
+    import flashsloth.routes.api_v1
+    from flashsloth.routes.api_v1 import init_api_v1
+    init_api_v1()
 
     return app, login_manager, User

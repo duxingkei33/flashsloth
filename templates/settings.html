@@ -76,6 +76,102 @@
     </form>
 </div>
 
+<!-- API Keys -->
+<div class="card" id="api-keys">
+    <h2>🔑 API Keys（开放接口鉴权）</h2>
+    <p style="color:#666;font-size:13px;margin-bottom:12px;">
+        用于外部系统/AI skill 调用 FlashSloth 功能的标准化 API。
+        端点格式: <code>POST /api/v1/&lt;resource&gt;/&lt;action&gt;</code>
+    </p>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <input type="text" id="newKeyName" placeholder="Key 名称（如: my-ai-skill）"
+               style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;flex:1;">
+        <button onclick="createApiKey()" class="btn btn-success btn-sm">➕ 生成新 Key</button>
+    </div>
+    <div id="newKeyResult" style="display:none;padding:10px 14px;border-radius:6px;margin-bottom:12px;word-break:break-all;font-family:monospace;font-size:13px;"></div>
+    <table>
+        <thead><tr>
+            <th>名称</th>
+            <th>Key 前缀</th>
+            <th>状态</th>
+            <th>最后使用</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr></thead>
+        <tbody id="apiKeyTableBody">
+            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载中...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+function loadApiKeys() {
+    fetch('/api/v1/keys').then(r=>r.json()).then(d => {
+        if (!d.success) return;
+        const keys = d.data || [];
+        let html = '';
+        keys.forEach(k => {
+            const active = k.is_active ? '✅ 启用' : '❌ 禁用';
+            html += '<tr>' +
+                '<td>' + escapeHtml(k.name) + '</td>' +
+                '<td><code>' + escapeHtml(k.key_prefix) + '...</code></td>' +
+                '<td>' + active + '</td>' +
+                '<td>' + (k.last_used_at || '-') + '</td>' +
+                '<td>' + (k.created_at || '-') + '</td>' +
+                '<td>' +
+                    '<button class="btn btn-sm ' + (k.is_active ? 'btn-warning' : 'btn-success') + '" onclick="toggleApiKey(' + k.id + ')">' + (k.is_active ? '禁用' : '启用') + '</button> ' +
+                    '<button class="btn btn-sm btn-danger" onclick="deleteApiKey(' + k.id + ')">删除</button>' +
+                '</td></tr>';
+        });
+        if (!keys.length) html = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">暂无 API Key</td></tr>';
+        document.getElementById('apiKeyTableBody').innerHTML = html;
+    });
+}
+
+function createApiKey() {
+    const name = document.getElementById('newKeyName').value.trim() || '';
+    const div = document.getElementById('newKeyResult');
+    div.style.display = 'block';
+    div.style.background = '#fff3cd';
+    div.style.color = '#856404';
+    div.innerHTML = '⏳ 生成中...';
+    fetch('/api/v1/keys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name}),
+    }).then(r=>r.json()).then(d => {
+        if (d.success) {
+            div.style.background = '#d4edda';
+            div.style.color = '#155724';
+            div.innerHTML = '✅ 新 Key 已生成（仅显示一次，请立即复制保存）：<br><strong>' + escapeHtml(d.data.key) + '</strong>';
+            loadApiKeys();
+        } else {
+            div.style.background = '#f8d7da';
+            div.style.color = '#721c24';
+            div.innerHTML = '❌ ' + escapeHtml(d.error || '');
+        }
+    });
+}
+
+function toggleApiKey(id) {
+    fetch('/api/v1/keys/' + id + '/toggle', {method: 'POST'})
+    .then(r=>r.json()).then(d => { if (d.success) loadApiKeys(); });
+}
+
+function deleteApiKey(id) {
+    if (!confirm('确定删除此 API Key？')) return;
+    fetch('/api/v1/keys/' + id, {method: 'DELETE'})
+    .then(r=>r.json()).then(d => { if (d.success) loadApiKeys(); });
+}
+
+function escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t || '';
+    return d.innerHTML;
+}
+loadApiKeys();
+</script>
+
 <!-- 构建设置 -->
 <div class="card" id="builder">
     <h2>🏗️ 博客构建 (Builder)</h2>
