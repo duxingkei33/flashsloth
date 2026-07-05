@@ -2,7 +2,7 @@
 FlashSloth Admin — 商用级多平台内容发布后台
 功能：注册/登录/验证码/改密 / Provider选择 / Publisher多账号 / 一键发布
 """
-import os, sys, json, random, string, hashlib, hmac, time, base64, re
+import os, sys, json, random, string, hashlib, hmac, time, base64, re, threading
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from flask import (Flask, render_template, request, redirect, url_for,
@@ -606,6 +606,22 @@ def accounts():
     return render_template("accounts.html",
                          grouped=grouped,
                          platforms=platforms)
+
+@app.route("/api/accounts/config/<int:aid>")
+@login_required
+def api_accounts_config(aid):
+    """返回指定账号的配置（含密码脱敏）"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    return jsonify({"success": True, "config": cfg})
+
 
 @app.route("/accounts/add", methods=["POST"])
 @login_required
@@ -2516,6 +2532,106 @@ def api_signin_run():
     output = buf.getvalue()
 
     return jsonify({"success": True, "output": output})
+
+
+# ─── 阿莫论坛 Playwright 登录 API ────────────
+
+
+_amobbs_login_instances: dict[str, "AmobbsPlaywrightLogin"] = {}
+_amobbs_lock = threading.Lock()
+
+
+def _get_amobbs_login(session_id: str = "default") -> "AmobbsPlaywrightLogin":
+    """获取/创建 amobbs 登录实例（单例，线程安全）"""
+    with _amobbs_lock:
+        if session_id not in _amobbs_login_instances:
+            from plugins.amobbs_login import AmobbsPlaywrightLogin
+            inst = AmobbsPlaywrightLogin()
+            _amobbs_login_instances[session_id] = inst
+        return _amobbs_login_instances[session_id]
+
+
+@app.route("/api/amobbs/login/start", methods=["POST"])
+@login_required
+def amobbs_login_start():
+    """启动 Amobbs Playwright 登录"""
+    aid = request.json.get("account_id", 0)
+    username = request.json.get("username", "")
+    password = request.json.get("password", "")
+
+    if not username or not password:
+        return jsonify({"success": False, "error": "请输入用户名和密码"})
+
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_amobbs_login(sess_id)
+        result = inst.login(username, password)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"启动登录异常: {e}"})
+
+
+@app.route("/api/amobbs/login/captcha/click", methods=["POST"])
+@login_required
+def amobbs_captcha_click():
+    """点击验证码复选框并提交"""
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_amobbs_login(sess_id)
+        result = inst.click_captcha_and_submit()
+
+        # 如果登录成功，把 cookie 存到数据库
+        if result.get("logged_in"):
+            aid = request.json.get("account_id", 0)
+            if aid:
+                cookies = result.get("cookies", "")
+                conn = get_db()
+                acct = conn.execute(
+                    "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+                    (aid, current_user.id)
+                ).fetchone()
+                if acct:
+                    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+                    cfg["cookie"] = cookies
+                    conn.execute(
+                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
+                        (json.dumps(cfg), aid)
+                    )
+                    conn.commit()
+                conn.close()
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"验证码处理异常: {e}"})
+
+
+@app.route("/api/amobbs/login/screenshot", methods=["GET"])
+@login_required
+def amobbs_screenshot():
+    """获取当前登录页面的截图"""
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_amobbs_login(sess_id)
+        b64 = inst.take_screenshot()
+        return jsonify({"success": True, "image": b64})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"截图失败: {e}"})
+
+
+@app.route("/api/amobbs/login/close", methods=["POST"])
+@login_required
+def amobbs_login_close():
+    """关闭 amobbs 浏览器会话"""
+    try:
+        sess_id = f"user_{current_user.id}"
+        with _amobbs_lock:
+            inst = _amobbs_login_instances.pop(sess_id, None)
+        if inst:
+            inst.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 
 # ─── 启动 ───────────────────────────────────────

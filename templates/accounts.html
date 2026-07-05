@@ -27,6 +27,9 @@
             </td>
             <td>
                 <a href="/accounts/edit/{{ a.id }}" class="btn btn-sm btn-primary">编辑</a>
+                {% if a.platform == 'amobbs' or a.platform == 'discuz' %}
+                <button onclick="amobbsLogin({{ a.id }}, '{{ a.account_name }}')" class="btn btn-sm btn-warning">🌐 浏览器登录</button>
+                {% endif %}
                 <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
                    onclick="return confirm('确定删除此账号？')">删除</a>
             </td>
@@ -83,6 +86,176 @@ function showAddForm(platform) {
 
 function hideAddForm() {
     document.getElementById('addForm').style.display = 'none';
+}
+
+// ─── 阿莫论坛浏览器登录 ─────────────────────
+let loginPollTimer = null;
+
+function amobbsLogin(accountId, accountName) {
+    // 先获取账号信息
+    fetch(`/api/accounts/config/${accountId}`)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            alert('获取账号信息失败: ' + data.error);
+            return;
+        }
+        const cfg = data.config || {};
+        showAmobbsLoginModal(accountId, cfg.username || '', cfg.password || '');
+    })
+    .catch(e => alert('请求失败: ' + e.message));
+}
+
+function showAmobbsLoginModal(accountId, username, password) {
+    const html = `
+    <div id="amobbsLoginModal" style="position:fixed;top:0;left:0;right:0;bottom:0;
+         background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:24px;max-width:600px;width:92%;max-height:90vh;overflow-y:auto;">
+            <h2 style="margin-bottom:16px;">🌐 阿莫论坛浏览器登录</h2>
+
+            <div id="amobbsLoginStep1">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="amobbsUser" value="${escapeHtml(username)}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="amobbsPass" value="${escapeHtml(password)}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                </div>
+                <button onclick="startAmobbsLogin(${accountId})" class="btn btn-primary" id="amobbsStartBtn">
+                    🚀 开始浏览器登录
+                </button>
+                <button onclick="closeAmobbsLogin()" class="btn" style="background:#eee;margin-left:8px;">取消</button>
+            </div>
+
+            <div id="amobbsLoginStep2" style="display:none;">
+                <p id="amobbsLoginStatus" style="color:#666;margin-bottom:12px;">⏳ 正在启动浏览器...</p>
+                <div id="amobbsScreenshot" style="margin-bottom:12px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:400px;">
+                    <img id="amobbsScreenshotImg" src="" style="width:100%;display:block;">
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button onclick="clickAmobbsCaptcha(${accountId})" class="btn btn-warning" id="amobbsCaptchaBtn">
+                        ✅ 点验证码并登录
+                    </button>
+                    <button onclick="refreshAmobbsScreenshot(${accountId})" class="btn btn-sm btn-info">
+                        🔄 刷新截图
+                    </button>
+                    <button onclick="closeAmobbsLogin()" class="btn btn-sm" style="background:#eee;">
+                        ✖ 关闭
+                    </button>
+                </div>
+                <div id="amobbsLoginResult" style="margin-top:12px;padding:12px;border-radius:6px;display:none;"></div>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text || '';
+    return d.innerHTML;
+}
+
+function startAmobbsLogin(accountId) {
+    const username = document.getElementById('amobbsUser').value.trim();
+    const password = document.getElementById('amobbsPass').value.trim();
+    if (!username || !password) {
+        alert('请输入用户名和密码');
+        return;
+    }
+
+    document.getElementById('amobbsLoginStep1').style.display = 'none';
+    document.getElementById('amobbsLoginStep2').style.display = 'block';
+    document.getElementById('amobbsLoginStatus').textContent = '⏳ 正在启动浏览器登录...';
+
+    fetch('/api/amobbs/login/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: accountId, username, password})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.needs_captcha) {
+            document.getElementById('amobbsLoginStatus').textContent =
+                '🔒 需要验证码，请查看截图后点击下方按钮';
+            if (data.image) {
+                document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image;
+            }
+            document.getElementById('amobbsCaptchaBtn').disabled = false;
+        } else if (data.success && data.logged_in) {
+            showAmobbsResult('success', '✅ 登录成功！Cookie 已保存到账号配置');
+            document.getElementById('amobbsLoginStatus').textContent = '✅ 登录成功';
+            document.getElementById('amobbsCaptchaBtn').disabled = true;
+        } else {
+            showAmobbsResult('error', '❌ ' + (data.error || '登录失败'));
+        }
+    })
+    .catch(e => showAmobbsResult('error', '❌ 网络错误: ' + e.message));
+}
+
+function clickAmobbsCaptcha(accountId) {
+    const btn = document.getElementById('amobbsCaptchaBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 处理中...';
+    document.getElementById('amobbsLoginStatus').textContent = '⏳ 正在点击验证码并提交登录...';
+
+    fetch('/api/amobbs/login/captcha/click', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: accountId})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.logged_in) {
+            showAmobbsResult('success', '✅ 登录成功！Cookie 已保存到账号配置');
+            document.getElementById('amobbsLoginStatus').textContent = '✅ 登录成功';
+            btn.disabled = true;
+        } else if (data.success && data.needs_captcha) {
+            // 可能需要进一步处理验证码
+            if (data.image) {
+                document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image;
+            }
+            document.getElementById('amobbsLoginStatus').textContent =
+                data.message || '🔒 请查看截图后重试';
+            btn.disabled = false;
+            btn.textContent = '✅ 点验证码并登录';
+        } else {
+            showAmobbsResult('error', '❌ ' + (data.error || '验证码处理失败'));
+            btn.disabled = false;
+            btn.textContent = '✅ 点验证码并登录';
+        }
+    })
+    .catch(e => {
+        showAmobbsResult('error', '❌ 网络错误: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = '✅ 点验证码并登录';
+    });
+}
+
+function refreshAmobbsScreenshot(accountId) {
+    fetch('/api/amobbs/login/screenshot')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.image) {
+            document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image;
+        }
+    })
+    .catch(e => console.error('截图刷新失败:', e));
+}
+
+function showAmobbsResult(type, msg) {
+    const div = document.getElementById('amobbsLoginResult');
+    div.style.display = 'block';
+    div.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
+    div.style.color = type === 'success' ? '#155724' : '#721c24';
+    div.textContent = msg;
+}
+
+function closeAmobbsLogin() {
+    fetch('/api/amobbs/login/close', {method: 'POST'}).catch(() => {});
+    const modal = document.getElementById('amobbsLoginModal');
+    if (modal) modal.remove();
 }
 </script>
 {% endblock %}
