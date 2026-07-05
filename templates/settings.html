@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}系统设置{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:20px;">⚙️ 系统设置</h1>
+
+<!-- Provider 设置 -->
+<div class="card" id="provider">
+    <h2>📥 内容来源 (Provider)</h2>
+    <p style="color:#666;font-size:13px;margin-bottom:16px;">
+        选择从哪里读取文章。选 Markdown 则监控 posts 目录；选 Notion 则从 Notion 数据库拉取。
+    </p>
+    <form method="post" action="/settings/provider">
+        <div class="form-group">
+            <label>启用 Provider</label>
+            <select name="provider_type">
+                <option value="markdown" {% if config.provider.type == 'markdown' %}selected{% endif %}>
+                    Markdown 文件（监控 posts/ 目录）
+                </option>
+                <option value="notion" {% if config.provider.type == 'notion' %}selected{% endif %}>
+                    Notion 数据库
+                </option>
+            </select>
+        </div>
+        <div id="notion-fields" style="display:{{ 'block' if config.provider.type == 'notion' else 'none' }}">
+            <div class="form-group">
+                <label>Notion Token</label>
+                <input type="password" name="notion_token" value="{{ config.provider.notion.token or '' }}">
+            </div>
+            <div class="form-group">
+                <label>数据库 ID</label>
+                <input type="text" name="notion_db_id" value="{{ config.provider.notion.database_id or '' }}">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">保存 Provider 设置</button>
+    </form>
+</div>
+
+<!-- Publisher 设置 -->
+<div class="card" id="publishers">
+    <h2>📤 发布平台 (Publisher)</h2>
+    <p style="color:#666;font-size:13px;margin-bottom:16px;">
+        配置各平台的 API 凭证。配置后即可在仪表盘一键发布。
+    </p>
+    <form method="post" action="/settings/publishers">
+        {% for p in publishers %}
+        <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:12px;" id="{{ p.name }}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong>{{ p.display_name }}</strong>
+                <label style="font-size:13px;">
+                    <input type="checkbox" name="{{ p.name }}_enabled"
+                           {{ 'checked' if p.enabled else '' }}>
+                    启用
+                </label>
+            </div>
+            {% for field in p.config_fields %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {% if field.type == 'select' %}
+                <select name="{{ p.name }}_{{ field.key }}">
+                    {% for opt in field.options %}
+                    <option value="{{ opt }}" {{ 'selected' if field.value == opt else '' }}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <input type="{{ field.type }}" name="{{ p.name }}_{{ field.key }}"
+                       value="{{ field.value or '' }}" placeholder="{{ field.placeholder or '' }}">
+                {% endif %}
+                {% if field.key in field.missing %}
+                <span style="color:#e63946;font-size:12px;">⚠️ 必填</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">保存 Publisher 设置</button>
+    </form>
+</div>
+
+<!-- 构建设置 -->
+<div class="card" id="builder">
+    <h2>🏗️ 博客构建 (Builder)</h2>
+    <form method="post" action="/settings/builder">
+        <div class="form-group">
+            <label>博客引擎</label>
+            <select name="builder_type">
+                <option value="mkdocs" {% if config.builder.type == 'mkdocs' %}selected{% endif %}>MkDocs（当前）</option>
+                <option value="hexo" disabled>Hexo（需 Node.js）</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="auto_deploy" value="1"
+                       {{ 'checked' if config.builder.auto_deploy else '' }}>
+                自动部署到 GitHub Pages
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">保存 Builder 设置</button>
+    </form>
+</div>
+
+<script>
+// Provider 切换显示 Notion 字段
+document.querySelector('select[name="provider_type"]')?.addEventListener('change', function() {
+    document.getElementById('notion-fields').style.display =
+        this.value === 'notion' ? 'block' : 'none';
+});
+</script>
+{% endblock %}

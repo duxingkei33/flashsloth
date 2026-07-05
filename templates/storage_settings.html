@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FlashSloth 存储设置</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+               background: #f5f5f5; color: #333; }
+        .navbar { background: #1a1a2e; color: #fff; padding: 12px 24px;
+                  display: flex; justify-content: space-between; align-items: center; }
+        .navbar a { color: #fff; text-decoration: none; margin-left: 16px; }
+        .navbar .brand { font-size: 1.2em; font-weight: bold; }
+        .navbar .brand span { color: #ffd700; }
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px;
+                box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .card h2 { margin-bottom: 16px; font-size: 1.1em; color: #1a1a2e; }
+        .btn { display: inline-block; padding: 8px 16px; border-radius: 6px;
+               text-decoration: none; font-size: 14px; border: none; cursor: pointer; }
+        .btn-primary { background: #4361ee; color: #fff; }
+        .btn-success { background: #2ec4b6; color: #fff; }
+        .btn-danger { background: #e63946; color: #fff; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 14px; }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+            font-size: 14px; }
+        .flash { padding: 12px 20px; margin-bottom: 16px; border-radius: 6px; }
+        .flash-success { background: #d4edda; color: #155724; }
+        .flash-error { background: #f8d7da; color: #721c24; }
+        .flash-info { background: #d1ecf1; color: #0c5460; }
+        .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+                      margin-right: 6px; }
+        .status-dot.green { background: #2ec4b6; }
+        .status-dot.red { background: #e63946; }
+        .status-dot.gray { background: #ccc; }
+        .config-section { display: none; }
+        .config-section.active { display: block; }
+        .storage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                        gap: 12px; margin-bottom: 20px; }
+        .storage-option { padding: 16px; border: 2px solid #eee; border-radius: 8px;
+                          cursor: pointer; text-align: center; transition: all .2s; }
+        .storage-option:hover { border-color: #4361ee; }
+        .storage-option.active { border-color: #4361ee; background: #eef0ff; }
+        .storage-option .icon { font-size: 2em; margin-bottom: 8px; }
+        .storage-option .name { font-weight: 600; }
+        .storage-option .desc { font-size: 12px; color: #666; margin-top: 4px; }
+        .test-result { margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="brand">🦥 <span>FlashSloth</span> 存储设置</div>
+        <div>
+            <a href="{{ url_for('index') }}">首页</a>
+            <a href="{{ url_for('accounts') }}">账号</a>
+            <a href="{{ url_for('settings_page') }}">设置</a>
+            <a href="{{ url_for('storage_settings') }}" style="color: #ffd700;">存储</a>
+            <a href="{{ url_for('logout') }}">退出</a>
+        </div>
+    </nav>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <h2>📦 选择存储后端</h2>
+            <p style="color:#666;font-size:13px;margin-bottom:16px;">
+                选择文件存储方式。本地存储在 VPS 本机，AList 存储在路由器/远程网盘。
+            </p>
+            <div class="storage-list" id="backend-list">
+                {% for s in storages %}
+                <div class="storage-option {% if current.backend == s.name %}active{% endif %}"
+                     data-backend="{{ s.name }}"
+                     onclick="selectBackend('{{ s.name }}')">
+                    <div class="icon">
+                        {% if s.name == 'alist' %}☁️{% else %}💻{% endif %}
+                    </div>
+                    <div class="name">{{ s.display_name }}</div>
+                    <div class="desc">{{ s.name == 'alist' and '远程网盘，需 AList 服务器地址' or '本机文件系统' }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🔧 配置</h2>
+            <form id="config-form">
+                <input type="hidden" name="backend" id="backend-input" value="{{ current.backend or 'local' }}">
+
+                {% for s in storages %}
+                <div class="config-section" id="config-{{ s.name }}"
+                     style="{% if current.backend == s.name %}display:block{% endif %}">
+                    {% for field in s.config_fields %}
+                    <div class="form-group">
+                        <label>{{ field.label }}{% if field.required %} <span style="color:red">*</span>{% endif %}</label>
+                        {% if field.type == 'password' %}
+                        <input type="password" name="{{ field.key }}" 
+                               value="{{ current.get(field.key, '') }}"
+                               placeholder="{{ field.placeholder }}"
+                               {% if field.required %}required{% endif %}>
+                        {% elif field.type == 'select' %}
+                        <select name="{{ field.key }}">
+                            {% for opt in field.options %}
+                            <option value="{{ opt.value }}" 
+                                    {% if current.get(field.key) == opt.value %}selected{% endif %}>
+                                {{ opt.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <input type="text" name="{{ field.key }}" 
+                               value="{{ current.get(field.key, '') }}"
+                               placeholder="{{ field.placeholder }}"
+                               {% if field.required %}required{% endif %}>
+                        {% endif %}
+                        {% if field.key == 'base_path' %}
+                        <small style="color:#999;">文件存储根路径，默认为 /flashsloth</small>
+                        {% endif %}
+                        {% if field.key == 'token' %}
+                        <small style="color:#999;">可从 AList 后台「个人资料」复制 Token，或用下方用户名密码自动获取</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                <div style="display:flex;gap:12px;margin-top:16px;">
+                    <button type="button" class="btn btn-primary" onclick="testConnection()">🔌 测试连接</button>
+                    <button type="submit" class="btn btn-success">💾 保存配置</button>
+                </div>
+                <div id="test-result" class="test-result" style="display:none;"></div>
+            </form>
+        </div>
+
+        {% if enabled %}
+        <div class="card">
+            <h2>📂 文件浏览</h2>
+            <p style="color:#666;font-size:13px;margin-bottom:12px;">
+                浏览和管理存储中的文件。文章编辑时可从此处选择资源插入。
+            </p>
+            <div id="file-browser" style="min-height:200px;">
+                <div id="file-list"></div>
+                <div style="margin-top:12px;">
+                    <button class="btn btn-sm btn-primary" onclick="refreshFileList()">🔄 刷新</button>
+                    <button class="btn btn-sm btn-success" onclick="showUploadDialog()">📤 上传文件</button>
+                    <button class="btn btn-sm btn-warning" onclick="showMkdirDialog()">📁 新建文件夹</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        let currentPath = '/';
+
+        function selectBackend(name) {
+            document.querySelectorAll('.storage-option').forEach(el => {
+                el.classList.toggle('active', el.dataset.backend === name);
+            });
+            document.querySelectorAll('.config-section').forEach(el => {
+                el.style.display = el.id === 'config-' + name ? 'block' : 'none';
+            });
+            document.getElementById('backend-input').value = name;
+        }
+
+        async function testConnection() {
+            const form = document.getElementById('config-form');
+            const backend = document.getElementById('backend-input').value;
+            const config = {};
+            document.querySelectorAll('#config-' + backend + ' input, #config-' + backend + ' select').forEach(el => {
+                config[el.name] = el.value;
+            });
+
+            const resultDiv = document.getElementById('test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'test-result flash-info';
+            resultDiv.textContent = '⏳ 测试中...';
+
+            try {
+                const resp = await fetch('/api/storage/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({backend, config}),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    resultDiv.className = 'test-result flash-success';
+                    resultDiv.innerHTML = '✅ ' + (data.status || '连接成功');
+                } else {
+                    resultDiv.className = 'test-result flash-error';
+                    resultDiv.textContent = '❌ ' + (data.error || '连接失败');
+                }
+            } catch (e) {
+                resultDiv.className = 'test-result flash-error';
+                resultDiv.textContent = '❌ 请求失败: ' + e.message;
+            }
+        }
+
+        document.getElementById('config-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const backend = document.getElementById('backend-input').value;
+            const config = {};
+            document.querySelectorAll('#config-' + backend + ' input').forEach(el => {
+                config[el.name] = el.value;
+            });
+
+            try {
+                const resp = await fetch('/api/storage/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({backend, config}),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    alert('✅ ' + (data.message || '已保存'));
+                    location.reload();
+                } else {
+                    alert('❌ ' + (data.error || '保存失败'));
+                }
+            } catch (e) {
+                alert('❌ 保存失败: ' + e.message);
+            }
+        });
+
+        {% if enabled %}
+        async function refreshFileList(path) {
+            currentPath = path || currentPath;
+            const listDiv = document.getElementById('file-list');
+            listDiv.innerHTML = '<p style="color:#999;">⏳ 加载中...</p>';
+
+            try {
+                const resp = await fetch('/api/storage/list', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: currentPath}),
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    listDiv.innerHTML = '<p style="color:#e63946;">❌ ' + (data.error || '加载失败') + '</p>';
+                    return;
+                }
+                renderFileList(data.items, data.path);
+            } catch (e) {
+                listDiv.innerHTML = '<p style="color:#e63946;">❌ ' + e.message + '</p>';
+            }
+        }
+
+        function renderFileList(items, path) {
+            const listDiv = document.getElementById('file-list');
+            let html = '<table><tr><th>名称</th><th>大小</th><th>操作</th></tr>';
+
+            // 返回上级
+            if (path && path !== '/') {
+                const parent = path.split('/').slice(0, -1).join('/') || '/';
+                html += `<tr style="cursor:pointer;" onclick="refreshFileList('${parent}')">
+                    <td>📁 ..</td><td></td><td></td></tr>`;
+            }
+
+            items.forEach(item => {
+                const size = item.is_dir ? '-' : formatSize(item.size);
+                const icon = item.is_dir ? '📁' : getFileIcon(item.name);
+                html += `<tr>
+                    <td style="cursor:${item.is_dir ? 'pointer' : 'default'};"
+                        ${item.is_dir ? `onclick="refreshFileList('${path}/${item.name}'.replace(/\\/+/g,'/'))"` : ''}>
+                        ${icon} ${item.name}
+                    </td>
+                    <td>${size}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteFile('${path}/${item.name}'.replace(/\\/+/g,'/'))">删除</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</table>';
+            html += `<p style="font-size:12px;color:#999;margin-top:8px;">路径: ${path} | 共 ${items.length} 项</p>`;
+            listDiv.innerHTML = html;
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return '🖼️';
+            if (['mp4','avi','mkv','mov'].includes(ext)) return '🎬';
+            if (['mp3','wav','ogg'].includes(ext)) return '🎵';
+            if (['pdf'].includes(ext)) return '📄';
+            if (['zip','rar','7z','gz'].includes(ext)) return '📦';
+            if (['md','txt'].includes(ext)) return '📝';
+            return '📎';
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '-';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0;
+            let size = bytes;
+            while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+            return size.toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        }
+
+        function showUploadDialog() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('path', currentPath + '/' + file.name);
+
+                const btn = document.querySelector('.btn-success');
+                btn.disabled = true;
+                btn.textContent = '⏳ 上传中...';
+
+                try {
+                    const resp = await fetch('/api/storage/upload', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        refreshFileList(currentPath);
+                    } else {
+                        alert('❌ ' + (data.error || '上传失败'));
+                    }
+                } catch (e) {
+                    alert('❌ ' + e.message);
+                }
+                btn.disabled = false;
+                btn.textContent = '📤 上传文件';
+            };
+            input.click();
+        }
+
+        function showMkdirDialog() {
+            const name = prompt('请输入文件夹名称:');
+            if (!name) return;
+
+            fetch('/api/storage/mkdir', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: currentPath + '/' + name}),
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    refreshFileList(currentPath);
+                } else {
+                    alert('❌ ' + (data.error || '创建失败'));
+                }
+            });
+        }
+
+        function deleteFile(path) {
+            if (!confirm('确定删除 ' + path + ' 吗？')) return;
+            fetch('/api/storage/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path}),
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    refreshFileList(currentPath);
+                } else {
+                    alert('❌ ' + (data.error || '删除失败'));
+                }
+            });
+        }
+
+        // Initial load
+        refreshFileList('/');
+        {% endif %}
+    </script>
+</body>
+</html>

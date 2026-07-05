@@ -1,0 +1,31 @@
+__pycache__/
+*.pyc
+*.pyo
+flashsloth.db
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.boot_credentials
+storage/
+
+# ========================================
+# Privacy: don't upload user data/images
+# ========================================
+frpc.toml
+data/
+static/uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.ico
+*.hex
+*.bin
+
+# Keep template files
+!frpc.toml.template
+!flashsloth.yml.template

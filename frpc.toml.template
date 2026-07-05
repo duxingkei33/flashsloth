@@ -1,0 +1,14 @@
+# ========================================
+# FRP 客户端配置模板
+# 复制为 frpc.toml，填入你的服务器信息
+# ========================================
+serverAddr = "your-server-ip"
+serverPort = 7000
+auth.token = "your-auth-token"
+
+[[proxies]]
+name = "flashsloth"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 5000
+remotePort = 5001

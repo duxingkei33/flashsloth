@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if post else '新建' }}文章{% endblock %}
+{% block content %}
+<div class="card" style="max-width:900px;">
+    <h2>{{ '✏️ 编辑文章' if post else '📝 新建文章' }}</h2>
+    <form method="post">
+        <div class="form-group">
+            <label>标题</label>
+            <input type="text" name="title" value="{{ post.title if post else '' }}" required
+                   placeholder="文章标题">
+        </div>
+        <div class="form-group">
+            <label>摘要</label>
+            <input type="text" name="summary" value="{{ post.summary if post else '' }}"
+                   placeholder="一句话简介（可选）">
+        </div>
+        <div class="form-group">
+            <label>标签（逗号分隔）</label>
+            <input type="text" name="tags"
+                   value="{{ post.tags|from_json|join(', ') if post and post.tags else '' }}"
+                   placeholder="技术, 笔记, 项目管理">
+        </div>
+        <div class="form-group">
+            <label>正文（Markdown 格式）</label>
+            <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('img-input').click()">🖼️ 上传图片</button>
+                <button type="button" class="btn btn-sm btn-success" onclick="openStorageBrowser()">☁️ 从存储选择</button>
+                <input type="file" id="img-input" accept="image/*" style="display:none" onchange="uploadImage(this)">
+                <button type="button" class="btn btn-sm btn-warning" onclick="togglePreview()" id="preview-btn">👁️ 预览</button>
+            </div>
+            <div id="editor-container" style="display:flex;gap:16px;">
+                <textarea name="body" placeholder="在这里写文章..." id="article-body" style="flex:1;min-height:400px;">{{ post.body if post else '' }}</textarea>
+                <div id="preview-panel" style="flex:1;min-height:400px;border:1px solid #ddd;border-radius:6px;padding:16px;overflow-y:auto;display:none;background:#fff;font-size:14px;line-height:1.7;"></div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">💾 保存</button>
+            <a href="/" class="btn" style="background:#eee;">取消</a>
+        </div>
+    </form>
+</div>
+
+<!-- 存储文件浏览器弹窗 -->
+<div id="storage-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.5);z-index:1000;overflow-y:auto;">
+    <div style="background:#fff;max-width:800px;margin:40px auto;border-radius:8px;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;">☁️ 存储文件浏览器</h3>
+            <button onclick="closeStorageModal()" style="border:none;background:none;font-size:24px;cursor:pointer;">✕</button>
+        </div>
+        <div id="storage-browser-content">
+            <p style="color:#999;">加载中...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let storageCurrentPath = '/';
+
+async function uploadImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const resp = await fetch('/api/storage/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success && data.url) {
+            const textarea = document.getElementById('article-body');
+            const imgMd = `![${file.name}](${data.url})`;
+            textarea.value += (textarea.value ? '\n' : '') + imgMd;
+        } else {
+            // 上传到存储失败，尝试本地 fallback
+            const localForm = new FormData();
+            localForm.append('file', file);
+            localForm.append('path', '/local_temp/' + file.name);
+            const localResp = await fetch('/api/storage/upload', { method: 'POST', body: localForm });
+            const localData = await localResp.json();
+            if (localData.success) {
+                const textarea = document.getElementById('article-body');
+                const imgMd = `![${file.name}](${localData.url})`;
+                textarea.value += (textarea.value ? '\n' : '') + imgMd;
+            } else {
+                alert('❌ 上传失败: ' + (data.error || '未知错误'));
+            }
+        }
+    } catch (e) {
+        alert('❌ ' + e.message);
+    }
+    input.value = '';
+}
+
+function openStorageBrowser() {
+    document.getElementById('storage-modal').style.display = 'block';
+    storageCurrentPath = '/';
+    loadStorageFiles('/');
+}
+
+function closeStorageModal() {
+    document.getElementById('storage-modal').style.display = 'none';
+}
+
+async function loadStorageFiles(path) {
+    storageCurrentPath = path;
+    const content = document.getElementById('storage-browser-content');
+    content.innerHTML = '<p style="color:#999;">⏳ 加载中...</p>';
+
+    try {
+        const resp = await fetch('/api/storage/list', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: path}),
+        });
+        const data = await resp.json();
+        if (!data.success) {
+            content.innerHTML = '<p style="color:#e63946;">❌ ' + (data.error || '加载失败') + '</p>';
+            return;
+        }
+        renderStorageFiles(data.items, data.path);
+    } catch (e) {
+        content.innerHTML = '<p style="color:#e63946;">❌ ' + e.message + '</p>';
+    }
+}
+
+function renderStorageFiles(items, path) {
+    const content = document.getElementById('storage-browser-content');
+    let html = '<table><tr><th>名称</th><th>大小</th><th>操作</th></tr>';
+
+    if (path && path !== '/') {
+        const parent = path.split('/').slice(0, -1).join('/') || '/';
+        html += `<tr style="cursor:pointer;" onclick="loadStorageFiles('${parent}')">
+            <td>📁 ..</td><td></td><td></td></tr>`;
+    }
+
+    items.forEach(item => {
+        const icon = item.is_dir ? '📁' : getIcon(item.name);
+        const size = item.is_dir ? '-' : formatBytes(item.size);
+        const fullPath = (path + '/' + item.name).replace(/\/+/g, '/');
+        html += `<tr>
+            <td style="cursor:${item.is_dir ? 'pointer' : 'default'};"
+                ${item.is_dir ? `onclick="loadStorageFiles('${fullPath}')"` : ''}>
+                ${icon} ${item.name}
+            </td>
+            <td>${size}</td>
+            <td>
+                ${item.is_dir ? '' : `<button class="btn btn-sm btn-primary" onclick="insertToArticle('${fullPath}', '${item.name}')">插入</button>`}
+                <button class="btn btn-sm btn-danger" onclick="deleteStorageFile('${fullPath}')">删除</button>
+            </td>
+        </tr>`;
+    });
+    html += '</table>';
+    html += `<p style="font-size:12px;color:#999;margin-top:8px;">路径: ${path} | 共 ${items.length} 项</p>`;
+    content.innerHTML = html;
+}
+
+function getIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return '🖼️';
+    if (['mp4','avi','mkv','mov'].includes(ext)) return '🎬';
+    if (['mp3','wav','ogg'].includes(ext)) return '🎵';
+    if (['pdf'].includes(ext)) return '📄';
+    if (['zip','rar','7z','gz'].includes(ext)) return '📦';
+    return '📎';
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '-';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0, size = bytes;
+    while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+    return size.toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+function insertToArticle(path, name) {
+    const textarea = document.getElementById('article-body');
+    const ext = name.split('.').pop().toLowerCase();
+    const isImage = ['jpg','jpeg','png','gif','webp','svg'].includes(ext);
+
+    // 使用存储路径作为引用
+    if (isImage) {
+        // 尝试获取真实 URL
+        fetch('/api/storage/list', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: path}),
+        }).then(r => r.json()).then(data => {
+            const url = data.url || path;
+            const imgMd = `![${name}](${path})`;
+            textarea.value += (textarea.value ? '\n' : '') + imgMd;
+            closeStorageModal();
+        }).catch(() => {
+            const imgMd = `![${name}](${path})`;
+            textarea.value += (textarea.value ? '\n' : '') + imgMd;
+            closeStorageModal();
+        });
+    } else {
+        const linkMd = `[${name}](${path})`;
+        textarea.value += (textarea.value ? '\n' : '') + linkMd;
+        closeStorageModal();
+    }
+}
+
+function deleteStorageFile(path) {
+    if (!confirm('确定删除 ' + path + ' 吗？')) return;
+    fetch('/api/storage/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path}),
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            loadStorageFiles(storageCurrentPath);
+        } else {
+            alert('❌ ' + (data.error || '删除失败'));
+        }
+    });
+}
+
+// ─── Markdown 实时预览 ───────────────────
+let previewVisible = true;
+
+function togglePreview() {
+    previewVisible = !previewVisible;
+    const panel = document.getElementById('preview-panel');
+    const btn = document.getElementById('preview-btn');
+    panel.style.display = previewVisible ? 'block' : 'none';
+    btn.textContent = previewVisible ? '✏️ 编辑' : '👁️ 预览';
+    if (previewVisible) renderPreview();
+}
+
+function renderPreview() {
+    const textarea = document.getElementById('article-body');
+    const panel = document.getElementById('preview-panel');
+    if (!previewVisible) return;
+    panel.innerHTML = simpleMarkdown(textarea.value);
+}
+
+// 输入时自动更新预览
+document.addEventListener('DOMContentLoaded', function() {
+    const textarea = document.getElementById('article-body');
+    textarea.addEventListener('input', function() {
+        if (previewVisible) renderPreview();
+    });
+    // 默认开启预览
+    renderPreview();
+});
+
+function simpleMarkdown(md) {
+    if (!md) return '<p style="color:#999;">输入 Markdown 内容后预览...</p>';
+    let html = md
+        // 代码块 (```)
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
+        // 行内代码
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // 标题 (##)
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        // 粗体
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        // 斜体
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // 图片
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:4px;">')
+        // 链接
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+        // 分割线
+        .replace(/^---$/gm, '<hr>')
+        // 无序列表
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        // 有序列表
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        // 引用
+        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+        // 段落
+        .replace(/\n\n/g, '</p><p>')
+        // 换行
+        .replace(/\n/g, '<br>');
+
+    return '<p>' + html + '</p>';
+}
+</script>
+{% endblock %}
