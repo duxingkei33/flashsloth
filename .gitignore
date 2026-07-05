@@ -29,4 +29,10 @@ static/uploads/
 # Keep template files
 !frpc.toml.template
 !flashsloth.yml.template
-tests/
+# 忽略本地临时文件
+*.pyc
+__pycache__/
+.venv/
+venv/
+# 但保留测试文件
+!tests/
