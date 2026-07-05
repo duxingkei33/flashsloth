@@ -4,170 +4,183 @@
 <style>
 .compiled-card {
     border: 1px solid #ddd;
-    border-radius: 8px;
+    border-radius: 10px;
     margin-bottom: 16px;
     overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 .compiled-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 16px;
+    padding: 12px 18px;
     background: #f8f9fa;
     border-bottom: 1px solid #eee;
     cursor: pointer;
+    user-select: none;
 }
 .compiled-card-header:hover {
     background: #e9ecef;
 }
 .compiled-card-body {
-    padding: 16px;
     display: none;
 }
 .compiled-card-body.active {
     display: block;
 }
-.compiled-card-body pre {
-    background: #f5f5f5;
-    padding: 12px;
-    border-radius: 4px;
-    overflow-x: auto;
-    font-size: 13px;
+.split-pane {
+    display: flex;
+    gap: 0;
+    min-height: 350px;
+}
+.code-pane {
+    flex: 1;
+    padding: 14px;
+    background: #fafafa;
+    border-right: 1px solid #e0e0e0;
+    overflow: auto;
     max-height: 500px;
-    overflow-y: auto;
 }
-.compiled-card-body .rendered-preview {
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    padding: 16px;
+.code-pane pre {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #333;
+}
+.preview-pane {
+    flex: 1;
+    padding: 14px;
     background: #fff;
-    min-height: 200px;
+    overflow: auto;
+    max-height: 500px;
 }
-.warning-badge {
+.preview-pane :deep(img) {
+    max-width: 100%;
+}
+.platform-badge {
     display: inline-block;
-    background: #fff3cd;
-    color: #856404;
+    font-size: 11px;
     padding: 2px 8px;
     border-radius: 4px;
-    font-size: 12px;
     margin: 2px;
 }
-.success-badge {
-    background: #d4edda;
-    color: #155724;
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    margin: 2px;
-}
-.error-badge {
-    background: #f8d7da;
-    color: #721c24;
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    margin: 2px;
+.badge-ok { background: #d4edda; color: #155724; }
+.badge-warn { background: #fff3cd; color: #856404; }
+.badge-err { background: #f8d7da; color: #721c24; }
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
 }
 </style>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-    <h2 style="margin:0;">🔍 编译预览</h2>
-    <div style="display:flex;gap:8px;">
-        <a href="/post/edit/{{ article_id }}" class="btn btn-sm">✏️ 返回编辑</a>
-        <a href="/publish/select/{{ article_id }}" class="btn btn-sm btn-success">📤 发布到所选平台</a>
-    </div>
-</div>
-
-<p style="color:#666;margin-bottom:16px;">
-    源文章: <strong>{{ title }}</strong>
-    {% if tags %} | 标签: {{ tags }}{% endif %}
-</p>
-
-<div id="compile-results">
-{% for platform, result in results.items() %}
-<div class="compiled-card">
-    <div class="compiled-card-header" onclick="toggleCard(this)">
+<div class="card" style="max-width:1100px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
         <div>
-            <strong>{{ result.display_name or platform }}</strong>
-            {% if result.success %}
-            <span class="success-badge">✅ 编译成功</span>
-            {% else %}
-            <span class="error-badge">❌ 失败</span>
-            {% endif %}
+            <h2 style="margin:0;">🔍 编译预览</h2>
+            <p style="color:#666;margin:4px 0 0;font-size:13px;">
+                <strong>{{ title }}</strong>
+                {% if tags %} — {{ tags }}{% endif %}
+            </p>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-            {% if result.image_warnings %}
-            <span class="warning-badge">🖼️ {{ result.image_warnings|length }} 图片警告</span>
-            {% endif %}
-            {% if result.warnings %}
-            <span class="warning-badge">⚠️ {{ result.warnings|length }} 警告</span>
-            {% endif %}
-            <span style="color:#999;font-size:12px;">点击展开 ▼</span>
+        <div style="display:flex;gap:8px;">
+            <a href="/post/edit/{{ article_id }}" class="btn btn-sm">✏️ 编辑</a>
+            <a href="/publish/select/{{ article_id }}" class="btn btn-sm btn-success">📤 发布</a>
         </div>
     </div>
-    <div class="compiled-card-body">
-        {% if result.error %}
-        <div style="background:#f8d7da;padding:12px;border-radius:4px;margin-bottom:12px;">
-            ❌ {{ result.error }}
-        </div>
-        {% endif %}
 
-        {% if result.warnings %}
-        <div style="margin-bottom:12px;">
-            <strong>⚠️ 编译警告：</strong>
-            {% for w in result.warnings %}
-            <div class="warning-badge" style="display:block;margin:4px 0;">{{ w }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
+    {% if results %}
+    <div id="compile-results">
+        {% for platform, result in results.items() %}
+        <div class="compiled-card">
+            <div class="compiled-card-header" onclick="toggleCard(this)">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <strong>{{ result.display_name or platform }}</strong>
+                    {% if result.success %}
+                    <span class="platform-badge badge-ok">✅ 编译成功</span>
+                    {% else %}
+                    <span class="platform-badge badge-err">❌ 失败</span>
+                    {% endif %}
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    {% if result.image_warnings %}
+                    <span class="platform-badge badge-warn">🖼️ {{ result.image_warnings|length }}</span>
+                    {% endif %}
+                    {% if result.warnings %}
+                    <span class="platform-badge badge-warn">⚠️ {{ result.warnings|length }}</span>
+                    {% endif %}
+                    <span style="color:#999;font-size:11px;">点击展开 ▾</span>
+                </div>
+            </div>
+            <div class="compiled-card-body">
+                {% if result.error %}
+                <div style="padding:12px 18px;background:#f8d7da;color:#721c24;border-bottom:1px solid #f5c6cb;">
+                    ❌ {{ result.error }}
+                </div>
+                {% endif %}
 
-        {% if result.image_warnings %}
-        <div style="margin-bottom:12px;">
-            <strong>🖼️ 图片警告：</strong>
-            {% for w in result.image_warnings %}
-            <div class="warning-badge" style="display:block;margin:4px 0;">{{ w }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
+                {% if result.warnings %}
+                <div style="padding:8px 18px;background:#fff3cd;border-bottom:1px solid #ffc107;">
+                    {% for w in result.warnings %}
+                    <div style="color:#856404;font-size:12px;">⚠️ {{ w }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
-        <!-- 渲染预览 -->
-        <div style="margin-bottom:8px;">
-            <strong>渲染效果预览：</strong>
-        </div>
-        <div class="rendered-preview" id="rendered-{{ platform }}">
-            <div id="rendered-content-{{ platform }}">{{ result.body }}</div>
-        </div>
+                {% if result.image_warnings %}
+                <div style="padding:8px 18px;background:#fff3cd;border-bottom:1px solid #ffc107;">
+                    {% for w in result.image_warnings %}
+                    <div style="color:#856404;font-size:12px;">🖼️ {{ w }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
-        <!-- 原始编译产物 -->
-        <div style="margin-top:12px;margin-bottom:8px;">
-            <strong>原始编译文本（{{ result.platform }} 格式）：</strong>
-            <button class="btn btn-sm" onclick="copyToClipboard('raw-{{ platform }}')" style="margin-left:8px;">📋 复制</button>
+                {% if result.success and result.body %}
+                <div class="split-pane">
+                    <div class="code-pane">
+                        <div style="font-size:11px;color:#999;margin-bottom:6px;display:flex;justify-content:space-between;">
+                            <span>📄 {{ platform }} 格式代码</span>
+                            <span style="cursor:pointer;color:#4361ee;" onclick="copyText('code-{{ platform }}')">📋 复制</span>
+                        </div>
+                        <pre id="code-{{ platform }}">{{ result.body }}</pre>
+                    </div>
+                    <div class="preview-pane">
+                        <div style="font-size:11px;color:#999;margin-bottom:6px;">
+                            👁️ <strong>{{ result.display_name or platform }}</strong> 真实发布效果
+                        </div>
+                        {% if result.rendered_html %}
+                        <div style="border:1px solid #e0e0e0;border-radius:6px;padding:16px;background:#fff;">
+                            {{ result.rendered_html|safe }}
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <div style="font-size:40px;">🖼️</div>
+                            <p>渲染预览不可用</p>
+                            <p style="font-size:12px;">请确保安装了 markdown 库</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
-        <pre id="raw-{{ platform }}">{{ result.body }}</pre>
-
-        {% if result.fields %}
-        <div style="margin-top:12px;">
-            <strong>字段映射：</strong>
-            <table style="width:auto;margin-top:4px;font-size:13px;">
-                {% for k, v in result.fields.items() %}
-                <tr>
-                    <td style="padding:2px 8px;color:#666;">{{ k }}:</td>
-                    <td style="padding:2px 8px;">{{ v[:100] }}{{ '...' if v|length > 100 }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-        {% endif %}
+        {% endfor %}
     </div>
-</div>
-{% endfor %}
-</div>
+    {% else %}
+    <div class="empty-state">
+        <div style="font-size:60px;">📭</div>
+        <h3>没有可编译的平台</h3>
+        <p>你还没有添加任何平台账号</p>
+        <a href="/accounts" class="btn btn-primary">去添加账号</a>
+    </div>
+    {% endif %}
 
-<div style="display:flex;gap:8px;margin-top:16px;">
-    <a href="/post/edit/{{ article_id }}" class="btn">✏️ 继续编辑</a>
-    <a href="/publish/select/{{ article_id }}" class="btn btn-success">📤 发布到所选平台</a>
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #eee;">
+        <a href="/post/edit/{{ article_id }}" class="btn">✏️ 返回编辑</a>
+        <a href="/publish/select/{{ article_id }}" class="btn btn-success">📤 发布到所选平台</a>
+    </div>
 </div>
 
 <script>
@@ -176,25 +189,34 @@ function toggleCard(header) {
     body.classList.toggle('active');
 }
 
-function copyToClipboard(elementId) {
+function copyText(elementId) {
     const el = document.getElementById(elementId);
     const text = el.textContent || el.innerText;
     navigator.clipboard.writeText(text).then(function() {
-        alert('✅ 已复制到剪贴板');
+        showToast('✅ 已复制到剪贴板');
     }).catch(function() {
-        // fallback
         const textarea = document.createElement('textarea');
         textarea.value = text;
         document.body.appendChild(textarea);
         textarea.select();
         document.execCommand('copy');
         document.body.removeChild(textarea);
-        alert('✅ 已复制到剪贴板');
+        showToast('✅ 已复制到剪贴板');
     });
 }
 
+function showToast(msg) {
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2);';
+    div.textContent = msg;
+    document.body.appendChild(div);
+    setTimeout(function() { div.remove(); }, 2000);
+}
+
 // 默认展开第一个
-const firstBody = document.querySelector('.compiled-card-body');
-if (firstBody) firstBody.classList.add('active');
+document.addEventListener('DOMContentLoaded', function() {
+    const firstBody = document.querySelector('.compiled-card-body');
+    if (firstBody) firstBody.classList.add('active');
+});
 </script>
 {% endblock %}

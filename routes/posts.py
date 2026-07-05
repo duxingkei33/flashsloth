@@ -44,6 +44,70 @@ def edit_post(pid):
        conn.commit()
        conn.close()
        flash("文章已更新", "success")
+
+       # ── 自动编译：保存后自动编译到用户有账号的平台 ──
+       try:
+           from core.compiler import Compiler
+           from core.compiled_cache import CompiledCache
+           from core.renderers import render_preview
+       except ImportError:
+           from flashsloth.core.compiler import Compiler
+           from flashsloth.core.compiled_cache import CompiledCache
+           from flashsloth.core.renderers import render_preview
+
+       # 重新读取文章
+       conn2 = get_db()
+       post = conn2.execute("SELECT * FROM articles WHERE id=? AND user_id=?", (pid, current_user.id)).fetchone()
+       platforms_owned = conn2.execute(
+           "SELECT DISTINCT pa.platform FROM platform_accounts pa WHERE pa.user_id=? AND pa.is_active=1",
+           (current_user.id,)
+       ).fetchall()
+       conn2.close()
+
+       if post and platforms_owned:
+           article = Article(
+               title=post["title"],
+               body=post["body"],
+               tags=json.loads(post["tags"]) if post["tags"] else [],
+               summary=post["summary"],
+           )
+           source_hash = CompiledCache._hash_source(article)
+           targets = [p["platform"] for p in platforms_owned]
+
+           compiler = Compiler()
+           results = compiler.compile(article, targets=targets)
+
+           # 生成渲染预览 + 存缓存
+           enriched = {}
+           for platform, content in results.items():
+               rendered = ""
+               if content.success and content.body:
+                   try:
+                       rendered = render_preview(platform, content.body)
+                   except Exception:
+                       rendered = ""
+               enriched[platform] = {
+                   "title": content.title,
+                   "body": content.body,
+                   "rendered_html": rendered,
+                   "warnings": content.warnings,
+                   "image_warnings": content.image_warnings,
+                   "error": content.error,
+                   "success": content.success,
+               }
+
+           cache = CompiledCache()
+           cache.save_batch(pid, enriched, source_hash)
+
+           # 编译状态统计
+           ok_count = sum(1 for r in enriched.values() if r.get("success"))
+           err_platforms = [p for p, r in enriched.items() if not r.get("success")]
+           status_msg = f"{ok_count}/{len(enriched)} 个平台编译成功"
+           if err_platforms:
+               status_msg += f"，{len(err_platforms)} 个失败: {', '.join(err_platforms[:3])}"
+           return redirect(url_for("edit_post", pid=pid, compile_status=status_msg))
+
+       # 没账号或不走自动编译，直接回文章列表
        return redirect(url_for("index"))
 
    post = conn.execute(
@@ -215,37 +279,143 @@ def publish():
 @app.route("/compile/<int:pid>")
 @login_required
 def compile_preview(pid):
-    """编译文章并在各平台预览效果"""
+    """编译文章，只编译用户有账号的平台，带真实渲染预览
+    优先读缓存，源文变了才重编译"""
     conn = get_db()
     post = conn.execute(
         "SELECT * FROM articles WHERE id=? AND user_id=?",
         (pid, current_user.id)
     ).fetchone()
-    conn.close()
 
     if not post:
+        conn.close()
         flash("文章不存在", "error")
         return redirect(url_for("index"))
 
+    # 获取用户有账号的平台列表（按账号ID排序）
+    platforms_owned = conn.execute(
+        "SELECT DISTINCT pa.platform, MIN(pa.id) as first_id "
+        "FROM platform_accounts pa WHERE pa.user_id=? AND pa.is_active=1 "
+        "GROUP BY pa.platform ORDER BY first_id",
+        (current_user.id,)
+    ).fetchall()
+
+    # 顺便查缓存里有哪些平台
+    cache_platforms = conn.execute(
+        "SELECT platform, source_hash FROM compiled_cache WHERE article_id=?",
+        (pid,)
+    ).fetchall()
+    conn.close()
+
+    if not platforms_owned:
+        flash("请先添加平台账号再编译", "warning")
+        return redirect(url_for("accounts"))
+
     try:
         from core.compiler import Compiler
+        from core.compiled_cache import CompiledCache
+        from core.renderers import render_preview
     except ImportError:
         from flashsloth.core.compiler import Compiler
+        from flashsloth.core.compiled_cache import CompiledCache
+        from flashsloth.core.renderers import render_preview
 
+    cache = CompiledCache()
     article = Article(
         title=post["title"],
         body=post["body"],
         tags=json.loads(post["tags"]) if post["tags"] else [],
         summary=post["summary"],
     )
+    source_hash = CompiledCache._hash_source(article)
 
-    compiler = Compiler()
-    # 编译到所有支持的平台
-    targets = None
-    results = compiler.compile(article, targets=targets)
+    targets = [p["platform"] for p in platforms_owned]
+
+    # 检查哪些平台需要重编译
+    cache_map = {r["platform"]: r["source_hash"] for r in cache_platforms}
+    need_compile = [p for p in targets if p not in cache_map or cache_map[p] != source_hash]
+
+    # 读缓存的 + 编译新的
+    enriched = {}
+
+    # 先加载已有缓存
+    for platform in targets:
+        if platform not in need_compile:
+            cached = cache.load(pid, platform)
+            if cached:
+                # 从编译规则获取 display_name
+                try:
+                    from core.compile_rule import get_rule
+                except ImportError:
+                    from flashsloth.core.compile_rule import get_rule
+                rule = get_rule(platform)
+                display_name = rule.display_name if rule else platform
+
+                enriched[platform] = {
+                    "platform": platform,
+                    "display_name": display_name,
+                    "title": cached["title"],
+                    "body": cached["body"],
+                    "summary": "",
+                    "tags": [],
+                    "images": [],
+                    "image_warnings": cached["image_warnings"],
+                    "fields": {},
+                    "warnings": cached["warnings"],
+                    "success": not cached["error"],
+                    "error": cached["error"],
+                    "rendered_html": cached["rendered_html"],
+                    "cached": True,
+                }
+
+    # 编译需要更新的平台
+    if need_compile:
+        compiler = Compiler()
+        new_results = compiler.compile(article, targets=need_compile)
+
+        for platform, content in new_results.items():
+            rendered = ""
+            if content.success and content.body:
+                try:
+                    rendered = render_preview(platform, content.body)
+                except Exception:
+                    rendered = ""
+            enriched[platform] = {
+                "platform": content.platform,
+                "display_name": content.display_name,
+                "title": content.title,
+                "body": content.body,
+                "summary": content.summary,
+                "tags": content.tags,
+                "images": content.images,
+                "image_warnings": content.image_warnings,
+                "fields": content.fields,
+                "warnings": content.warnings,
+                "success": content.success,
+                "error": content.error,
+                "rendered_html": rendered,
+                "cached": False,
+            }
+
+            # 写入缓存
+            cache.save(pid, platform, {
+                "title": content.title,
+                "body": content.body,
+                "rendered_html": rendered,
+                "warnings": content.warnings,
+                "image_warnings": content.image_warnings,
+                "error": content.error,
+                "source_hash": source_hash,
+            })
+
+    # 按用户注册顺序排序
+    sorted_enriched = {}
+    for p in targets:
+        if p in enriched:
+            sorted_enriched[p] = enriched[p]
 
     return render_template("compile_preview.html",
-                         results=results,
+                         results=sorted_enriched,
                          article_id=pid,
                          title=post["title"],
                          tags=", ".join(json.loads(post["tags"])) if post["tags"] else "")
@@ -254,7 +424,7 @@ def compile_preview(pid):
 @app.route("/api/compile/<int:pid>")
 @login_required
 def api_compile(pid):
-    """编译 API — 返回 JSON 格式的编译结果"""
+    """编译 API — 只编译用户有账号的平台，返回含渲染HTML的JSON"""
     conn = get_db()
     post = conn.execute(
         "SELECT * FROM articles WHERE id=? AND user_id=?",
@@ -269,8 +439,22 @@ def api_compile(pid):
         from core.compiler import Compiler
     except ImportError:
         from flashsloth.core.compiler import Compiler
+    try:
+        from core.renderers import render_preview
+    except ImportError:
+        from flashsloth.core.renderers import render_preview
 
     targets = request.args.getlist("targets") or None
+
+    # 如果未指定 targets，只编用户有账号的平台
+    if not targets:
+        conn2 = get_db()
+        rows = conn2.execute(
+            "SELECT DISTINCT platform FROM platform_accounts WHERE user_id=? AND is_active=1",
+            (current_user.id,)
+        ).fetchall()
+        conn2.close()
+        targets = [r["platform"] for r in rows] if rows else None
 
     article = Article(
         title=post["title"],
@@ -282,9 +466,14 @@ def api_compile(pid):
     compiler = Compiler()
     results = compiler.compile(article, targets=targets)
 
-    # 转为可序列化格式
     serialized = {}
     for platform, content in results.items():
+        rendered = ""
+        if content.success and content.body:
+            try:
+                rendered = render_preview(platform, content.body)
+            except Exception:
+                rendered = ""
         serialized[platform] = {
             "platform": content.platform,
             "display_name": content.display_name,
@@ -298,6 +487,7 @@ def api_compile(pid):
             "warnings": content.warnings,
             "success": content.success,
             "error": content.error,
+            "rendered_html": rendered,
         }
 
     return jsonify({"success": True, "results": serialized})

@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ '编辑' if post else '新建' }}文章{% endblock %}
 {% block content %}
+{% set compile_msg = request.args.get('compile_status', '') %}
+{% if compile_msg %}
+<div id="compile-toast" style="position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;
+     background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:12px 16px;
+     box-shadow:0 4px 12px rgba(0,0,0,.1);">
+    <strong style="color:#155724;">✅ 已编译</strong>
+    <span style="color:#155724;font-size:13px;margin-left:6px;">{{ compile_msg }}</span>
+    <button onclick="this.parentElement.remove()" style="float:right;border:none;background:none;cursor:pointer;font-size:16px;">✕</button>
+</div>
+<script>setTimeout(function(){var e=document.getElementById('compile-toast');if(e)e.remove();},5000);</script>
+{% endif %}
 <div class="card" style="max-width:900px;">
     <h2>{{ '✏️ 编辑文章' if post else '📝 新建文章' }}</h2>
     <form method="post">
