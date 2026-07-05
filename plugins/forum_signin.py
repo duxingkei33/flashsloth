@@ -43,6 +43,17 @@ for _f in sorted(os.listdir(_plugins_dir)):
 # 验证注册状态
 _available = list_signins()
 
+# ─── 与 web 路由共享 registry ───────────────────────
+# signin_*.py 插件注册到 core_signin 模块（import hack），
+# 但 routes/signin.py 使用 flashsloth.core.signin 模块。
+# 同步 registry 确保两处共享同一个注册字典。
+try:
+    import importlib
+    _fs_signin = importlib.import_module("flashsloth.core.signin")
+    _fs_signin._registry = _core_mod._registry
+except Exception:
+    pass
+
 CST = timezone(timedelta(hours=8))
 DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
 

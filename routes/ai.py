@@ -470,6 +470,44 @@ def api_ai_configured_delete(acid):
    conn.close()
    return jsonify({"success": True, "message": "已删除"})
 
+@app.route("/api/ai/providers/configured/<int:acid>", methods=["PUT"])
+@login_required
+def api_ai_configured_update(acid):
+   """编辑 AI 供应商配置"""
+   data = request.get_json() or {}
+   conn = get_db()
+   row = conn.execute(
+       "SELECT id FROM ai_configs WHERE id=? AND user_id=?",
+       (acid, current_user.id)
+   ).fetchone()
+   if not row:
+       conn.close()
+       return jsonify({"success": False, "error": "配置不存在"})
+
+   # 允许更新的字段
+   updates = []
+   params = []
+   for field in ("alias", "api_key", "api_base", "api_format", "models"):
+       if field in data:
+           val = data[field]
+           if field == "models" and isinstance(val, list):
+               val = json.dumps(val)
+           updates.append(f"{field}=?")
+           params.append(val)
+
+   if not updates:
+       conn.close()
+       return jsonify({"success": False, "error": "没有需要更新的字段"})
+
+   params.append(acid)
+   conn.execute(
+       f"UPDATE ai_configs SET {', '.join(updates)} WHERE id=?",
+       params
+   )
+   conn.commit()
+   conn.close()
+   return jsonify({"success": True, "message": "✅ 配置已更新"})
+
 @app.route("/api/ai/providers/configured/<int:acid>/models", methods=["POST"])
 @login_required
 def api_ai_configured_update_models(acid):

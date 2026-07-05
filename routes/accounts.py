@@ -151,73 +151,117 @@ def api_account_toggle(aid):
 @app.route("/api/accounts/<int:aid>/status")
 @login_required
 def api_account_status(aid):
-   """检查账号登录状态（含 cookie 有效性检测）"""
-   conn = get_db()
-   acct = conn.execute(
-       "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
-       (aid, current_user.id)
-   ).fetchone()
-   conn.close()
-   if not acct:
-       return jsonify({"success": False, "error": "账号不存在"})
-   acct = dict(acct)
-   cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-   cookie = cfg.get("cookie", "")
-   site_url = cfg.get("site_url", "")
-   result = {
-       "success": True,
-       "platform": acct["platform"],
-       "account_name": acct["account_name"],
-       "is_active": bool(acct["is_active"]),
-       "has_cookie": bool(cookie),
-       "site_url": site_url or "",
-   }
-   if cookie and site_url:
-       try:
-           import requests
-           r = requests.get(
-               site_url.rstrip("/") + "/forum.php",
-               headers={
-                   "Cookie": cookie,
-                   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-               },
-               timeout=15
-           )
-           result["status_code"] = r.status_code
-           html_lower = r.text.lower()
-           # 登录检测关键词
-           login_keywords = ["欢迎", "退出", "logout", "我的帖子", "我的中心",
-                             "个人中心", "设置", "消息", "提醒"]
-           logout_keywords = ["登录", "注册", "立即登录", "找回密码"]
-           is_logged_in = False
-           for kw in login_keywords:
-               if kw in r.text:
-                   is_logged_in = True
-                   break
-           if not is_logged_in:
-               for kw in logout_keywords:
-                   if kw in html_lower and "登录" in r.text:
-                       is_logged_in = False
-                       break
-           result["logged_in"] = is_logged_in
-           result["status"] = "✅ 已登录（Cookie 有效）" if is_logged_in else "❌ Cookie 已失效"
-           import re
-           tm = re.search(r'<title>(.*?)</title>', r.text)
-           result["page_title"] = tm.group(1) if tm else "(无标题)"
-           text = re.sub(r'<script[^>]*>.*?</script>', '', r.text, flags=re.DOTALL)
-           text = re.sub(r'<[^>]+>', ' ', text)
-           text = re.sub(r'\s+', ' ', text).strip()
-           result["page_preview"] = text[:600]
-       except Exception as e:
-           result["logged_in"] = False
-           result["status"] = f"❌ 检测异常: {str(e)[:100]}"
-   elif cookie:
-       result["logged_in"] = None
-       result["status"] = "🍪 有 Cookie（未配置站点 URL，无法检测有效性）"
-   else:
-       result["logged_in"] = None
-       result["status"] = "⏸️ 未配置（无 Cookie）"
-   return jsonify(result)
+    """检查账号登录状态（含 cookie 有效性检测）"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+    acct = dict(acct)
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    cookie = cfg.get("cookie", "")
+    site_url = cfg.get("site_url", "")
+    platform = acct["platform"]
+    # 静态站点平台列表（无需 cookie/登录检测，只需检查站点可达性）
+    static_platforms = {"github_pages_blog", "github_pages", "static_site"}
+    is_static = platform in static_platforms
+
+    result = {
+        "success": True,
+        "platform": platform,
+        "account_name": acct["account_name"],
+        "is_active": bool(acct["is_active"]),
+        "has_cookie": bool(cookie),
+        "has_site_url": bool(site_url),
+        "site_url": site_url or "",
+        "is_static_site": is_static,
+    }
+
+    import requests, re
+
+    # ─── 静态站点处理 ─────────────────────────────
+    if is_static and site_url:
+        try:
+            r = requests.get(
+                site_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                timeout=15,
+                allow_redirects=True,
+            )
+            result["status_code"] = r.status_code
+            tm = re.search(r'<title>(.*?)</title>', r.text)
+            result["page_title"] = tm.group(1) if tm else "(无标题)"
+            if r.status_code == 200:
+                result["logged_in"] = None
+                result["status"] = "✅ 站点可浏览"
+            else:
+                result["logged_in"] = None
+                result["status"] = f"⚠️ 站点返回 HTTP {r.status_code}"
+        except Exception as e:
+            result["logged_in"] = None
+            result["status"] = f"❌ 站点不可达: {str(e)[:100]}"
+        return jsonify(result)
+
+    # ─── 动态站点处理 ─────────────────────────────
+    if cookie and site_url:
+        try:
+            # 先尝试访问首页（不限于 forum.php）
+            test_url = site_url.rstrip("/")
+            r = requests.get(
+                test_url,
+                headers={
+                    "Cookie": cookie,
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                timeout=15,
+                allow_redirects=True,
+            )
+            result["status_code"] = r.status_code
+            html_lower = r.text.lower()
+            # 通用登录检测关键词
+            login_keywords = ["欢迎", "退出", "logout", "我的帖子", "我的中心",
+                              "个人中心", "设置", "消息", "提醒", "注销", "退出登录"]
+            logout_keywords = ["登录", "注册", "立即登录", "找回密码", "立即注册"]
+            is_logged_in = False
+            for kw in login_keywords:
+                if kw in r.text:
+                    is_logged_in = True
+                    break
+            if not is_logged_in:
+                for kw in logout_keywords:
+                    if kw in html_lower:
+                        is_logged_in = False
+                        break
+                else:
+                    # 没有登出关键词则默认为已登录
+                    if r.status_code == 200:
+                        is_logged_in = True
+            result["logged_in"] = is_logged_in
+            result["status"] = "✅ 已登录（Cookie 有效）" if is_logged_in else "❌ Cookie 已失效"
+            tm = re.search(r'<title>(.*?)</title>', r.text)
+            result["page_title"] = tm.group(1) if tm else "(无标题)"
+            text = re.sub(r'<script[^>]*>.*?</script>', '', r.text, flags=re.DOTALL)
+            text = re.sub(r'<[^>]+>', ' ', text)
+            text = re.sub(r'\s+', ' ', text).strip()
+            result["page_preview"] = text[:600]
+        except Exception as e:
+            result["logged_in"] = False
+            result["status"] = f"❌ 检测异常: {str(e)[:100]}"
+    elif cookie and not site_url:
+        result["logged_in"] = None
+        result["status"] = "🍪 有 Cookie（未配置站点 URL，无法检测有效性）"
+    elif site_url and not cookie:
+        result["logged_in"] = None
+        result["status"] = "🔗 已配置站点 URL（未配置 Cookie）"
+    else:
+        result["logged_in"] = None
+        result["status"] = "⏸️ 未配置"
+    return jsonify(result)
 
 @app.route("/api/accounts/test/<int:aid>", methods=["POST"])
 @login_required

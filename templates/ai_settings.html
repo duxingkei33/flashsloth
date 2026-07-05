@@ -65,6 +65,44 @@
     </div>
 </div>
 
+<!-- 编辑供应商弹窗 -->
+<div id="editProviderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;font-size:18px;">🔧 编辑供应商配置</h2>
+        <input type="hidden" id="editProvId">
+        <div class="form-group">
+            <label>别称 <span style="color:#999;font-size:12px;">（同一供应商可添加多个，必填）</span></label>
+            <input id="editField_alias" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="例如: 工作号、主力Key">
+        </div>
+        <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="editField_api_key" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="留空则不修改">
+        </div>
+        <div class="form-group">
+            <label>API Base URL</label>
+            <input id="editField_api_base" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="https://api.example.com/v1">
+        </div>
+        <div class="form-group">
+            <label>API 格式</label>
+            <select id="editField_api_format" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
+                <option value="openai">OpenAI 兼容</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Gemini</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>模型列表 <span style="color:#999;font-size:12px;">（JSON 数组，如 ["gpt-4","gpt-4o"]）</span></label>
+            <input id="editField_models" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder='["gpt-4", "gpt-4o"]'>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+            <button onclick="saveEditProvider()" class="btn btn-primary">💾 保存修改</button>
+            <button onclick="closeEditModal()" class="btn" style="background:#eee;">取消</button>
+        </div>
+        <div id="editProvResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
+    </div>
+</div>
+
 <!-- 自定义供应商弹窗 -->
 <div id="customProvModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
@@ -148,6 +186,7 @@
 <script>
 // ====== 页面加载 ======
 let _currentProvider = null;
+let _configuredProvidersFull = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     loadRegistry();
@@ -169,8 +208,9 @@ function loadConfigured() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            renderConfiguredList(data.providers || []);
-            document.getElementById('aiCount').textContent = '已配置 ' + (data.providers || []).length + ' 个';
+            _configuredProvidersFull = data.providers || [];
+            renderConfiguredList(_configuredProvidersFull);
+            document.getElementById('aiCount').textContent = '已配置 ' + _configuredProvidersFull.length + ' 个';
         }
     })
     .catch(() => {
@@ -226,7 +266,13 @@ function renderConfiguredList(providers) {
         const balance = p.balance || '';
         const website = p.website || '';
         const alias = p.alias || '';
-        const models = (p.models_list || []).slice(0,3).join(', ') + ((p.models_list || []).length > 3 ? '...' : '');
+        const modelList = p.models_list || [];
+        const modelsHtml = modelList.length > 0
+            ? '<span style="display:inline-flex;gap:4px;flex-wrap:wrap;flex-shrink:0;max-width:300px;">' +
+              modelList.slice(0, 5).map(m => '<span style="font-size:10px;background:#e8f0fe;color:#1a56db;padding:1px 6px;border-radius:4px;white-space:nowrap;">' + escapeHtml(m) + '</span>').join('') +
+              (modelList.length > 5 ? '<span style="font-size:10px;color:#999;">+' + (modelList.length - 5) + '</span>' : '') +
+              '</span>'
+            : '';
 
         html += '<div class="ai-row ' + (enabled ? '' : 'disabled') + '" id="airow_' + p.id + '">' +
             '<span class="ai-icon">' + (p.icon || '🤖') + '</span>' +
@@ -241,13 +287,14 @@ function renderConfiguredList(providers) {
                     : '<span class="badge badge-warning">⏳ 未测</span>') +
             '</span>' +
             (balance ? '<span class="ai-balance" id="balance_' + p.id + '">💰 ' + escapeHtml(balance) + '</span>' : '') +
-            (models ? '<span style="font-size:11px;color:#999;flex-shrink:0;">' + escapeHtml(models) + '</span>' : '') +
+            (modelsHtml) +
             '<span class="ai-tools">' +
                 '<button class="ai-refresh-btn" onclick="fetchModels(' + p.id + ')" title="获取模型列表">📋</button>' +
                 '<button class="ai-refresh-btn" onclick="refreshBalance(' + p.id + ')" title="刷新余额">🔄</button>' +
                 '<button class="ai-toggle-btn ' + (enabled ? 'on' : 'off') + '" onclick="toggleProvider(' + p.id + ')" title="' + (enabled ? '已启用 - 点击禁用' : '已禁用 - 点击启用') + '">' +
                     (enabled ? '🟢 启用' : '🔴 禁用') +
                 '</button>' +
+                '<button class="ai-refresh-btn" onclick="editProvider(' + p.id + ')" title="编辑配置">🔧</button>' +
                 '<button class="ai-delete-btn" onclick="deleteProvider(' + p.id + ')" title="从数据库删除">🗑️ 删除</button>' +
             '</span>' +
         '</div>';
@@ -408,6 +455,119 @@ function deleteProvider(id) {
         }
     })
     .catch(() => {});
+}
+
+// ====== 编辑供应商 ======
+let _editingProvId = null;
+
+function editProvider(id) {
+    const p = _configuredProvidersFull.find(x => x.id === id);
+    if (!p) {
+        alert('未找到供应商数据，请刷新页面重试');
+        return;
+    }
+    _editingProvId = id;
+
+    // Show provider name in modal title
+    const provIcon = p.icon || '🤖';
+    const provName = p.display_name || p.provider;
+    document.querySelector('#editProviderModal h2').textContent = '🔧 ' + provIcon + ' ' + provName;
+
+    // Pre-fill fields with current values
+    document.getElementById('editProvId').value = id;
+    document.getElementById('editField_alias').value = p.alias || '';
+
+    // API key: show hint but don't pre-fill actual key (security)
+    document.getElementById('editField_api_key').value = '';
+
+    document.getElementById('editField_api_base').value = p.api_base || '';
+
+    const fmtSelect = document.getElementById('editField_api_format');
+    fmtSelect.value = p.api_format || 'openai';
+
+    // Models: show as JSON array string
+    const models = p.models_list || [];
+    document.getElementById('editField_models').value = JSON.stringify(models);
+
+    // Show result area but hide previous result
+    const resultDiv = document.getElementById('editProvResult');
+    resultDiv.style.display = 'none';
+
+    document.getElementById('editProviderModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editProviderModal').style.display = 'none';
+}
+
+function saveEditProvider() {
+    const id = _editingProvId;
+    if (!id) return;
+
+    const data = {};
+    const alias = document.getElementById('editField_alias').value.trim();
+    if (alias) data.alias = alias;
+
+    const apiKey = document.getElementById('editField_api_key').value;
+    if (apiKey) data.api_key = apiKey;
+
+    const apiBase = document.getElementById('editField_api_base').value;
+    if (apiBase) data.api_base = apiBase;
+
+    const apiFormat = document.getElementById('editField_api_format').value;
+    if (apiFormat) data.api_format = apiFormat;
+
+    const modelsStr = document.getElementById('editField_models').value.trim();
+    if (modelsStr) {
+        try {
+            data.models = JSON.parse(modelsStr);
+            if (!Array.isArray(data.models)) {
+                alert('模型列表格式错误，请输入 JSON 数组，如 ["gpt-4", "gpt-4o"]');
+                return;
+            }
+        } catch (e) {
+            alert('模型列表格式错误，请输入有效的 JSON 数组，如 ["gpt-4", "gpt-4o"]');
+            return;
+        }
+    }
+
+    if (Object.keys(data).length === 0) {
+        alert('没有需要更新的内容');
+        return;
+    }
+
+    const resultDiv = document.getElementById('editProvResult');
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.color = '#856404';
+    resultDiv.innerHTML = '⏳ 保存中...';
+
+    fetch('/api/ai/providers/configured/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.color = '#155724';
+            resultDiv.innerHTML = '✅ ' + (data.message || '配置已更新');
+            setTimeout(() => {
+                closeEditModal();
+                loadConfigured();
+            }, 800);
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.color = '#721c24';
+            resultDiv.innerHTML = '❌ ' + (data.error || '保存失败');
+        }
+    })
+    .catch(e => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = '❌ 请求失败: ' + escapeHtml(e.message);
+    });
 }
 
 // ====== 余额刷新 ======

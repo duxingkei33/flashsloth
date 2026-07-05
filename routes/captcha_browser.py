@@ -183,10 +183,15 @@ def captcha_check_login(aid):
         return jsonify({"success": False, "error": "账号不存在"})
     cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
     has_cookie = bool(cfg.get("cookie") or cfg.get("cookies", ""))
+    platform = acct["platform"]
+    # 静态站点无需验证码
+    static_platforms = {"github_pages_blog", "github_pages", "static_site"}
+    is_static = platform in static_platforms
     return jsonify({
         "success": True,
         "needs_captcha": False,
         "has_cookie": has_cookie,
+        "is_static_site": is_static,
         "status": dict(acct).get("status", ""),
     })
 
@@ -203,6 +208,19 @@ def captcha_start_login(aid):
     conn.close()
     if not acct:
         return jsonify({"success": False, "error": "账号不存在"})
+
+    # 静态站点无需验证码登录
+    static_platforms = {"github_pages_blog", "github_pages", "static_site"}
+    if acct["platform"] in static_platforms:
+        cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+        site_url = cfg.get("site_url", "")
+        return jsonify({
+            "success": True,
+            "needs_captcha": False,
+            "is_static_site": True,
+            "message": "静态站点无需验证码登录，直接访问站点即可",
+            "site_url": site_url,
+        })
 
     return discuz_get_captcha()
 

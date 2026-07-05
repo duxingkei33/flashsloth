@@ -69,15 +69,8 @@
         </span>
 
         <!-- 在线状态内联显示 -->
-        {% set acct_status = cfg.get('status', '') %}
         <span id="onlineStatus_{{ a.id }}" style="font-size:12px;flex-shrink:0;min-width:70px;text-align:center;">
-            {% if acct_status == 'connected' %}
-            <span class="badge badge-success">✅ 已登录</span>
-            {% elif acct_status == 'disconnected' %}
-            <span class="badge badge-danger">❌ 已断开</span>
-            {% else %}
-            <span class="badge badge-secondary">⏳ 未知</span>
-            {% endif %}
+            <span class="badge badge-secondary">⏳ 检测中...</span>
         </span>
 
         <!-- 操作按钮组 -->
@@ -414,13 +407,20 @@ function refreshAllStatuses() {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                const status = data.logged_in === false ? 'disconnected' : 'connected';
-                const badge = data.has_cookie ? '✅ 已登录' : '⏳ 未知';
-                const cls = data.logged_in === false ? 'badge badge-danger' : 'badge badge-success';
-                span.innerHTML = '<span class="' + cls + '">' + (data.logged_in === false ? '❌ 已断开' : (data.has_cookie ? '✅ 已登录' : '⏳ 未知')) + '</span>';
+                // 使用 API 返回的 status 字段直接显示
+                const statusText = data.status || '⏳ 未知';
+                let badgeClass = 'badge badge-secondary';
+                if (statusText.startsWith('✅')) {
+                    badgeClass = 'badge badge-success';
+                } else if (statusText.startsWith('❌') || statusText.startsWith('⚠️')) {
+                    badgeClass = 'badge badge-danger';
+                }
+                span.innerHTML = '<span class="' + badgeClass + '">' + escapeHtml(statusText) + '</span>';
             }
         })
-        .catch(() => {});
+        .catch(() => {
+            span.innerHTML = '<span class="badge badge-secondary">⏳ 未知</span>';
+        });
     });
 }
 
