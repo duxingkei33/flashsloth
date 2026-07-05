@@ -38,3 +38,4 @@ venv/
 !tests/
 *.db-shm
 *.db-wal
+*.bak
