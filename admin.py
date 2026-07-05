@@ -1556,19 +1556,78 @@ def ai_settings_page():
 @app.route("/api/ai/test/<provider_name>", methods=["POST"])
 @login_required
 def api_ai_test(provider_name):
-    """测试AI Provider连接"""
+    """测试AI Provider连接（支持动态注册表）"""
     router = get_router()
     pc = router._provider_configs.get(provider_name, {})
     if not pc.get("api_key"):
         return jsonify({"success": False, "error": "未配置API Key"})
 
+    # 先用动态注册表查找
+    from core.provider_registry import get_registry, UnifiedAIAdapter
+    reg = get_registry()
+    defn = reg.get(provider_name)
+    if defn:
+        adapter = UnifiedAIAdapter(defn, api_key=pc.get("api_key", ""), api_base=pc.get("api_base", ""))
+        return jsonify(adapter.test_connection())
+
+    # 兼容旧的硬编码 Provider
     from core.ai_provider import get_ai_provider
     provider = get_ai_provider(provider_name, pc)
-    if not provider:
-        return jsonify({"success": False, "error": f"未知Provider: {provider_name}"})
+    if provider:
+        return jsonify(provider.test_connection())
 
-    result = provider.test_connection()
-    return jsonify(result)
+    return jsonify({"success": False, "error": f"未知Provider: {provider_name}"})
+
+
+@app.route("/api/ai/providers/list", methods=["GET"])
+@login_required
+def api_ai_providers_list():
+    """返回动态供应商注册表（用于前端下拉选择）"""
+    from core.provider_registry import get_registry
+    reg = get_registry()
+    data = reg.to_json()
+    # 合并用户已配置的 provider 状态
+    router = get_router()
+    for p in data["providers"]:
+        pc = router._provider_configs.get(p["name"], {})
+        p["configured"] = bool(pc.get("api_key"))
+    return jsonify(data)
+
+
+@app.route("/api/ai/providers/custom", methods=["POST"])
+@login_required
+def api_ai_providers_custom():
+    """保存自定义供应商定义"""
+    data = request.get_json() or {}
+    name = data.get("name", "").strip()
+    if not name:
+        return jsonify({"success": False, "error": "供应商名称不能为空"})
+    # 生成唯一 name
+    safe_name = re.sub(r"[^a-z0-9_]", "_", name.lower())
+    if not safe_name:
+        safe_name = f"custom_{int(time.time())}"
+
+    router = get_router()
+    # 保存到 provider_configs 的 custom_providers 字段
+    existing = router._provider_configs.get("__custom_providers__", {})
+    existing[safe_name] = {
+        "name": safe_name,
+        "display_name": name,
+        "description": data.get("description", ""),
+        "icon": data.get("icon", "✏️"),
+        "website": data.get("website", ""),
+        "api_base": data.get("api_base", ""),
+        "api_format": data.get("api_format", "openai"),
+        "models": data.get("models", []),
+        "capabilities": data.get("capabilities", ["writing"]),
+        "config_fields": data.get("config_fields", [
+            {"key": "api_key", "label": "API Key", "type": "password", "required": True},
+        ]),
+    }
+    router.set_provider_config("__custom_providers__", existing)
+    router.save_config()
+
+    return jsonify({"success": True, "name": safe_name, "display_name": name})
 
 
 @app.route("/api/accounts/test/<int:aid>", methods=["POST"])
