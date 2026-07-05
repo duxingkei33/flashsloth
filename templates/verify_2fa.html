@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}两步验证{% endblock %}
+{% block content %}
+<div class="auth-form">
+    <div class="card">
+        <h1>🔐 两步验证</h1>
+        <p style="color:#666;margin-bottom:16px;">请输入您的两步验证码以继续</p>
+        <form method="post" action="/api/verify-2fa" id="verifyForm">
+            <div class="form-group">
+                <label>验证码</label>
+                <input type="text" name="code" placeholder="输入 6 位验证码" required maxlength="6" autocomplete="one-time-code">
+                <input type="hidden" name="token" value="{{ token }}">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%">验证</button>
+        </form>
+        <div class="links">
+            <a href="/login">返回登录</a>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('verifyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var code = this.querySelector('[name="code"]').value;
+    var token = this.querySelector('[name="token"]').value;
+    fetch(this.action, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code: code, token: token})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            window.location.href = '/';
+        } else {
+            alert(data.error || '验证失败');
+        }
+    })
+    .catch(function(err) {
+        alert('验证失败: ' + err.message);
+    });
+});
+</script>
+{% endblock %}

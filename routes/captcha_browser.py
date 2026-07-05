@@ -187,7 +187,7 @@ def captcha_check_login(aid):
         "success": True,
         "needs_captcha": False,
         "has_cookie": has_cookie,
-        "status": acct.get("status", ""),
+        "status": dict(acct).get("status", ""),
     })
 
 
