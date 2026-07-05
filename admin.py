@@ -29,6 +29,7 @@ import flashsloth.plugins.publisher_rss        # noqa
 import flashsloth.plugins.publisher_zhihu      # noqa
 import flashsloth.plugins.publisher_csdn       # noqa
 import flashsloth.plugins.publisher_discuz     # noqa
+import flashsloth.plugins.publisher_xianyu     # noqa
 import flashsloth.plugins.publisher_github_pages  # noqa
 import flashsloth.plugins.deployer_github_pages  # noqa
 import flashsloth.plugins.storage_alist        # noqa
@@ -38,8 +39,10 @@ import flashsloth.plugins.forum_signin           # noqa
 import flashsloth.sdk.adapters.mydigit           # noqa
 import flashsloth.sdk.adapters.amobbs            # noqa
 import flashsloth.sdk.adapters.csdn              # noqa
+import flashsloth.sdk.adapters.xianyu            # noqa
 import flashsloth.sdk.adapters.notion            # noqa
 import flashsloth.sdk.adapters.github_pages      # noqa
+import flashsloth.sdk.adapters.oshwhub            # noqa
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
@@ -3094,6 +3097,180 @@ def amobbs_login_close():
         sess_id = f"user_{current_user.id}"
         with _amobbs_lock:
             inst = _amobbs_login_instances.pop(sess_id, None)
+        if inst:
+            inst.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ─── 闲鱼 Playwright 登录 API ────────────────
+
+_xianyu_login_instances: dict[str, "XianyuPlaywrightLogin"] = {}
+_xianyu_lock = threading.Lock()
+
+
+def _get_xianyu_login(session_id: str = "default"):
+    with _xianyu_lock:
+        if session_id not in _xianyu_login_instances:
+            from plugins.xianyu_login import XianyuPlaywrightLogin
+            inst = XianyuPlaywrightLogin()
+            _xianyu_login_instances[session_id] = inst
+        return _xianyu_login_instances[session_id]
+
+
+@app.route("/api/xianyu/login/start", methods=["POST"])
+@login_required
+def xianyu_login_start():
+    aid = request.json.get("account_id", 0)
+    username = request.json.get("username", "")
+    password = request.json.get("password", "")
+    if not username or not password:
+        return jsonify({"success": False, "error": "请输入用户名和密码"})
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_xianyu_login(sess_id)
+        result = inst.login(username, password)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"启动登录异常: {e}"})
+
+
+@app.route("/api/xianyu/login/solve", methods=["POST"])
+@login_required
+def xianyu_login_solve():
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_xianyu_login(sess_id)
+        result = inst.solve_and_login()
+        if result.get("logged_in"):
+            aid = request.json.get("account_id", 0)
+            if aid:
+                cookies = result.get("cookies", "")
+                conn = get_db()
+                acct = conn.execute(
+                    "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+                    (aid, current_user.id)
+                ).fetchone()
+                if acct:
+                    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+                    cfg["cookie"] = cookies
+                    conn.execute(
+                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
+                        (json.dumps(cfg), aid)
+                    )
+                    conn.commit()
+                conn.close()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"验证码处理异常: {e}"})
+
+
+@app.route("/api/xianyu/login/screenshot", methods=["GET"])
+@login_required
+def xianyu_screenshot():
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_xianyu_login(sess_id)
+        return jsonify({"success": True, "image": inst.take_screenshot()})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"截图失败: {e}"})
+
+
+@app.route("/api/xianyu/login/close", methods=["POST"])
+@login_required
+def xianyu_login_close():
+    try:
+        sess_id = f"user_{current_user.id}"
+        with _xianyu_lock:
+            inst = _xianyu_login_instances.pop(sess_id, None)
+        if inst:
+            inst.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ─── OSHWHub Playwright 登录 API ─────────────
+
+_oshwhub_login_instances: dict[str, "OshwhubPlaywrightLogin"] = {}
+_oshwhub_lock = threading.Lock()
+
+
+def _get_oshwhub_login(session_id: str = "default"):
+    with _oshwhub_lock:
+        if session_id not in _oshwhub_login_instances:
+            from plugins.oshwhub_login import OshwhubPlaywrightLogin
+            inst = OshwhubPlaywrightLogin()
+            _oshwhub_login_instances[session_id] = inst
+        return _oshwhub_login_instances[session_id]
+
+
+@app.route("/api/oshwhub/login/start", methods=["POST"])
+@login_required
+def oshwhub_login_start():
+    aid = request.json.get("account_id", 0)
+    username = request.json.get("username", "")
+    password = request.json.get("password", "")
+    if not username or not password:
+        return jsonify({"success": False, "error": "请输入用户名和密码"})
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_oshwhub_login(sess_id)
+        result = inst.login(username, password)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"启动登录异常: {e}"})
+
+
+@app.route("/api/oshwhub/login/captcha/click", methods=["POST"])
+@login_required
+def oshwhub_captcha_click():
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_oshwhub_login(sess_id)
+        result = inst.click_captcha_and_submit()
+        if result.get("logged_in"):
+            aid = request.json.get("account_id", 0)
+            if aid:
+                cookies = result.get("cookies", "")
+                conn = get_db()
+                acct = conn.execute(
+                    "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+                    (aid, current_user.id)
+                ).fetchone()
+                if acct:
+                    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+                    cfg["cookie"] = cookies
+                    conn.execute(
+                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
+                        (json.dumps(cfg), aid)
+                    )
+                    conn.commit()
+                conn.close()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"验证码处理异常: {e}"})
+
+
+@app.route("/api/oshwhub/login/screenshot", methods=["GET"])
+@login_required
+def oshwhub_screenshot():
+    try:
+        sess_id = f"user_{current_user.id}"
+        inst = _get_oshwhub_login(sess_id)
+        return jsonify({"success": True, "image": inst.take_screenshot()})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"截图失败: {e}"})
+
+
+@app.route("/api/oshwhub/login/close", methods=["POST"])
+@login_required
+def oshwhub_login_close():
+    try:
+        sess_id = f"user_{current_user.id}"
+        with _oshwhub_lock:
+            inst = _oshwhub_login_instances.pop(sess_id, None)
         if inst:
             inst.close()
         return jsonify({"success": True})

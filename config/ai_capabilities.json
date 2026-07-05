@@ -1,0 +1,9 @@
+{
+  "capabilities": {},
+  "providers": {
+    "deepseek": {
+      "api_key": "sk-a2efe6ac8be34329832caa601642ed1a",
+      "api_base": "https://api.deepseek.com/v1"
+    }
+  }
+}

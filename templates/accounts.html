@@ -68,6 +68,10 @@
 
             {% if p.name in ('amobbs', 'discuz') %}
             <button onclick="amobbsLogin({{ a.id }})" class="btn btn-sm btn-warning">🌐 浏览器登录</button>
+            {% elif p.name == 'xianyu' %}
+            <button onclick="xianyuLogin({{ a.id }})" class="btn btn-sm btn-warning">🌐 闲鱼登录</button>
+            {% elif p.name == 'oshwhub' %}
+            <button onclick="oshwhubLogin({{ a.id }})" class="btn btn-sm btn-warning">🌐 OSHWHub登录</button>
             {% endif %}
 
             <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info">🔍 状态</button>
@@ -448,6 +452,204 @@ function showAmobbsResult(type, msg) {
 function closeAmobbsLogin() {
     fetch('/api/amobbs/login/close', {method: 'POST'}).catch(() => {});
     document.getElementById('amobbsLoginModal').style.display = 'none';
+}
+
+// ====== 闲鱼浏览器登录 ======
+function xianyuLogin(accountId) {
+    fetch('/api/accounts/config/' + accountId)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) { alert('获取账号信息失败'); return; }
+        const cfg = data.config || {};
+        // 使用通用登录弹窗
+        const username = prompt('请输入淘宝账号（用于闲鱼登录）：', cfg.username || '');
+        if (!username) return;
+        const password = prompt('请输入淘宝密码：');
+        if (!password) return;
+
+        const modalId = 'xianyuLoginModal';
+        let modal = document.getElementById(modalId);
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = modalId;
+            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
+            modal.innerHTML = '<div style="background:#fff;border-radius:12px;padding:24px;max-width:650px;width:92%;max-height:90vh;overflow-y:auto;">' +
+                '<h2 style="margin-bottom:16px;">🌐 闲鱼登录</h2>' +
+                '<p id="xyStatus" style="color:#666;margin-bottom:10px;">⏳ 正在启动浏览器登录...</p>' +
+                '<div style="border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:400px;margin-bottom:10px;">' +
+                '<img id="xyImg" src="" style="width:100%;display:block;"></div>' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+                '<button onclick="xySolve()" class="btn btn-warning">✅ 已处理验证码/扫码</button>' +
+                '<button onclick="xyRefresh()" class="btn btn-sm btn-info">🔄 刷新截图</button>' +
+                '<button onclick="xyClose()" class="btn btn-sm" style="background:#eee;">✖ 关闭</button></div>' +
+                '<div id="xyResult" style="margin-top:10px;padding:12px;border-radius:6px;display:none;"></div></div>';
+            document.body.appendChild(modal);
+        }
+        modal.style.display = 'flex';
+        document.getElementById('xyStatus').textContent = '⏳ 正在启动浏览器登录...';
+        document.getElementById('xyResult').style.display = 'none';
+
+        window._xyAccountId = accountId;
+        fetch('/api/xianyu/login/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({account_id: accountId, username, password})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.image) {
+                document.getElementById('xyImg').src = 'data:image/png;base64,' + data.image;
+                document.getElementById('xyStatus').textContent = '🔒 请处理验证码/扫码，完成后点击"已处理"';
+            } else if (data.success && data.logged_in) {
+                document.getElementById('xyStatus').textContent = '✅ 登录成功！';
+                showXyResult('success', '✅ 登录成功！Cookie 已保存');
+            } else {
+                document.getElementById('xyStatus').textContent = '❌ ' + (data.error || '登录失败');
+            }
+        })
+        .catch(e => {
+            document.getElementById('xyStatus').textContent = '❌ 网络错误';
+            showXyResult('error', '网络错误: ' + e.message);
+        });
+    })
+    .catch(e => alert('请求失败: ' + e.message));
+}
+function xySolve() {
+    document.getElementById('xyStatus').textContent = '⏳ 处理中...';
+    fetch('/api/xianyu/login/solve', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: window._xyAccountId})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.logged_in) {
+            document.getElementById('xyStatus').textContent = '✅ 登录成功！';
+            showXyResult('success', '✅ 登录成功！Cookie 已保存');
+        } else if (data.image) {
+            document.getElementById('xyImg').src = 'data:image/png;base64,' + data.image;
+            document.getElementById('xyStatus').textContent = data.message || '🔒 请重试';
+        } else {
+            showXyResult('error', '❌ ' + (data.error || '处理失败'));
+        }
+    })
+    .catch(e => showXyResult('error', '网络错误: ' + e.message));
+}
+function xyRefresh() {
+    fetch('/api/xianyu/login/screenshot')
+    .then(r => r.json())
+    .then(data => { if (data.image) document.getElementById('xyImg').src = 'data:image/png;base64,' + data.image; })
+    .catch(() => {});
+}
+function xyClose() {
+    fetch('/api/xianyu/login/close', {method: 'POST'}).catch(() => {});
+    document.getElementById('xianyuLoginModal').style.display = 'none';
+}
+function showXyResult(type, msg) {
+    const div = document.getElementById('xyResult');
+    div.style.display = 'block';
+    div.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
+    div.style.color = type === 'success' ? '#155724' : '#721c24';
+    div.textContent = msg;
+}
+
+// ====== OSHWHub 浏览器登录 ======
+function oshwhubLogin(accountId) {
+    fetch('/api/accounts/config/' + accountId)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) { alert('获取账号信息失败'); return; }
+        const cfg = data.config || {};
+        const username = prompt('请输入 OSHWHub 用户名/邮箱：', cfg.username || '');
+        if (!username) return;
+        const password = prompt('请输入 OSHWHub 密码：');
+        if (!password) return;
+
+        const modalId = 'oshwhubLoginModal';
+        // Reuse amobbs login modal structure but with oshwhub endpoints
+        const html = '<div id="oshwhubLoginModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center;">' +
+            '<div style="background:#fff;border-radius:12px;padding:24px;max-width:650px;width:92%;max-height:90vh;overflow-y:auto;">' +
+            '<h2 style="margin-bottom:16px;">🌐 OSHWHub 浏览器登录</h2>' +
+            '<p id="oshStatus" style="color:#666;margin-bottom:10px;">⏳ 正在启动浏览器...</p>' +
+            '<div style="border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:400px;margin-bottom:10px;">' +
+            '<img id="oshImg" src="" style="width:100%;display:block;"></div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button onclick="oshCaptchaClick()" class="btn btn-warning" id="oshCaptchaBtn">✅ 点验证码并登录</button>' +
+            '<button onclick="oshRefresh()" class="btn btn-sm btn-info">🔄 刷新截图</button>' +
+            '<button onclick="oshClose()" class="btn btn-sm" style="background:#eee;">✖ 关闭</button></div>' +
+            '<div id="oshResult" style="margin-top:10px;padding:12px;border-radius:6px;display:none;"></div></div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        window._oshAccountId = accountId;
+        fetch('/api/oshwhub/login/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({account_id: accountId, username, password})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.needs_captcha && data.image) {
+                document.getElementById('oshImg').src = 'data:image/png;base64,' + data.image;
+                document.getElementById('oshStatus').textContent = '🔒 需要验证码，请查看截图';
+            } else if (data.success && data.logged_in) {
+                document.getElementById('oshStatus').textContent = '✅ 登录成功！';
+                showOshResult('success', '✅ 登录成功！Cookie 已保存');
+                document.getElementById('oshCaptchaBtn').disabled = true;
+            } else {
+                document.getElementById('oshStatus').textContent = '❌ ' + (data.error || '登录失败');
+                showOshResult('error', data.error || '登录失败');
+            }
+        })
+        .catch(e => {
+            document.getElementById('oshStatus').textContent = '❌ 网络错误';
+            showOshResult('error', e.message);
+        });
+    })
+    .catch(e => alert('请求失败: ' + e.message));
+}
+function oshCaptchaClick() {
+    const btn = document.getElementById('oshCaptchaBtn');
+    btn.disabled = true; btn.textContent = '⏳ 处理中...';
+    fetch('/api/oshwhub/login/captcha/click', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: window._oshAccountId})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.logged_in) {
+            document.getElementById('oshStatus').textContent = '✅ 登录成功！';
+            showOshResult('success', '✅ 登录成功！Cookie 已保存');
+            btn.disabled = true;
+        } else if (data.image) {
+            document.getElementById('oshImg').src = 'data:image/png;base64,' + data.image;
+            document.getElementById('oshStatus').textContent = data.message || '🔒 请重试';
+            btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
+        } else {
+            showOshResult('error', '❌ ' + (data.error || '失败'));
+            btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
+        }
+    })
+    .catch(e => { showOshResult('error', '网络错误: ' + e.message); btn.disabled = false; btn.textContent = '✅ 点验证码并登录'; });
+}
+function oshRefresh() {
+    fetch('/api/oshwhub/login/screenshot')
+    .then(r => r.json())
+    .then(data => { if (data.image) document.getElementById('oshImg').src = 'data:image/png;base64,' + data.image; })
+    .catch(() => {});
+}
+function oshClose() {
+    fetch('/api/oshwhub/login/close', {method: 'POST'}).catch(() => {});
+    const el = document.getElementById('oshwhubLoginModal');
+    if (el) el.remove();
+}
+function showOshResult(type, msg) {
+    const div = document.getElementById('oshResult');
+    if (!div) return;
+    div.style.display = 'block';
+    div.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
+    div.style.color = type === 'success' ? '#155724' : '#721c24';
+    div.textContent = msg;
 }
 
 function escapeHtml(text) {

@@ -57,7 +57,7 @@
       "api_base": "https://api.deepseek.com",
       "api_format": "openai",
       "models": [
-        "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"
+        "deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"
       ],
       "capabilities": ["writing", "translate"],
       "config_fields": [
