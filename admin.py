@@ -2534,6 +2534,81 @@ def api_signin_run():
     return jsonify({"success": True, "output": output})
 
 
+# ─── 通用验证码/二维码 API ─────────────────
+
+
+@app.route("/api/captcha/solve/auto/<int:aid>", methods=["POST"])
+@login_required
+def captcha_auto_solve(aid):
+    """用配置的自动接码平台识别当前验证码"""
+    image_b64 = request.json.get("image", "")
+    if not image_b64:
+        return jsonify({"success": False, "error": "缺少验证码图片"})
+
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    provider = acct["captcha_provider"] or "manual"
+    captcha_config = json.loads(acct["captcha_config"]) if acct["captcha_config"] else {}
+
+    handler = get_handler()
+    try:
+        if provider == "ttshitu":
+            result = handler._solve_ttshitu(image_b64, captcha_config)
+        elif provider == "2captcha":
+            api_key = captcha_config.get("two_captcha_key", "")
+            result = handler._solve_2captcha(image_b64, api_key)
+        else:
+            return jsonify({"success": False, "error": f"不支持自动识别: {provider}"})
+
+        if result:
+            return jsonify({"success": True, "code": result})
+        return jsonify({"success": False, "error": "自动识别失败，请尝试手动输入"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"自动识别异常: {e}"})
+
+
+@app.route("/api/captcha/qrcode/start/<int:aid>", methods=["POST"])
+@login_required
+def captcha_qrcode_start(aid):
+    """启动二维码登录 — 获取二维码图片URL并返回"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    platform = acct["platform"]
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    site_url = cfg.get("site_url", "")
+
+    # 按平台获取二维码
+    if platform == "amobbs" or platform == "discuz":
+        # Discuz 扫码登录需要插件支持
+        return jsonify({"success": False, "error": "该论坛暂不支持二维码登录"})
+
+    return jsonify({"success": False, "error": f"平台 {platform} 暂不支持二维码登录"})
+
+
+@app.route("/api/captcha/qrcode/poll/<int:aid>", methods=["POST"])
+@login_required
+def captcha_qrcode_poll(aid):
+    """轮询二维码扫码状态"""
+    qrcode_key = request.json.get("key", "")
+    if not qrcode_key:
+        return jsonify({"success": False, "error": "缺少 key"})
+    return jsonify({"success": False, "status": "pending", "message": "等待扫码..."})
+
+
 # ─── 阿莫论坛 Playwright 登录 API ────────────
 
 

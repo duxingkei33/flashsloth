@@ -30,6 +30,7 @@ class CaptchaProvider(str, Enum):
     MANUAL = "manual"           # 手动输入（弹窗）
     AUTO_TTSHITU = "ttshitu"    # 自动识别-图鉴
     AUTO_2CAPTCHA = "2captcha"  # 自动识别-2captcha
+    QRCODE = "qrcode"           # 二维码扫码登录
     AUTO_CUSTOM = "custom"      # 自定义API
 
 
@@ -351,17 +352,70 @@ class CaptchaHandler:
             return self._solve_2captcha(image_base64)
         return None
 
-    def _solve_ttshitu(self, image_base64: str) -> Optional[str]:
-        """图鉴自动识别（预留）"""
-        # TODO: 实现 ttshitu API 调用
-        # POST https://api.ttshitu.com/predict
-        # {"username": "...", "password": "...", "image": image_base64, "typeid": 1}
-        return None
+    def _solve_ttshitu(self, image_base64: str, config: dict = None) -> Optional[str]:
+        """图鉴自动识别验证码"""
+        cfg = config or {}
+        username = cfg.get("ttshitu_username", "")
+        password = cfg.get("ttshitu_password", "")
+        if not username or not password:
+            return None
+        try:
+            import requests
+            resp = requests.post(
+                "https://api.ttshitu.com/predict",
+                json={
+                    "username": username,
+                    "password": password,
+                    "image": image_base64,
+                    "typeid": 1,  # 纯数字/字母验证码
+                },
+                timeout=30,
+            )
+            data = resp.json()
+            if data.get("success"):
+                return data.get("data", {}).get("result", "")
+            return None
+        except Exception:
+            return None
 
-    def _solve_2captcha(self, image_base64: str) -> Optional[str]:
-        """2captcha 自动识别（预留）"""
-        # TODO: 实现 2captcha API 调用
-        return None
+    def _solve_2captcha(self, image_base64: str, api_key: str = "") -> Optional[str]:
+        """2captcha 自动识别验证码"""
+        key = api_key or ""
+        if not key:
+            return None
+        try:
+            import requests, time, base64
+            # 1. 发送验证码图片
+            resp = requests.post(
+                "https://2captcha.com/in.php",
+                data={
+                    "key": key,
+                    "method": "base64",
+                    "body": image_base64,
+                    "json": 1,
+                },
+                timeout=30,
+            )
+            data = resp.json()
+            if data.get("status") != 1:
+                return None
+            request_id = data.get("request")
+            # 2. 轮询结果
+            for _ in range(30):  # 最多等 30 秒
+                time.sleep(2)
+                resp = requests.get(
+                    "https://2captcha.com/res.php",
+                    params={"key": key, "action": "get", "id": request_id, "json": 1},
+                    timeout=10,
+                )
+                data = resp.json()
+                if data.get("status") == 1:
+                    return data.get("request", "")
+                if data.get("request") == "ERROR_CAPTCHA_UNSOLVABLE":
+                    return None
+            return None
+        except Exception:
+            return None
 
 
 # ═══════════════════════════════════════════════

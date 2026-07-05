@@ -36,6 +36,7 @@
                 <option value="manual" {{ 'selected' if account.captcha_provider == 'manual' or not account.captcha_provider else '' }}>手动输入（弹窗）</option>
                 <option value="ttshitu" {{ 'selected' if account.captcha_provider == 'ttshitu' else '' }}>图鉴自动识别 (ttshitu)</option>
                 <option value="2captcha" {{ 'selected' if account.captcha_provider == '2captcha' else '' }}>2captcha 自动识别</option>
+                <option value="qrcode" {{ 'selected' if account.captcha_provider == 'qrcode' else '' }}>📱 二维码扫码登录</option>
             </select>
             <div id="captchaConfigTtshitu" style="display:none;margin-top:8px;">
                 <input type="text" name="captcha_ttshitu_username" placeholder="图鉴用户名"

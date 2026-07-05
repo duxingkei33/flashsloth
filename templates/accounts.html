@@ -137,6 +137,9 @@ function showAmobbsLoginModal(accountId, username, password) {
                     <button onclick="clickAmobbsCaptcha(${accountId})" class="btn btn-warning" id="amobbsCaptchaBtn">
                         ✅ 点验证码并登录
                     </button>
+                    <button onclick="autoSolveAmobbsCaptcha(${accountId})" class="btn btn-info" id="amobbsAutoBtn" style="display:none;">
+                        🤖 自动识别
+                    </button>
                     <button onclick="refreshAmobbsScreenshot(${accountId})" class="btn btn-sm btn-info">
                         🔄 刷新截图
                     </button>
@@ -183,6 +186,8 @@ function startAmobbsLogin(accountId) {
                 document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image;
             }
             document.getElementById('amobbsCaptchaBtn').disabled = false;
+            // 检测是否配置了自动识别
+            checkAutoSolveCapability(${accountId});
         } else if (data.success && data.logged_in) {
             showAmobbsResult('success', '✅ 登录成功！Cookie 已保存到账号配置');
             document.getElementById('amobbsLoginStatus').textContent = '✅ 登录成功';
@@ -193,6 +198,50 @@ function startAmobbsLogin(accountId) {
     })
     .catch(e => showAmobbsResult('error', '❌ 网络错误: ' + e.message));
 }
+
+function checkAutoSolveCapability(accountId) {
+    fetch('/api/accounts/config/' + accountId)
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const prov = data.config.captcha_provider || '';
+            if (prov === 'ttshitu' || prov === '2captcha') {
+                document.getElementById('amobbsAutoBtn').style.display = 'inline-block';
+            }
+        }
+    })
+    .catch(() => {});
+}
+
+function autoSolveAmobbsCaptcha(accountId) {
+    const img = document.getElementById('amobbsScreenshotImg');
+    const b64 = (img.src || '').replace(/^data:image\/\w+;base64,/, '');
+    if (!b64) return;
+
+    const btn = document.getElementById('amobbsAutoBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 识别中...';
+
+    fetch('/api/captcha/solve/auto/' + accountId, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({image: b64})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.code) {
+            // 自动识别成功，提交验证码
+            document.getElementById('amobbsLoginStatus').textContent = '🤖 自动识别成功: ' + data.code;
+            clickAmobbsCaptcha(accountId);
+        } else {
+            alert('🤖 自动识别失败: ' + (data.error || '未知错误') + '\\n\\n请尝试手动输入');
+        }
+    })
+    .catch(e => alert('自动识别请求失败: ' + e.message))
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🤖 自动识别';
+    });
 
 function clickAmobbsCaptcha(accountId) {
     const btn = document.getElementById('amobbsCaptchaBtn');
