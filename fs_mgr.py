@@ -25,7 +25,10 @@ import os, sys, time, json, subprocess, signal, socket, urllib.request
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FRPC_BIN = os.path.expanduser("~/.hermes/bin/frpc")
 FRPC_CONFIG = os.path.join(ROOT, "frpc.toml")
-FS_CMD = f"cd {ROOT} && PYTHONPATH={os.path.dirname(ROOT)} python3 admin.py"
+VENV_PYTHON = os.path.join(ROOT, "venv", "bin", "python3")
+if not os.path.isfile(VENV_PYTHON):
+    VENV_PYTHON = "python3"
+FS_CMD = f"cd {ROOT} && PYTHONPATH={os.path.dirname(ROOT)} {VENV_PYTHON} admin.py"
 PID_FILE = os.path.join(ROOT, ".fs.pid")
 TUNNEL_PID_FILE = os.path.join(ROOT, ".frpc.pid")
 VPS_URL = "http://103.97.178.234:5001"

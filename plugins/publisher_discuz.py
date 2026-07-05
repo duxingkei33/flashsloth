@@ -18,6 +18,21 @@ except ImportError:
 class DiscuzPublisher(Publisher):
     name = "discuz"
     display_name = "Discuz! 论坛"
+    
+    # ─── 各平台特殊限制 ─────────────────────────
+    PLATFORM_LIMITS = {
+        "mydigit.cn": {
+            "max_image_size": 9 * 1024 * 1024,  # 9MB
+            "daily_upload_limit": 200,
+            "allowed_extensions": ('.jpg', '.jpeg', '.png', '.gif', '.zip', '.rar', '.pdf', '.mp4'),
+        },
+        "amobbs.com": {
+            # 标准 Discuz 默认
+            "max_image_size": 2 * 1024 * 1024,
+            "allowed_extensions": ('.jpg', '.jpeg', '.png', '.gif'),
+        },
+    }
+    
     login_methods = [
         {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 1,
          "fields": ["site_url", "username", "password"],
@@ -50,6 +65,16 @@ class DiscuzPublisher(Publisher):
         self.login_mode = config.get("login_mode", "cookie")
         self.username = config.get("username", "")
         self.password = config.get("password", "")
+        
+        # ─── 按平台自动应用限制 ─────────────────
+        domain = self._get_domain()
+        for site_key, limits in self.PLATFORM_LIMITS.items():
+            if site_key in domain:
+                for k, v in limits.items():
+                    if k not in config or not config.get(k):
+                        config[k] = v
+                break
+        
         # 使用人机浏览器
         self.browser = HumanSession(base_url=self.site_url, min_delay=0.5, max_delay=2.0)
         raw_cookie = config.get("cookie", "")
@@ -353,17 +378,29 @@ class DiscuzPublisher(Publisher):
 
             # ── 图片校验：格式、大小、尺寸 ──
             # 检查格式
-            allowed_exts = ('.jpg', '.jpeg', '.png', '.gif')
+            allowed_exts = self.config.get("allowed_extensions", ('.jpg', '.jpeg', '.png', '.gif'))
+            if isinstance(allowed_exts, str):
+                allowed_exts = tuple(f'.{e.strip().lower()}' for e in allowed_exts.split(',') if e.strip())
             ext = os.path.splitext(local_path)[1].lower()
             if ext not in allowed_exts:
-                failed_images.append({"src": src, "error": f"不支持的格式 {ext}，支持: jpg/png/gif"})
+                failed_images.append({"src": src, "error": f"不支持的格式 {ext}，支持: {', '.join(allowed_exts)}"})
                 continue
 
-            # 检查文件大小（Discuz 默认限制 ~2MB）
-            max_size = 2 * 1024 * 1024
+            # 检查文件大小（可配置，默认 2MB）
+            max_size = self.config.get("max_image_size", 2 * 1024 * 1024)
+            if isinstance(max_size, str):
+                # 支持 "9MB" 格式
+                max_size_m = re.match(r'(\d+\.?\d*)\s*(MB|KB|M|K)', max_size, re.IGNORECASE)
+                if max_size_m:
+                    val = float(max_size_m.group(1))
+                    unit = max_size_m.group(2).upper()
+                    if unit in ('MB', 'M'):
+                        max_size = int(val * 1024 * 1024)
+                    elif unit in ('KB', 'K'):
+                        max_size = int(val * 1024)
             file_size = os.path.getsize(local_path)
             if file_size > max_size:
-                failed_images.append({"src": src, "error": f"图片过大 ({file_size/1024/1024:.1f}MB > 2MB)"})
+                failed_images.append({"src": src, "error": f"图片过大 ({file_size/1024/1024:.1f}MB > {max_size/1024/1024:.0f}MB)"})
                 continue
 
             # 检查图片尺寸
@@ -399,6 +436,9 @@ class DiscuzPublisher(Publisher):
                 elif raw and raw.isdigit():
                     token_map[src] = f"DISCUZUPLOAD|0|{raw}|1|0"
                     local_ids.append('0')
+                elif "limit" in raw.lower() or "exceed" in raw.lower() or "每日" in raw or "超额" in raw:
+                    failed_images.append({"src": src, "error": f"上传被拒（可能已达每日限额）: {raw[:100]}"})
+                    continue
             except Exception as e:
                 failed_images.append({"src": src, "error": f"上传异常: {str(e)[:100]}"})
                 continue
@@ -696,6 +736,21 @@ class DiscuzPublisher(Publisher):
                     "error": f"该标题已在 fid={fid} 中存在（去重），跳过发布",
                     "url": "", "id": "", "message": "skip_duplicate"}
 
+        # 第0.5步：平台特殊检查
+        domain = self._get_domain()
+        warnings = []
+        if "mydigit" in domain:
+            # 数码之家: emoji 警告
+            import re as _re_emoji
+            emoji_pattern = _re_emoji.compile(
+                "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF"
+                "\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251"
+                "\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF"
+                "\U00002600-\U000026FF\u2700-\u27BF]+"
+            )
+            if emoji_pattern.search(article.title or "") or emoji_pattern.search(article.body or ""):
+                warnings.append("⚠️ 数码之家使用 emoji 可能造成内容丢失，建议删除后重发")
+
         # 第1步：导航到论坛首页
         self.browser.get("/forum.php")
 
@@ -725,17 +780,20 @@ class DiscuzPublisher(Publisher):
             for cls in ["alert_error", "alert_info"]:
                 m = re.search(f'<div[^>]*class="{cls}"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
                 if m:
-                    msg = re.sub(r"<[^>]+>", " ", m.group(1)).strip()[:200]
+                    msg = re.sub(r"<[^>]+>\s*", " ", m.group(1)).strip()[:200]
                     break
             if not msg:
                 msg_text = re.search(r'<div[^>]*id="messagetext"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
                 if msg_text:
-                    msg = re.sub(r"<[^>]+>", " ", msg_text.group(1)).strip()[:200]
+                    msg = re.sub(r"<[^>]+>\s*", " ", msg_text.group(1)).strip()[:200]
             if not msg and "提示信息" in resp.text:
                 msg = "账号无发帖权限（提示信息页面，无发帖表单）"
             if not msg:
                 msg = f"无法获取发帖表单 (page: {page_class})，请检查账号权限"
-            return {"success": False, "error": msg, "url": "", "id": ""}
+            result = {"success": False, "error": msg, "url": "", "id": ""}
+            if warnings:
+                result["warnings"] = warnings
+            return result
 
         # 提取表单隐藏字段
         form_fields = self._extract_form_fields(resp.text)
@@ -799,6 +857,7 @@ class DiscuzPublisher(Publisher):
                     "success": True, "tid": tid,
                     "url": verify.get("url", resp.url),
                     "error": "", "message": "published",
+                    "warnings": warnings,
                 }
             elif verify["status"] == "pending_review":
                 return {
@@ -806,6 +865,7 @@ class DiscuzPublisher(Publisher):
                     "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
                     "error": "帖子已发布，等待管理员审核",
                     "message": "pending_review",
+                    "warnings": warnings,
                 }
             else:
                 return {
@@ -813,6 +873,7 @@ class DiscuzPublisher(Publisher):
                     "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
                     "error": f"已创建但状态不明: {verify.get('title', '')}",
                     "message": "uncertain",
+                    "warnings": warnings,
                 }
 
         # 没有 tid，检查错误
