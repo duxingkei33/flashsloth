@@ -61,13 +61,33 @@ def ai_list_providers():
 @app.route("/api/ai/config")
 @login_required
 def ai_get_config():
-   """获取AI能力路由配置"""
-   router = get_router()
-   return jsonify({
-       "success": True,
-       "capabilities": {k: v for k, v in router._capability_configs.items()},
-       "providers": router._provider_configs,
-   })
+    """获取AI能力路由配置（含供应商模型信息）"""
+    router = get_router()
+    # 从DB获取已配置供应商的模型列表
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT DISTINCT provider, models FROM ai_configs WHERE user_id=? AND enabled=1",
+        (current_user.id,)
+    ).fetchall()
+    conn.close()
+    provider_models = {}
+    for r in rows:
+        try:
+            models = json.loads(r["models"] or "[]")
+            provider_models[r["provider"]] = models
+        except Exception:
+            provider_models[r["provider"]] = []
+    return jsonify({
+        "success": True,
+        "capabilities": {k: v for k, v in router._capability_configs.items()},
+        "providers": router._provider_configs,
+        "provider_models": provider_models,
+        "config": {
+            "capabilities": {k: v for k, v in router._capability_configs.items()},
+            "providers": router._provider_configs,
+            "provider_models": provider_models,
+        },
+    })
 
 @app.route("/api/ai/config", methods=["POST"])
 @login_required
@@ -151,16 +171,31 @@ def ai_generate_parallel():
 @app.route("/ai/settings")
 @login_required
 def ai_settings_page():
-   """AI配置管理页面"""
-   router = get_router()
-   providers = list_ai_providers()
-   config = {
-       "capabilities": router._capability_configs,
-       "providers": router._provider_configs,
-   }
-   return render_template("ai_settings.html",
-                        providers=providers,
-                        config=config)
+    """AI配置管理页面 — 带供应商模型列表"""
+    router = get_router()
+    providers = list_ai_providers()
+    config = {
+        "capabilities": router._capability_configs,
+        "providers": router._provider_configs,
+    }
+    # 从DB读取已配置供应商的模型列表
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT DISTINCT provider, models FROM ai_configs WHERE user_id=? AND enabled=1",
+        (current_user.id,)
+    ).fetchall()
+    conn.close()
+    provider_models = {}
+    for r in rows:
+        try:
+            models = json.loads(r["models"] or "[]")
+            provider_models[r["provider"]] = models
+        except Exception:
+            provider_models[r["provider"]] = []
+    return render_template("ai_settings.html",
+                         providers=providers,
+                         config=config,
+                         provider_models=provider_models)
 
 @app.route("/api/ai/test/<provider_name>", methods=["POST"])
 @login_required
@@ -274,70 +309,87 @@ def api_ai_configured_list():
 @app.route("/api/ai/providers/configured/test", methods=["POST"])
 @login_required
 def api_ai_configured_test():
-   """测试 AI 供应商连接（零 token 消耗 — 只测可达性 + Key 有效性）"""
-   data = request.get_json() or {}
-   provider_name = data.get("provider", "")
-   api_key = data.get("api_key", "")
-   api_base = data.get("api_base", "")
-   api_format = data.get("api_format", "openai")
+    """测试 AI 供应商连接（零 token 消耗 — 只测可达性 + Key 有效性）"""
+    data = request.get_json() or {}
+    provider_name = data.get("provider", "")
+    api_key = data.get("api_key", "")
+    api_base = data.get("api_base", "")
+    api_format = data.get("api_format", "openai")
+    config_id = data.get("config_id")  # 可选：传入config_id以保存模型
 
-   if not provider_name or not api_key:
-       return jsonify({"success": False, "error": "供应商名和 API Key 不能为空"})
+    if not provider_name or not api_key:
+        return jsonify({"success": False, "error": "供应商名和 API Key 不能为空"})
 
-   from core.provider_registry import get_registry
-   reg = get_registry()
-   defn = reg.get(provider_name)
-   base = api_base or (defn.api_base if defn else "")
+    from core.provider_registry import get_registry
+    reg = get_registry()
+    defn = reg.get(provider_name)
+    base = api_base or (defn.api_base if defn else "")
 
-   if not base:
-       return jsonify({"success": False, "error": "缺少 API Base URL"})
+    if not base:
+        return jsonify({"success": False, "error": "缺少 API Base URL"})
 
-   import requests as _req
-   try:
-       base = base.rstrip("/")
-       if api_format == "openai":
-           # 调 /v1/models — 零 token 消耗，验证 API Key 有效
-           resp = _req.get(
-               f"{base}/models",
-               headers={"Authorization": f"Bearer {api_key}"},
-               timeout=10,
-           )
-           if resp.ok:
-               data = resp.json()
-               models = [m["id"] for m in data.get("data", [])]
-               return jsonify({
-                   "success": True,
-                   "message": f"连接成功，可用模型 {len(models)} 个",
-                   "models": models[:10],
-               })
-           err = resp.json().get("error", {}).get("message", str(resp.text[:200]))
-           return jsonify({"success": False, "error": f"连接失败: {err}"})
+    import requests as _req
+    try:
+        base = base.rstrip("/")
+        if api_format == "openai":
+            # 调 /v1/models — 零 token 消耗，验证 API Key 有效
+            resp = _req.get(
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+            if resp.ok:
+                resp_data = resp.json()
+                models = [m["id"] for m in resp_data.get("data", [])]
 
-       elif api_format == "anthropic":
-           resp = _req.get(
-               f"{base}/v1/models",
-               headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-               timeout=10,
-           )
-           if resp.ok:
-               return jsonify({"success": True, "message": "连接成功"})
-           err = resp.json().get("error", {}).get("message", str(resp.text[:200]))
-           return jsonify({"success": False, "error": f"连接失败: {err}"})
+                # 如果传入 config_id，保存模型列表到 DB
+                if config_id:
+                    conn = get_db()
+                    row = conn.execute(
+                        "SELECT id FROM ai_configs WHERE id=? AND user_id=?",
+                        (config_id, current_user.id)
+                    ).fetchone()
+                    if row:
+                        conn.execute(
+                            "UPDATE ai_configs SET models=? WHERE id=?",
+                            (json.dumps(models), config_id)
+                        )
+                    conn.commit()
+                    conn.close()
 
-       elif api_format == "gemini":
-           # Gemini 没有简单的 key 验证接口，检查基础 URL 可达
-           resp = _req.get(base.rstrip("/"), timeout=10)
-           if resp.ok or resp.status_code in (400, 403, 404):
-               return jsonify({"success": True, "message": "URL 可达（请用实际请求验证 Key）"})
-           return jsonify({"success": False, "error": f"连接失败: HTTP {resp.status_code}"})
+                return jsonify({
+                    "success": True,
+                    "message": f"连接成功，可用模型 {len(models)} 个",
+                    "models": models[:20],
+                })
+            err = resp.json().get("error", {}).get("message", str(resp.text[:200]))
+            return jsonify({"success": False, "error": f"连接失败: {err}"})
 
-       return jsonify({"success": False, "error": f"不支持的格式: {api_format}"})
-   except _req.exceptions.Timeout:
-       return jsonify({"success": False, "error": "连接超时（10秒）"})
-   except _req.exceptions.ConnectionError:
-       return jsonify({"success": False, "error": "连接被拒绝 — 请检查 API Base URL"})
-   except Exception as e:
-       return jsonify({"success": False, "error": f"连接异常: {e}"})
+        elif api_format == "anthropic":
+            resp = _req.get(
+                f"{base}/v1/models",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+                timeout=10,
+            )
+            if resp.ok:
+                return jsonify({"success": True, "message": "连接成功"})
+            err = resp.json().get("error", {}).get("message", str(resp.text[:200]))
+            return jsonify({"success": False, "error": f"连接失败: {err}"})
+
+        elif api_format == "gemini":
+            # Gemini 没有简单的 key 验证接口，检查基础 URL 可达
+            resp = _req.get(base.rstrip("/"), timeout=10)
+            if resp.ok or resp.status_code in (400, 403, 404):
+                return jsonify({"success": True, "message": "URL 可达（请用实际请求验证 Key）"})
+            return jsonify({"success": False, "error": f"连接失败: HTTP {resp.status_code}"})
+
+        return jsonify({"success": False, "error": f"不支持的格式: {api_format}"})
+    except _req.exceptions.Timeout:
+        return jsonify({"success": False, "error": "连接超时（10秒）"})
+    except _req.exceptions.ConnectionError:
+        return jsonify({"success": False, "error": "连接被拒绝 — 请检查 API Base URL"})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"连接异常: {e}"})
 
 @app.route("/api/ai/providers/configured", methods=["POST"])
 @login_required
@@ -411,6 +463,27 @@ def api_ai_configured_delete(acid):
    conn.commit()
    conn.close()
    return jsonify({"success": True, "message": "已删除"})
+
+@app.route("/api/ai/providers/configured/<int:acid>/models", methods=["POST"])
+@login_required
+def api_ai_configured_update_models(acid):
+    """更新已配置供应商的模型列表"""
+    data = request.get_json() or {}
+    models = data.get("models", [])
+    if isinstance(models, list):
+        models = json.dumps(models)
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id FROM ai_configs WHERE id=? AND user_id=?",
+        (acid, current_user.id)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "配置不存在"})
+    conn.execute("UPDATE ai_configs SET models=? WHERE id=?", (models, acid))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "模型列表已更新"})
 
 @app.route("/api/ai/providers/configured/<int:acid>/toggle", methods=["POST"])
 @login_required

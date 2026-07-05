@@ -29,9 +29,9 @@ def signin_page():
    # 统计
    today = datetime.now().strftime("%Y-%m-%d")
    today_count = conn.execute(
-       "SELECT COUNT(*) FROM signin_log WHERE date(created_at)=? AND success=1",
-       (today,)
-   ).fetchone()[0]
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1 AND already_signed=0",
+        (today,)
+    ).fetchone()[0]
 
    conn.close()
 

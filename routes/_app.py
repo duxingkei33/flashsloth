@@ -27,3 +27,22 @@ class User(UserMixin):
         self.phone = row["phone"] or ""
         self.is_admin = row["is_admin"] or 0
         self.twofa_type = row["twofa_type"] or ""
+
+
+# ─── Jinja2 自定义过滤器 ───
+@app.template_filter("split")
+def jinja_split(value, sep):
+    """Template filter: split string by separator."""
+    return value.split(sep)
+
+
+@app.template_filter("from_json")
+def from_json_filter(val):
+    """Template filter: parse JSON string to Python object."""
+    if not val:
+        return []
+    try:
+        import json
+        return json.loads(val)
+    except Exception:
+        return []

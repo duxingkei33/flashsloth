@@ -97,11 +97,12 @@
                 <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">供应商</th>
                 <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">模型</th>
                 <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">模式</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">状态</th>
                 <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">操作</th>
             </tr>
         </thead>
         <tbody id="capabilityTableBody">
-            <tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">加载中...</td></tr>
+            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载中...</td></tr>
         </tbody>
     </table>
 </div>
@@ -116,20 +117,24 @@
             <input id="capEditName" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" readonly>
         </div>
         <div class="form-group">
-            <label>供应商 <span style="color:#999;font-size:12px;">（只显示已配置的）</span></label>
+            <label>供应商 <span style="color:#999;font-size:12px;">（自动=智能路由）</span></label>
             <select id="capEditProvider" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
-                <option value="">-- 不配置（禁用此能力）--</option>
+                <option value="auto">🔄 自动路由（推荐）</option>
+                <option value="disabled">🚫 禁用</option>
             </select>
         </div>
         <div class="form-group">
-            <label>模型</label>
-            <input id="capEditModel" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="例如: gpt-4o, claude-3-opus">
+            <label>模型 <span style="color:#999;font-size:12px;">（自动=让供应商决定）</span></label>
+            <select id="capEditModel" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="auto">🔄 自动</option>
+            </select>
         </div>
         <div class="form-group">
             <label>模式</label>
             <select id="capEditMode" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
-                <option value="chat">chat</option>
-                <option value="completion">completion</option>
+                <option value="auto">🔄 自动</option>
+                <option value="chat">💬 Chat（对话）</option>
+                <option value="competition">🏆 Competition（竞赛）</option>
             </select>
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;">
@@ -238,6 +243,7 @@ function renderConfiguredList(providers) {
             (balance ? '<span class="ai-balance" id="balance_' + p.id + '">💰 ' + escapeHtml(balance) + '</span>' : '') +
             (models ? '<span style="font-size:11px;color:#999;flex-shrink:0;">' + escapeHtml(models) + '</span>' : '') +
             '<span class="ai-tools">' +
+                '<button class="ai-refresh-btn" onclick="fetchModels(' + p.id + ')" title="获取模型列表">📋</button>' +
                 '<button class="ai-refresh-btn" onclick="refreshBalance(' + p.id + ')" title="刷新余额">🔄</button>' +
                 '<button class="ai-toggle-btn ' + (enabled ? 'on' : 'off') + '" onclick="toggleProvider(' + p.id + ')" title="' + (enabled ? '已启用 - 点击禁用' : '已禁用 - 点击启用') + '">' +
                     (enabled ? '🟢 启用' : '🔴 禁用') +
@@ -422,6 +428,51 @@ function refreshBalance(id) {
     });
 }
 
+function fetchModels(id) {
+    // Get the provider info from the configured list
+    const row = document.getElementById('airow_' + id);
+    if (!row) return;
+    const btn = row.querySelector('.ai-tools button:first-child');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+    // We need provider name and api_key - fetch from configured list detail
+    fetch('/api/ai/providers/configured')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) throw new Error('加载失败');
+        const provider = (data.providers || []).find(p => p.id === id);
+        if (!provider) throw new Error('未找到供应商');
+
+        // Test connection and save models
+        return fetch('/api/ai/providers/configured/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                provider: provider.provider,
+                api_key: provider.api_key,
+                api_base: provider.api_base || '',
+                api_format: provider.api_format || 'openai',
+                config_id: id,
+            }),
+        });
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured(); // Refresh the list to show new models
+            loadCapabilities(); // Also refresh capability table model dropdown
+        } else {
+            alert('获取模型失败: ' + (data.error || ''));
+        }
+    })
+    .catch(e => {
+        alert('获取模型失败: ' + e.message);
+    })
+    .finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '📋'; }
+    });
+}
+
 function refreshAllBalances() {
     const btn = document.querySelector('button[onclick="refreshAllBalances()"]');
     if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 刷新中...'; }
@@ -466,21 +517,24 @@ function saveCustomProvider() {
 // ====== 能力路由 ======
 let _editingCap = null;
 let _configuredProviders = [];
+let _providerModels = {};
+let _registryData = {};
 
 function loadCapabilities() {
     fetch('/api/ai/config')
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            _providerModels = data.provider_models || {};
             renderCapabilities(data.config || {});
         } else {
             document.getElementById('capabilityTableBody').innerHTML =
-                '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
+                '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
         }
     })
     .catch(() => {
         document.getElementById('capabilityTableBody').innerHTML =
-            '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
+            '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
     });
     // Also load configured providers for the edit modal dropdown
     fetch('/api/ai/providers/configured')
@@ -491,7 +545,23 @@ function loadCapabilities() {
         }
     })
     .catch(() => {});
+    // Also load registry for model info
+    fetch('/api/ai/providers/list')
+    .then(r => r.json())
+    .then(data => {
+        const map = {};
+        (data.providers || []).forEach(p => { map[p.name] = p; });
+        _registryData = map;
+    })
+    .catch(() => {});
 }
+
+// Listen for provider dropdown change in edit modal
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('capEditProvider')?.addEventListener('change', function() {
+        buildModelDropdown(this.value, 'auto');
+    });
+});
 
 function renderCapabilities(config) {
     const caps = config.capabilities || {};
@@ -507,21 +577,45 @@ function renderCapabilities(config) {
     let html = '';
     capList.forEach(key => {
         const cap = caps[key] || {};
-        const providerName = cap.provider || '';
-        const model = cap.model || '';
-        const mode = cap.mode || 'chat';
-        const displayProvider = providerName
-            ? escapeHtml(providerName)
-            : '<span style="color:#999;">未配置</span>';
-        const displayModel = model
-            ? escapeHtml(model)
-            : '<span style="color:#999;">-</span>';
+        const providerName = cap.provider || 'auto';
+        const model = cap.model || 'auto';
+        const mode = cap.mode || 'auto';
+        const isDisabled = providerName === 'disabled';
+
+        // 供应商显示
+        let displayProvider, statusHtml;
+        if (isDisabled) {
+            displayProvider = '<span style="color:#999;">—</span>';
+            statusHtml = '<span class="badge badge-danger">🚫 禁用</span>';
+        } else if (providerName === 'auto' || !providerName) {
+            displayProvider = '<span style="color:#4361ee;font-weight:500;">🔄 自动路由</span>';
+            statusHtml = '<span class="badge badge-info">🔄 自动路由</span>';
+        } else {
+            displayProvider = escapeHtml(providerName);
+            const modelDisplay = (model && model !== 'auto') ? (':' + model) : '';
+            statusHtml = '<span class="badge badge-success">' + escapeHtml(providerName) + escapeHtml(modelDisplay) + '</span>';
+        }
+
+        // 模型显示
+        let displayModel;
+        if (isDisabled) {
+            displayModel = '<span style="color:#999;">-</span>';
+        } else if (!model || model === 'auto') {
+            displayModel = '<span style="color:#999;">自动</span>';
+        } else {
+            displayModel = escapeHtml(model);
+        }
+
+        // 模式显示
+        const modeLabels = {'auto': '🔄 自动', 'chat': '💬 Chat', 'competition': '🏆 竞赛'};
+        const displayMode = modeLabels[mode] || escapeHtml(mode);
 
         html += '<tr>' +
             '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + (capNames[key] || key) + '</td>' +
             '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayProvider + '</td>' +
             '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayModel + '</td>' +
-            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + escapeHtml(mode) + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayMode + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + statusHtml + '</td>' +
             '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' +
                 '<button class="btn btn-sm btn-primary" onclick="editCap(\'' + key + '\')">✏️ 编辑</button>' +
             '</td>' +
@@ -536,7 +630,8 @@ function editCap(key) {
 
     // Build provider dropdown from configured providers
     const sel = document.getElementById('capEditProvider');
-    sel.innerHTML = '<option value="">-- 不配置（禁用此能力）--</option>';
+    sel.innerHTML = '<option value="auto">🔄 自动路由（推荐）</option>' +
+                    '<option value="disabled">🚫 禁用</option>';
     _configuredProviders.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.provider;
@@ -552,15 +647,43 @@ function editCap(key) {
         if (data.success) {
             const caps = (data.config || {}).capabilities || {};
             const cap = caps[key] || {};
-            if (cap.provider) sel.value = cap.provider;
-            document.getElementById('capEditModel').value = cap.model || '';
-            document.getElementById('capEditMode').value = cap.mode || 'chat';
+            const providerVal = cap.provider || 'auto';
+            sel.value = providerVal;
+
+            // Build model dropdown based on selected provider
+            buildModelDropdown(providerVal, cap.model || 'auto');
+
+            document.getElementById('capEditMode').value = cap.mode || 'auto';
         }
     })
     .catch(() => {});
 
     document.getElementById('capEditResult').style.display = 'none';
     document.getElementById('capEditModal').style.display = 'flex';
+}
+
+function buildModelDropdown(providerName, selectedModel) {
+    const sel = document.getElementById('capEditModel');
+    sel.innerHTML = '<option value="auto">🔄 自动</option>';
+
+    if (!providerName || providerName === 'auto' || providerName === 'disabled') return;
+
+    // Try to get models from configured providers
+    const providerModels = _providerModels || {};
+    const models = providerModels[providerName] || [];
+    // Also try from registry
+    const registryData = _registryData || {};
+    const regModels = (registryData[providerName] || {}).models || [];
+
+    const allModels = [...new Set([...models, ...regModels])];
+    allModels.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+    });
+
+    if (selectedModel) sel.value = selectedModel;
 }
 
 function closeCapEditModal() {
@@ -570,7 +693,7 @@ function closeCapEditModal() {
 function saveCap() {
     const key = _editingCap;
     const provider = document.getElementById('capEditProvider').value;
-    const model = document.getElementById('capEditModel').value.trim();
+    const model = document.getElementById('capEditModel').value;
     const mode = document.getElementById('capEditMode').value;
 
     const resultDiv = document.getElementById('capEditResult');
@@ -579,26 +702,28 @@ function saveCap() {
     resultDiv.style.color = '#856404';
     resultDiv.innerHTML = '⏳ 保存中...';
 
-    // First load current config, then merge and save
-    fetch('/api/ai/config')
-    .then(r => r.json())
-    .then(data => {
-        if (!data.success) throw new Error('加载配置失败');
-        const config = data.config || {};
-        const caps = config.capabilities || {};
+    // Build the config object
+    const config = {};
+    const caps = {};
 
-        if (provider) {
-            caps[key] = { provider: provider, model: model, mode: mode };
+    if (provider === 'disabled') {
+        caps[key] = { provider: 'disabled' };
+    } else {
+        const cfg = { provider: provider, mode: mode };
+        if (model && model !== 'auto') {
+            cfg.model = model;
         } else {
-            delete caps[key];
+            cfg.model = 'auto';
         }
-        config.capabilities = caps;
+        caps[key] = cfg;
+    }
 
-        return fetch('/api/ai/config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(config),
-        });
+    config.capabilities = caps;
+
+    fetch('/api/ai/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(config),
     })
     .then(r => r.json())
     .then(data => {

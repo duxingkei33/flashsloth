@@ -468,53 +468,87 @@ class AIRouter:
         """获取Provider配置"""
         return self._provider_configs.get(provider, {})
 
+    def _is_provider_usable(self, provider_name: str) -> bool:
+        """检查Provider是否已配置（有api_key）"""
+        cfg = self._provider_configs.get(provider_name, {})
+        return bool(cfg.get("api_key"))
+
+    def _get_effective_model(self, config: dict, provider_name: str = "") -> str:
+        """获取有效模型：config中指定'auto'则用provider默认，否则用配置值"""
+        model = config.get("model", "")
+        if not model or model == "auto":
+            # 尝试从provider_configs取默认模型
+            if provider_name:
+                pcfg = self._provider_configs.get(provider_name, {})
+                if pcfg.get("model"):
+                    return pcfg["model"]
+            # 从注册表取第一个模型
+            cls = _registry.get(provider_name)
+            if cls and cls.models:
+                return cls.models[0]
+        return model
+
     def call(self, capability: str, prompt: str, **kwargs) -> AIResponse:
         """
         调用AI能力（单次）。
         
-        内部自动选择Provider：按配置的主Provider → fallback顺序。
+        支持配置格式:
+          - {"provider": "auto", "model": "auto", "mode": "auto"}  → 自动发现
+          - {"provider": "deepseek", "model": "deepseek-chat", "mode": "chat"} → 指定
+          - {"provider": "disabled"}  → 禁用
         """
         config = self._capability_configs.get(capability, {})
 
-        # 主Provider模式
-        if "provider" in config:
-            provider_name = config["provider"]
-            provider_cfg = {**self._provider_configs.get(provider_name, {}), **kwargs}
-            provider = get_ai_provider(provider_name, provider_cfg)
-            if provider:
-                request = AIRequest(capability=capability, prompt=prompt,
-                                    model=kwargs.get("model") or config.get("model", ""),
-                                    **{k: v for k, v in kwargs.items() if k in ["temperature", "max_tokens", "images"]})
-                return provider.generate(request)
+        # 检查是否禁用
+        if config.get("provider") == "disabled":
+            return AIResponse(success=False, error=f"能力「{capability}」已被禁用")
 
-        # 多个Provider：fallback模式
-        providers_list = config.get("providers", [])
-        if providers_list:
-            for pcfg in providers_list:
-                provider = get_ai_provider(pcfg["name"], self._provider_configs.get(pcfg["name"], {}))
+        provider_name = config.get("provider", "auto")
+        mode = config.get("mode", "auto")
+
+        # ── 自动模式：遍历支持此能力的Provider ──
+        if provider_name == "auto" or not provider_name:
+            for pname in get_providers_for_capability(capability):
+                if not self._is_provider_usable(pname):
+                    continue
+                provider = get_ai_provider(pname, self._provider_configs.get(pname, {}))
                 if provider:
                     try:
-                        request = AIRequest(capability=capability, prompt=prompt,
-                                            model=pcfg.get("model", ""), **kwargs)
+                        effective_model = self._get_effective_model(config, pname)
+                        request = AIRequest(
+                            capability=capability, prompt=prompt,
+                            model=kwargs.get("model") or effective_model,
+                            **{k: v for k, v in kwargs.items()
+                               if k in ["temperature", "max_tokens", "images"]},
+                        )
+                        # 附加mode信息
+                        if mode and mode != "auto":
+                            request.context["mode"] = mode
                         result = provider.generate(request)
                         if result.success:
                             return result
                     except Exception:
                         continue
+            return AIResponse(success=False, error=f"自动路由：没有可用的{capability}能力Provider")
 
-        # 自动发现：尝试所有支持此能力的Provider
-        for pname in get_providers_for_capability(capability):
-            provider = get_ai_provider(pname, self._provider_configs.get(pname, {}))
-            if provider:
-                try:
-                    request = AIRequest(capability=capability, prompt=prompt, **kwargs)
-                    result = provider.generate(request)
-                    if result.success:
-                        return result
-                except Exception:
-                    continue
+        # ── 指定Provider模式 ──
+        provider_cfg = {**self._provider_configs.get(provider_name, {}), **kwargs}
+        provider = get_ai_provider(provider_name, provider_cfg)
+        if provider:
+            effective_model = self._get_effective_model(config, provider_name)
+            request = AIRequest(
+                capability=capability, prompt=prompt,
+                model=kwargs.get("model") or effective_model,
+                **{k: v for k, v in kwargs.items() if k in ["temperature", "max_tokens", "images"]},
+            )
+            if mode and mode != "auto":
+                request.context["mode"] = mode
+            try:
+                return provider.generate(request)
+            except Exception as e:
+                return AIResponse(success=False, error=f"Provider「{provider_name}」调用异常: {e}")
 
-        return AIResponse(success=False, error=f"没有可用的{capability}能力Provider")
+        return AIResponse(success=False, error=f"Provider「{provider_name}」不可用或未配置")
 
     def call_parallel(self, capability: str, prompts: list[str], **kwargs) -> list[AIResponse]:
         """
@@ -552,24 +586,10 @@ def get_router() -> AIRouter:
 # 默认配置
 DEFAULT_CONFIG = {
     "capabilities": {
-        "writing": {
-            "provider": "deepseek",
-            "model": "deepseek-chat",
-            "fallback": "openai",
-        },
-        "image_gen": {
-            "providers": [
-                {"name": "openai", "model": "dall-e-3", "weight": 2},
-            ],
-            "mode": "fallback",
-        },
-        "translate": {
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-        },
-        "audio_gen": {
-            "provider": "openai",
-            "model": "tts-1",
-        },
+        "writing":      {"provider": "auto", "model": "auto", "mode": "auto"},
+        "translate":    {"provider": "auto", "model": "auto", "mode": "auto"},
+        "image_gen":    {"provider": "auto", "model": "auto", "mode": "auto"},
+        "audio_gen":    {"provider": "auto", "model": "auto", "mode": "auto"},
+        "video_gen":    {"provider": "auto", "model": "auto", "mode": "auto"},
     }
 }
