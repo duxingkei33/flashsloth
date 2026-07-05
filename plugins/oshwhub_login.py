@@ -80,12 +80,14 @@ class OshwhubPlaywrightLogin:
                 headless=True,
                 executable_path=chrome_path,
                 args=["--no-sandbox", "--disable-setuid-sandbox",
-                      "--disable-dev-shm-usage", "--disable-gpu"],
+                      "--disable-dev-shm-usage", "--disable-gpu",
+                      "--disable-blink-features=AutomationControlled"],
             )
         else:
             self.browser = self._pw.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox"],
+                args=["--no-sandbox", "--disable-setuid-sandbox",
+                      "--disable-blink-features=AutomationControlled"],
             )
         self.context = self.browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -95,6 +97,13 @@ class OshwhubPlaywrightLogin:
             locale="zh-CN",
         )
         self.page = self.context.new_page()
+        # 注入反自动化检测脚本（绕过浏览器特征识别）
+        self.page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'] });
+            window.chrome = { runtime: {} };
+        """)
 
     def close(self):
         """关闭浏览器"""
@@ -128,7 +137,7 @@ class OshwhubPlaywrightLogin:
         Element UI 框架渲染。表单需先点击"账号登录"标签。
         """
         try:
-            self.page.wait_for_load_state("networkidle", timeout=timeout)
+            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
 
             # Element UI / 通用选择器
             input_selectors = [
@@ -196,9 +205,11 @@ class OshwhubPlaywrightLogin:
 
             # 检测滑块验证码（阿里云/极验）
             slider = page.query_selector(
+                ".aliyun-captcha, #aliyunCaptcha-sliding-wrapper, "
                 ".nc-container, .geetest, .captcha-slider, "
                 "[class*='slider'], [id*='nc_'], "
-                ".aliyun-slider, .slide-verify"
+                ".aliyun-slider, .slide-verify, "
+                ".captcha-popup"
             )
 
             # 检测 reCAPTCHA
@@ -230,6 +241,93 @@ class OshwhubPlaywrightLogin:
             return {"has_captcha": False, "captcha_type": "none", "image": ""}
         except Exception as e:
             return {"has_captcha": False, "captcha_type": "none", "image": ""}
+
+    def _solve_aliyun_slider(self, page) -> bool:
+        """自动解决阿里云滑块验证码
+
+        使用 easeInOutCubic 缓动函数模拟人类拖拽轨迹，
+        配合 Y 轴自然抖动绕过反爬检测。
+
+        Returns:
+            True 表示滑块验证通过，False 表示失败
+        """
+        try:
+            slider = page.query_selector("#aliyunCaptcha-sliding-slider")
+            if not slider or not slider.is_visible():
+                return False
+
+            # 获取滑块和滑动轨道位置
+            box = slider.bounding_box()
+            body = page.query_selector("#aliyunCaptcha-sliding-body")
+            body_box = body.bounding_box() if body else None
+            if not box or not body_box:
+                return False
+
+            start_x = box["x"] + box["width"] / 2
+            start_y = box["y"] + box["height"] / 2
+            # 目标：滑块右边缘对齐容器右边缘（留一点边距）
+            end_x = body_box["x"] + body_box["width"] - 16
+            distance = end_x - start_x
+            if distance < 20:
+                return False
+
+            # ── 执行人性化拖拽 ──
+            page.mouse.move(start_x, start_y)
+            _human_delay(0.3, 0.6)
+            page.mouse.down()
+            time.sleep(random.uniform(0.1, 0.25))
+
+            # 分段拖拽：使用 easeInOutCubic 缓动 + Y轴抖动
+            total_steps = random.randint(55, 70)
+            for i in range(1, total_steps + 1):
+                t = i / total_steps
+                # easeInOutCubic
+                if t < 0.5:
+                    eased = 4 * t * t * t
+                else:
+                    eased = 1 - (-2 * t + 2) ** 3 / 2
+
+                x = start_x + distance * eased
+                y_jitter = random.uniform(-3, 3)
+                page.mouse.move(x, start_y + y_jitter)
+                time.sleep(random.uniform(0.008, 0.025))
+
+            page.mouse.up()
+            time.sleep(2.0)
+
+            # 检查滑块是否消失（验证通过）
+            still_slider = page.query_selector("#aliyunCaptcha-sliding-slider")
+            if still_slider and still_slider.is_visible():
+                # 可能提示"拖动速度过快"或"请重试"，尝试第二次
+                tips = page.query_selector(".captcha-popup__tips")
+                if tips:
+                    _human_delay(1.0, 2.0)
+                    # 更慢的第二次尝试
+                    page.mouse.move(start_x, start_y)
+                    _human_delay(0.5, 0.8)
+                    page.mouse.down()
+                    time.sleep(random.uniform(0.15, 0.3))
+                    total_steps = random.randint(70, 90)
+                    for i in range(1, total_steps + 1):
+                        t = i / total_steps
+                        if t < 0.5:
+                            eased = 4 * t * t * t
+                        else:
+                            eased = 1 - (-2 * t + 2) ** 3 / 2
+                        x = start_x + distance * eased
+                        y_jitter = random.uniform(-4, 4)
+                        page.mouse.move(x, start_y + y_jitter)
+                        time.sleep(random.uniform(0.015, 0.035))
+                    page.mouse.up()
+                    time.sleep(2.0)
+                    still_slider = page.query_selector("#aliyunCaptcha-sliding-slider")
+                    if still_slider and still_slider.is_visible():
+                        return False
+                return False
+
+            return True
+        except Exception:
+            return False
 
     def _fill_login_form(self, page, username: str, password: str) -> bool:
         """智能填写登录表单
@@ -390,7 +488,9 @@ class OshwhubPlaywrightLogin:
             # 检测是否 passport.jlc.com 域名
             if "passport" not in self.site_url:
                 login_url = "https://passport.jlc.com/login"
-            page.goto(login_url, wait_until="networkidle", timeout=30000)
+            # 使用 domcontentloaded 而非 networkidle — passport.jlc.com 有广告/tracking
+            # iframe 导致 networkidle 永不超时
+            page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
             _human_delay(2.0, 3.0)
 
             # 尝试点击"账号登录"标签（Element UI 标签页）
@@ -399,7 +499,6 @@ class OshwhubPlaywrightLogin:
                 if account_tab and account_tab.is_visible():
                     account_tab.click()
                     _human_delay(0.5, 1.0)
-                    page.wait_for_load_state("networkidle", timeout=8000)
             except:
                 pass
 
@@ -424,18 +523,33 @@ class OshwhubPlaywrightLogin:
                     "image": screenshot_b64,
                 }
 
-            # ── 3. 检查是否已有验证码（填写前截图） ──
+            # ── 3. 检查验证码（提交前检测） ──
             captcha_info = self._detect_captcha()
             if captcha_info["has_captcha"]:
-                return {
-                    "success": True,
-                    "logged_in": False,
-                    "needs_captcha": True,
-                    "image": captcha_info.get("image", ""),
-                    "captcha_type": captcha_info["captcha_type"],
-                    "error": "",
-                    "message": f"需要{captcha_info['captcha_type']}验证码，请处理后在后台确认",
-                }
+                # 如果是阿里云滑块，自动解决
+                if captcha_info["captcha_type"] == "slider":
+                    solved = self._solve_aliyun_slider(page)
+                    if solved:
+                        _human_delay(1.0, 2.0)
+                    else:
+                        return {
+                            "success": True,
+                            "logged_in": False,
+                            "needs_captcha": True,
+                            "image": captcha_info.get("image", ""),
+                            "captcha_type": "slider",
+                            "error": "阿里云滑块自动验证失败，需要手动处理",
+                        }
+                else:
+                    return {
+                        "success": True,
+                        "logged_in": False,
+                        "needs_captcha": True,
+                        "image": captcha_info.get("image", ""),
+                        "captcha_type": captcha_info["captcha_type"],
+                        "error": "",
+                        "message": f"需要{captcha_info['captcha_type']}验证码，请处理后在后台确认",
+                    }
 
             # ── 4. 填入账号密码 ──
             filled = self._fill_login_form(page, username, password)
@@ -459,25 +573,44 @@ class OshwhubPlaywrightLogin:
 
             _human_delay(2.0, 3.0)
 
-            # ── 6. 等待网络响应 ──
-            page.wait_for_load_state("networkidle", timeout=15000)
-            _human_delay(0.5, 1.0)
+            # ── 6. 等待验证码弹出或登录结果 ──
+            _human_delay(1.0, 1.5)
 
-            # ── 7. 检查是否需要验证码（提交后才弹出的验证码） ──
+            # ── 7. 检查是否需要阿里云滑块验证码（提交后才弹出） ──
             captcha_after = self._detect_captcha()
             if captcha_after["has_captcha"]:
-                return {
-                    "success": True,
-                    "logged_in": False,
-                    "needs_captcha": True,
-                    "image": captcha_after.get("image", ""),
-                    "captcha_type": captcha_after["captcha_type"],
-                    "error": "",
-                    "message": f"提交后检测到{captcha_after['captcha_type']}验证码，请处理",
-                }
+                if captcha_after["captcha_type"] == "slider":
+                    solved = self._solve_aliyun_slider(page)
+                    if solved:
+                        _human_delay(2.0, 3.0)
+                    else:
+                        return {
+                            "success": True,
+                            "logged_in": False,
+                            "needs_captcha": True,
+                            "image": captcha_after.get("image", ""),
+                            "captcha_type": "slider",
+                            "error": "提交后阿里云滑块自动验证失败",
+                        }
+                else:
+                    return {
+                        "success": True,
+                        "logged_in": False,
+                        "needs_captcha": True,
+                        "image": captcha_after.get("image", ""),
+                        "captcha_type": captcha_after["captcha_type"],
+                        "error": "",
+                        "message": f"提交后检测到{captcha_after['captcha_type']}验证码，请处理",
+                    }
 
             # ── 8. 检查登录成功 ──
             if self._check_cookies_logged_in():
+                # 登录成功，额外访问 oshwhub.com 获取专属 Cookie
+                try:
+                    page.goto("https://oshwhub.com", wait_until="domcontentloaded", timeout=20000)
+                    _human_delay(2.0, 3.0)
+                except Exception as e:
+                    print(f"oshwhub.com 导航失败（不影响核心登录Cookie）: {e}")
                 cookie_str = self._get_cookie_string()
                 return {
                     "success": True,
@@ -631,7 +764,6 @@ class OshwhubPlaywrightLogin:
                 page.keyboard.press("Enter")
 
             _human_delay(2.0, 4.0)
-            page.wait_for_load_state("networkidle", timeout=15000)
             _human_delay(0.5, 1.0)
 
             # ── 3. 检查登录结果 ──
