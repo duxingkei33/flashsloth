@@ -2,82 +2,141 @@
 {% block title %}签到管理 - FlashSloth{% endblock %}
 {% block content %}
 
-<h1 style="margin-bottom: 20px; font-size: 1.4em;">📅 签到管理</h1>
+<style>
+.signin-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid #eee; border-radius:8px; margin-bottom:6px; transition:background .2s; }
+.signin-row:hover { background:#fafafa; }
+.signin-row.no-signin { opacity:.55; }
+.signin-row.disabled { background:#f9f9f9; }
+.signin-row.signed-today { border-left:3px solid #22c55e; }
+.signin-checkbox { width:18px; height:18px; cursor:pointer; flex-shrink:0; }
+.signin-account-name { font-weight:600; flex-shrink:0; min-width:90px; font-size:14px; }
+.signin-platform-badge { flex-shrink:0; }
+.signin-site-link { font-size:13px; color:#4361ee; text-decoration:none; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.signin-site-link:hover { text-decoration:underline; }
+.signin-status-badge { flex-shrink:0; min-width:60px; text-align:center; font-size:13px; }
+.signin-time-input { padding:4px 8px; border:1px solid #ddd; border-radius:4px; font-size:12px; width:70px; flex-shrink:0; }
+.signin-btn { flex-shrink:0; }
+.signin-plugin-hint { font-size:11px; color:#999; flex-shrink:0; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
 
-<div class="stats">
+<!-- ====== 顶部：标题 + 全局设置 ====== -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+    <h1 style="margin:0;font-size:20px;">📅 智能签到管理</h1>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label style="font-size:13px;color:#666;display:flex;align-items:center;gap:4px;">
+            🕐 定时签到
+            <select id="globalSigninTime" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;">
+                {% for h in range(0,24) %}{% for m in ['00','30'] %}
+                <option value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>
+                {% endfor %}{% endfor %}
+            </select>
+        </label>
+        <label style="font-size:13px;color:#666;display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="globalSigninEnabled" onchange="saveGlobalConfig()"> 启用自动签到
+        </label>
+        <button onclick="runAllSignins()" class="btn btn-success btn-sm" id="runAllBtn">🔄 签到所有已启用</button>
+    </div>
+</div>
+
+<!-- ====== 统计数据 ====== -->
+<div class="stats" style="margin-bottom:20px;">
     <div class="stat-card">
         <div class="num">{{ today_count }}</div>
-        <div class="label">今日签到</div>
+        <div class="label">今日已签到</div>
     </div>
     <div class="stat-card">
-        <div class="num">{{ logs|length }}</div>
-        <div class="label">最近记录</div>
+        <div class="num">{{ accounts|selectattr('has_signin')|selectattr('signin_enabled')|list|length }}</div>
+        <div class="label">可签到账号</div>
     </div>
     <div class="stat-card">
         <div class="num">{{ accounts|length }}</div>
-        <div class="label">可用账号</div>
+        <div class="label">总账号</div>
     </div>
 </div>
 
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2>签到状态</h2>
-        <form method="post" action="/api/signin/run" id="signin-form" style="display:inline;">
-            <button type="submit" class="btn btn-success" onclick="this.disabled=true;this.innerHTML='⏳ 签到中...'">
-                🔄 立即签到所有
-            </button>
-        </form>
-    </div>
+<!-- ====== 账号列表 ====== -->
+<div class="card" style="padding:16px;">
+    <h2 style="margin-bottom:12px;font-size:15px;">📋 账号签到状态</h2>
 
-    <table>
-        <thead>
-            <tr>
-                <th>账号</th>
-                <th>平台</th>
-                <th>站点</th>
-                <th>状态</th>
-                <th>上次签到</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for a in accounts %}
-            {% set cfg = a.config_json|from_json %}
-            {% set site = cfg.get('site_url', a.platform)|replace('https://','')|replace('http://','') %}
-            <tr>
-                <td><strong>{{ a.account_name }}</strong></td>
-                <td><span class="badge badge-info">{{ a.platform }}</span></td>
-                <td style="font-size:12px;color:#666;">{{ site }}</td>
-                <td>
-                    {% set last = logs|selectattr('account_id', 'equalto', a.id)|first %}
-                    {% if last and last.success %}
-                        <span class="badge badge-success">✅</span>
-                    {% else %}
-                        <span class="badge badge-secondary">⏸️</span>
-                    {% endif %}
-                </td>
-                <td style="font-size:12px;color:#888;">
-                    {% if last %}{{ last.created_at }}{% else %}从未{% endif %}
-                </td>
-            </tr>
+    {% for a in accounts %}
+    {% set cfg = a.config %}
+    {% set site = cfg.get('site_url', '') %}
+    {% set site_short = site|replace('https://','')|replace('http://','')|split('/')|first %}
+    {% set last = a.last_signin %}
+    {% set signed_today = last and last.success and last.created_at.startswith(today) %}
+    {% set has_signin = a.has_signin %}
+    {% set signin_enabled = a.signin_enabled %}
+
+    <div class="signin-row {{ 'signed-today' if signed_today else '' }} {{ 'no-signin' if not has_signin else '' }} {{ 'disabled' if not signin_enabled else '' }}"
+         id="row_{{ a.id }}">
+
+        <!-- 启用勾选框 -->
+        <input type="checkbox" class="signin-checkbox"
+               {{ 'checked' if signin_enabled else '' }}
+               {{ 'disabled' if not has_signin else '' }}
+               onchange="toggleSignin({{ a.id }}, this)"
+               title="{% if not has_signin %}此平台无签到插件{% else %}启用/禁用签到{% endif %}">
+
+        <!-- 账号名 -->
+        <span class="signin-account-name">{{ a.account_name }}</span>
+
+        <!-- 平台徽章 -->
+        <span class="badge badge-info signin-platform-badge">{{ a.platform }}</span>
+
+        <!-- 站点链接（可点击） -->
+        {% if site %}
+        <a href="{{ site }}" target="_blank" class="signin-site-link" title="{{ site }}">
+            🌐 {{ site_short or site }}
+        </a>
+        {% else %}
+        <span class="signin-site-link" style="color:#ccc;">— 无站点 —</span>
+        {% endif %}
+
+        <!-- 状态徽章 -->
+        <span class="signin-status-badge">
+            {% if not has_signin %}
+                <span class="badge badge-secondary" title="该平台没有对应的签到插件">⛔ 无签到</span>
+            {% elif not signin_enabled %}
+                <span class="badge badge-secondary">⏸️ 禁用</span>
+            {% elif signed_today %}
+                <span class="badge badge-success">✅ 已签</span>
+            {% elif last and not last.success %}
+                <span class="badge badge-danger">❌ 失败</span>
             {% else %}
-            <tr><td colspan="5" style="text-align:center;color:#999;">暂无账号配置</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                <span class="badge badge-warning">⏳ 待签</span>
+            {% endif %}
+        </span>
+
+        <!-- 签到时间设置 -->
+        {% if has_signin %}
+        <input type="time" class="signin-time-input" value="{{ a.signin_time }}"
+               onchange="saveSigninTime({{ a.id }}, this)"
+               title="设置此账号的签到时间">
+        {% endif %}
+
+        <!-- 签到插件名 -->
+        {% if a.plugin_name %}
+        <span class="signin-plugin-hint" title="{{ a.plugin_name }}">{{ a.plugin_name }}</span>
+        {% endif %}
+
+        <!-- 手动签到按钮 -->
+        {% if has_signin and signin_enabled %}
+        <button class="btn btn-sm btn-success signin-btn" id="signinBtn_{{ a.id }}"
+                onclick="signinAccount({{ a.id }})">
+            📝 手动签到
+        </button>
+        {% endif %}
+    </div>
+    {% else %}
+    <p style="text-align:center;color:#999;padding:40px 0;">暂无任何账号配置</p>
+    {% endfor %}
 </div>
 
-<div class="card">
-    <h2>最近签到记录</h2>
+<!-- ====== 最近签到记录 ====== -->
+<div class="card" style="padding:16px;">
+    <h2 style="margin-bottom:12px;font-size:15px;">📜 最近签到记录</h2>
     <table>
-        <thead>
-            <tr>
-                <th>时间</th>
-                <th>账号</th>
-                <th>平台</th>
-                <th>状态</th>
-                <th>信息</th>
-            </tr>
-        </thead>
+        <thead><tr><th style="width:150px;">时间</th><th>账号</th><th>平台</th><th>状态</th><th>信息</th></tr></thead>
         <tbody>
             {% for l in logs %}
             <tr>
@@ -93,15 +152,149 @@
                         <span class="badge badge-danger">失败</span>
                     {% endif %}
                 </td>
-                <td style="font-size:12px;max-width:300px;word-break:break-all;">
+                <td style="font-size:12px;max-width:350px;word-break:break-all;">
                     {{ l.message or l.error or '-' }}
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" style="text-align:center;color:#999;">暂无记录</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:#999;">暂无签到记录</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+<script>
+// ====== 页面加载：读取全局配置 ======
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/api/signin/config')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('globalSigninEnabled').checked = data.enabled;
+            document.getElementById('globalSigninTime').value = data.signin_time || '08:00';
+        }
+    })
+    .catch(() => {});
+});
+
+// ====== 单账号签到 ======
+function signinAccount(aid) {
+    const btn = document.getElementById('signinBtn_' + aid);
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 签到中...';
+    btn.className = 'btn btn-sm btn-secondary signin-btn';
+
+    fetch('/api/signin/account/' + aid, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        const row = document.getElementById('row_' + aid);
+        const badge = row.querySelector('.signin-status-badge');
+        if (data.success) {
+            if (data.already_signed) {
+                badge.innerHTML = '<span class="badge badge-warning">ℹ️ 已签过</span>';
+            } else {
+                badge.innerHTML = '<span class="badge badge-success">✅ 已签</span>';
+                row.classList.add('signed-today');
+            }
+        } else {
+            badge.innerHTML = '<span class="badge badge-danger">❌ ' + (data.error || '失败') + '</span>';
+        }
+        btn.innerHTML = '📝 手动签到';
+        btn.className = 'btn btn-sm btn-success signin-btn';
+        btn.disabled = false;
+    })
+    .catch(e => {
+        const badge = document.getElementById('row_' + aid).querySelector('.signin-status-badge');
+        badge.innerHTML = '<span class="badge badge-danger">❌ 网络错误</span>';
+        btn.innerHTML = '📝 手动签到';
+        btn.className = 'btn btn-sm btn-success signin-btn';
+        btn.disabled = false;
+    });
+}
+
+// ====== 全部签到 ======
+function runAllSignins() {
+    const btn = document.getElementById('runAllBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 全部签到中...';
+
+    fetch('/api/signin/run_all', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.results) {
+            let ok = 0, fail = 0;
+            data.results.forEach(r => {
+                if (r.success) ok++;
+                else fail++;
+                const row = document.getElementById('row_' + r.account_id);
+                if (row) {
+                    const badge = row.querySelector('.signin-status-badge');
+                    const btn2 = row.querySelector('.signin-btn');
+                    if (r.success) {
+                        badge.innerHTML = '<span class="badge badge-success">✅ 已签</span>';
+                        row.classList.add('signed-today');
+                    } else if (r.already_signed) {
+                        badge.innerHTML = '<span class="badge badge-warning">ℹ️ 已签过</span>';
+                    } else {
+                        badge.innerHTML = '<span class="badge badge-danger">❌ 失败</span>';
+                    }
+                    if (btn2) { btn2.disabled = false; btn2.innerHTML = '📝 手动签到'; }
+                }
+            });
+            alert('✅ 签到完成！成功 ' + ok + '，失败 ' + fail);
+        }
+        btn.innerHTML = '🔄 签到所有已启用';
+        btn.disabled = false;
+    })
+    .catch(e => {
+        alert('签到请求失败: ' + e.message);
+        btn.innerHTML = '🔄 签到所有已启用';
+        btn.disabled = false;
+    });
+}
+
+// ====== 启用/禁用签到 ======
+function toggleSignin(aid, checkbox) {
+    fetch('/api/accounts/' + aid + '/signin_settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({signin_enabled: checkbox.checked})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            checkbox.checked = !checkbox.checked;
+        } else {
+            // 刷新页面排序
+            location.reload();
+        }
+    })
+    .catch(() => {
+        checkbox.checked = !checkbox.checked;
+    });
+}
+
+// ====== 保存签到时间 ======
+function saveSigninTime(aid, input) {
+    fetch('/api/accounts/' + aid + '/signin_settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({signin_time: input.value})
+    })
+    .then(r => r.json())
+    .catch(() => {});
+}
+
+// ====== 全局配置 ======
+function saveGlobalConfig() {
+    const enabled = document.getElementById('globalSigninEnabled').checked;
+    const signin_time = document.getElementById('globalSigninTime').value;
+    fetch('/api/signin/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled, signin_time})
+    })
+    .catch(() => {});
+}
+</script>
 {% endblock %}

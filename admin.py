@@ -250,9 +250,21 @@ def from_json_filter(val):
     if not val:
         return []
     try:
-        return json.loads(val)
+        return json.loads(val) if isinstance(val, str) else val
     except:
+        return val
+
+@app.template_filter("split")
+def split_filter(val, sep=","):
+    if not val:
         return []
+    return val.split(sep)
+
+@app.template_filter("first")
+def first_filter(val):
+    if not val:
+        return ""
+    return val[0] if isinstance(val, (list, tuple)) else val
 
 @app.template_filter("dict_get")
 def dict_get_filter(d, key, default=""):
@@ -692,6 +704,100 @@ def delete_account(aid):
     conn.close()
     flash("账号已删除", "success")
     return redirect(url_for("accounts"))
+
+@app.route("/api/accounts/<int:aid>/toggle", methods=["POST"])
+@login_required
+def api_account_toggle(aid):
+    """切换账号启用/禁用状态"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    if not acct:
+        conn.close()
+        return jsonify({"success": False, "error": "账号不存在"})
+    new_status = 0 if acct["is_active"] else 1
+    conn.execute(
+        "UPDATE platform_accounts SET is_active=? WHERE id=?",
+        (new_status, aid)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "is_active": bool(new_status)})
+
+
+@app.route("/api/accounts/<int:aid>/status")
+@login_required
+def api_account_status(aid):
+    """检查账号登录状态（含 cookie 有效性检测）"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+    acct = dict(acct)
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    cookie = cfg.get("cookie", "")
+    site_url = cfg.get("site_url", "")
+    result = {
+        "success": True,
+        "platform": acct["platform"],
+        "account_name": acct["account_name"],
+        "is_active": bool(acct["is_active"]),
+        "has_cookie": bool(cookie),
+        "site_url": site_url or "",
+    }
+    if cookie and site_url:
+        try:
+            import requests
+            r = requests.get(
+                site_url.rstrip("/") + "/forum.php",
+                headers={
+                    "Cookie": cookie,
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                timeout=15
+            )
+            result["status_code"] = r.status_code
+            html_lower = r.text.lower()
+            # 登录检测关键词
+            login_keywords = ["欢迎", "退出", "logout", "我的帖子", "我的中心",
+                              "个人中心", "设置", "消息", "提醒"]
+            logout_keywords = ["登录", "注册", "立即登录", "找回密码"]
+            is_logged_in = False
+            for kw in login_keywords:
+                if kw in r.text:
+                    is_logged_in = True
+                    break
+            if not is_logged_in:
+                for kw in logout_keywords:
+                    if kw in html_lower and "登录" in r.text:
+                        is_logged_in = False
+                        break
+            result["logged_in"] = is_logged_in
+            result["status"] = "✅ 已登录（Cookie 有效）" if is_logged_in else "❌ Cookie 已失效"
+            import re
+            tm = re.search(r'<title>(.*?)</title>', r.text)
+            result["page_title"] = tm.group(1) if tm else "(无标题)"
+            text = re.sub(r'<script[^>]*>.*?</script>', '', r.text, flags=re.DOTALL)
+            text = re.sub(r'<[^>]+>', ' ', text)
+            text = re.sub(r'\s+', ' ', text).strip()
+            result["page_preview"] = text[:600]
+        except Exception as e:
+            result["logged_in"] = False
+            result["status"] = f"❌ 检测异常: {str(e)[:100]}"
+    elif cookie:
+        result["logged_in"] = None
+        result["status"] = "🍪 有 Cookie（未配置站点 URL，无法检测有效性）"
+    else:
+        result["logged_in"] = None
+        result["status"] = "⏸️ 未配置（无 Cookie）"
+    return jsonify(result)
+
 
 # ─── 文章 CRUD ─────────────────────────────────
 @app.route("/post/new", methods=["GET", "POST"])
@@ -2489,14 +2595,14 @@ def signin_page():
     """签到页面 — 查看状态 + 手动签到"""
     conn = get_db()
 
-    # 所有活跃账号
+    # 所有账号（含禁用）
     accounts = conn.execute(
-        "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY platform, account_name"
+        "SELECT * FROM platform_accounts ORDER BY is_active DESC, platform, account_name"
     ).fetchall()
 
     # 最近签到记录
     logs = conn.execute(
-        "SELECT * FROM signin_log ORDER BY created_at DESC LIMIT 30"
+        "SELECT * FROM signin_log ORDER BY created_at DESC LIMIT 50"
     ).fetchall()
 
     # 统计
@@ -2508,31 +2614,239 @@ def signin_page():
 
     conn.close()
 
+    # 检测每个账号的签到能力
+    accts = []
+    for a in accounts:
+        d = dict(a)
+        cfg = json.loads(d.get("config_json") or "{}")
+        d["config"] = cfg
+        d["signin_enabled"] = cfg.get("signin_enabled", True)  # 默认启用
+        d["signin_time"] = cfg.get("signin_time", "08:00")
+        # 检测是否有匹配的签到插件
+        from core_signin import get_signin_for_account
+        plugin = get_signin_for_account(d)
+        d["has_signin"] = plugin is not None
+        d["plugin_name"] = plugin.display_name if plugin else ""
+        # 找最近签到记录
+        last_log = None
+        for l in logs:
+            if l["account_id"] == d["id"]:
+                last_log = dict(l)
+                break
+        d["last_signin"] = last_log
+        accts.append(d)
+
+    # 排序：有签到功能+已启用+未签到 → 有签到功能+已启用+已签到 → 有签到功能+禁用 → 无签到功能
+    def sort_key(a):
+        has = a["has_signin"]
+        enabled = a["signin_enabled"]
+        last = a["last_signin"]
+        signed_today = 0
+        if last and last.get("success") and last.get("created_at", "").startswith(today):
+            signed_today = 1
+        return (-has, -enabled, -signed_today)
+
+    accts.sort(key=sort_key)
+
+    # 已注册的签到插件列表
+    from core_signin import list_signins
+    signin_plugins = list_signins()
+
     return render_template("signin.html",
-                         accounts=[dict(a) for a in accounts],
+                         accounts=accts,
                          logs=[dict(l) for l in logs],
-                         today_count=today_count)
+                         today_count=today_count,
+                         today=today,
+                         signin_plugins=signin_plugins)
 
 
-@app.route("/api/signin/run", methods=["POST"])
+@app.route("/api/signin/account/<int:aid>", methods=["POST"])
 @login_required
-def api_signin_run():
-    """手动执行签到"""
-    account_id = request.form.get("account_id", type=int)
+def api_signin_account(aid):
+    """对单个账号执行签到（带超时）"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
 
-    # 动态加载 orchestrator
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from plugins.forum_signin import main as run_signin_main
+    d = dict(acct)
+    cfg = json.loads(d.get("config_json") or "{}")
+    d["config"] = cfg
 
-    # 捕获输出
-    import io
-    from contextlib import redirect_stdout
-    buf = io.StringIO()
-    with redirect_stdout(buf):
-        run_signin_main()
-    output = buf.getvalue()
+    from core_signin import get_signin_for_account
+    plugin = get_signin_for_account(d)
+    if not plugin:
+        return jsonify({"success": False, "error": "该平台无匹配的签到插件"})
 
-    return jsonify({"success": True, "output": output})
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(plugin.signin)
+        try:
+            result = fut.result(timeout=30)
+        except concurrent.futures.TimeoutError:
+            result = {"success": False, "already_signed": False,
+                      "error": "签到超时（>30秒）", "message": ""}
+        except Exception as e:
+            result = {"success": False, "already_signed": False,
+                      "error": f"签到异常: {e}", "message": ""}
+
+    # 记录日志
+    site_url = cfg.get("site_url", "")
+    from plugins.forum_signin import log_signin, ensure_signin_log_table
+    ensure_signin_log_table()
+    log_signin(
+        account_id=aid,
+        platform=d["platform"],
+        account_name=d["account_name"],
+        site_url=site_url,
+        success=result.get("success", False),
+        already_signed=result.get("already_signed", False),
+        error=result.get("error", ""),
+        message=result.get("message", ""),
+    )
+
+    # 刷新账号最后签到时间
+    result["account_id"] = aid
+    result["last_log"] = {
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "success": result.get("success", False),
+    }
+    return jsonify(result)
+
+
+@app.route("/api/accounts/<int:aid>/signin_settings", methods=["POST"])
+@login_required
+def api_account_signin_settings(aid):
+    """保存账号的签到设置（启用/禁用、签到时间）"""
+    data = request.get_json() or {}
+    signin_enabled = data.get("signin_enabled")
+    signin_time = data.get("signin_time")
+
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    if not acct:
+        conn.close()
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    if signin_enabled is not None:
+        cfg["signin_enabled"] = bool(signin_enabled)
+    if signin_time is not None:
+        cfg["signin_time"] = str(signin_time)
+    conn.execute(
+        "UPDATE platform_accounts SET config_json=? WHERE id=?",
+        (json.dumps(cfg), aid)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+@app.route("/api/signin/config", methods=["GET", "POST"])
+@login_required
+def api_signin_config():
+    """全局签到配置（签到时间等）"""
+    if request.method == "POST":
+        data = request.get_json() or {}
+        # 保存到 provider_config 或单独的表
+        conn = get_db()
+        existing = conn.execute(
+            "SELECT id FROM provider_config WHERE user_id=? AND provider_type='signin_schedule'",
+            (current_user.id,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE provider_config SET config_json=? WHERE id=?",
+                (json.dumps(data), existing["id"])
+            )
+        else:
+            conn.execute(
+                "INSERT INTO provider_config (user_id, provider_type, config_json) VALUES (?, 'signin_schedule', ?)",
+                (current_user.id, json.dumps(data))
+            )
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT config_json FROM provider_config WHERE user_id=? AND provider_type='signin_schedule'",
+        (current_user.id,)
+    ).fetchone()
+    conn.close()
+    cfg = json.loads(row["config_json"]) if row else {}
+    return jsonify({
+        "success": True,
+        "enabled": cfg.get("enabled", False),
+        "signin_time": cfg.get("signin_time", "08:00"),
+    })
+
+
+@app.route("/api/signin/run_all", methods=["POST"])
+@login_required
+def api_signin_run_all():
+    """执行所有已启用的签到（逐账号带超时）"""
+    conn = get_db()
+    accounts = conn.execute(
+        "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY platform, account_name"
+    ).fetchall()
+    conn.close()
+
+    results = []
+    for a in accounts:
+        d = dict(a)
+        cfg = json.loads(d.get("config_json") or "{}")
+        d["config"] = cfg
+        if not cfg.get("signin_enabled", True):
+            continue
+
+        from core_signin import get_signin_for_account
+        plugin = get_signin_for_account(d)
+        if not plugin:
+            continue
+
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(plugin.signin)
+            try:
+                result = fut.result(timeout=30)
+            except concurrent.futures.TimeoutError:
+                result = {"success": False, "already_signed": False,
+                          "error": "超时", "message": ""}
+            except Exception as e:
+                result = {"success": False, "already_signed": False,
+                          "error": str(e), "message": ""}
+
+        site_url = cfg.get("site_url", "")
+        from plugins.forum_signin import log_signin, ensure_signin_log_table
+        ensure_signin_log_table()
+        log_signin(
+            account_id=d["id"],
+            platform=d["platform"],
+            account_name=d["account_name"],
+            site_url=site_url,
+            success=result.get("success", False),
+            already_signed=result.get("already_signed", False),
+            error=result.get("error", ""),
+            message=result.get("message", ""),
+        )
+        results.append({
+            "account_id": d["id"],
+            "account_name": d["account_name"],
+            "success": result.get("success", False),
+            "already_signed": result.get("already_signed", False),
+            "error": result.get("error", ""),
+            "message": result.get("message", ""),
+        })
+
+    return jsonify({"success": True, "results": results})
 
 
 # ─── 通用验证码/二维码 API ─────────────────
