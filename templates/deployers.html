@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}部署管理{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+</style>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h2 style="margin:0;">🚀 部署管理</h2>
@@ -37,7 +43,7 @@
 <div class="card" style="margin-top:16px;">
     <h3>📡 已配置的部署目标</h3>
     {% if configs %}
-    <table>
+    <table class="rsp-table">
         <thead>
             <tr>
                 <th>名称</th>

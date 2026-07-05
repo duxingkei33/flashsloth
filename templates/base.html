@@ -64,6 +64,43 @@
         .auth-form .links { text-align: center; margin-top: 16px; font-size: 14px; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        /* ═══ 手机响应式 ═══ */
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .navbar { flex-wrap: wrap; gap: 4px; padding: 8px 12px; }
+            .navbar .brand { font-size: 1em; width: 100%; margin-bottom: 4px; }
+            .navbar a { margin-left: 0; margin-right: 8px; font-size: 12px; padding: 4px 6px; }
+            .navbar > div:last-child { width: 100%; margin-top: 2px; text-align: right; }
+            .card { padding: 14px; border-radius: 6px; }
+            table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+            th, td { padding: 6px 4px; font-size: 12px; }
+            .btn { padding: 6px 12px; font-size: 13px; min-height: 36px; }
+            .btn-sm { padding: 4px 8px; font-size: 11px; min-height: 28px; }
+            .form-group input, .form-group textarea, .form-group select { font-size: 16px; }
+            .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .stat-card { padding: 12px; }
+            .stat-card .num { font-size: 1.4em; }
+            .publisher-grid { grid-template-columns: 1fr; }
+            .auth-form { margin: 20px auto; padding: 0 12px; }
+            .auth-form .card { padding: 20px; }
+            .flash { padding: 8px 12px; font-size: 13px; }
+            .badge { font-size: 11px; padding: 2px 6px; }
+        }
+        @media (max-width: 480px) {
+            .navbar a { font-size: 11px; margin-right: 4px; padding: 3px 4px; }
+            .container { padding: 8px; }
+            .card { padding: 10px; }
+            th, td { padding: 4px 3px; font-size: 11px; }
+            .stats { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .stat-card { padding: 10px; }
+            .stat-card .num { font-size: 1.2em; }
+        }
+        /* 验证码弹窗手机优化 */
+        @media (max-width: 480px) {
+            #captchaModal > div { max-width: 95% !important; padding: 16px !important; }
+            #captchaInput { width: 100% !important; }
+            #captchaSubmitBtn { padding: 12px 24px !important; font-size: 16px !important; min-height: 44px; }
+        }
     </style>
 </head>
 <body>

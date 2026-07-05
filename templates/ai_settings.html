@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}AI 能力配置{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+</style>
 <h1 style="margin-bottom:20px;">🤖 AI 能力配置</h1>
 <p style="color:#666;margin-bottom:20px;">从数据库动态加载 — 先选择供应商 → 填别称 + API Key → 测试连接 → 自动保存</p>
 
@@ -49,7 +55,7 @@
 <!-- 添加供应商弹窗 -->
 <div id="addProviderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;">
         <h2 style="margin-bottom:16px;font-size:18px;">➕ <span id="addProvName"></span></h2>
         <div class="form-group">
             <label>别称 <span style="color:#999;font-size:12px;">（同一供应商可添加多个，必填）</span></label>
@@ -68,7 +74,7 @@
 <!-- 编辑供应商弹窗 -->
 <div id="editProviderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;">
         <h2 style="margin-bottom:16px;font-size:18px;">🔧 编辑供应商配置</h2>
         <input type="hidden" id="editProvId">
         <div class="form-group">
@@ -106,7 +112,7 @@
 <!-- 自定义供应商弹窗 -->
 <div id="customProvModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;">
         <h2 style="margin-bottom:16px;font-size:18px;">✏️ 自定义供应商</h2>
         <div class="form-group"><label>名称</label><input id="custName" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>
         <div class="form-group"><label>API Base URL</label><input id="custBase" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="https://api.example.com/v1"></div>
@@ -148,7 +154,7 @@
 <!-- 能力路由编辑弹窗 -->
 <div id="capEditModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:28px;max-width:420px;width:92%;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:420px;width:95%;">
         <h2 style="margin-bottom:16px;font-size:18px;">✏️ 编辑能力路由</h2>
         <div class="form-group">
             <label>能力</label>

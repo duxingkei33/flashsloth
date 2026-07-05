@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}系统设置{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+</style>
 <h1 style="margin-bottom:20px;">⚙️ 系统设置</h1>
 
 <!-- Provider 设置 -->
@@ -89,7 +95,7 @@
         <button onclick="createApiKey()" class="btn btn-success btn-sm">➕ 生成新 Key</button>
     </div>
     <div id="newKeyResult" style="display:none;padding:10px 14px;border-radius:6px;margin-bottom:12px;word-break:break-all;font-family:monospace;font-size:13px;"></div>
-    <table>
+    <table class="rsp-table">
         <thead><tr>
             <th>名称</th>
             <th>Key 前缀</th>

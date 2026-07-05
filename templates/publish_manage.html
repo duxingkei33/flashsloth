@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}发布管理{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .pm-table th, .pm-table td { white-space: normal !important; word-break: break-word !important; max-width: unset !important; }
+}
+</style>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h2 style="margin:0;">📡 发布管理</h2>
@@ -53,7 +58,7 @@ async function checkPending() {
 <div class="card">
     <h3>📝 文章发布状态</h3>
     {% if articles %}
-    <table>
+    <table class="pm-table">
         <thead>
             <tr>
                 <th>文章</th>
@@ -114,7 +119,7 @@ async function checkPending() {
 <div class="card">
     <h3>📋 全部发布记录</h3>
     {% if logs %}
-    <table>
+    <table class="pm-table">
         <thead>
             <tr>
                 <th>时间</th>

@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .idx-provider-form { flex-direction: column !important; }
+    .idx-provider-form .form-group { width: 100% !important; min-width: unset !important; }
+    .idx-provider-form input { width: 100% !important; }
+    .idx-actions-bar { flex-direction: column !important; gap: 8px !important; }
+    .idx-actions-bar > * { width: 100% !important; }
+}
+</style>
 <!-- 统计 — 可点击跳转对应区域 -->
 <div class="stats">
     <a href="#articles" class="stat-card" style="text-decoration:none;display:block;cursor:pointer;">
@@ -23,7 +32,7 @@
 <!-- ⚙️ Provider 选择 -->
 <div class="card" id="provider">
     <h2>📥 内容来源 (Provider)</h2>
-    <form method="post" action="/settings/provider" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+    <form class="idx-provider-form" method="post" action="/settings/provider" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
         <div class="form-group" style="flex:1;min-width:200px;margin:0;">
             <label>文章来源</label>
             <select name="provider_type" onchange="toggleNotion(this)">

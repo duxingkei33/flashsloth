@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}签到管理 - FlashSloth{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .signin-table { font-size: 11px !important; }
+    .signin-table th, .signin-table td { padding: 4px 2px !important; white-space: normal !important; word-break: break-all !important; }
+}
+</style>
 
 <style>
 .signin-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid #eee; border-radius:8px; margin-bottom:6px; transition:background .2s; }

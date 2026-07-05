@@ -2,6 +2,12 @@
 {% block title %}AI 逛论坛{% endblock %}
 {% block content %}
 <style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+</style>
+<style>
 .reader-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
 .reader-header h1 { font-size:1.3em; }
 .unread-badge { background:#e63946; color:#fff; padding:2px 8px; border-radius:10px; font-size:12px; margin-left:6px; }

@@ -1,9 +1,21 @@
 {% extends "base.html" %}
 {% block title %}平台账号管理{% endblock %}
 {% block content %}
+<style>
+/* 手机响应式 - 账号管理页 */
+@media (max-width: 768px) {
+    .acct-header { flex-direction: column !important; align-items: stretch !important; }
+    .acct-header select, .acct-header button { width: 100% !important; min-width: unset !important; }
+    .acct-header h1 { font-size: 18px !important; }
+    .acct-row { flex-wrap: wrap !important; gap: 6px !important; padding: 8px !important; }
+    .acct-row > * { flex-shrink: unset !important; min-width: unset !important; }
+    .acct-actions { width: 100% !important; margin-top: 4px !important; display: flex !important; gap: 4px !important; flex-wrap: wrap !important; }
+    .acct-actions .btn { flex: 1 !important; text-align: center !important; font-size: 11px !important; padding: 6px 4px !important; }
+}
+</style>
 
 <!-- ====== 顶部：标题 + 添加账号 ====== -->
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+<div class="acct-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
     <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
 
     <div style="display:flex;align-items:center;gap:8px;">
@@ -37,7 +49,7 @@
 
     {% for a in accounts %}
     {% set cfg = a.config_json|from_json if a.config_json else {} %}
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;
+    <div class="acct-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;
                 background:{{ '#f0fdf4' if a.is_active else '#fafafa' }};">
         <!-- 启用/禁用 开关 -->
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;font-size:13px;min-width:40px;"

@@ -2,6 +2,12 @@
 {% block title %}💬 评论监控{% endblock %}
 {% block content %}
 <style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+</style>
+<style>
 .mon-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
 .mon-header h1 { font-size:1.3em; }
 .unread-badge { background:#e63946; color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; margin-left:6px; }

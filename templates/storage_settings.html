@@ -257,7 +257,7 @@
 
         function renderFileList(items, path) {
             const listDiv = document.getElementById('file-list');
-            let html = '<table><tr><th>名称</th><th>大小</th><th>操作</th></tr>';
+            let html = '<table class="rsp-table"><tr><th>名称</th><th>大小</th><th>操作</th></tr>';
 
             // 返回上级
             if (path && path !== '/') {
