@@ -30,6 +30,31 @@
     "deepseek": {
       "api_key": "«redacted:sk-…»",
       "api_base": "https://api.deepseek.com/v1"
+    },
+    "__custom_providers__": {
+      "third_party_glm": {
+        "name": "third_party_glm",
+        "display_name": "third_party_glm",
+        "description": "",
+        "icon": "✏️",
+        "website": "",
+        "api_base": "http://idoictos.com:12311/v1",
+        "api_format": "openai",
+        "models": [
+          "glm-5.2:cloud"
+        ],
+        "capabilities": [
+          "writing"
+        ],
+        "config_fields": [
+          {
+            "key": "api_key",
+            "label": "API Key",
+            "type": "password",
+            "required": true
+          }
+        ]
+      }
     }
   }
 }

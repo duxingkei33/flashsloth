@@ -331,6 +331,12 @@ def api_ai_configured_test():
     import requests as _req
     try:
         base = base.rstrip("/")
+        # 智能处理常见完整URL输入（用户可能复制了整个 endpoint）
+        for suffix in ["/chat/completions", "/v1/chat/completions", "/completions"]:
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                break
+        base = base.rstrip("/")
         if api_format == "openai":
             # 调 /v1/models — 零 token 消耗，验证 API Key 有效
             resp = _req.get(
