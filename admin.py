@@ -31,6 +31,8 @@ import flashsloth.plugins.publisher_csdn       # noqa
 import flashsloth.plugins.publisher_discuz     # noqa
 import flashsloth.plugins.publisher_xianyu     # noqa
 import flashsloth.plugins.publisher_github_pages  # noqa
+import flashsloth.plugins.publisher_bilibili    # noqa
+import flashsloth.plugins.publisher_oshwhub     # noqa
 import flashsloth.plugins.deployer_github_pages  # noqa
 import flashsloth.plugins.storage_alist        # noqa
 import flashsloth.plugins.forum_reader          # noqa
@@ -42,6 +44,7 @@ import flashsloth.sdk.adapters.csdn              # noqa
 import flashsloth.sdk.adapters.xianyu            # noqa
 import flashsloth.sdk.adapters.notion            # noqa
 import flashsloth.sdk.adapters.github_pages      # noqa
+import flashsloth.sdk.adapters.bilibili           # noqa
 import flashsloth.sdk.adapters.oshwhub            # noqa
 
 app = Flask(__name__)
@@ -676,8 +679,23 @@ def add_account():
     platform = request.form.get("platform", "")
     name = request.form.get("account_name", "")
     if not platform or not name:
-        flash("请填写平台和账号名", "error")
-        return redirect(url_for("accounts"))
+        if not name:
+            # 自动生成不重名默认别名
+            conn = get_db()
+            existing = conn.execute(
+                "SELECT account_name FROM platform_accounts WHERE user_id=? AND platform=?",
+                (current_user.id, platform)
+            ).fetchall()
+            conn.close()
+            existing_names = {r["account_name"] for r in existing}
+            base = platform
+            idx = 1
+            while f"{base}{idx:02d}" in existing_names:
+                idx += 1
+            name = f"{base}{idx:02d}"
+        if not platform:
+            flash("请选择平台", "error")
+            return redirect(url_for("accounts"))
 
     # 收集该平台的所有配置字段
     cfg = {}
@@ -3576,7 +3594,20 @@ def api_ai_configured_add():
         return jsonify({"success": False, "error": "供应商和 API Key 必填"})
 
     conn = get_db()
-    # 检查是否已存在
+    # 自动生成默认别称
+    if not alias:
+        existing = conn.execute(
+            "SELECT alias FROM ai_configs WHERE user_id=? AND provider=?",
+            (current_user.id, provider)
+        ).fetchall()
+        existing_aliases = {r["alias"] for r in existing}
+        base = provider
+        idx = 1
+        while f"{base}{idx:02d}" in existing_aliases:
+            idx += 1
+        alias = f"{base}{idx:02d}"
+
+    # 检查是否已存在（用生成后的别称）
     existing = conn.execute(
         "SELECT id FROM ai_configs WHERE user_id=? AND provider=? AND alias=?",
         (current_user.id, provider, alias)
@@ -3715,6 +3746,21 @@ def api_ai_balance_refresh_one(acid):
     conn.commit()
     conn.close()
     return jsonify({"success": True, "balance": balance})
+
+
+# ─── 平台站点预置 ──────────────────────────────
+
+_PRESETS_PATH = os.path.join(os.path.dirname(__file__), "core", "platform_presets.json")
+
+
+@app.route("/api/platforms/presets")
+def api_platform_presets():
+    """返回知名站点预置列表"""
+    if os.path.exists(_PRESETS_PATH):
+        with open(_PRESETS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return jsonify({"success": True, "presets": data.get("presets", {})})
+    return jsonify({"success": True, "presets": {}})
 
 
 # ─── 启动 ───────────────────────────────────────

@@ -7,3 +7,4 @@ from .github_pages import GitHubPagesAdapter  # noqa
 from .notion import NotionAdapter  # noqa
 from .oshwhub import OshwhubAdapter  # noqa
 from .xianyu import XianyuAdapter  # noqa
+from .bilibili import BilibiliAdapter  # noqa

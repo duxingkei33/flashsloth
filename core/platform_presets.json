@@ -1,0 +1,94 @@
+{
+  "version": "1.0",
+  "_comment": "知名站点预置 — 在添加账号时自动填充 site_url",
+  "presets": {
+    "discuz": {
+      "display": "Discuz 论坛",
+      "icon": "💬",
+      "sites": [
+        {"name": "阿莫电子论坛", "url": "https://www.amobbs.com", "desc": "电子工程师论坛"},
+        {"name": "数码之家", "url": "https://www.mydigit.cn", "desc": "数码/电子技术论坛"},
+        {"name": "恩山无线论坛", "url": "https://www.right.com.cn", "desc": "路由器/无线技术"},
+        {"name": "51NB专门网", "url": "https://www.ibmnb.com", "desc": "ThinkPad/笔记本电脑"},
+        {"name": "矿石收音机", "url": "http://www.crystalradio.cn", "desc": "无线电/电子DIY"},
+        {"name": "Hackaday.io", "url": "https://hackaday.io", "desc": "国际创客社区"},
+        {"name": "Stack Exchange", "url": "https://stackexchange.com", "desc": "编程问答社区"},
+        {"name": "V2EX", "url": "https://www.v2ex.com", "desc": "技术创意社区"},
+        {"name": "Node.js 中文", "url": "https://cnodejs.org", "desc": "Node.js 开发者社区"},
+        {"name": "Ruby China", "url": "https://ruby-china.org", "desc": "Ruby 开发者社区"},
+        {"name": "Electoral Forum", "url": "https://www.electoralforum.com", "desc": "政治讨论"},
+        {"name": "bbs.21ic.com", "url": "https://bbs.21ic.com", "desc": "21ic 电子论坛"},
+        {"name": "bbs.eeworld.com.cn", "url": "https://bbs.eeworld.com.cn", "desc": "EEWorld 电子论坛"},
+        {"name": "bbs.ednchina.com", "url": "https://bbs.ednchina.com", "desc": "EDN 电子技术"},
+        {"name": "bbs.38hot.net", "url": "https://bbs.38hot.net", "desc": "仪表爱好者论坛"},
+        {"name": "forum.arduino.cc", "url": "https://forum.arduino.cc", "desc": "Arduino 官方论坛"},
+        {"name": "forum.raspberrypi.com", "url": "https://forum.raspberrypi.com", "desc": "树莓派官方论坛"},
+        {"name": "电子工程世界", "url": "https://www.eeworld.com.cn", "desc": "电子工程社区"}
+      ]
+    },
+    "wordpress": {
+      "display": "WordPress 博客",
+      "icon": "📝",
+      "sites": [
+        {"name": "自建 WordPress 站点", "url": "", "desc": "输入你的 WordPress 站点地址"},
+        {"name": "WordPress.com", "url": "https://wordpress.com", "desc": "WordPress 托管博客"}
+      ]
+    },
+    "zhihu": {
+      "display": "知乎",
+      "icon": "🔵",
+      "sites": [
+        {"name": "知乎", "url": "https://www.zhihu.com", "desc": "知乎专栏文章"}
+      ]
+    },
+    "csdn": {
+      "display": "CSDN",
+      "icon": "🟢",
+      "sites": [
+        {"name": "CSDN", "url": "https://www.csdn.net", "desc": "CSDN 技术博客"}
+      ]
+    },
+    "juejin": {
+      "display": "掘金",
+      "icon": "🟠",
+      "sites": [
+        {"name": "掘金", "url": "https://juejin.cn", "desc": "稀土掘金技术社区"}
+      ]
+    },
+    "wechat": {
+      "display": "微信公众号",
+      "icon": "💚",
+      "sites": [
+        {"name": "微信公众号", "url": "https://mp.weixin.qq.com", "desc": "微信公众号平台"}
+      ]
+    },
+    "bilibili": {
+      "display": "哔哩哔哩",
+      "icon": "📺",
+      "sites": [
+        {"name": "哔哩哔哩", "url": "https://www.bilibili.com", "desc": "B站投稿（预留）"}
+      ]
+    },
+    "xianyu": {
+      "display": "闲鱼",
+      "icon": "🟡",
+      "sites": [
+        {"name": "闲鱼", "url": "https://goofish.com", "desc": "闲鱼二手交易"}
+      ]
+    },
+    "github_pages": {
+      "display": "GitHub Pages",
+      "icon": "🐙",
+      "sites": [
+        {"name": "GitHub Pages", "url": "https://pages.github.com", "desc": "静态博客发布"}
+      ]
+    },
+    "oshwhub": {
+      "display": "立创开源硬件平台",
+      "icon": "🟢",
+      "sites": [
+        {"name": "立创开源硬件平台", "url": "https://oshwhub.com", "desc": "嘉立创 EDA 开源硬件"}
+      ]
+    }
+  }
+}

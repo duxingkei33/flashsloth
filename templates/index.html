@@ -64,21 +64,35 @@ function toggleNotion(sel) {
         <h2 style="margin:0;">📡 发布平台</h2>
         <a href="/accounts" class="btn btn-sm btn-primary">管理账号</a>
     </div>
-    <div class="publisher-grid" style="margin-top:12px;">
-        {% for p in publishers %}
-        {% set accts = account_map.get(p.name, []) %}
-        <div class="publisher-card"
-             style="border-left-color: {{ '#2ec4b6' if accts else '#ccc' }}">
-            <div class="name">{{ p.display_name }}</div>
-            <div class="status">
-                {% if accts %}
-                <span class="badge badge-success">{{ accts|length }} 个账号</span>
-                {% else %}
-                <span class="badge badge-info">未配置</span>
-                {% endif %}
+    <div style="margin-top:12px;">
+        {% if account_map %}
+        {% for pname, accts in account_map.items() %}
+        {% set pub_info = publishers|selectattr('name', 'equalto', pname)|first %}
+        <div style="margin-bottom:8px;padding:10px 14px;border:1px solid #e0e0e0;border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-weight:600;font-size:14px;">{{ pub_info.display_name if pub_info else pname }}</span>
+                <span class="badge badge-success" style="font-size:11px;">{{ accts|length }} 个账号</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% for a in accts %}
+                {% set acfg = a.config_json|from_json if a.config_json else {} %}
+                {% set site_url = acfg.get('site_url', '') %}
+                <a href="/accounts" class="btn btn-sm btn-outline" style="font-size:12px;display:inline-flex;align-items:center;gap:4px;text-decoration:none;border:1px solid #ddd;border-radius:6px;padding:4px 10px;background:#fafafa;"
+                   title="点击查看账号配置">
+                    {{ a.account_name }}
+                    {% if site_url %}
+                    <span style="color:#4361ee;font-size:11px;">🌐</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
+        {% else %}
+        <p style="color:#999;text-align:center;padding:20px 0;">
+            还没有配置任何平台账号，<a href="/accounts">去添加 →</a>
+        </p>
+        {% endif %}
     </div>
 </div>
 

@@ -34,6 +34,7 @@ plugin_imports = [
     ('publisher_csdn', 'flashsloth.plugins.publisher_csdn'),
     ('publisher_discuz', 'flashsloth.plugins.publisher_discuz'),
     ('publisher_github_pages', 'flashsloth.plugins.publisher_github_pages'),
+    ('publisher_bilibili', 'flashsloth.plugins.publisher_bilibili'),
     ('deployer_github_pages', 'flashsloth.plugins.deployer_github_pages'),
     ('storage_alist', 'flashsloth.plugins.storage_alist'),
     ('forum_reader', 'flashsloth.plugins.forum_reader'),
@@ -52,6 +53,8 @@ sdk_imports = [
     ('sdk/adapters/csdn', 'flashsloth.sdk.adapters.csdn'),
     ('sdk/adapters/notion', 'flashsloth.sdk.adapters.notion'),
     ('sdk/adapters/github_pages', 'flashsloth.sdk.adapters.github_pages'),
+    ('sdk/adapters/oshwhub', 'flashsloth.sdk.adapters.oshwhub'),
+    ('sdk/adapters/bilibili', 'flashsloth.sdk.adapters.bilibili'),
 ]
 for name, mod_path in sdk_imports:
     check(name, lambda p=mod_path: __import__(p, fromlist=['']))

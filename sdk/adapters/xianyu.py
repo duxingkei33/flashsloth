@@ -19,6 +19,7 @@
   2. Playwright 浏览器自动登录：填写淘宝账号密码 + 处理验证码/扫码
 """
 from typing import Optional
+import json
 
 from ..adapter import PlatformAdapter, register, Article, Comment
 
@@ -85,17 +86,28 @@ class XianyuAdapter(PlatformAdapter):
     # ─── 发布 ─────────────────────────────────
 
     def publish(self, article: Article, **kwargs) -> dict:
-        """发布商品到闲鱼（框架预留）
+        """发布商品到闲鱼
 
-        当前发布商品需要：
-        1. 先通过 Playwright 登录获取有效的认证 Cookie
-        2. 调用闲鱼开放平台 API 或模拟浏览器发布
+        将 Article 数据转为闲鱼商品发布。
 
-        当前阶段优先实现登录 + Cookie 获取，
-        实际发布功能需要后续对接闲鱼开放平台（goofish.com 暂无可直接
-        调用的非浏览器 API）。
+        Article 字段映射:
+            title        → 商品标题
+            body         → 商品描述
+            images       → 商品图片
+            summary      → 卖点/摘要
+
+        kwargs 支持:
+            price (str)         — 价格（必填）
+            condition (str)     — 成色: new/like_new/slight_use/obvious_use/damaged
+            category (str)      — 分类 ID
+            delivery (str)      — 发货方式: express/in_person/virtual
+            quantity (int)      — 库存（默认1）
+            original_price (str)— 原价
+            location (str)      — 所在地
+            contact (str)       — 联系方式
+
+        当前以登录 + Cookie 管理为主，实际对接需闲鱼开放平台。
         """
-        # 检查配置
         missing = self.validate_config()
         if missing:
             return {
@@ -115,10 +127,38 @@ class XianyuAdapter(PlatformAdapter):
                 "error": "Cookie 无效或已过期，请重新登录",
             }
 
-        # 发布功能占位 — 需要对接闲鱼开放平台
+        title = article.title.strip()
+        if not title:
+            return {"success": False, "url": "", "id": "", "error": "商品标题不能为空"}
+
+        price = kwargs.get("price", self.config.get("default_price", ""))
+        if not price:
+            return {
+                "success": False, "url": "", "id": "",
+                "error": "商品价格不能为空，请传入 price 参数或在配置中设置默认价格",
+            }
+
+        product_data = {
+            "title": title[:30],
+            "description": (article.body or "")[:500],
+            "price": str(price),
+            "condition": kwargs.get("condition", self.config.get("default_condition", "slight_use")),
+            "category": kwargs.get("category", self.config.get("default_category", "")),
+            "delivery": kwargs.get("delivery", self.config.get("default_delivery", "express")),
+            "quantity": kwargs.get("quantity", 1),
+            "original_price": kwargs.get("original_price", ""),
+            "location": kwargs.get("location", ""),
+            "contact": kwargs.get("contact", ""),
+            "images": kwargs.get("images", article.images or []),
+            "summary": article.summary or "",
+            "tags": article.tags or [],
+        }
+
+        # 预留 — 对接开放平台 API 或 Playwright 模拟
         return {
             "success": False, "url": "", "id": "",
-            "error": "闲鱼发布功能需要在开放平台申请 API 权限，当前版本尚未对接",
+            "error": "闲鱼商品发布需对接闲鱼开放平台 API，当前版本尚未实现完整发布流程",
+            "message": json.dumps(product_data, ensure_ascii=False),
         }
 
     def _has_valid_cookie(self) -> bool:

@@ -50,6 +50,12 @@
         <!-- 账号名 -->
         <span style="font-weight:500;flex-shrink:0;min-width:80px;">{{ a.account_name }}</span>
 
+        <!-- 站点链接 -->
+        {% set site_url = cfg.get('site_url', '') %}
+        {% if site_url %}
+        <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;flex-shrink:0;" title="{{ site_url }}">🌐</a>
+        {% endif %}
+
         <!-- 状态徽章 -->
         <span id="statusBadge_{{ a.id }}"
               class="badge badge-{{ 'success' if a.is_active else 'warning' }}"
@@ -92,8 +98,8 @@
     <h2 style="font-size:18px;color:#666;margin-bottom:8px;">还没有配置任何平台账号</h2>
     <p style="color:#999;margin-bottom:20px;">在上方选择平台并点击「添加」，开始配置您的第一个账号</p>
     <ol style="text-align:left;max-width:400px;margin:0 auto;color:#666;line-height:1.8;">
-        <li>选择平台（如 阿莫论坛）</li>
-        <li>填写账号别名和配置信息</li>
+        <li>选择平台（如 阿莫论坛 / 立创开源硬件）</li>
+        <li>从知名站点列表快速选择或填写配置信息</li>
         <li>点击「浏览器登录」自动登录</li>
         <li>登录成功后 Cookie 自动保存</li>
     </ol>
@@ -109,10 +115,11 @@
         <form method="post" action="/accounts/add">
             <input type="hidden" name="platform" id="addPlatInput">
             <div class="form-group">
-                <label>账号别名</label>
-                <input type="text" name="account_name" required placeholder="如：主号、备用号"
+                <label>账号别名 <span style="color:#999;font-size:12px;">（留空自动生成）</span></label>
+                <input type="text" name="account_name" id="addAccountName" placeholder="留空自动生成：discuz01、oshwhub01"
                        style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
             </div>
+            <div id="addPresetHints" style="margin-bottom:10px;"></div>
             <div id="addConfigFields"></div>
             <div style="display:flex;gap:8px;margin-top:16px;">
                 <button type="submit" class="btn btn-primary">💾 保存</button>
@@ -189,6 +196,17 @@
 <script>
 // ====== 页面状态变量 ======
 let currentAccountId = 0;
+let _presetsData = {};
+
+// ====== 页面加载：获取预置站点 ======
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/api/platforms/presets')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) _presetsData = data.presets || {};
+    })
+    .catch(() => {});
+});
 
 
 // ====== 启用/禁用切换 ======
@@ -212,7 +230,7 @@ function toggleAccount(aid, checkbox) {
 }
 
 
-// ====== 添加账号弹窗 ======
+// ====== 添加账号弹窗（含预置站点）=====
 function onAddAccount() {
     const sel = document.getElementById('newPlatformSelect');
     const opt = sel.options[sel.selectedIndex];
@@ -221,15 +239,47 @@ function onAddAccount() {
     try { fields = JSON.parse(opt.dataset.fields || '[]'); } catch(e) {}
     document.getElementById('addPlatInput').value = opt.value;
     document.getElementById('addPlatName').textContent = opt.text.replace('➕ ', '');
-    let html = '';
+    document.getElementById('addAccountName').value = '';
+
+    // 预置站点建议
+    const platform = opt.value;
+    const preset = _presetsData[platform];
+    let presetHtml = '';
+    if (preset && preset.sites && preset.sites.length > 0) {
+        presetHtml = '<label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">📌 知名站点（点击自动填充）</label>' +
+            '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">';
+        preset.sites.forEach(function(s) {
+            presetHtml += '<button type="button" class="btn btn-sm btn-outline" style="font-size:11px;border:1px solid #ddd;border-radius:4px;padding:3px 8px;background:#f5f5f5;cursor:pointer;"' +
+                ' onclick="fillPreset(\'' + escapeHtml(s.name) + '\', \'' + escapeHtml(s.url || '') + '\', \'' + escapeHtml(s.desc || '') + '\')"' +
+                ' title="' + escapeHtml(s.desc || '') + '">' +
+                escapeHtml(s.name || '') + '</button>';
+        });
+        presetHtml += '</div>';
+    }
+    // 如果没有site_url字段但有预置，也显示
+
+    let html = presetHtml;
     fields.forEach(f => {
         const t = f.type === 'password' ? 'password' : 'text';
+        let val = '';
+        if (f.key === 'site_url' && preset && preset.sites && preset.sites.length > 0) {
+            val = preset.sites[0].url || '';
+        }
         html += '<div class="form-group"><label>' + (f.label || f.key) + '</label>' +
             '<input type="' + t + '" name="cfg_' + f.key + '" placeholder="' + (f.placeholder || '') + '"' +
+            (val ? ' value="' + val + '"' : '') +
             ' style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;"></div>';
     });
     document.getElementById('addConfigFields').innerHTML = html;
     document.getElementById('addFormBox').style.display = 'flex';
+}
+
+// ====== 填充预置站点 ======
+function fillPreset(name, url, desc) {
+    const siteInput = document.querySelector('input[name="cfg_site_url"]');
+    if (siteInput && url) siteInput.value = url;
+    const nameInput = document.getElementById('addAccountName');
+    if (nameInput && !nameInput.value) nameInput.value = name;
 }
 function hideAddForm() {
     document.getElementById('addFormBox').style.display = 'none';

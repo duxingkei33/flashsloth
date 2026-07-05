@@ -1,9 +1,12 @@
 """
-闲鱼 (Xianyu) Publisher — 通过 Playwright 登录 + Cookie 方式操作闲鱼
+闲鱼 (Xianyu / goofish.com) 商品 Publisher — 发布二手商品到闲鱼
 
-支持两种登录方式：
-  1. Cookie 方式：用户通过 Playwright 浏览器自动登录后保存 Cookie
-  2. Playwright 浏览器自动登录：填写淘宝账号密码，处理验证码/扫码
+基于 Playwright 浏览器自动化 + Cookie 方式操作闲鱼。
+
+产品能力：
+  - 发布「闲置商品」到闲鱼平台
+  - 商品包含：标题、描述、价格、图片、分类、成色、发货方式
+  - 支持 Cookie 和 Playwright 浏览器自动登录两种方式
 
 登录流程：
   1. 打开 goofish.com → 点击登录 → 跳转淘宝 SSO
@@ -14,9 +17,26 @@
 注意：
   - 淘宝登录有强反爬机制，大概率需要手机扫码
   - 单账号不超过 3次/分钟登录
-  - 实际发布商品需对接闲鱼开放平台 API，目前以登录 + Cookie 管理为主
+  - 实际发布商品需对接闲鱼开放平台 API 或 Playwright 模拟
+  - 当前版本以登录 + Cookie 管理为主，发布功能为预留
+
+数据字段映射 (Article → 闲鱼商品)：
+  Article.title          → 商品标题
+  Article.body           → 商品描述
+  Article.summary        → 商品卖点摘要
+  Article.images         → 商品图片列表
+  Article.tags           → 商品标签
+  Article.source         → 商品来源平台
+  Article.source_url     → 商品原链接
+  config.price           → 商品价格（元）
+  config.condition       → 商品成色（全新/几乎全新/轻微使用/明显痕迹/残缺）
+  config.category        → 商品分类
+  config.delivery_method → 发货方式（快递/面交/虚拟）
+  config.original_price  → 原价（展示用）
+  config.quantity        → 库存数量（默认1）
 """
 import re, json, time, random
+from typing import Optional
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
 
@@ -26,10 +46,29 @@ except ImportError:
     from plugins.xianyu_login import XianyuPlaywrightLogin
 
 
+# 商品成色选项
+CONDITION_OPTIONS = [
+    {"value": "new", "label": "全新"},
+    {"value": "like_new", "label": "几乎全新"},
+    {"value": "slight_use", "label": "轻微使用痕迹"},
+    {"value": "obvious_use", "label": "明显使用痕迹"},
+    {"value": "damaged", "label": "残缺/配件机"},
+]
+
+# 发货方式
+DELIVERY_OPTIONS = [
+    {"value": "express", "label": "快递"},
+    {"value": "in_person", "label": "面交"},
+    {"value": "virtual", "label": "虚拟商品"},
+]
+
+
 @register
-class XianyuPublisher(Publisher):
+class XianyuProductsPublisher(Publisher):
+    """闲鱼商品发布器 — 发布二手/闲置商品到闲鱼平台"""
+
     name = "xianyu"
-    display_name = "闲鱼"
+    display_name = "闲鱼商品"
     config_fields = [
         {
             "key": "login_mode",
@@ -44,10 +83,10 @@ class XianyuPublisher(Publisher):
         },
         {
             "key": "taobao_account",
-            "label": "淘宝账号",
+            "label": "淘宝账号（手机号/邮箱）",
             "type": "text",
             "required": False,
-            "placeholder": "登录闲鱼的淘宝账号（手机号/邮箱）",
+            "placeholder": "登录闲鱼的淘宝账号",
         },
         {
             "key": "password",
@@ -63,6 +102,37 @@ class XianyuPublisher(Publisher):
             "required": False,
             "placeholder": "登录后从浏览器 F12 复制 Cookie",
         },
+        # ── 商品默认配置 ──
+        {
+            "key": "default_price",
+            "label": "默认价格（元）",
+            "type": "text",
+            "required": False,
+            "placeholder": "商品默认标价，如 99.00",
+        },
+        {
+            "key": "default_condition",
+            "label": "默认成色",
+            "type": "select",
+            "required": False,
+            "options": CONDITION_OPTIONS,
+            "placeholder": "选择商品默认成色",
+        },
+        {
+            "key": "default_category",
+            "label": "默认分类",
+            "type": "text",
+            "required": False,
+            "placeholder": "商品分类 ID（闲鱼后台分类）",
+        },
+        {
+            "key": "default_delivery",
+            "label": "默认发货方式",
+            "type": "select",
+            "required": False,
+            "options": DELIVERY_OPTIONS,
+            "placeholder": "选择默认发货方式",
+        },
     ]
 
     def __init__(self, config: dict):
@@ -70,7 +140,13 @@ class XianyuPublisher(Publisher):
         self.login_mode = config.get("login_mode", "cookie")
         self.taobao_account = config.get("taobao_account", "")
         self.password = config.get("password", "")
-        self._login_instance: XianyuPlaywrightLogin | None = None
+        self._login_instance: Optional['XianyuPlaywrightLogin'] = None
+
+        # 商品默认值
+        self.default_price = config.get("default_price", "")
+        self.default_condition = config.get("default_condition", "slight_use")
+        self.default_category = config.get("default_category", "")
+        self.default_delivery = config.get("default_delivery", "express")
 
     def validate_config(self) -> list[str]:
         missing = []
@@ -122,28 +198,20 @@ class XianyuPublisher(Publisher):
             if resp.status_code == 200:
                 user_keywords = ["my", "user", "个人", "我的", "logout", "退出"]
                 if any(kw in text for kw in user_keywords):
-                    return {"success": True, "error": "", "status": "已登录"}
+                    return {"success": True, "error": "", "status": "✅ 已登录"}
                 return {
                     "success": True, "error": "",
                     "status": "Cookie 有效，但无法确认登录状态（可能需后续验证）",
                 }
             if "login" in resp.url.lower():
-                return {
-                    "success": False,
-                    "error": "Cookie 已过期，请重新登录获取",
-                    "status": "Cookie 过期",
-                }
+                return {"success": False, "error": "Cookie 已过期", "status": "Cookie 过期"}
             return {
                 "success": False,
                 "error": f"请求异常 (状态码: {resp.status_code})",
                 "status": "连接失败",
             }
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"连接失败: {e}",
-                "status": "连接失败",
-            }
+            return {"success": False, "error": f"连接失败: {e}", "status": "连接失败"}
 
     # ─── Playwright 浏览器登录 ──────────────────────
 
@@ -221,18 +289,33 @@ class XianyuPublisher(Publisher):
         """获取当前保存的 cookie"""
         return self.config.get("cookie", "")
 
-    # ─── 发布商品 ──────────────────────────────────
+    # ─── 商品发布 ──────────────────────────────────
 
     def publish(self, article: Article, **kwargs) -> dict:
-        """发布商品到闲鱼（框架预留）
+        """发布商品到闲鱼
 
-        当前仅支持 Cookie 验证和管理。
-        实际发布商品需要：
-          1. 有效的闲鱼/淘宝认证 Cookie
-          2. 闲鱼开放平台 API 或浏览器自动化发布
+        Article 字段到商品参数的映射:
+            title        → 商品标题（必填，最长 30 字）
+            body         → 商品描述（必填，最长 500 字）
+            images       → 商品图片（建议 1-9 张）
+            price        → 商品价格（通过 kwargs 或 config.default_price）
+            condition    → 商品成色
+            summary      → 商品卖点/标签
 
-        返回: {"success": bool, "url": str, "id": str, "error": str}
+        kwargs 支持:
+            price (str/float)    — 价格，如 "99.00"
+            condition (str)      — 成色: new/like_new/slight_use/obvious_use/damaged
+            category (str)       — 分类 ID
+            delivery (str)       — 发货方式: express/in_person/virtual
+            quantity (int)       — 库存数量（默认1）
+            original_price (str) — 原价（展示用）
+            location (str)       — 所在地，如 "上海"
+            images (list)        — 图片 URL 列表（覆盖 article.images）
+            contact (str)        — 联系方式（可选）
+
+        返回: {"success": bool, "url": str, "id": str, "error": str, "message": str}
         """
+        # ── 配置检查 ──
         missing = self.validate_config()
         if missing:
             return {
@@ -240,21 +323,80 @@ class XianyuPublisher(Publisher):
                 "error": f"缺少配置: {', '.join(missing)}",
             }
 
-        if self.login_mode == "playwright":
+        # Cookie 登录检查
+        if self.login_mode == "cookie":
+            if not self._has_valid_cookie():
+                return {
+                    "success": False, "url": "", "id": "",
+                    "error": "Cookie 无效或已过期，请重新登录获取",
+                }
+        elif self.login_mode == "playwright":
             return {
                 "success": False, "url": "", "id": "",
-                "error": "请先完成浏览器登录后再发布商品",
+                "error": "请先通过 playwright_login() 完成浏览器登录后再发布商品",
             }
 
-        if not self._has_valid_cookie():
+        # ── 商品参数准备 ──
+        title = article.title.strip()
+        if not title:
+            return {"success": False, "url": "", "id": "", "error": "商品标题不能为空"}
+
+        if len(title) > 30:
+            title = title[:30]
+
+        description = article.body or ""
+        if len(description) > 500:
+            description = description[:500]
+
+        price = kwargs.get("price", self.default_price or "")
+        if not price:
+            # 尝试从文章内容提取价格
+            price_match = re.search(r'(?:价格|售价|¥|￥)\s*(\d+(?:\.\d{1,2})?)', description)
+            if price_match:
+                price = price_match.group(1)
+
+        if not price:
             return {
                 "success": False, "url": "", "id": "",
-                "error": "Cookie 无效或已过期，请重新登录获取",
+                "error": "商品价格不能为空，请通过 kwargs 传入 price 或在配置中设置默认价格",
             }
 
+        product_data = {
+            "title": title,
+            "description": description,
+            "price": str(price),
+            "condition": kwargs.get("condition", self.default_condition),
+            "category": kwargs.get("category", self.default_category),
+            "delivery": kwargs.get("delivery", self.default_delivery),
+            "quantity": kwargs.get("quantity", 1),
+            "original_price": kwargs.get("original_price", ""),
+            "location": kwargs.get("location", ""),
+            "contact": kwargs.get("contact", ""),
+            "images": kwargs.get("images", article.images or []),
+            "summary": article.summary or "",
+            "tags": article.tags or [],
+        }
+
+        # ── 实际发布（占位 — 需对接闲鱼开放平台） ──
+        # 当前版本以登录 + Cookie 管理为主
+        # 实际发布商品需要：
+        #   1. 闲鱼开放平台 API 权限（阿里集团旗下平台）
+        #   2. 或 Playwright 浏览器模拟发布操作
         return {
-            "success": False, "url": "", "id": "",
-            "error": "闲鱼发布功能需要对接开放平台 API，当前版本尚未实现",
+            "success": False,
+            "url": "",
+            "id": "",
+            "error": (
+                "闲鱼商品发布需对接闲鱼开放平台 API（goofish.com），"
+                "当前版本尚未实现完整发布流程。\n"
+                "已准备商品数据:\n"
+                f"  标题: {product_data['title']}\n"
+                f"  价格: ¥{product_data['price']}\n"
+                f"  成色: {product_data['condition']}\n"
+                f"  图片数: {len(product_data['images'])}\n"
+                "请通过 Playwright 模拟或开放平台 API 实现实际发布。"
+            ),
+            "message": json.dumps(product_data, ensure_ascii=False),
         }
 
     def _has_valid_cookie(self) -> bool:
