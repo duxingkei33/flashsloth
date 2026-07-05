@@ -44,7 +44,7 @@ def signin_page():
        d["signin_enabled"] = cfg.get("signin_enabled", True)  # 默认启用
        d["signin_time"] = cfg.get("signin_time", "08:00")
        # 检测是否有匹配的签到插件
-       from core_signin import get_signin_for_account
+       from flashsloth.core.signin import get_signin_for_account
        plugin = get_signin_for_account(d)
        d["has_signin"] = plugin is not None
        d["plugin_name"] = plugin.display_name if plugin else ""
@@ -70,7 +70,7 @@ def signin_page():
    accts.sort(key=sort_key)
 
    # 已注册的签到插件列表
-   from core_signin import list_signins
+   from flashsloth.core.signin import list_signins
    signin_plugins = list_signins()
 
    return render_template("signin.html",
@@ -97,7 +97,7 @@ def api_signin_account(aid):
    cfg = json.loads(d.get("config_json") or "{}")
    d["config"] = cfg
 
-   from core_signin import get_signin_for_account
+   from flashsloth.core.signin import get_signin_for_account
    plugin = get_signin_for_account(d)
    if not plugin:
        return jsonify({"success": False, "error": "该平台无匹配的签到插件"})
@@ -214,7 +214,7 @@ def api_signin_run_all():
        if not cfg.get("signin_enabled", True):
            continue
 
-       from core_signin import get_signin_for_account
+       from flashsloth.core.signin import get_signin_for_account
        plugin = get_signin_for_account(d)
        if not plugin:
            continue
