@@ -36,3 +36,5 @@ __pycache__/
 venv/
 # 但保留测试文件
 !tests/
+*.db-shm
+*.db-wal
