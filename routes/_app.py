@@ -4,11 +4,13 @@ This avoids Blueprint namespacing issues with url_for().
 All route modules use @app.route directly on this instance.
 """
 import os
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_login import LoginManager, UserMixin
 
 app = Flask(__name__,
-           template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates"))
+           template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates"),
+           static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "static"),
+           static_url_path="/static")
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
 app.config["DEBUG"] = False
 app.config["TEMPLATES_AUTO_RELOAD"] = True

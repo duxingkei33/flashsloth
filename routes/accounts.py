@@ -148,7 +148,7 @@ def edit_account(aid):
                         platforms=platforms,
                         has_real_config=bool(orig_cfg.get("password") or orig_cfg.get("cookie")),
                         captcha_provider=acct["captcha_provider"],
-                        captcha_config=json.loads(acct.get("captcha_config") or "{}"))
+                        captcha_config=json.loads(acct["captcha_config"] or "{}"))
 
 @app.route("/accounts/delete/<int:aid>")
 @login_required
