@@ -1,151 +1,314 @@
 """
-哔哩哔哩 Publisher — 发布专栏文章
+Bilibili (哔哩哔哩) 专栏 Publisher — 发布专栏文章到 Bilibili
 
-使用 Cookie 方式登录 B站，发布专栏文章。
-视频投稿功能为预留状态（开发中）。
+基于 Bilibili 开放 API + Cookie 认证。
+
+认证方式：
+  使用 Bilibili Cookie 认证（SESSDATA + bili_jct + DedeUserID）
+  从浏览器 F12 → Application → Cookies → bilibili.com 复制
+
+发布流程：
+  1. 创建草稿 (draft/addition)
+  2. 提交发布 (draft/submit)
+
+依赖：
+  pip install requests
+
+API 文档：
+  https://api.bilibili.com/x/web-interface/nav              — 登录状态检测
+  https://api.bilibili.com/x/article/creative/draft/addition — 创建草稿
+  https://api.bilibili.com/x/article/creative/draft/submit   — 发布草稿
 """
-import json, re
+import re, json
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
+
+
+BAPI = "https://api.bilibili.com"
+BWEB = "https://www.bilibili.com"
+
+
+def _extract_cookie_value(cookie_str: str, key: str) -> str:
+    """从 Cookie 字符串中提取指定 key 的值"""
+    if not cookie_str:
+        return ""
+    pattern = re.compile(rf'(?:^|;\s*){re.escape(key)}=([^;]+)')
+    m = pattern.search(cookie_str)
+    return m.group(1) if m else ""
 
 
 @register
 class BilibiliPublisher(Publisher):
     name = "bilibili"
-    display_name = "哔哩哔哩"
+    display_name = "Bilibili 专栏"
     config_fields = [
-        {"key": "site_url", "label": "网站地址", "type": "text", "required": True,
-         "default": "https://www.bilibili.com", "placeholder": "https://www.bilibili.com"},
-        {"key": "username", "label": "B站用户名", "type": "text", "required": False,
-         "placeholder": "B站登录用户名"},
-        {"key": "password", "label": "密码", "type": "password", "required": False,
-         "placeholder": "B站登录密码"},
-        {"key": "cookie", "label": "Cookie", "type": "password", "required": False,
-         "placeholder": "登录后从浏览器 F12 复制 Cookie"},
+        {
+            "key": "cookie",
+            "label": "Cookie（完整 Cookie 字符串）",
+            "type": "password",
+            "required": True,
+            "placeholder": "登录后从浏览器 F12 → Application → Cookies → bilibili.com 复制",
+        },
+        {
+            "key": "default_category",
+            "label": "默认专栏分类",
+            "type": "select",
+            "required": False,
+            "options": [
+                {"value": "0", "label": "默认分类"},
+                {"value": "1", "label": "动画"},
+                {"value": "2", "label": "游戏"},
+                {"value": "3", "label": "科技"},
+                {"value": "4", "label": "生活"},
+                {"value": "5", "label": "娱乐"},
+                {"value": "6", "label": "影视"},
+            ],
+            "placeholder": "选择专栏发布时的默认分类",
+        },
     ]
 
-    API_BASE = "https://api.bilibili.com"
-    ARTICLE_API = "https://api.bilibili.com/x/article"
-
-    def __init__(self, config: dict | None = None):
+    def __init__(self, config: dict):
         super().__init__(config)
-        cfg = self.config
-        self.site_url = cfg.get("site_url", "https://www.bilibili.com").rstrip("/")
-        self.username = cfg.get("username", "")
-        self.password = cfg.get("password", "")
-        self.cookie = cfg.get("cookie", "")
-        self._session = self._build_session() if self.cookie else None
+        self.cookie = config.get("cookie", "")
+        self.default_category = config.get("default_category", "0")
+        self.sessdata = _extract_cookie_value(self.cookie, "SESSDATA")
+        self.bili_jct = _extract_cookie_value(self.cookie, "bili_jct")
 
-    def _build_session(self):
-        import requests
-        s = requests.Session()
-        # 解析 cookie 字符串
-        for item in self.cookie.split(";"):
-            item = item.strip()
-            if "=" in item:
-                k, v = item.split("=", 1)
-                s.cookies.set(k.strip(), v.strip())
-        s.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": "https://www.bilibili.com/",
-        })
-        return s
-
-    def publish(self, article: Article, **kwargs) -> dict:
-        """
-        发布专栏文章到 B站。
-        使用 bilibili 专栏 API (x/article/creative/draft/posts)。
-        """
-        if not self.cookie:
-            return {"success": False, "error": "未配置 Cookie，请先登录获取 Cookie"}
-
-        if not self._session:
-            self._session = self._build_session()
-
-        title = article.title
-        content = article.body or article.content or ""
-
-        # B站专栏内容需要转为纯文本 + 简单 HTML
-        # 这里做基础转换
-        text_content = self._convert_to_bilibili_format(content)
-
-        try:
-            # Step 1: 获取用户信息（验证 Cookie）
-            user_resp = self._session.get(
-                f"{self.API_BASE}/x/space/wbi/acc/info",
-                params={"mid": 0},
-                timeout=10,
-            )
-            if not user_resp.ok:
-                return {"success": False, "error": "Cookie 无效或已过期，请重新登录"}
-            user_data = user_resp.json()
-            if user_data.get("code") != 0:
-                return {"success": False, "error": f"Cookie 验证失败: {user_data.get('message', '未知错误')}"}
-
-            # Step 2: 发布专栏文章
-            # B站专栏发布 API — 需要 csrf token
-            csrf = self._get_csrf()
-            if not csrf:
-                return {"success": False, "error": "无法获取 CSRF Token，Cookie 可能不完整"}
-
-            pub_resp = self._session.post(
-                f"{self.API_BASE}/x/article/creative/draft/posts",
-                data={
-                    "title": title,
-                    "content": text_content,
-                    "category": self._detect_category(title, content),
-                    "list_id": 0,
-                    "original": 1,
-                    "csrf": csrf,
-                },
-                timeout=30,
-            )
-            data = pub_resp.json()
-            if data.get("code") == 0:
-                article_id = data.get("data", {}).get("article_id", "")
-                url = f"https://www.bilibili.com/read/cv{article_id}" if article_id else ""
-                return {"success": True, "url": url, "id": str(article_id), "error": ""}
-            else:
-                return {"success": False, "error": f"发布失败: {data.get('message', str(data))}"}
-
-        except Exception as e:
-            return {"success": False, "error": f"发布异常: {e}"}
-
-    def publish_video(self, article: Article, **kwargs) -> dict:
-        """
-        【预留】视频投稿功能 — 开发中
-        """
+    def _headers(self) -> dict:
+        """构造请求头"""
         return {
-            "success": False,
-            "error": "视频投稿功能开发中（预留），将在后续版本中实现",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
+            ),
+            "Cookie": self.cookie,
+            "Referer": "https://www.bilibili.com/",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         }
 
-    def _get_csrf(self) -> str:
-        """从 Cookie 中提取 bili_jct（CSRF Token）"""
-        if not self._session:
-            return ""
-        for cookie in self._session.cookies:
-            if cookie.name == "bili_jct":
-                return cookie.value
-        return ""
+    def _is_auth_valid(self) -> bool:
+        """检查 Cookie 中是否含有必要认证字段"""
+        return bool(self.sessdata) and bool(self.bili_jct)
 
-    def _convert_to_bilibili_format(self, text: str) -> str:
-        """将 Markdown 风格的文本转为 B站专栏格式"""
-        # 基础转换：移除 markdown 标记，保留基本格式
-        text = re.sub(r'#{1,6}\s+', '', text)  # 标题标记
-        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)  # 加粗
-        text = re.sub(r'\*(.+?)\*', r'\1', text)  # 斜体
-        text = re.sub(r'!\[.*?\]\(.*?\)', '[图片]', text)  # 图片
-        text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)  # 链接
-        text = re.sub(r'```[\s\S]*?```', '[代码块]', text)  # 代码块
-        text = re.sub(r'`(.+?)`', r'\1', text)  # 行内代码
+    def _body_to_html(self, body: str, images: list = None) -> str:
+        """将 Markdown 正文转为 Bilibili 专栏兼容的 HTML"""
+        text = body
+
+        # Markdown 标题
+        text = re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+        text = re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=re.MULTILINE)
+        text = re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=re.MULTILINE)
+
+        # 粗体/斜体/行内代码
+        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+        text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+        text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+
+        # 图片
+        if images:
+            for img_url in images:
+                text = re.sub(
+                    rf'!\[.*?\]\({re.escape(img_url)}\)',
+                    f'<img src="{img_url}" />',
+                    text,
+                )
+
+        text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1" />', text)
+
+        # 链接
+        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+
+        # 段落包裹
+        parts = []
+        for para in text.split('\n\n'):
+            para = para.strip()
+            if not para:
+                continue
+            if not re.match(r'^\s*<', para):
+                para = f'<p>{para}</p>'
+            parts.append(para)
+        text = '\n'.join(parts)
+
         return text.strip()
 
-    def _detect_category(self, title: str, content: str) -> int:
-        """简单检测专栏分类（B站分类ID）"""
-        # 默认：生活（4）
-        return 4
+    def test_connection(self) -> dict:
+        """测试 Bilibili Cookie 是否有效"""
+        if not self.cookie:
+            return {"success": False, "error": "Cookie 为空", "status": "无 Cookie"}
+        if not self._is_auth_valid():
+            return {
+                "success": False,
+                "error": "Cookie 缺少 SESSDATA 或 bili_jct",
+                "status": "Cookie 格式错误",
+            }
+
+        try:
+            import requests
+
+            resp = requests.get(
+                f"{BAPI}/x/web-interface/nav",
+                headers=self._headers(),
+                timeout=10,
+            )
+            result = resp.json()
+            if result.get("code") == 0 and result.get("data", {}).get("isLogin"):
+                uname = result.get("data", {}).get("uname", "")
+                return {
+                    "success": True, "error": "",
+                    "status": f"✅ 已登录 — {uname}",
+                }
+            return {
+                "success": False,
+                "error": "Cookie 无效或已过期",
+                "status": "未登录",
+            }
+        except ImportError:
+            return {"success": False, "error": "缺少 requests 库", "status": "依赖缺失"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}", "status": "连接失败"}
+
+    def publish(self, article: Article, **kwargs) -> dict:
+        """发布专栏文章到 Bilibili
+
+        两步流程：
+          1. 创建草稿 (draft/addition)
+          2. 提交发布 (draft/submit)
+
+        返回: {"success": bool, "url": str, "id": str, "error": str, "message": str}
+        """
+        if not self.cookie:
+            return {
+                "success": False, "url": "", "id": "",
+                "error": "请先在配置中填写 Bilibili Cookie",
+            }
+        if not self._is_auth_valid():
+            return {
+                "success": False, "url": "", "id": "",
+                "error": "Cookie 格式不正确，需要包含 SESSDATA 和 bili_jct",
+            }
+
+        title = article.title.strip()
+        if not title:
+            return {"success": False, "url": "", "id": "", "error": "标题不能为空"}
+
+        body = article.body or ""
+        if not body.strip():
+            return {"success": False, "url": "", "id": "", "error": "文章内容不能为空"}
+
+        try:
+            import requests
+
+            # ── 参数 ──
+            category = kwargs.get("category", int(self.default_category))
+            tags = kwargs.get("tags", article.tags or [])
+            cover = kwargs.get("cover", "")
+            original = kwargs.get("original", 1)
+
+            content_html = self._body_to_html(body, article.images)
+
+            # ── 第1步：创建草稿 ──
+            draft_data = {
+                "category": category,
+                "title": title,
+                "content": content_html,
+                "summary": article.summary or title[:80],
+                "tags": ",".join(tags) if tags else "",
+                "cover": cover,
+                "original": original,
+            }
+            if self.bili_jct:
+                draft_data["csrf"] = self.bili_jct
+
+            headers = self._headers()
+            headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+
+            resp = requests.post(
+                f"{BAPI}/x/article/creative/draft/addition",
+                data=draft_data,
+                headers=headers,
+                timeout=30,
+            )
+
+            result = resp.json()
+            if result.get("code") != 0:
+                return {
+                    "success": False, "url": "", "id": "",
+                    "error": f"创建草稿失败: {result.get('message', '未知错误')} (code={result.get('code')})",
+                }
+
+            draft_id = result.get("data", {}).get("article_id", "") or \
+                       result.get("data", {}).get("draft_id", "")
+
+            if not draft_id:
+                return {
+                    "success": False, "url": "", "id": "",
+                    "error": "创建草稿成功但未获取到文章 ID",
+                }
+
+            # ── 第2步：提交发布 ──
+            submit_data = {"draft_id": draft_id, "category": category}
+            if self.bili_jct:
+                submit_data["csrf"] = self.bili_jct
+
+            submit_resp = requests.post(
+                f"{BAPI}/x/article/creative/draft/submit",
+                data=submit_data,
+                headers=headers,
+                timeout=30,
+            )
+
+            submit_result = submit_resp.json()
+            if submit_result.get("code") != 0:
+                error_msg = submit_result.get("message", "未知错误")
+                # 某些错误码（如 110011）表示草稿已发布过，也视为成功
+                if submit_result.get("code") in (110011,):
+                    article_url = f"{BWEB}/read/cv{draft_id}/"
+                    return {
+                        "success": True,
+                        "url": article_url,
+                        "id": str(draft_id),
+                        "error": "",
+                        "message": f"cv{draft_id}（草稿可能已发布过）",
+                    }
+                return {
+                    "success": False, "url": "", "id": draft_id,
+                    "error": f"发布草稿失败: {error_msg} (code={submit_result.get('code')})",
+                }
+
+            article_id = submit_result.get("data", {}).get("article_id", draft_id)
+            article_url = f"{BWEB}/read/cv{article_id}/"
+
+            return {
+                "success": True,
+                "url": article_url,
+                "id": str(article_id),
+                "error": "",
+                "message": f"cv{article_id}",
+            }
+
+        except ImportError:
+            return {
+                "success": False, "url": "", "id": "",
+                "error": "缺少 requests 库，请执行: pip install requests",
+            }
+        except Exception as e:
+            return {
+                "success": False, "url": "", "id": "",
+                "error": f"发布异常: {e}",
+            }
 
     def retract(self, article: Article, publish_log: dict = None) -> dict:
-        """B站暂不支持自动撤回文章"""
-        return {"success": False, "error": "B站暂不支持自动撤回文章，请手动在B站后台操作"}
+        """Bilibili 专栏暂不支持通过 API 撤回"""
+        return {
+            "success": True,
+            "error": "",
+            "message": "Bilibili 不支持自动撤回，请手动到 bilibili.com 删除",
+        }
+
+    def validate_config(self) -> list[str]:
+        missing = []
+        if not self.cookie:
+            missing.append("cookie")
+        return missing

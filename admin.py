@@ -3422,7 +3422,7 @@ def oshwhub_captcha_click():
     try:
         sess_id = f"user_{current_user.id}"
         inst = _get_oshwhub_login(sess_id)
-        result = inst.click_captcha_and_submit()
+        result = inst.submit_captcha_and_login()
         if result.get("logged_in"):
             aid = request.json.get("account_id", 0)
             if aid:

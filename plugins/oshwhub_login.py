@@ -122,33 +122,23 @@ class OshwhubPlaywrightLogin:
         return base64.b64encode(screenshot).decode()
 
     def _wait_for_login_form(self, timeout: int = 15000) -> bool:
-        """等待 Ant Design 登录表单渲染完成
+        """等待登录表单渲染完成
 
-        OSHWHub 使用 Next.js SSR + Ant Design，表单在客户端渲染。
-        检测登录页面是否加载了表单输入框。
+        oshwhub 使用嘉立创统一登录（passport.jlc.com），
+        Element UI 框架渲染。表单需先点击"账号登录"标签。
         """
         try:
-            # 等待页面不再显示 loading/error
             self.page.wait_for_load_state("networkidle", timeout=timeout)
 
-            # 尝试多种 Ant Design 输入框选择器
+            # Element UI / 通用选择器
             input_selectors = [
-                "input[type='text']",
-                "input[type='email']",
-                "input[id*='username']",
-                "input[id*='email']",
-                "input[id*='phone']",
-                "input[id*='account']",
-                "input[id*='login']",
-                "input.ant-input",
-                # Ant Design Pro 常用 ID 模式
-                "input[id*='basic']",
+                "input.el-input__inner",
+                "input[placeholder*='手机号码']",
                 "input[placeholder*='邮箱']",
                 "input[placeholder*='账号']",
-                "input[placeholder*='用户名']",
-                "input[placeholder*='手机']",
-                "input[placeholder*='account']",
-                "input[placeholder*='email']",
+                "input[placeholder*='密码']",
+                "input[type='text']",
+                "input[type='email']",
             ]
             for sel in input_selectors:
                 try:
@@ -158,8 +148,8 @@ class OshwhubPlaywrightLogin:
                 except:
                     continue
 
-            # 尝试检测 Ant Design Form.Item
-            form_items = self.page.query_selector_all(".ant-form-item")
+            # 检测 Element UI 表单容器
+            form_items = self.page.query_selector_all(".el-input")
             if len(form_items) >= 2:
                 return True
 
@@ -244,83 +234,62 @@ class OshwhubPlaywrightLogin:
     def _fill_login_form(self, page, username: str, password: str) -> bool:
         """智能填写登录表单
 
-        尝试多种选择器匹配 Ant Design 输入框。
-        注意 Ant Design 的 Input 组件可能有隐藏的 input 元素。
+        JLCPCB 使用 Element UI，表单元素为 .el-input__inner。
+        先点击用户名框，再点击密码框模拟真人操作。
         """
         # ── 用户名/邮箱/手机号输入框 ──
         username_filled = False
-        username_selectors = [
-            # 按 placeholder 查找
-            "input[placeholder*='邮箱']",
-            "input[placeholder*='账号']",
-            "input[placeholder*='用户名']",
-            "input[placeholder*='手机']",
-            "input[placeholder*='account']",
-            "input[placeholder*='email']",
-            "input[placeholder*='phone']",
-            # 按 id/name 查找
-            "input[id*='username']",
-            "input[id*='email']",
-            "input[id*='phone']",
-            "input[id*='account']",
-            "input[name*='username']",
-            "input[name*='email']",
-            "input[name*='account']",
-            "input[name*='phone']",
-            # Ant Design 常规选择器
-            "input#basic_username",
-            "input#basic_email",
-            "input#basic_account",
-            "input.ant-input",
-        ]
-
-        for sel in username_selectors:
-            try:
-                el = page.query_selector(sel)
-                if el and el.is_visible():
-                    el.click()
-                    _human_delay(0.2, 0.5)
-                    el.fill("")
-                    _human_delay(0.1, 0.3)
-                    # 使用 type 模拟真人输入
-                    for char in username:
-                        el.type(char, delay=random.randint(40, 120))
-                    username_filled = True
-                    break
-            except:
-                continue
+        # Element UI 的输入框用 .el-input__inner 类
+        # 第一个可见的 .el-input__inner（非密码类型）就是用户名框
+        try:
+            all_inputs = page.query_selector_all("input.el-input__inner")
+            if all_inputs:
+                for inp in all_inputs:
+                    tp = inp.get_attribute("type") or ""
+                    if tp != "password" and inp.is_visible():
+                        inp.click()
+                        _human_delay(0.2, 0.5)
+                        inp.fill("")
+                        _human_delay(0.1, 0.3)
+                        for char in username:
+                            inp.type(char, delay=random.randint(40, 120))
+                        username_filled = True
+                        break
+        except:
+            pass
 
         if not username_filled:
-            # 尝试找第一个可见的 input[type='text']
-            try:
-                all_inputs = page.query_selector_all("input:not([type='hidden']):not([type='password'])")
-                for inp in all_inputs:
-                    if inp and inp.is_visible():
-                        rect = inp.bounding_box()
-                        if rect and rect["width"] > 100:  # 排除小图标/按钮
-                            inp.click()
-                            _human_delay(0.2, 0.5)
-                            inp.fill("")
-                            for char in username:
-                                inp.type(char, delay=random.randint(40, 120))
-                            username_filled = True
-                            break
-            except:
-                pass
+            # 尝试通用选择器
+            username_selectors = [
+                "input[placeholder*='手机号码']",
+                "input[placeholder*='邮箱']",
+                "input[placeholder*='账号']",
+                "input:not([type='hidden']):not([type='password']):not([type='checkbox'])",
+            ]
+            for sel in username_selectors:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        el.click()
+                        _human_delay(0.2, 0.5)
+                        el.fill("")
+                        _human_delay(0.1, 0.3)
+                        for char in username:
+                            el.type(char, delay=random.randint(40, 120))
+                        username_filled = True
+                        break
+                except:
+                    continue
 
         _human_delay(0.5, 1.0)
 
         # ── 密码输入框 ──
         password_filled = False
         password_selectors = [
+            "input.el-input__inner[type='password']",
             "input[type='password']",
-            "input[id*='password']",
-            "input[name*='password']",
             "input[placeholder*='密码']",
-            "input[placeholder*='password']",
-            "input#basic_password",
         ]
-
         for sel in password_selectors:
             try:
                 el = page.query_selector(sel)
@@ -341,24 +310,17 @@ class OshwhubPlaywrightLogin:
     def _find_submit_button(self, page):
         """查找登录/提交按钮"""
         submit_selectors = [
+            "button.el-button--primary",
             "button[type='submit']",
             "button:has-text('登录')",
             "button:has-text('登 录')",
             "button:has-text('登入')",
             "button:has-text('Sign In')",
-            "button:has-text('Sign in')",
-            "button:has-text('立即登录')",
             "button.ant-btn-primary",
-            "button.ant-btn[type='submit']",
             "button.submit-btn",
-            ".ant-btn-primary:has-text('登录')",
-            ".ant-btn-primary:has-text('登 录')",
             "input[type='submit']",
             "input[value*='登录']",
-            "input[value*='登入']",
-            # Ant Design Pro 登录页
             "button[id*='login']",
-            "button[class*='login']",
         ]
         for sel in submit_selectors:
             try:
@@ -422,10 +384,24 @@ class OshwhubPlaywrightLogin:
             self._ensure_browser()
             page = self.page
 
-            # ── 1. 访问登录页 ──
+            # ── 1. 访问登录页（嘉立创统一登录 passport.jlc.com）──
             login_url = f"{self.site_url}/login"
+            # oshwhub.com 有 Cloudflare WAF，改用嘉立创统一登录
+            # 检测是否 passport.jlc.com 域名
+            if "passport" not in self.site_url:
+                login_url = "https://passport.jlc.com/login"
             page.goto(login_url, wait_until="networkidle", timeout=30000)
-            _human_delay(1.0, 2.0)
+            _human_delay(2.0, 3.0)
+
+            # 尝试点击"账号登录"标签（Element UI 标签页）
+            try:
+                account_tab = page.query_selector("button:has-text('账号登录')")
+                if account_tab and account_tab.is_visible():
+                    account_tab.click()
+                    _human_delay(0.5, 1.0)
+                    page.wait_for_load_state("networkidle", timeout=8000)
+            except:
+                pass
 
             # ── 2. 等待表单渲染 ──
             form_ready = self._wait_for_login_form(timeout=15000)
