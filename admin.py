@@ -1291,10 +1291,11 @@ def captcha_provider_config(aid):
         return jsonify({"success": False, "error": "账号不存在"})
 
     if request.method == "GET":
+        acct_dict = dict(acct)
         return jsonify({
             "success": True,
-            "provider": acct["captcha_provider"] or "manual",
-            "config": json.loads(acct["captcha_config"]) if acct.get("captcha_config") else {},
+            "provider": acct_dict.get("captcha_provider", "manual") or "manual",
+            "config": json.loads(acct_dict["captcha_config"]) if acct_dict.get("captcha_config") else {},
         })
 
     # POST: 更新
@@ -1953,7 +1954,7 @@ def publish_manage():
 
     # 所有发布记录（含撤回的）
     logs = conn.execute(
-        "SELECT pl.*, pa.account_name, pa.platform, a.title as article_title "
+        "SELECT pl.*, pa.account_name, pa.platform as pa_platform, a.title as article_title "
         "FROM publish_log pl "
         "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
         "LEFT JOIN articles a ON pl.article_id=a.id "
@@ -1976,7 +1977,7 @@ def publish_manage():
     for a in articles_raw:
         a = dict(a)
         pub_urls = conn.execute(
-            "SELECT platform, url, account_name, deploy_status FROM publish_log pl "
+            "SELECT pl.platform, pl.url, pa.account_name, pl.deploy_status FROM publish_log pl "
             "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
             "WHERE pl.article_id=? AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL) "
             "ORDER BY pl.created_at DESC",
