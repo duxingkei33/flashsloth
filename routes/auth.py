@@ -67,7 +67,7 @@ def index():
         plogs = conn.execute(
             "SELECT pl.*, pa.account_name, pa.platform FROM publish_log pl "
             "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
-            "WHERE pl.article_id=? AND pl.success=1 "
+            "WHERE pl.article_id=? AND (pl.success=1 OR pl.status='draft') "
             "ORDER BY pl.created_at DESC",
             (pid,),
         ).fetchall()

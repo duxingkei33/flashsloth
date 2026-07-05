@@ -178,9 +178,9 @@ def publish():
        mode = request.form.get(f"mode_{aid}", "publish")
        cfg["publish_mode"] = mode
 
-       # 去重：检查是否已发布到该账号
+       # 去重：检查是否已发布到该账号（包括草稿）
        existing = conn.execute(
-           "SELECT id FROM publish_log WHERE article_id=? AND account_id=? AND success=1",
+           "SELECT id FROM publish_log WHERE article_id=? AND account_id=? AND success=1 AND status != 'draft'",
            (article_id, aid)
        ).fetchone()
        if existing:
@@ -517,6 +517,29 @@ def publish_select(pid):
        "ORDER BY pl.created_at DESC",
        (pid,),
    ).fetchall()
+   # 获取各平台是否支持存草稿
+   platform_draft = {}
+   for a in accounts:
+       plat = a["platform"]
+       if plat not in platform_draft:
+           try:
+               from flashsloth.core.publisher import get_publisher
+               cfg = json.loads(a["config_json"]) if a["config_json"] else {}
+               pub = get_publisher(plat, cfg)
+               if hasattr(pub, "supports_draft"):
+                   platform_draft[plat] = pub.supports_draft
+               elif hasattr(pub, "PLATFORM_LIMITS"):
+                   domain = pub._get_domain()
+                   sd = True  # 默认支持
+                   for site_key, limits in pub.PLATFORM_LIMITS.items():
+                       if site_key in domain:
+                           sd = limits.get("supports_draft", True)
+                           break
+                   platform_draft[plat] = sd
+               else:
+                   platform_draft[plat] = True
+           except Exception:
+               platform_draft[plat] = True
    conn.close()
 
    if not post:
@@ -525,7 +548,8 @@ def publish_select(pid):
 
    return render_template("publish_select.html",
                         post=post, accounts=accounts,
-                        published=[dict(p) for p in published])
+                        published=[dict(p) for p in published],
+                        platform_draft=platform_draft)
 
 # ─── 撤回 / 重新发布 ──────────────────────────
 @app.route("/publish/retract/<int:log_id>")
@@ -696,7 +720,7 @@ def publish_manage():
    articles_raw = conn.execute(
        "SELECT a.*, "
        "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL)) as pub_count, "
-       "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.status='retracted') as ret_count "
+       "(SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.status='retracted') as ret_count, (SELECT COUNT(*) FROM publish_log pl WHERE pl.article_id=a.id AND pl.status='draft') as draft_count "
        "FROM articles a WHERE a.user_id=? ORDER BY a.updated_at DESC",
        (current_user.id,)
    ).fetchall()
@@ -708,7 +732,7 @@ def publish_manage():
        pub_urls = conn.execute(
            "SELECT pl.platform, pl.url, pa.account_name, pl.deploy_status FROM publish_log pl "
            "LEFT JOIN platform_accounts pa ON pl.account_id=pa.id "
-           "WHERE pl.article_id=? AND pl.success=1 AND (pl.status='published' OR pl.status IS NULL) "
+           "WHERE pl.article_id=? AND (pl.success=1 OR pl.status='draft') "
            "ORDER BY pl.created_at DESC",
            (a['id'],)
        ).fetchall()

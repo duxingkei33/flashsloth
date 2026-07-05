@@ -64,6 +64,7 @@ async function checkPending() {
                 <th>文章</th>
                 <th>状态</th>
                 <th>已发布</th>
+                <th>📝 草稿</th>
                 <th>已撤回</th>
                 <th>链接</th>
             </tr>
@@ -80,6 +81,13 @@ async function checkPending() {
                     {% endif %}
                 </td>
                 <td>{{ a.pub_count }}</td>
+                <td>
+                    {% if a.draft_count > 0 %}
+                    <span class="badge badge-warning">📝 {{ a.draft_count }} 篇</span>
+                    {% else %}
+                    <span style="color:#999;">-</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if a.ret_count > 0 %}
                     <span class="badge badge-warning">{{ a.ret_count }} 次撤回</span>
@@ -152,6 +160,8 @@ async function checkPending() {
                     <span class="badge badge-warning" title="撤回时间: {{ log.retracted_at[:16] if log.retracted_at else '' }}">
                         ↩️ 已撤回
                     </span>
+                    {% elif log.status == 'draft' %}
+                    <span class="badge badge-warning">📝 存草稿</span>
                     {% elif log.success %}
                     <span class="badge badge-success">✅ 已发布</span>
                     {% else %}

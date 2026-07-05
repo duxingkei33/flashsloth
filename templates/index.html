@@ -180,13 +180,22 @@ function toggleNotion(sel) {
                     <div style="display:flex;gap:3px;flex-wrap:wrap;">
                         {% for pl in plist %}
                         {% if pl.url %}
+                        {% if pl.status == 'draft' %}
+                        <span class="badge badge-warning" style="font-size:11px;cursor:pointer;"
+                              title="存草稿于 {{ pl.platform }}">📝 {{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
+                        {% else %}
                         <a href="{{ pl.url }}" target="_blank"
                            class="badge badge-info platform-link"
                            style="font-size:11px;cursor:pointer;"
                            title="{{ pl.url }}">{{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</a>
+                        {% endif %}
+                    {% else %}
+                        {% if pl.status == 'draft' %}
+                        <span class="badge badge-warning" style="font-size:11px;">📝 存草稿: {{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
                         {% else %}
                         <span class="badge badge-info" style="font-size:11px;">{{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
                         {% endif %}
+                    {% endif %}
                         {% endfor %}
                     </div>
                     {% else %}

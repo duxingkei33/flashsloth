@@ -109,8 +109,13 @@
                     <div style="margin-bottom:6px;">
                         <strong style="font-size:13px;">发布模式：</strong>
                         <div class="mode-select">
-                            <label><input type="radio" name="mode_{{ a.id }}" value="draft" checked> 📝 存草稿</label>
-                            <label><input type="radio" name="mode_{{ a.id }}" value="publish"> 📤 直接发布</label>
+                            {% set can_draft = platform_draft.get(a.platform, True) %}
+                            <label style="{{ 'color:#ccc;cursor:not-allowed;' if not can_draft else '' }}">
+                                <input type="radio" name="mode_{{ a.id }}" value="draft" {{ 'checked' if can_draft else '' }}
+                                       {{ 'disabled' if not can_draft else '' }}>
+                                📝 存草稿{% if not can_draft %}<span style="font-size:11px;color:#999;">（不支持）</span>{% endif %}
+                            </label>
+                            <label><input type="radio" name="mode_{{ a.id }}" value="publish" {{ 'checked' if not can_draft else '' }}> 📤 直接发布</label>
                         </div>
                     </div>
 

@@ -26,6 +26,7 @@ class DiscuzPublisher(Publisher):
             "daily_upload_limit": 200,
             "daily_upload_size": 0,
             "allowed_extensions": ('.jpg', '.jpeg', '.png', '.gif', '.zip', '.rar', '.pdf', '.mp4'),
+            "supports_draft": True,
         },
         "amobbs.com": {
             "max_image_size": 16 * 1024 * 1024,
@@ -33,6 +34,7 @@ class DiscuzPublisher(Publisher):
             "daily_upload_size": 10 * 1024 * 1024,
             "allowed_extensions": ('.chm', '.pdf', '.zip', '.rar', '.tar', '.gz', '.bzip2', '.bz2',
                                    '.gif', '.jpg', '.jpeg', '.png', '.bmp', '.webp', '.7z'),
+            "supports_draft": True,
         },
     }
     
@@ -84,6 +86,8 @@ class DiscuzPublisher(Publisher):
         if raw_cookie:
             self.browser.set_cookies(raw_cookie)
         self._last_forum_page = ""  # 记录上次访问的板块页
+        # 是否支持存草稿（从平台限制读取）
+        self.supports_draft = self.config.get("supports_draft", True)
 
     def _get_domain(self) -> str:
         return self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
@@ -843,6 +847,9 @@ class DiscuzPublisher(Publisher):
         if save_as_draft:
             data["save"] = "1"
             submit_url += "&save=1"
+            draft_message = "draft"
+        else:
+            draft_message = "published"
         time.sleep(random.uniform(0.5, 1.5))
         resp = self.browser.post(submit_url, data=data)
 
@@ -863,7 +870,7 @@ class DiscuzPublisher(Publisher):
                 return {
                     "success": True, "tid": tid,
                     "url": verify.get("url", resp.url),
-                    "error": "", "message": "published",
+                    "error": "", "message": draft_message,
                     "warnings": warnings,
                 }
             elif verify["status"] == "pending_review":
