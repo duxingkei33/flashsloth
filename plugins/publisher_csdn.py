@@ -45,6 +45,11 @@ class CSDNPublisher(Publisher):
     name = "csdn"
     display_name = "CSDN"
     description = "通过 Selenium 浏览器自动化发布到 CSDN 博客"
+    login_methods = [
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+         "fields": ["cookie"],
+         "description": "登录 CSDN 后从浏览器 F12 复制全站 Cookie"},
+    ]
     config_fields = [
         {
             "key": "cookie",

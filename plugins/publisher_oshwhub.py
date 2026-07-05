@@ -22,6 +22,14 @@ except ImportError:
 class OshwhubPublisher(Publisher):
     name = "oshwhub"
     display_name = "立创开源硬件平台"
+    login_methods = [
+        {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 1,
+         "fields": ["site_url", "username", "password"],
+         "description": "使用 Playwright 浏览器自动打开登录页"},
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 2,
+         "fields": ["site_url", "cookie"],
+         "description": "从浏览器 F12 复制 Cookie"},
+    ]
     config_fields = [
         {"key": "login_mode", "label": "登录方式", "type": "select", "required": True,
          "options": [

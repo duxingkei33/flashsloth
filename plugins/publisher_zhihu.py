@@ -11,6 +11,11 @@ from flashsloth.core.publisher import Publisher, register
 class ZhihuPublisher(Publisher):
     name = "zhihu"
     display_name = "知乎"
+    login_methods = [
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+         "fields": ["cookie"],
+         "description": "登录知乎后从浏览器 F12 复制 Cookie"},
+    ]
     config_fields = [
         {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
          "placeholder": "登录知乎后从浏览器 F12 复制"},

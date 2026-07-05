@@ -11,6 +11,11 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class JuejinPublisher(Publisher):
     name = "juejin"
     display_name = "掘金"
+    login_methods = [
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+         "fields": ["cookie"],
+         "description": "登录掘金后从浏览器 F12 复制 Cookie"},
+    ]
     config_fields = [
         {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
          "placeholder": "登录掘金后从浏览器 F12 复制"},

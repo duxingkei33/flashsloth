@@ -11,6 +11,11 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class WordPressPublisher(Publisher):
     name = "wordpress"
     display_name = "WordPress"
+    login_methods = [
+        {"method": "password", "label": "应用密码认证", "icon": "🔑", "priority": 1,
+         "fields": ["site_url", "username", "app_password"],
+         "description": "使用 WordPress 应用密码通过 REST API 认证"},
+    ]
     config_fields = [
         {"key": "site_url", "label": "站点 URL", "type": "text", "required": True,
          "placeholder": "https://yourblog.com"},

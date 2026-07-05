@@ -41,6 +41,11 @@ def _extract_cookie_value(cookie_str: str, key: str) -> str:
 class BilibiliPublisher(Publisher):
     name = "bilibili"
     display_name = "Bilibili 专栏"
+    login_methods = [
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+         "fields": ["cookie"],
+         "description": "登录 Bilibili 后从浏览器 F12 复制 Cookie"},
+    ]
     config_fields = [
         {
             "key": "cookie",

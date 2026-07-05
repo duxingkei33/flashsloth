@@ -15,6 +15,14 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class XianyuProductsPublisher(Publisher):
     name = "xianyu_products"
     display_name = "闲鱼发布商品（预留）"
+    login_methods = [
+        {"method": "password", "label": "密码+二维码登录", "icon": "🔑", "priority": 1,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入淘宝账号密码，Playwright 处理扫码/验证码"},
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 2,
+         "fields": ["site_url", "cookie"],
+         "description": "从浏览器 F12 复制 Cookie"},
+    ]
     config_fields = [
         {"key": "username", "label": "淘宝账号", "type": "text", "required": False,
          "placeholder": "用于闲鱼登录的淘宝账号"},

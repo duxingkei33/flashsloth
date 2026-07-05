@@ -68,7 +68,15 @@ class XianyuProductsPublisher(Publisher):
     """闲鱼商品发布器 — 发布二手/闲置商品到闲鱼平台"""
 
     name = "xianyu"
-    display_name = "闲鱼商品"
+    display_name = "闲鱼"
+    login_methods = [
+        {"method": "password", "label": "密码+二维码登录", "icon": "🔑", "priority": 1,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入淘宝账号密码，Playwright 打开登录页处理扫码/验证码"},
+        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 2,
+         "fields": ["site_url", "cookie"],
+         "description": "从浏览器 F12 复制 Cookie"},
+    ]
     config_fields = [
         {
             "key": "login_mode",

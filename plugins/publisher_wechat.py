@@ -11,6 +11,11 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class WeChatPublisher(Publisher):
     name = "wechat"
     display_name = "微信公众号"
+    login_methods = [
+        {"method": "password", "label": "API 密钥认证", "icon": "🔑", "priority": 1,
+         "fields": ["app_id", "app_secret"],
+         "description": "使用微信公众号的 AppID + AppSecret 通过官方 API 认证"},
+    ]
     config_fields = [
         {"key": "app_id", "label": "AppID", "type": "text", "required": True},
         {"key": "app_secret", "label": "AppSecret", "type": "password", "required": True},
