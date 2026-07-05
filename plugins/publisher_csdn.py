@@ -16,6 +16,7 @@ from flashsloth.core.article import Article
 CHROME_PATHS = [
     "/tmp/chrome-extracted/chrome-linux64/chrome",
     "/opt/hermes/.playwright/chromium-1228/chrome",
+    os.path.expanduser("~/.hermes/playwright-browsers/chromium-1228/chrome-linux64/chrome"),
 ]
 
 CHROMEDRIVER_PATHS = [

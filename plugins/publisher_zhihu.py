@@ -22,15 +22,8 @@ class ZhihuPublisher(Publisher):
             return {"success": False, "error": "缺少配置: Cookie",
                     "url": "", "id": ""}
 
-        # 知乎无公开 API，推荐用 Playwright 方案
-        # 使用前需安装: pip install playwright && playwright install chromium
-        return {
-            "success": False,
-            "error": "知乎发布需 Playwright 自动化，请配置后重试。"
-                     "或先用 OpenWrite 等第三方服务分发。",
-            "url": "", "id": "",
-            "setup_guide": "pip install playwright && playwright install chromium",
-        }
+        # 自动使用 Playwright 发布
+        return self.publish_with_playwright(article)
 
     def publish_with_playwright(self, article: Article) -> dict:
         """Playwright 方式发布（预留实现）"""
