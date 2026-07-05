@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+{% block title %}💬 评论监控{% endblock %}
+{% block content %}
+<style>
+.mon-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+.mon-header h1 { font-size:1.3em; }
+.unread-badge { background:#e63946; color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; margin-left:6px; }
+.forum-group { margin-bottom:24px; }
+.forum-group h2 { font-size:1.1em; color:#1a1a2e; margin-bottom:12px; padding-bottom:6px; border-bottom:2px solid #4361ee; display:flex; align-items:center; gap:8px; }
+.forum-group h2 .count { font-size:13px; color:#888; font-weight:400; }
+.post-card { background:#fff; border-radius:8px; padding:14px 16px; margin-bottom:8px;
+             box-shadow:0 1px 3px rgba(0,0,0,.06); border-left:4px solid #4361ee;
+             display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.post-card.has-replies { border-left-color:#2ec4b6; }
+.post-card .info { flex:1; min-width:200px; }
+.post-card .title { font-weight:600; font-size:14px; color:#1a1a2e; }
+.post-card .title a { color:#4361ee; text-decoration:none; }
+.post-card .title a:hover { text-decoration:underline; }
+.post-card .meta { font-size:12px; color:#888; margin-top:3px; }
+.post-card .stats { display:flex; align-items:center; gap:12px; white-space:nowrap; }
+.stat-item { text-align:center; min-width:48px; }
+.stat-item .num { font-size:1.2em; font-weight:700; display:block; }
+.stat-item .label { font-size:10px; color:#888; }
+.stat-item .num.new { color:#e63946; }
+.stat-item .num.total { color:#4361ee; }
+.actions { display:flex; gap:6px; flex-wrap:wrap; }
+.actions .btn { font-size:12px; padding:4px 10px; }
+.config-panel { background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:20px; }
+.config-row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+.config-row label { font-size:13px; font-weight:600; min-width:80px; }
+.config-row input[type=time], .config-row select { padding:6px 10px; border:1px solid #ddd; border-radius:4px; font-size:13px; }
+.reply-panel { display:none; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:16px; margin:12px 0; }
+.reply-panel .reply-text { background:#fff; border:1px solid #ddd; border-radius:6px; padding:12px; margin:8px 0; font-size:14px; }
+.result-toast { position:fixed; top:20px; right:20px; background:#1a1a2e; color:#fff; padding:12px 20px;
+                border-radius:8px; z-index:9999; font-size:14px; display:none; box-shadow:0 4px 12px rgba(0,0,0,.2); }
+.result-toast.success { border-left:4px solid #2ec4b6; }
+.result-toast.error { border-left:4px solid #e63946; }
+.loading-overlay { display:none; text-align:center; padding:24px; color:#888; }
+.replies-modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+                 z-index:9998; justify-content:center; align-items:center; }
+.replies-modal-inner { background:#fff; border-radius:12px; max-width:700px; width:90%; max-height:80vh;
+                       overflow-y:auto; padding:24px; }
+.reply-item { padding:12px 0; border-bottom:1px solid #eee; }
+.reply-item:last-child { border-bottom:none; }
+.reply-item .author { font-weight:600; color:#4361ee; font-size:13px; }
+.reply-item .time { font-size:11px; color:#999; margin-left:8px; }
+.reply-item .content { font-size:14px; margin-top:4px; color:#333; line-height:1.5; }
+.empty-state { text-align:center; padding:60px 20px; color:#888; }
+.empty-state .icon { font-size:3em; margin-bottom:12px; }
+.tab-bar { display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid #eee; }
+.tab { padding:10px 20px; cursor:pointer; color:#666; font-size:14px;
+       border-bottom:2px solid transparent; margin-bottom:-2px; }
+.tab.active { color:#4361ee; border-bottom-color:#4361ee; font-weight:600; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+</style>
+
+<div class="mon-header">
+    <h1>💬 评论监控
+        {% if total_unread > 0 %}
+        <span class="unread-badge">{{ total_unread }} 条新回复</span>
+        {% endif %}
+    </h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="checkAll()">🔍 检查全部论坛</button>
+        <a href="/forum-reader" class="btn btn-sm" style="background:#ddd;color:#333;">🤖 AI逛论坛</a>
+    </div>
+</div>
+
+<div class="tab-bar">
+    <div class="tab active" onclick="switchTab(this, 'inbox')">📥 回复收件箱</div>
+    <div class="tab" onclick="switchTab(this, 'config')">⚙️ 监控设置</div>
+</div>
+
+<!-- ═══ 回复收件箱 ═══ -->
+<div id="tab-inbox" class="tab-content active">
+    {% if grouped %}
+    {% for forum_key, posts in grouped.items() %}
+    <div class="forum-group">
+        <h2>
+            {{ forum_key }}
+            <span class="count">{{ posts|length }} 篇帖子 · 
+                {% set total = namespace(n=0) %}
+                {% for p in posts %}{% set total.n = total.n + p.unread_count %}{% endfor %}
+                {% if total.n > 0 %}<span style="color:#e63946;">{{ total.n }} 条未读</span>{% else %}全部已读{% endif %}
+            </span>
+        </h2>
+        {% for p in posts %}
+        <div class="post-card {% if p.reply_count > 0 %}has-replies{% endif %}" id="post-{{ p.article_id }}-{{ p.tid }}">
+            <div class="info">
+                <div class="title">
+                    <a href="{{ p.url }}" target="_blank" onclick="openReplies({{ p.article_id }}, '{{ p.tid }}')">{{ p.article_title }}</a>
+                    {% if p.reply_count == 0 %}
+                    <span class="badge badge-secondary" style="font-size:10px;">暂无回复</span>
+                    {% endif %}
+                </div>
+                <div class="meta">
+                    {% if p.forum_name %}{{ p.forum_name }} · {% endif %}
+                    {{ p.account_name }}
+                    {% if p.last_reply_at %} · 最新回复 {{ p.last_reply_at[:16] }}{% endif %}
+                </div>
+            </div>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="num total">{{ p.reply_count }}</span>
+                    <span class="label">回复</span>
+                </div>
+                <div class="stat-item">
+                    <span class="num new {% if p.unread_count > 0 %}new{% endif %}">{{ p.unread_count }}</span>
+                    <span class="label">未读</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary btn-sm" onclick="openReplies({{ p.article_id }}, '{{ p.tid }}')">📖 查看</button>
+                <a href="{{ p.url }}" target="_blank" class="btn btn-sm" style="background:#ffd700;color:#333;">↗ 跳转回复</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">📭</div>
+        <h3>还没有帖子发布到论坛</h3>
+        <p style="color:#999;margin:8px 0;">先在后台发布文章到论坛，然后回来检查回复</p>
+        <a href="/" class="btn btn-primary">📝 去发布文章</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══ 监控设置 ═══ -->
+<div id="tab-config" class="tab-content">
+    {% if discuz_accounts %}
+    {% for acct in discuz_accounts %}
+    <div class="config-panel" id="config-{{ acct.id }}">
+        <h3 style="margin:0 0 8px;font-size:15px;">🔧 {{ acct.account_name }}</h3>
+        <div class="config-row">
+            <label>启用监控</label>
+            <label style="font-weight:400;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" class="cfg-enabled" data-aid="{{ acct.id }}" {{ 'checked' if configs.get(acct.id,{}).get('enabled',1)==1 else '' }}>
+                开启
+            </label>
+        </div>
+        <div class="config-row">
+            <label>午间时段</label>
+            <input type="time" class="cfg-slot" data-key="slot_morning_start" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('slot_morning','12:00-12:30').split('-')[0] }}">
+            <span>至</span>
+            <input type="time" class="cfg-slot" data-key="slot_morning_end" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('slot_morning','12:00-12:30').split('-')[1] }}">
+            <span>（中午随机检查）</span>
+        </div>
+        <div class="config-row">
+            <label>下午时段</label>
+            <input type="time" class="cfg-slot" data-key="slot_afternoon_start" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('slot_afternoon','15:00-15:30').split('-')[0] }}">
+            <span>至</span>
+            <input type="time" class="cfg-slot" data-key="slot_afternoon_end" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('slot_afternoon','15:00-15:30').split('-')[1] }}">
+            <span>（下午随机检查）</span>
+        </div>
+        <div class="config-row">
+            <label>晚间时段</label>
+            <input type="time" class="cfg-slot" data-key="slot_evening_start" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('slot_evening','20:00-20:30').split('-')[0] }}">
+            <span>至</span>
+            <input type="time" class="cfg-slot" data-key="slot_evening_end" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('slot_evening','20:00-20:30').split('-')[1] }}">
+            <span>（晚上随机检查）</span>
+        </div>
+        <div class="config-row">
+            <label>自动回帖</label>
+            <label style="font-weight:400;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" class="cfg-auto-reply" data-aid="{{ acct.id }}" {{ 'checked' if configs.get(acct.id,{}).get('auto_reply',0)==1 else '' }}>
+                AI 自动回复（实验性）
+            </label>
+        </div>
+        <div class="config-row" id="reply-style-row-{{ acct.id }}"
+             {% if not configs.get(acct.id,{}).get('auto_reply',0) %}style="opacity:.5;"{% endif %}>
+            <label>回复风格</label>
+            <select class="cfg-reply-style" data-aid="{{ acct.id }}">
+                <option value="friendly" {{ 'selected' if configs.get(acct.id,{}).get('reply_style','friendly')=='friendly' else '' }}>友好热情</option>
+                <option value="helpful" {{ 'selected' if configs.get(acct.id,{}).get('reply_style','helpful')=='helpful' else '' }}>热心帮助</option>
+                <option value="technical" {{ 'selected' if configs.get(acct.id,{}).get('reply_style','technical')=='technical' else '' }}>技术讨论</option>
+                <option value="casual" {{ 'selected' if configs.get(acct.id,{}).get('reply_style','casual')=='casual' else '' }}>随意闲聊</option>
+            </select>
+            <input type="text" class="cfg-reply-tone" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('reply_tone','热心帮助') }}"
+                   placeholder="自定义语气（如：热心帮助）" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:160px;">
+        </div>
+        <div class="config-row">
+            <label>每日上限</label>
+            <input type="number" class="cfg-max-replies" data-aid="{{ acct.id }}"
+                   value="{{ configs.get(acct.id,{}).get('max_replies_per_day',3) }}"
+                   min="0" max="20" style="width:70px;padding:6px;">
+            <span>条/天（0=不限制）</span>
+        </div>
+        <div class="config-row">
+            <label>新回复通知</label>
+            <label style="font-weight:400;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" class="cfg-notify" data-aid="{{ acct.id }}" {{ 'checked' if configs.get(acct.id,{}).get('notify_replies',1)==1 else '' }}>
+                有新回复时通知我
+            </label>
+        </div>
+        <div style="margin-top:12px;">
+            <button class="btn btn-primary btn-sm" onclick="saveConfig({{ acct.id }})">💾 保存配置</button>
+            <button class="btn btn-success btn-sm" onclick="checkSingle({{ acct.id }})">🔍 立即检查</button>
+            <span id="saved-{{ acct.id }}" style="font-size:12px;color:#2ec4b6;margin-left:8px;display:none;">✅ 已保存</span>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">🔧</div>
+        <h3>还没有论坛账号</h3>
+        <p style="color:#999;margin:8px 0;">请先在账号管理添加 Discuz! 论坛账号</p>
+        <a href="/accounts" class="btn btn-primary">➕ 添加账号</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══ 回复详情弹窗 ═══ -->
+<div class="replies-modal" id="repliesModal">
+    <div class="replies-modal-inner">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 id="repliesModalTitle" style="font-size:16px;">📖 回复详情</h3>
+            <button onclick="closeRepliesModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div id="repliesModalContent">
+            <div class="loading-overlay" style="display:block;">⏳ 加载中...</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ Toast 通知 ═══ -->
+<div class="result-toast" id="toast"></div>
+
+<script>
+function switchTab(el, name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+}
+
+function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'result-toast ' + (type || 'success');
+    t.style.display = 'block';
+    setTimeout(function() { t.style.display = 'none'; }, 4000);
+}
+
+// ── 检查单个论坛 ──
+function checkSingle(aid) {
+    showToast('🔍 正在检查回复，请稍候...', 'success');
+    fetch('/api/comment-monitor/check/' + aid, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showToast('✅ 检查完成！新回复 ' + d.new_replies + ' 条', 'success');
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            showToast('❌ ' + (d.error || '检查失败'), 'error');
+        }
+    })
+    .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
+}
+
+// ── 检查所有论坛 ──
+function checkAll() {
+    showToast('🔍 正在检查所有论坛...', 'success');
+    fetch('/api/comment-monitor/check-all', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showToast('✅ 共 ' + d.total_new + ' 条新回复', 'success');
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            showToast('❌ 检查失败', 'error');
+        }
+    })
+    .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
+}
+
+// ── 查看回复详情 ──
+function openReplies(articleId, tid) {
+    var modal = document.getElementById('repliesModal');
+    var content = document.getElementById('repliesModalContent');
+    var title = document.getElementById('repliesModalTitle');
+    modal.style.display = 'flex';
+    content.innerHTML = '<div class="loading-overlay" style="display:block;">⏳ 加载中...</div>';
+    title.textContent = '📖 回复详情 — 文章 #' + articleId;
+
+    fetch('/api/comment-monitor/replies/' + articleId + '?tid=' + tid)
+    .then(r => r.json())
+    .then(d => {
+        if (!d.success) {
+            content.innerHTML = '<p style="color:#e63946;">❌ 加载失败</p>';
+            return;
+        }
+        if (d.replies.length === 0) {
+            content.innerHTML = '<div style="text-align:center;padding:20px;"><p style="font-size:2em;">📭</p><p style="color:#888;">暂无回复</p></div>';
+            // 标记已读（没有回复可读，但已检查过）
+            return;
+        }
+
+        title.textContent = '📖 ' + d.replies[0].thread_title + ' — ' + d.replies.length + ' 条回复';
+
+        var html = '<div style="margin-bottom:12px;">';
+        html += '<button class="btn btn-sm btn-primary" onclick="markAllRead(' + articleId + ')">✅ 全部标为已读</button>';
+        html += '</div>';
+
+        d.replies.forEach(function(r) {
+            html += '<div class="reply-item" id="reply-' + r.id + '">';
+            html += '<div>';
+            html += '<span class="author">👤 ' + (r.reply_author || '匿名') + '</span>';
+            if (r.reply_time) { html += '<span class="time">' + r.reply_time + '</span>'; }
+            if (r.is_new) { html += '<span class="badge badge-danger" style="font-size:10px;margin-left:6px;">NEW</span>'; }
+            if (r.is_auto_replied && r.is_auto_replied !== '0') {
+                html += '<span class="badge badge-info" style="font-size:10px;margin-left:6px;background:#e8f0fe;color:#4361ee;">🤖 自动回复</span>';
+            }
+            html += '</div>';
+            html += '<div class="content">' + (r.reply_content || '') + '</div>';
+            html += '<div style="margin-top:6px;display:flex;gap:6px;">';
+            html += '<a href="' + r.thread_url + '" target="_blank" class="btn btn-sm" style="background:#ffd700;color:#333;">↗ 跳转回复</a>';
+            if (r.is_new) {
+                html += '<button class="btn btn-sm btn-primary" onclick="markRead([' + r.id + '])">✅ 标为已读</button>';
+                if (!r.is_auto_replied || r.is_auto_replied === '0') {
+                    html += '<button class="btn btn-sm btn-success" onclick="autoReply(' + r.id + ')">🤖 AI回复</button>';
+                }
+            }
+            html += '</div>';
+            html += '</div>';
+        });
+        content.innerHTML = html;
+    })
+    .catch(e => {
+        content.innerHTML = '<p style="color:#e63946;">❌ 加载失败: ' + e + '</p>';
+    });
+}
+
+function closeRepliesModal() {
+    document.getElementById('repliesModal').style.display = 'none';
+}
+
+// ── 标记已读 ──
+function markRead(ids) {
+    fetch('/api/comment-monitor/mark-read', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            ids.forEach(function(id) {
+                var el = document.getElementById('reply-' + id);
+                if (el) el.style.opacity = '.5';
+            });
+            showToast('✅ 已标为已读', 'success');
+            setTimeout(function() { location.reload(); }, 1000);
+        }
+    });
+}
+
+function markAllRead() {
+    fetch('/api/comment-monitor/mark-read', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({all: true})
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showToast('✅ 全部标为已读', 'success');
+            setTimeout(function() { location.reload(); }, 1000);
+        }
+    });
+}
+
+// ── AI 自动回复 ──
+var _pendingAutoReply = null;
+
+function autoReply(replyId) {
+    showToast('🤖 AI 正在生成回复...', 'success');
+
+    fetch('/api/comment-monitor/auto-reply/' + replyId, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (!d.success) {
+            showToast('❌ ' + (d.error || '生成失败'), 'error');
+            return;
+        }
+
+        // 如果已自动提交，直接提示并刷新
+        if (d.auto_submitted) {
+            showToast(d.message || '🤖 已自动回复', 'success');
+            setTimeout(function() { location.reload(); }, 1500);
+            return;
+        }
+
+        // 弹确认框
+        _pendingAutoReply = {
+            replyId: replyId,
+            replyText: d.reply_text,
+            tid: d.tid,
+            accountId: d.account_id,
+            siteUrl: d.site_url,
+        };
+
+        document.getElementById('aiReplyPreview').textContent = d.reply_text;
+        document.getElementById('aiReplyModal').style.display = 'flex';
+    })
+    .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
+}
+
+function confirmAiReply() {
+    if (!_pendingAutoReply) return;
+    var p = _pendingAutoReply;
+    document.getElementById('aiReplyModal').style.display = 'none';
+
+    showToast('📤 正在提交回复到论坛...', 'success');
+
+    fetch('/api/comment-monitor/reply-submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            tid: p.tid,
+            reply_text: p.replyText,
+            account_id: p.accountId,
+        })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            showToast('✅ 回复成功！', 'success');
+            setTimeout(function() { location.reload(); }, 1500);
+        } else {
+            showToast('❌ ' + (d.error || '提交失败'), 'error');
+            if (d.need_human) {
+                alert('⚠️ 论坛拦截了自动回复，请手动打开链接回复。\n\n错误: ' + (d.error || '未知') + '\n\n回复内容:\n' + p.replyText);
+            }
+        }
+    })
+    .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
+
+    _pendingAutoReply = null;
+}
+
+function cancelAiReply() {
+    document.getElementById('aiReplyModal').style.display = 'none';
+    showToast('已取消回复', 'success');
+    _pendingAutoReply = null;
+}
+
+// ── 保存配置 ──
+function saveConfig(aid) {
+    var enabled = document.querySelector('.cfg-enabled[data-aid="' + aid + '"]').checked ? 1 : 0;
+    var autoReply = document.querySelector('.cfg-auto-reply[data-aid="' + aid + '"]').checked ? 1 : 0;
+    var notify = document.querySelector('.cfg-notify[data-aid="' + aid + '"]').checked ? 1 : 0;
+    var style = document.querySelector('.cfg-reply-style[data-aid="' + aid + '"]').value;
+    var tone = document.querySelector('.cfg-reply-tone[data-aid="' + aid + '"]').value;
+    var maxReplies = document.querySelector('.cfg-max-replies[data-aid="' + aid + '"]').value;
+
+    function getSlotVal(aid, key) {
+        var el = document.querySelector('.cfg-slot[data-key="' + key + '"][data-aid="' + aid + '"]');
+        return el ? el.value : '12:00';
+    }
+
+    var morning = getSlotVal(aid, 'slot_morning_start') + '-' + getSlotVal(aid, 'slot_morning_end');
+    var afternoon = getSlotVal(aid, 'slot_afternoon_start') + '-' + getSlotVal(aid, 'slot_afternoon_end');
+    var evening = getSlotVal(aid, 'slot_evening_start') + '-' + getSlotVal(aid, 'slot_evening_end');
+
+    fetch('/api/comment-monitor/config/' + aid, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            enabled: enabled,
+            slot_morning: morning,
+            slot_afternoon: afternoon,
+            slot_evening: evening,
+            auto_reply: autoReply,
+            reply_style: style,
+            reply_tone: tone,
+            max_replies_per_day: parseInt(maxReplies) || 3,
+            notify_replies: notify
+        })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) {
+            var saved = document.getElementById('saved-' + aid);
+            saved.style.display = 'inline';
+            setTimeout(function() { saved.style.display = 'none'; }, 2000);
+            showToast('✅ 配置已保存', 'success');
+        } else {
+            showToast('❌ ' + (d.error || '保存失败'), 'error');
+        }
+    })
+    .catch(e => showToast('❌ 请求异常: ' + e, 'error'));
+}
+
+// 自动回帖复选框联动
+document.querySelectorAll('.cfg-auto-reply').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        var row = document.getElementById('reply-style-row-' + this.dataset.aid);
+        if (row) {
+            row.style.opacity = this.checked ? '1' : '.5';
+        }
+    });
+});
+
+// 点击模态框外部关闭
+document.getElementById('repliesModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRepliesModal();
+});
+
+// AI回复模态框外部点击也关闭
+document.getElementById('aiReplyModal').addEventListener('click', function(e) {
+    if (e.target === this) cancelAiReply();
+});
+</script>
+
+<!-- ═══ AI 回复确认弹窗 ═══ -->
+<div class="replies-modal" id="aiReplyModal" style="display:none;">
+    <div class="replies-modal-inner" style="max-width:550px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:16px;margin:0;">🤖 AI 建议回复</h3>
+            <button onclick="cancelAiReply()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:12px;">
+            <div id="aiReplyPreview" style="font-size:14px;line-height:1.6;color:#333;white-space:pre-wrap;"></div>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px;">
+            💡 确认后系统将使用浏览器模拟发帖，提交到论坛
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-sm" style="background:#ddd;color:#333;padding:8px 24px;" onclick="cancelAiReply()">取消</button>
+            <button class="btn btn-success" style="padding:8px 24px;" onclick="confirmAiReply()">✅ 确认发布</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
