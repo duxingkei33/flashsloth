@@ -34,7 +34,7 @@ class DiscuzPublisher(Publisher):
             "daily_upload_size": 10 * 1024 * 1024,
             "allowed_extensions": ('.chm', '.pdf', '.zip', '.rar', '.tar', '.gz', '.bzip2', '.bz2',
                                    '.gif', '.jpg', '.jpeg', '.png', '.bmp', '.webp', '.7z'),
-            "supports_draft": True,
+            "supports_draft": False,
         },
     }
     
@@ -468,10 +468,10 @@ class DiscuzPublisher(Publisher):
         return result, token_map, local_ids
 
     def _format_for_discuz(self, body: str, attachment_tokens: dict = None) -> str:
-        """将文章内容转换为 Discuz! 兼容格式
+        """将文章内容转换为 Discuz! BBCode 格式
 
-        Discuz 接受 HTML 标签（p, h1-h6, strong, em, ul/li 等），
-        但禁用了 <img> 和 <a> 标签，需转为 BBCode。
+        Discuz! 的 wysiwyg=0 模式只识别 BBCode，HTML 标签会被作为纯文本显示。
+        所以必须输出纯 BBCode，不能包含任何 HTML 标签。
 
         attachment_tokens: {原路径: DISCUZUPLOAD|...} — 已上传的附件 token，
                          有此 token 的图片用 [img=0,1]token[/img] 格式。
@@ -483,56 +483,59 @@ class DiscuzPublisher(Publisher):
 
         # ── 第1步：先处理已上传的附件（替换为 Discuz 附件标签） ──
         for orig_src, token in attachment_tokens.items():
-            # HTML
             text = _re.sub(
                 rf'<img[^>]*src="{_re.escape(orig_src)}"[^>]*>',
                 f'[img=0,1]{token}[/img]',
                 text,
             )
-            # Markdown
             text = _re.sub(
                 rf'!\[([^\]]*)\]\({_re.escape(orig_src)}\)',
                 f'[img=0,1]{token}[/img]',
                 text,
             )
 
-        # ── 第2步：处理 Markdown 语法 ──
-        text = _re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-        text = _re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
-        text = _re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
-        text = _re.sub(r'_(.+?)_', r'<em>\1</em>', text)
-        text = _re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-        text = _re.sub(r'^- (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'^\* (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', text, flags=_re.DOTALL)
+        # ── 第2步：Markdown → BBCode ──
+        # 标题: ## → [size=6][b]...[/b][/size]
+        text = _re.sub(r'^### (.+)$', r'[size=5][b]\1[/b][/size]', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^## (.+)$', r'[size=6][b]\1[/b][/size]', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^# (.+)$', r'[size=7][b]\1[/b][/size]', text, flags=_re.MULTILINE)
+        # 粗体: **text** → [b]text[/b]
+        text = _re.sub(r'\*\*(.+?)\*\*', r'[b]\1[/b]', text)
+        text = _re.sub(r'__(.+?)__', r'[b]\1[/b]', text)
+        # 斜体: *text* → [i]text[/i]
+        text = _re.sub(r'\*(.+?)\*', r'[i]\1[/i]', text)
+        text = _re.sub(r'_(.+?)_', r'[i]\1[/i]', text)
+        # 行内代码: `code` → [font=monospace]code[/font]
+        text = _re.sub(r'`([^`]+)`', r'[font=monospace]\1[/font]', text)
+        # 无序列表: - item → [*]item
+        text = _re.sub(r'^- (.+)$', r'[*]\1', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^\* (.+)$', r'[*]\1', text, flags=_re.MULTILINE)
+        # 代码块: ``` → [code]...[/code]
+        text = _re.sub(r'```(\w*)\n(.*?)```', r'[code]\2[/code]', text, flags=_re.DOTALL)
+        # 删除线
+        text = _re.sub(r'~~(.+?)~~', r'[s]\1[/s]', text)
+        # 引用: > text → [quote]text[/quote]
+        text = _re.sub(r'^> (.+)$', r'[quote]\1[/quote]', text, flags=_re.MULTILINE)
 
-        # ── 第3步：段落包裹 ──
-        parts = []
-        for para in text.split('\n\n'):
-            para = para.strip()
-            if not para:
-                continue
-            if not _re.match(r'^\s*<', para):
-                para = f'<p>{para}</p>'
-            parts.append(para)
-        text = '\n'.join(parts)
-
-        # ── 第4步：处理剩余未上传的 <img> 和 <a> ──
-        # 剩余 <img> → 外链 [img]
+        # ── 第3步：处理链接和图片（转为 BBCode） ──
+        # 链接: [text](url) → [url=url]text[/url]
         text = _re.sub(
-            r'<img[^>]*src="([^"]+)"[^>]*>',
-            lambda m: self._make_img_bbcode(m.group(1)),
+            r'\[([^\]]+)\]\(([^)]+)\)',
+            lambda m: self._make_img_bbcode(m.group(2)) if _re.search(r'\.(jpg|jpeg|png|gif|webp|bmp)(\?|#|$)', m.group(2), _re.I) else f'[url={m.group(2)}]{m.group(1)}[/url]',
             text,
-            flags=_re.IGNORECASE,
         )
         # 剩余 ![]() → 外链 [img]
         text = _re.sub(
             r'!\[([^\]]*)\]\(([^)]+)\)',
             lambda m: self._make_img_bbcode(m.group(2)),
             text,
+        )
+        # 剩余 <img> → 外链 [img]
+        text = _re.sub(
+            r'<img[^>]*src="([^"]+)"[^>]*>',
+            lambda m: self._make_img_bbcode(m.group(1)),
+            text,
+            flags=_re.IGNORECASE,
         )
         # <a> → [url]
         text = _re.sub(
@@ -541,6 +544,12 @@ class DiscuzPublisher(Publisher):
             text,
             flags=_re.IGNORECASE | _re.DOTALL,
         )
+
+        # ── 第4步：段落分隔（BBCode 用空行分隔，不用 <p>） ──
+        # 去掉已有的 <p>...</p> 包裹（如果有）
+        text = _re.sub(r'</?p>', '', text)
+        # 多个换行合并成双换行（段落分隔）
+        text = _re.sub(r'\n{3,}', '\n\n', text)
 
         return text.strip()
 
