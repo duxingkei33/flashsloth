@@ -378,7 +378,7 @@ def api_platform_login_start(platform):
 	site_url = data.get("site_url", "")
 
 	if platform in ("amobbs", "discuz"):
-		from routes.browser_login import _get_amobbs_login
+		from flashsloth.routes.browser_login import _get_amobbs_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -389,7 +389,7 @@ def api_platform_login_start(platform):
 			return jsonify(result)
 
 	elif platform == "xianyu":
-		from routes.browser_login import _get_xianyu_login
+		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -400,7 +400,7 @@ def api_platform_login_start(platform):
 			return jsonify(result)
 
 	elif platform == "oshwhub":
-		from routes.browser_login import _get_oshwhub_login
+		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -421,7 +421,7 @@ def api_platform_login_captcha(platform):
 	aid = data.get("account_id", 0)
 
 	if platform in ("amobbs", "discuz"):
-		from routes.browser_login import _get_amobbs_login
+		from flashsloth.routes.browser_login import _get_amobbs_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -432,7 +432,7 @@ def api_platform_login_captcha(platform):
 			return jsonify(result)
 
 	elif platform == "xianyu":
-		from routes.browser_login import _get_xianyu_login
+		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -443,7 +443,7 @@ def api_platform_login_captcha(platform):
 			return jsonify(result)
 
 	elif platform == "oshwhub":
-		from routes.browser_login import _get_oshwhub_login
+		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -461,21 +461,21 @@ def api_platform_login_captcha(platform):
 def api_platform_login_screenshot(platform):
 	"""统一登录：获取页面截图"""
 	if platform in ("amobbs", "discuz"):
-		from routes.browser_login import _get_amobbs_login
+		from flashsloth.routes.browser_login import _get_amobbs_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_amobbs_login(f"user_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
 	elif platform == "xianyu":
-		from routes.browser_login import _get_xianyu_login
+		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_xianyu_login(f"user_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
 	elif platform == "oshwhub":
-		from routes.browser_login import _get_oshwhub_login
+		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_oshwhub_login(f"user_{current_user.id}")
@@ -489,7 +489,7 @@ def api_platform_login_screenshot(platform):
 def api_platform_login_close(platform):
 	"""统一登录：关闭浏览器会话"""
 	if platform in ("amobbs", "discuz"):
-		from routes.browser_login import _amobbs_login_instances
+		from flashsloth.routes.browser_login import _amobbs_login_instances
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -499,7 +499,7 @@ def api_platform_login_close(platform):
 			return jsonify({"success": True})
 
 	elif platform == "xianyu":
-		from routes.browser_login import _xianyu_login_instances
+		from flashsloth.routes.browser_login import _xianyu_login_instances
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"
@@ -509,7 +509,7 @@ def api_platform_login_close(platform):
 			return jsonify({"success": True})
 
 	elif platform == "oshwhub":
-		from routes.browser_login import _oshwhub_login_instances
+		from flashsloth.routes.browser_login import _oshwhub_login_instances
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}"

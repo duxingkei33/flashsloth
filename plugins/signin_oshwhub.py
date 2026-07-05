@@ -1,23 +1,48 @@
 """
-OSHWHub (立创开源硬件平台) 签到插件
-基于 requests + Cookie 实现，无需 Playwright
+OSHWHub (立创开源硬件平台) 签到插件 — Playwright 浏览器方案
+
+由于 OSHWHub 有 WAF 反爬保护（HTTP 418），
+只能通过 Playwright 模拟真实浏览器进行签到。
 
 签到流程：
-1. 使用账号 Cookie 访问 /sign_in 检查签到状态
-2. 若未签到，调用签到 API
-3. 返回结果
-
-签到 API 端点（基于 Next.js 路由推断）：
-  GET  /api/user/sign/status   — 查询当日签到状态
-  POST /api/user/sign/daily    — 执行签到
+1. 用 Playwright 打开 /sign_in 页面
+2. 检查是否已签到（页面文本检测）
+3. 若未签到，点击签到按钮
+4. 等待签到结果
 """
 
-import json, re
+import json, re, os, sys, base64, random, time
 from typing import Optional
-import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 from core_signin import SigninBase, register
+
+
+def _find_chromium() -> str:
+    """查找可用的 Chromium 浏览器路径（复用 oshwhub_login 的查找逻辑）"""
+    candidates = [
+        os.path.expanduser("~/.hermes/playwright-browsers/chromium-1228/chrome-linux64/chrome"),
+        "/tmp/chrome-extracted/chrome-linux64/chrome",
+        "/opt/hermes/.playwright/chromium-1228/chrome",
+    ]
+    for p in candidates:
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return p
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["python3", "-c", "import playwright; print(playwright.__path__[0])"],
+            capture_output=True, text=True, timeout=5
+        )
+        if r.returncode == 0:
+            pw_path = r.stdout.strip()
+            browser_path = os.path.join(os.path.dirname(pw_path),
+                "browsers", "chromium-1228", "chrome-linux64", "chrome")
+            if os.path.isfile(browser_path):
+                return browser_path
+    except:
+        pass
+    return ""
 
 
 @register
@@ -46,111 +71,154 @@ class OshwhubSignin(SigninBase):
         cookie = cfg.get("cookie", "")
         return bool(cookie)
 
-    def _get_headers(self) -> dict:
-        """构造带 Cookie 的请求头"""
-        return {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/125.0.0.0 Safari/537.36",
-            "Cookie": self.cookie,
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "Referer": f"{self.site_url}/sign_in",
-            "Origin": self.site_url,
-        }
-
     def signin(self) -> dict:
-        """执行 OSHWHub 每日签到"""
+        """使用 Playwright 浏览器签到"""
         if not self.cookie:
             return {"success": False, "already_signed": False,
                     "error": "缺少 Cookie", "message": ""}
 
         try:
-            import requests as _req
-            headers = self._get_headers()
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            return {"success": False, "already_signed": False,
+                    "error": "缺少 Playwright，请安装: pip install playwright", "message": ""}
 
-            # ── Step 1: 先访问 /sign_in 页面，获取签到状态 ──
-            sign_page_url = f"{self.site_url}/sign_in"
-            resp = _req.get(sign_page_url, headers=headers, timeout=15)
+        browser = None
+        context = None
+        page = None
+        pw = None
 
-            if resp.status_code != 200:
-                return {"success": False, "already_signed": False,
-                        "error": f"访问签到页失败: HTTP {resp.status_code}", "message": ""}
+        try:
+            pw = sync_playwright().start()
+            chrome_path = _find_chromium()
+            if chrome_path:
+                browser = pw.chromium.launch(
+                    headless=True,
+                    executable_path=chrome_path,
+                    args=["--no-sandbox", "--disable-setuid-sandbox",
+                          "--disable-dev-shm-usage", "--disable-gpu"],
+                )
+            else:
+                browser = pw.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-setuid-sandbox",
+                          "--disable-dev-shm-usage", "--disable-gpu"],
+                )
 
-            # 检查 Cookie 是否有效（是否跳转到登录页）
-            if "login" in resp.url.lower() or "passport" in resp.url.lower():
-                return {"success": False, "already_signed": False,
-                        "error": "Cookie 已过期，请重新登录", "message": ""}
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/125.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 900},
+                locale="zh-CN",
+            )
 
-            # ── Step 2: 尝试从页面中提取签到状态 ──
-            # 方法1：检查页面文本中是否有"已签到"提示
-            if "已签到" in resp.text:
+            # 注入 Cookie
+            if self.cookie:
+                domain = self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
+                for item in self.cookie.split(";"):
+                    item = item.strip()
+                    if "=" in item:
+                        name, value = item.split("=", 1)
+                        try:
+                            context.add_cookies([{
+                                "name": name.strip(),
+                                "value": value.strip(),
+                                "domain": domain,
+                                "path": "/",
+                            }])
+                        except:
+                            pass
+
+            page = context.new_page()
+
+            # ── 访问签到页面 ──
+            sign_url = f"{self.site_url}/sign_in"
+            page.goto(sign_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)  # 等待 JS 渲染
+
+            page_text = page.inner_text("body")
+
+            # ── 检查是否已签到 ──
+            already_indicators = ["已签到", "签到成功", "todaySigned", "already signed"]
+            if any(ind in page_text for ind in already_indicators):
                 return {"success": True, "already_signed": True,
                         "error": "", "message": "今天已签到 ✅"}
 
-            # 方法2：尝试调用签到 API（多个候选端点）
-            api_endpoints = [
-                f"{self.site_url}/api/user/sign/daily",
-                f"{self.site_url}/api/sign/daily",
-                f"{self.site_url}/api/user/checkin",
-                f"{self.site_url}/api/user/sign",
+            # ── 查找签到按钮并点击 ──
+            sign_btn = None
+            btn_selectors = [
+                "button:has-text('签到')",
+                "button:has-text('打卡')",
+                ".sign-btn",
+                "[class*='sign'] button",
+                "button[class*='sign']",
+                "div[class*='sign'] button",
+                "button:has-text('每日签到')",
             ]
 
-            for api_url in api_endpoints:
+            for sel in btn_selectors:
                 try:
-                    sign_resp = _req.post(
-                        api_url,
-                        headers={**headers, "Content-Type": "application/json",
-                                 "X-Requested-With": "XMLHttpRequest"},
-                        json={},
-                        timeout=10,
-                    )
-                    result = self._parse_sign_response(sign_resp)
-                    if result:
-                        return result
-                except Exception:
+                    els = page.query_selector_all(sel)
+                    for el in els:
+                        if el.is_visible():
+                            sign_btn = el
+                            break
+                except:
                     continue
+                if sign_btn:
+                    break
 
-            # 所有 API 端点都失败，回退到页面检测
+            if not sign_btn:
+                # 尝试通过文本查找
+                try:
+                    sign_btn = page.get_by_text("签到", exact=False).first
+                    if sign_btn and sign_btn.is_visible():
+                        pass
+                    else:
+                        sign_btn = None
+                except:
+                    pass
+
+            if sign_btn:
+                sign_btn.click()
+                time.sleep(2)
+
+                # 等待签到结果
+                new_text = page.inner_text("body")
+                if any(ind in new_text for ind in already_indicators):
+                    return {"success": True, "already_signed": False,
+                            "error": "", "message": "签到成功 ✅"}
+
+                # 检查是否有签到结果提示
+                try:
+                    result_text = page.inner_text("body")
+                    if "签到成功" in result_text or "获得" in result_text:
+                        return {"success": True, "already_signed": False,
+                                "error": "", "message": "签到成功 ✅"}
+                except:
+                    pass
+
+                return {"success": True, "already_signed": False,
+                        "error": "", "message": "签到按钮已点击，请到 OSHWHub 确认结果"}
+
             return {"success": False, "already_signed": False,
-                    "error": "无法定位签到 API（网站可能改版）", "message": ""}
+                    "error": "未找到签到按钮（网站可能改版或 Cookie 无效）",
+                    "message": ""}
 
         except Exception as e:
             return {"success": False, "already_signed": False,
                     "error": f"签到异常: {e}", "message": ""}
-
-    def _parse_sign_response(self, resp) -> Optional[dict]:
-        """解析签到 API 响应"""
-        text = resp.text.strip()
-
-        # 检查 HTTP 状态
-        if resp.status_code == 200 and text:
+        finally:
             try:
-                data = resp.json()
-                if isinstance(data, dict):
-                    success = data.get("success", False) or data.get("code") == 200
-                    msg = data.get("message", "") or data.get("msg", "")
-                    if success:
-                        if "已签到" in msg or "already" in msg.lower():
-                            return {"success": True, "already_signed": True,
-                                    "error": "", "message": "今天已签到 ✅"}
-                        return {"success": True, "already_signed": False,
-                                "error": "", "message": msg or "签到成功 ✅"}
-                    if "已签到" in msg:
-                        return {"success": True, "already_signed": True,
-                                "error": "", "message": "今天已签到 ✅"}
-                    return {"success": False, "already_signed": False,
-                            "error": msg or f"签到失败: HTTP {resp.status_code}"}
-            except ValueError:
+                if context: context.close()
+            except:
                 pass
-
-        # 非 JSON 响应 — 检查文本
-        text_lower = text.lower()
-        if "已签到" in text or "签到成功" in text:
-            return {"success": True, "already_signed": "已签到" not in text,
-                    "error": "", "message": "签到成功 ✅" if "签到成功" in text else "今天已签到 ✅"}
-        if "login" in resp.url.lower():
-            return {"success": False, "already_signed": False,
-                    "error": "Cookie 无效，请重新登录", "message": ""}
-
-        return None
+            try:
+                if browser: browser.close()
+            except:
+                pass
+            try:
+                if pw: pw.stop()
+            except:
+                pass
