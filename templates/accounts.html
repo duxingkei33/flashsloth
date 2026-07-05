@@ -68,6 +68,18 @@
             {% if cfg.get('cookie') %}🍪{% else %}—{% endif %}
         </span>
 
+        <!-- 在线状态内联显示 -->
+        {% set acct_status = cfg.get('status', '') %}
+        <span id="onlineStatus_{{ a.id }}" style="font-size:12px;flex-shrink:0;min-width:70px;text-align:center;">
+            {% if acct_status == 'connected' %}
+            <span class="badge badge-success">✅ 已登录</span>
+            {% elif acct_status == 'disconnected' %}
+            <span class="badge badge-danger">❌ 已断开</span>
+            {% else %}
+            <span class="badge badge-secondary">⏳ 未知</span>
+            {% endif %}
+        </span>
+
         <!-- 操作按钮组 -->
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
             <a href="/accounts/edit/{{ a.id }}" class="btn btn-sm btn-primary">✏️ 编辑</a>
@@ -80,7 +92,17 @@
             <button onclick="oshwhubLogin({{ a.id }})" class="btn btn-sm btn-warning">🌐 OSHWHub登录</button>
             {% endif %}
 
-            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info">🔍 状态</button>
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info">🔍 测试状态</button>
+
+            <!-- 保持在线开关 -->
+            {% set keep_alive = cfg.get('keep_alive', '0') %}
+            <label style="display:flex;align-items:center;gap:2px;cursor:pointer;flex-shrink:0;font-size:11px;"
+                   title="{{ '点击关闭保持在线' if keep_alive == '1' else '点击开启保持在线' }}">
+                <input type="checkbox" {{ 'checked' if keep_alive == '1' else '' }}
+                       onchange="toggleKeepAlive({{ a.id }}, this)"
+                       style="width:14px;height:14px;cursor:pointer;">
+                <span style="color:{{ '#22c55e' if keep_alive == '1' else '#999' }};">🔗</span>
+            </label>
 
             <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
                onclick="return confirm('确定删除「{{ a.account_name }}」？此操作不可恢复。')">🗑 删除</a>
@@ -122,9 +144,11 @@
             <div id="addPresetHints" style="margin-bottom:10px;"></div>
             <div id="addConfigFields"></div>
             <div style="display:flex;gap:8px;margin-top:16px;">
-                <button type="submit" class="btn btn-primary">💾 保存</button>
+                <button type="button" onclick="testLoginAndSave()" class="btn btn-primary">🔍 测试登录并保存</button>
+                <button type="submit" class="btn btn-success">💾 仅保存</button>
                 <button type="button" class="btn" style="background:#eee;" onclick="hideAddForm()">取消</button>
             </div>
+            <div id="addLoginResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
         </form>
     </div>
 </div>
@@ -198,15 +222,8 @@
 let currentAccountId = 0;
 let _presetsData = {};
 
-// ====== 页面加载：获取预置站点 ======
-document.addEventListener('DOMContentLoaded', function() {
-    fetch('/api/platforms/presets')
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) _presetsData = data.presets || {};
-    })
-    .catch(() => {});
-});
+// ====== 页面加载：获取预置站点 + 状态刷新（合并）=====
+let _presetsTimer = null;
 
 
 // ====== 启用/禁用切换 ======
@@ -284,6 +301,143 @@ function fillPreset(name, url, desc) {
 function hideAddForm() {
     document.getElementById('addFormBox').style.display = 'none';
 }
+
+// ====== 测试登录并保存 ======
+function testLoginAndSave() {
+    const platform = document.getElementById('addPlatInput').value;
+    if (!platform) { alert('请选择平台'); return; }
+
+    // 获取表单中的用户名和密码
+    const usernameInput = document.querySelector('input[name="cfg_username"]');
+    const passwordInput = document.querySelector('input[name="cfg_password"]');
+    const username = usernameInput ? usernameInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value.trim() : '';
+
+    if (!username || !password) {
+        // 没有账号密码字段，用 cookie 模式跳转到表单提交
+        document.querySelector('#addFormBox form').submit();
+        return;
+    }
+
+    const resultDiv = document.getElementById('addLoginResult');
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.color = '#856404';
+    resultDiv.innerHTML = '⏳ 正在浏览器登录...';
+
+    // 确定登录 API 端点
+    let apiEndpoint = '';
+    if (['amobbs', 'discuz'].includes(platform)) {
+        apiEndpoint = '/api/amobbs/login/start';
+    } else if (platform === 'xianyu') {
+        apiEndpoint = '/api/xianyu/login/start';
+    } else if (platform === 'oshwhub') {
+        apiEndpoint = '/api/oshwhub/login/start';
+    } else {
+        // 不支持浏览器登录，直接表单提交
+        document.querySelector('#addFormBox form').submit();
+        return;
+    }
+
+    fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({account_id: 0, username: username, password: password})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.logged_in && data.cookies) {
+            // 登录成功，把 cookie 填入表单
+            const cookieInput = document.querySelector('input[name="cfg_cookie"]');
+            if (cookieInput) cookieInput.value = data.cookies;
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.color = '#155724';
+            resultDiv.innerHTML = '✅ 登录成功！Cookie 已获取，正在保存...';
+            // 自动提交表单
+            setTimeout(() => {
+                document.querySelector('#addFormBox form').submit();
+            }, 500);
+        } else if (data.needs_captcha) {
+            // 需要验证码 — 通知用户
+            if (data.captcha_type === 'slider') {
+                resultDiv.style.background = '#fff3cd';
+                resultDiv.style.color = '#856404';
+                resultDiv.innerHTML = '🔒 需要滑块验证码，请用「浏览器登录」按钮手动处理。<br>已保存账号配置，可稍后登录。';
+                // 先保存账号配置
+                document.querySelector('#addFormBox form').submit();
+            } else {
+                resultDiv.innerHTML = '🔒 需要验证码，请先保存账号后用「浏览器登录」按钮处理。';
+                document.querySelector('#addFormBox form').submit();
+            }
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.color = '#721c24';
+            resultDiv.innerHTML = '❌ 登录失败: ' + escapeHtml(data.error || '未知错误') +
+                '<br><span style="font-size:12px;">账号配置已保存，可稍后重试。</span>';
+            // 仍然保存账号配置
+            document.querySelector('#addFormBox form').submit();
+        }
+    })
+    .catch(e => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = '❌ 登录请求失败: ' + escapeHtml(e.message) +
+            '<br><span style="font-size:12px;">已保存账号配置。</span>';
+        document.querySelector('#addFormBox form').submit();
+    });
+}
+
+// ====== 保持在线开关 ======
+function toggleKeepAlive(aid, checkbox) {
+    fetch('/api/accounts/' + aid + '/keep_alive', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({keep_alive: checkbox.checked})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            checkbox.checked = !checkbox.checked;
+        }
+    })
+    .catch(() => {
+        checkbox.checked = !checkbox.checked;
+    });
+}
+
+// ====== 页面加载时自动刷新状态 ======
+function refreshAllStatuses() {
+    const statusSpans = document.querySelectorAll('[id^="onlineStatus_"]');
+    statusSpans.forEach(span => {
+        const id = span.id.replace('onlineStatus_', '');
+        fetch('/api/accounts/' + id + '/status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const status = data.logged_in === false ? 'disconnected' : 'connected';
+                const badge = data.has_cookie ? '✅ 已登录' : '⏳ 未知';
+                const cls = data.logged_in === false ? 'badge badge-danger' : 'badge badge-success';
+                span.innerHTML = '<span class="' + cls + '">' + (data.logged_in === false ? '❌ 已断开' : (data.has_cookie ? '✅ 已登录' : '⏳ 未知')) + '</span>';
+            }
+        })
+        .catch(() => {});
+    });
+}
+
+// 页面加载时刷新状态，之后每2分钟刷新一次
+document.addEventListener('DOMContentLoaded', function() {
+    // 已有的 presets 加载
+    fetch('/api/platforms/presets')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) _presetsData = data.presets || {};
+    })
+    .catch(() => {});
+    // 延迟2秒后刷新状态
+    setTimeout(refreshAllStatuses, 2000);
+    // 每2分钟自动刷新
+    setInterval(refreshAllStatuses, 120000);
+});
 
 
 // ====== 状态检测 ======

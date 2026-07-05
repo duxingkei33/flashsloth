@@ -87,6 +87,59 @@
     </div>
 </div>
 
+<!-- ====== 能力路由（能力 -> 供应商映射） ====== -->
+<div class="card" style="padding:16px;margin-top:20px;">
+    <h2 style="margin-bottom:12px;font-size:15px;">📋 能力路由（哪个供应商处理什么任务）</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+            <tr style="background:#f5f5f5;">
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">能力名</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">供应商</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">模型</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">模式</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">操作</th>
+            </tr>
+        </thead>
+        <tbody id="capabilityTableBody">
+            <tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">加载中...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 能力路由编辑弹窗 -->
+<div id="capEditModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:420px;width:92%;">
+        <h2 style="margin-bottom:16px;font-size:18px;">✏️ 编辑能力路由</h2>
+        <div class="form-group">
+            <label>能力</label>
+            <input id="capEditName" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" readonly>
+        </div>
+        <div class="form-group">
+            <label>供应商 <span style="color:#999;font-size:12px;">（只显示已配置的）</span></label>
+            <select id="capEditProvider" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="">-- 不配置（禁用此能力）--</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>模型</label>
+            <input id="capEditModel" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="例如: gpt-4o, claude-3-opus">
+        </div>
+        <div class="form-group">
+            <label>模式</label>
+            <select id="capEditMode" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="chat">chat</option>
+                <option value="completion">completion</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+            <button onclick="saveCap()" class="btn btn-primary">💾 保存</button>
+            <button onclick="closeCapEditModal()" class="btn" style="background:#eee;">取消</button>
+        </div>
+        <div id="capEditResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
+    </div>
+</div>
+
 <script>
 // ====== 页面加载 ======
 let _currentProvider = null;
@@ -94,6 +147,7 @@ let _currentProvider = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadRegistry();
     loadConfigured();
+    loadCapabilities();
 });
 
 function loadRegistry() {
@@ -406,6 +460,164 @@ function saveCustomProvider() {
     }).then(r => r.json()).then(d => {
         if (d.success) { closeCustomModal(); loadRegistry(); }
         else { alert('保存失败: ' + (d.error || '')); }
+    });
+}
+
+// ====== 能力路由 ======
+let _editingCap = null;
+let _configuredProviders = [];
+
+function loadCapabilities() {
+    fetch('/api/ai/config')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            renderCapabilities(data.config || {});
+        } else {
+            document.getElementById('capabilityTableBody').innerHTML =
+                '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
+        }
+    })
+    .catch(() => {
+        document.getElementById('capabilityTableBody').innerHTML =
+            '<tr><td colspan="5" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
+    });
+    // Also load configured providers for the edit modal dropdown
+    fetch('/api/ai/providers/configured')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _configuredProviders = data.providers || [];
+        }
+    })
+    .catch(() => {});
+}
+
+function renderCapabilities(config) {
+    const caps = config.capabilities || {};
+    const capList = ['writing', 'translate', 'image_gen', 'audio_gen', 'video_gen'];
+    const capNames = {
+        'writing':      '✍️ 写作',
+        'translate':    '🌐 翻译',
+        'image_gen':    '🎨 图片生成',
+        'audio_gen':    '🎵 音频生成',
+        'video_gen':    '🎬 视频生成'
+    };
+
+    let html = '';
+    capList.forEach(key => {
+        const cap = caps[key] || {};
+        const providerName = cap.provider || '';
+        const model = cap.model || '';
+        const mode = cap.mode || 'chat';
+        const displayProvider = providerName
+            ? escapeHtml(providerName)
+            : '<span style="color:#999;">未配置</span>';
+        const displayModel = model
+            ? escapeHtml(model)
+            : '<span style="color:#999;">-</span>';
+
+        html += '<tr>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + (capNames[key] || key) + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayProvider + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayModel + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + escapeHtml(mode) + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' +
+                '<button class="btn btn-sm btn-primary" onclick="editCap(\'' + key + '\')">✏️ 编辑</button>' +
+            '</td>' +
+        '</tr>';
+    });
+    document.getElementById('capabilityTableBody').innerHTML = html;
+}
+
+function editCap(key) {
+    _editingCap = key;
+    document.getElementById('capEditName').value = key;
+
+    // Build provider dropdown from configured providers
+    const sel = document.getElementById('capEditProvider');
+    sel.innerHTML = '<option value="">-- 不配置（禁用此能力）--</option>';
+    _configuredProviders.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.provider;
+        opt.textContent = (p.icon || '🤖') + ' ' + (p.display_name || p.provider) +
+            (p.alias ? ' (' + p.alias + ')' : '');
+        sel.appendChild(opt);
+    });
+
+    // Load current config for this capability
+    fetch('/api/ai/config')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const caps = (data.config || {}).capabilities || {};
+            const cap = caps[key] || {};
+            if (cap.provider) sel.value = cap.provider;
+            document.getElementById('capEditModel').value = cap.model || '';
+            document.getElementById('capEditMode').value = cap.mode || 'chat';
+        }
+    })
+    .catch(() => {});
+
+    document.getElementById('capEditResult').style.display = 'none';
+    document.getElementById('capEditModal').style.display = 'flex';
+}
+
+function closeCapEditModal() {
+    document.getElementById('capEditModal').style.display = 'none';
+}
+
+function saveCap() {
+    const key = _editingCap;
+    const provider = document.getElementById('capEditProvider').value;
+    const model = document.getElementById('capEditModel').value.trim();
+    const mode = document.getElementById('capEditMode').value;
+
+    const resultDiv = document.getElementById('capEditResult');
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.color = '#856404';
+    resultDiv.innerHTML = '⏳ 保存中...';
+
+    // First load current config, then merge and save
+    fetch('/api/ai/config')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) throw new Error('加载配置失败');
+        const config = data.config || {};
+        const caps = config.capabilities || {};
+
+        if (provider) {
+            caps[key] = { provider: provider, model: model, mode: mode };
+        } else {
+            delete caps[key];
+        }
+        config.capabilities = caps;
+
+        return fetch('/api/ai/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(config),
+        });
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.color = '#155724';
+            resultDiv.innerHTML = '✅ 已保存！';
+            closeCapEditModal();
+            loadCapabilities();
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.color = '#721c24';
+            resultDiv.innerHTML = '❌ 保存失败: ' + escapeHtml(data.error || '');
+        }
+    })
+    .catch(e => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = '❌ 请求失败: ' + escapeHtml(e.message);
     });
 }
 

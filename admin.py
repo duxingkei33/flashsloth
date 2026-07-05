@@ -199,6 +199,16 @@ def init_db():
         conn.execute("ALTER TABLE ai_configs ADD COLUMN enabled INTEGER DEFAULT 1")
     except Exception:
         pass
+    # 迁移：platform_accounts 添加状态和保持在线字段
+    for col in ["status", "keep_alive", "last_status_check"]:
+        try:
+            conn.execute(f"ALTER TABLE platform_accounts ADD COLUMN {col} TEXT DEFAULT ''")
+        except Exception:
+            pass
+    try:
+        conn.execute("ALTER TABLE platform_accounts ADD COLUMN keep_alive INTEGER DEFAULT 0")
+    except Exception:
+        pass
     conn.commit()
 
     # ─── 首次运行：自动生成随机 admin 账号 ───
@@ -2999,6 +3009,35 @@ def api_account_signin_settings(aid):
     conn.commit()
     conn.close()
     return jsonify({"success": True})
+
+
+@app.route("/api/accounts/<int:aid>/keep_alive", methods=["POST"])
+@login_required
+def api_account_keep_alive(aid):
+    """切换保持在线状态"""
+    data = request.get_json() or {}
+    keep_alive = data.get("keep_alive")
+    if keep_alive is None:
+        return jsonify({"success": False, "error": "缺少 keep_alive 参数"})
+
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    if not acct:
+        conn.close()
+        return jsonify({"success": False, "error": "账号不存在"})
+
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    cfg["keep_alive"] = "1" if keep_alive else "0"
+    conn.execute(
+        "UPDATE platform_accounts SET config_json=? WHERE id=?",
+        (json.dumps(cfg), aid)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "keep_alive": bool(keep_alive)})
 
 
 @app.route("/api/signin/config", methods=["GET", "POST"])
