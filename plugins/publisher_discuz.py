@@ -289,7 +289,12 @@ class DiscuzPublisher(Publisher):
 
         images = self._extract_images_from_body(body)
         if not images:
+            self._last_upload_warnings = []
             return body, {}, []
+
+        # 准备失败记录列表
+        self._last_upload_warnings = []
+        failed_images = self._last_upload_warnings
 
         # 从指定页面或 newthread 页面提取上传参数
         if page_html:
@@ -327,9 +332,51 @@ class DiscuzPublisher(Publisher):
                 local_path = os.path.join(fs_upload_dir, src[len('static/uploads/'):])
             elif not src.startswith('http'):
                 local_path = os.path.join(fs_upload_dir, os.path.basename(src))
+            elif src.startswith(('http://', 'https://')):
+                # 远程图片 → 下载到临时目录
+                try:
+                    resp2 = self.browser.session.get(src, timeout=15, stream=True)
+                    if resp2.status_code == 200:
+                        import tempfile
+                        ext = os.path.splitext(src.split('?')[0])[1] or '.jpg'
+                        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                        for chunk in resp2.iter_content(8192):
+                            tmp.write(chunk)
+                        tmp.close()
+                        local_path = tmp.name
+                except Exception:
+                    failed_images.append({"src": src, "error": "远程图片下载失败"})
+                    continue
 
             if not local_path or not os.path.isfile(local_path):
                 continue
+
+            # ── 图片校验：格式、大小、尺寸 ──
+            # 检查格式
+            allowed_exts = ('.jpg', '.jpeg', '.png', '.gif')
+            ext = os.path.splitext(local_path)[1].lower()
+            if ext not in allowed_exts:
+                failed_images.append({"src": src, "error": f"不支持的格式 {ext}，支持: jpg/png/gif"})
+                continue
+
+            # 检查文件大小（Discuz 默认限制 ~2MB）
+            max_size = 2 * 1024 * 1024
+            file_size = os.path.getsize(local_path)
+            if file_size > max_size:
+                failed_images.append({"src": src, "error": f"图片过大 ({file_size/1024/1024:.1f}MB > 2MB)"})
+                continue
+
+            # 检查图片尺寸
+            try:
+                from PIL import Image
+                pil_img = Image.open(local_path)
+                w, h = pil_img.size
+                max_dim = 1000
+                if w > max_dim or h > max_dim * 2:
+                    failed_images.append({"src": src, "error": f"图片尺寸 {w}x{h} 超过推荐限制"})
+                    # 不阻止上传，仅警告
+            except ImportError:
+                pass
 
             # 上传
             try:
@@ -352,7 +399,8 @@ class DiscuzPublisher(Publisher):
                 elif raw and raw.isdigit():
                     token_map[src] = f"DISCUZUPLOAD|0|{raw}|1|0"
                     local_ids.append('0')
-            except Exception:
+            except Exception as e:
+                failed_images.append({"src": src, "error": f"上传异常: {str(e)[:100]}"})
                 continue
 
         # 替换 body 中的图片引用
@@ -707,7 +755,7 @@ class DiscuzPublisher(Publisher):
             "formhash": formhash,
             "posttime": form_fields.get("posttime", ""),
             "wysiwyg": "0",
-            "subject": article.title,
+            "subject": (article.title or "")[:80],
             "message": body_html,
             "typeid": typeid or form_fields.get("typeid", ""),
             "readperm": form_fields.get("readperm", ""),
