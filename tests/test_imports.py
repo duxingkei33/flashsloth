@@ -39,6 +39,8 @@ plugin_imports = [
     ('storage_alist', 'flashsloth.plugins.storage_alist'),
     ('forum_reader', 'flashsloth.plugins.forum_reader'),
     ('browser_session', 'flashsloth.plugins.browser_session'),
+    ('publisher_xianyu', 'flashsloth.plugins.publisher_xianyu'),
+    ('publisher_oshwhub', 'flashsloth.plugins.publisher_oshwhub'),
     # 注: signin_discuz 需要 forum_signin.py 的 orchestrator bootstrapping（core_signin 模块），
     # 不在 admin.py 的直接导入范围内。admin.py 通过 import forum_signin 间接引入。
 
@@ -55,6 +57,11 @@ sdk_imports = [
     ('sdk/adapters/github_pages', 'flashsloth.sdk.adapters.github_pages'),
     ('sdk/adapters/oshwhub', 'flashsloth.sdk.adapters.oshwhub'),
     ('sdk/adapters/bilibili', 'flashsloth.sdk.adapters.bilibili'),
+    ('sdk/adapters/xianyu', 'flashsloth.sdk.adapters.xianyu'),
+    ('sdk/adapters/zhihu', 'flashsloth.sdk.adapters.zhihu'),
+    ('sdk/adapters/juejin', 'flashsloth.sdk.adapters.juejin'),
+    ('sdk/adapters/wechat', 'flashsloth.sdk.adapters.wechat'),
+    ('sdk/adapters/wordpress', 'flashsloth.sdk.adapters.wordpress'),
 ]
 for name, mod_path in sdk_imports:
     check(name, lambda p=mod_path: __import__(p, fromlist=['']))
@@ -65,7 +72,8 @@ check("Publisher 注册 (import后)", lambda: (
     [__import__(f'flashsloth.plugins.{n}', fromlist=['']) for n in
      ['publisher_wordpress','publisher_wechat','publisher_juejin',
       'publisher_rss','publisher_zhihu','publisher_csdn',
-      'publisher_discuz','publisher_github_pages']],
+      'publisher_discuz','publisher_github_pages',
+      'publisher_bilibili','publisher_xianyu','publisher_oshwhub']],
     print(f"  已注册: {len(__import__('flashsloth.core.publisher', fromlist=['list_publishers']).list_publishers())} 个")
 ))
 

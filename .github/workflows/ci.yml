@@ -18,7 +18,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install flask flask-login markdown requests beautifulsoup4 selenium
+        run: |
+          pip install flask flask-login markdown requests beautifulsoup4
+          pip install playwright
+          python -m playwright install chromium --with-deps 2>/dev/null || true
 
       - name: Module import test
         run: python .github/workflows/check_imports.py

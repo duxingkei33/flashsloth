@@ -3,8 +3,8 @@ import sys, os
 # The check script is at .github/workflows/check_imports.py
 # flashsloth package is two dirs up at the repo root
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # .github/workflows/
-REPO_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))  # repo root
-sys.path.insert(0, os.path.dirname(REPO_ROOT))  # parent -> can import flashsloth
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)  # .github/
+sys.path.insert(0, os.path.join(SCRIPT_DIR, "..", ".."))  # repo root
 
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import list_publishers
