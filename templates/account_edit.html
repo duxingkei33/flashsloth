@@ -12,12 +12,17 @@
         {% set platform = platforms|selectattr('name', 'equalto', account.platform)|first %}
         {% if platform %}
         {% for field in platform.config_fields %}
+        {% set raw_val = cfg.get(field.key, '') %}
+        {% set is_sensitive = field.key.lower() in ('password', 'cookie', 'app_secret', 'api_key', 'token', 'access_token', 'refresh_token') %}
         <div class="form-group">
             <label>{{ field.label }}</label>
             <input type="{{ 'password' if field.type == 'password' else 'text' }}"
                    name="cfg_{{ field.key }}"
-                   value="{{ cfg.get(field.key, '') }}"
-                   placeholder="{{ field.placeholder or '' }}">
+                   value="{{ raw_val }}"
+                   placeholder="{{ '•••••••• 留空保持不变' if is_sensitive and raw_val == '••••••••' else field.placeholder or '' }}">
+            {% if is_sensitive and raw_val == '••••••••' %}
+            <small style="color:#999;font-size:11px;">🔒 已保存，不修改请留空</small>
+            {% endif %}
         </div>
         {% endfor %}
         {% endif %}
@@ -61,6 +66,34 @@
         document.querySelector('select[name="captcha_provider"]').addEventListener('change', toggleCaptchaConfig);
         toggleCaptchaConfig();
         </script>
+
+        {% set login_mode = cfg.get('login_mode', 'cookie') %}
+        {% if login_mode == 'qrcode' or captcha_provider == 'qrcode' %}
+        <hr style="margin:16px 0;border:none;border-top:1px solid #eee;">
+        <div style="background:#f0f7ff;border-radius:8px;padding:12px;border:1px solid #d0e4ff;">
+            <h3 style="font-size:14px;margin:0 0 8px 0;">📱 二维码登录</h3>
+            <p style="font-size:13px;color:#555;margin:0 0 10px 0;">此账号使用扫码登录，Session 过期后需重新扫码</p>
+            <a href="/accounts" class="btn btn-sm btn-primary" style="text-decoration:none;">
+                📱 返回账号列表 → 点「浏览器登录」重新扫码
+            </a>
+        </div>
+        {% elif login_mode == 'sms' %}
+        <hr style="margin:16px 0;border:none;border-top:1px solid #eee;">
+        <div style="background:#f0f7ff;border-radius:8px;padding:12px;border:1px solid #d0e4ff;">
+            <h3 style="font-size:14px;margin:0 0 8px 0;">📱 短信验证码登录</h3>
+            <p style="font-size:13px;color:#555;margin:0 0 10px 0;">此账号使用短信验证码登录，过期需重新获取验证码</p>
+        </div>
+        {% endif %}
+
+        {% if has_real_config %}
+        <hr style="margin:16px 0;border:none;border-top:1px solid #eee;">
+        <div style="background:#fffbe6;border-radius:8px;padding:12px;border:1px solid #ffe58f;">
+            <p style="font-size:12px;color:#996600;margin:0;">
+                🔒 密码/Cookie 已脱敏处理（显示为 ••••••••），不修改请保持原样
+            </p>
+        </div>
+        {% endif %}
+
         <div style="display:flex;gap:8px;margin-top:16px;">
             <button type="submit" class="btn btn-primary">保存</button>
             <a href="/accounts" class="btn" style="background:#eee;">取消</a>

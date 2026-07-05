@@ -44,7 +44,14 @@ def api_accounts_config(aid):
    if not acct:
        return jsonify({"success": False, "error": "账号不存在"})
    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-   return jsonify({"success": True, "config": cfg})
+   # 脱敏敏感字段
+   masked = {}
+   for k, v in cfg.items():
+       if k.lower() in SENSITIVE_FIELDS and v:
+           masked[k] = MASKED_VALUE
+       else:
+           masked[k] = v
+   return jsonify({"success": True, "config": masked})
 
 @app.route("/accounts/add", methods=["POST"])
 @login_required
@@ -84,6 +91,9 @@ def add_account():
    flash(f"{platform} 账号已添加", "success")
    return redirect(url_for("accounts"))
 
+SENSITIVE_FIELDS = {"password", "cookie", "app_secret", "api_key", "token", "access_token", "refresh_token"}
+MASKED_VALUE = "••••••••"
+
 @app.route("/accounts/edit/<int:aid>", methods=["GET", "POST"])
 @login_required
 def edit_account(aid):
@@ -96,12 +106,19 @@ def edit_account(aid):
        flash("账号不存在", "error")
        conn.close()
        return redirect(url_for("accounts"))
+   orig_cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+   
    if request.method == "POST":
        name = request.form.get("account_name", "")
        cfg = {}
        for key in request.form:
            if key.startswith("cfg_"):
-               cfg[key[4:]] = request.form[key]
+               field_key = key[4:]
+               val = request.form[key]
+               # 如果是掩码占位符，保留原值
+               if val == MASKED_VALUE and field_key in orig_cfg:
+                   val = orig_cfg[field_key]
+               cfg[field_key] = val
        conn.execute(
            "UPDATE platform_accounts SET account_name=?, config_json=?, is_active=? WHERE id=?",
            (name, json.dumps(cfg),
@@ -111,11 +128,27 @@ def edit_account(aid):
        conn.close()
        flash("账号已更新", "success")
        return redirect(url_for("accounts"))
+   
    conn.close()
+   
+   # 脱敏敏感字段
+   masked_cfg = {}
+   for k, v in orig_cfg.items():
+       if k.lower() in SENSITIVE_FIELDS and v:
+           masked_cfg[k] = MASKED_VALUE
+       else:
+           masked_cfg[k] = v
+   
    platforms = list_publishers()
+   account_data = dict(acct)
+   account_data["config_json"] = json.dumps(masked_cfg)  # 替换为脱敏后的 config
+   
    return render_template("account_edit.html",
-                        account=dict(acct),
-                        platforms=platforms)
+                        account=account_data,
+                        platforms=platforms,
+                        has_real_config=bool(orig_cfg.get("password") or orig_cfg.get("cookie")),
+                        captcha_provider=acct["captcha_provider"],
+                        captcha_config=json.loads(acct.get("captcha_config") or "{}"))
 
 @app.route("/accounts/delete/<int:aid>")
 @login_required
