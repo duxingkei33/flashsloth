@@ -22,14 +22,17 @@ class DiscuzPublisher(Publisher):
     # ─── 各平台特殊限制 ─────────────────────────
     PLATFORM_LIMITS = {
         "mydigit.cn": {
-            "max_image_size": 9 * 1024 * 1024,  # 9MB
+            "max_image_size": 9 * 1024 * 1024,
             "daily_upload_limit": 200,
+            "daily_upload_size": 0,
             "allowed_extensions": ('.jpg', '.jpeg', '.png', '.gif', '.zip', '.rar', '.pdf', '.mp4'),
         },
         "amobbs.com": {
-            # 标准 Discuz 默认
-            "max_image_size": 2 * 1024 * 1024,
-            "allowed_extensions": ('.jpg', '.jpeg', '.png', '.gif'),
+            "max_image_size": 16 * 1024 * 1024,
+            "daily_upload_limit": 70,
+            "daily_upload_size": 10 * 1024 * 1024,
+            "allowed_extensions": ('.chm', '.pdf', '.zip', '.rar', '.tar', '.gz', '.bzip2', '.bz2',
+                                   '.gif', '.jpg', '.jpeg', '.png', '.bmp', '.webp', '.7z'),
         },
     }
     
@@ -223,8 +226,9 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": "请选择要发布到的版块",
                     "url": "", "id": ""}
 
+        save_as_draft = kwargs.get("save_as_draft", False)
         try:
-            result = self._publish_thread(article, fid)
+            result = self._publish_thread(article, fid, save_as_draft=save_as_draft)
             return result
         except Exception as e:
             return {"success": False, "error": f"Discuz! 发布异常: {e}",
@@ -728,7 +732,7 @@ class DiscuzPublisher(Publisher):
         except:
             return False
 
-    def _publish_thread(self, article: Article, fid: str) -> dict:
+    def _publish_thread(self, article: Article, fid: str, save_as_draft: bool = False) -> dict:
         """完整发帖流程：模拟真人操作"""
         # 第0步：去重检查
         if self._check_duplicate_title(fid, article.title):
@@ -836,6 +840,9 @@ class DiscuzPublisher(Publisher):
             f"{self.site_url}/forum.php?mod=post&action=newthread"
             f"&fid={fid}&extra=&topicsubmit=yes"
         )
+        if save_as_draft:
+            data["save"] = "1"
+            submit_url += "&save=1"
         time.sleep(random.uniform(0.5, 1.5))
         resp = self.browser.post(submit_url, data=data)
 
