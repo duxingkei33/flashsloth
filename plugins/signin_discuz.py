@@ -35,22 +35,25 @@ class DiscuzKmisignSignin(SigninBase):
         self.username = (config or {}).get("username", "")
 
     def can_handle(self, account: dict) -> bool:
-        """检查该论坛是否安装 k_misign 签到插件"""
+        """检查是否可处理该论坛签到（要求有 site_url 和 cookie）"""
         if account.get("platform", "") != self.platform:
             return False
         cfg = account.get("config", {})
         site_url = cfg.get("site_url", "")
-        if not site_url:
+        if not site_url or not cfg.get("cookie", ""):
             return False
+        # 可选探测 k_misign 插件是否存在
         try:
             import requests as _req
             test_url = site_url.rstrip("/") + "/k_misign-sign.html"
             check = _req.get(test_url, timeout=5, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             })
-            return check.status_code == 200 and "k_misign" in check.text.lower()
+            if check.status_code == 200:
+                return True
         except Exception:
-            return False
+            pass
+        return True  # 有 site_url + cookie 就尝试签到，失败了再报告
 
     def signin(self) -> dict:
         """执行 k_misign 签到"""
