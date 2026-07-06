@@ -94,12 +94,17 @@ def add_account():
 
    conn = get_db()
    if edit_id_int:
-       # 更新已有账号
+       # 更新已有账号：加载原配置，掩码字段保留原值
        existing = conn.execute(
-           "SELECT id FROM platform_accounts WHERE id=? AND user_id=?",
+           "SELECT id, config_json FROM platform_accounts WHERE id=? AND user_id=?",
            (edit_id_int, current_user.id)
        ).fetchone()
        if existing:
+           orig_cfg = json.loads(existing["config_json"]) if existing["config_json"] else {}
+           decrypt_config(orig_cfg)  # 解密原配置
+           for k, v in cfg.items():
+               if v == MASKED_VALUE and k in orig_cfg:
+                   cfg[k] = orig_cfg[k]  # 保留原值
            conn.execute(
                "UPDATE platform_accounts SET account_name=?, config_json=?, is_active=1 WHERE id=?",
                (name, json.dumps(encrypt_config(cfg)), edit_id_int),
@@ -123,59 +128,8 @@ MASKED_VALUE = "••••••••"
 @app.route("/accounts/edit/<int:aid>", methods=["GET", "POST"])
 @login_required
 def edit_account(aid):
-   conn = get_db()
-   acct = conn.execute(
-       "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
-       (aid, current_user.id)
-   ).fetchone()
-   if not acct:
-       flash("账号不存在", "error")
-       conn.close()
-       return redirect(url_for("accounts"))
-   orig_cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-   decrypt_config(orig_cfg)  # 解密敏感字段
-   
-   if request.method == "POST":
-       name = request.form.get("account_name", "")
-       cfg = {}
-       for key in request.form:
-           if key.startswith("cfg_"):
-               field_key = key[4:]
-               val = request.form[key]
-               # 如果是掩码占位符，保留原值
-               if val == MASKED_VALUE and field_key in orig_cfg:
-                   val = orig_cfg[field_key]
-               cfg[field_key] = val
-       conn.execute(
-           "UPDATE platform_accounts SET account_name=?, config_json=?, is_active=? WHERE id=?",
-           (name, json.dumps(cfg),
-            1 if request.form.get("is_active") else 0, aid),
-       )
-       conn.commit()
-       conn.close()
-       flash("账号已更新", "success")
-       return redirect(url_for("accounts"))
-   
-   conn.close()
-   
-   # 脱敏敏感字段
-   masked_cfg = {}
-   for k, v in orig_cfg.items():
-       if k.lower() in SENSITIVE_FIELDS and v:
-           masked_cfg[k] = MASKED_VALUE
-       else:
-           masked_cfg[k] = v
-   
-   platforms = list_publishers()
-   account_data = dict(acct)
-   account_data["config_json"] = json.dumps(masked_cfg)  # 替换为脱敏后的 config
-   
-   return render_template("account_edit.html",
-                        account=account_data,
-                        platforms=platforms,
-                        has_real_config=bool(orig_cfg.get("password") or orig_cfg.get("cookie")),
-                        captcha_provider=acct["captcha_provider"],
-                        captcha_config=json.loads(acct["captcha_config"] or "{}"))
+   """重定向到账号管理页，由前端模态框处理编辑"""
+   return redirect(url_for("accounts"))
 
 @app.route("/accounts/delete/<int:aid>")
 @login_required
