@@ -492,6 +492,17 @@ def api_platform_login_start(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+		from plugins.generic_login import get_generic_login, close_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"generic_{current_user.id}"
+			inst = get_generic_login(sess_id)
+			result = inst.login(platform, username, password, site_url)
+			if result.get("logged_in") and result.get("cookies") and aid:
+				_save_cookie_to_account(aid, result["cookies"])
+			return jsonify(result)
+
 	return jsonify({"success": False, "error": f"平台 {platform} 不支持密码登录"})
 
 
@@ -535,6 +546,17 @@ def api_platform_login_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+		from plugins.generic_login import get_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"generic_{current_user.id}"
+			inst = get_generic_login(sess_id)
+			result = inst.submit_captcha_and_login(platform)
+			if result.get("logged_in") and result.get("cookies") and aid:
+				_save_cookie_to_account(aid, result["cookies"])
+			return jsonify(result)
+
 	return jsonify({"success": False, "error": f"平台 {platform} 不支持验证码提交"})
 
 
@@ -561,6 +583,13 @@ def api_platform_login_screenshot(platform):
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_oshwhub_login(f"user_{current_user.id}")
+			return jsonify({"success": True, "image": inst.take_screenshot()})
+
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+		from plugins.generic_login import get_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			inst = get_generic_login(f"generic_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
 	return jsonify({"success": False, "error": f"平台 {platform} 不支持截图"})
@@ -848,6 +877,14 @@ def api_platform_login_close(platform):
 			inst = _oshwhub_login_instances.pop(sess_id, None)
 			if inst:
 				inst.close()
+			return jsonify({"success": True})
+
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+		from plugins.generic_login import close_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"generic_{current_user.id}"
+			close_generic_login(sess_id)
 			return jsonify({"success": True})
 
 	return jsonify({"success": False, "error": f"平台 {platform} 不支持浏览器登录"})

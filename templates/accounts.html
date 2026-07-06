@@ -155,11 +155,18 @@
             <!-- ===== 登录方法选择 Tab ===== -->
             <div id="loginMethodTabs" style="display:flex;gap:4px;margin-bottom:8px;border-bottom:2px solid #eee;padding-bottom:8px;flex-wrap:wrap;"></div>
 
-            <!-- 登录方式说明演示卡（小程序风格） -->
+            <!-- 登录方式说明演示卡（小程序风格，含示意图） -->
             <div id="loginMethodDemo" style="display:none;margin-bottom:12px;padding:12px;background:linear-gradient(135deg,#f8f9ff,#eef1ff);border:1px solid #d0d5f0;border-radius:10px;font-size:13px;">
-                <div id="loginDemoTitle" style="font-weight:600;font-size:14px;margin-bottom:8px;"></div>
-                <div id="loginDemoSteps" style="color:#555;line-height:1.7;margin-bottom:6px;"></div>
-                <div id="loginDemoNote" style="font-size:11px;color:#888;background:#fff;padding:6px 10px;border-radius:6px;border:1px dashed #ddd;"></div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <div id="loginDemoTitle" style="font-weight:600;font-size:14px;margin-bottom:8px;"></div>
+                        <div id="loginDemoSteps" style="color:#555;line-height:1.7;margin-bottom:6px;"></div>
+                        <div id="loginDemoNote" style="font-size:11px;color:#888;background:#fff;padding:6px 10px;border-radius:6px;border:1px dashed #ddd;"></div>
+                    </div>
+                    <div id="loginDemoImageArea" style="flex-shrink:0;width:200px;border-radius:8px;overflow:hidden;border:1px solid #d0d5f0;background:#fff;">
+                        <img id="loginDemoImage" src="" alt="登录流程示意图" style="width:100%;display:block;">
+                    </div>
+                </div>
             </div>
 
             <div id="loginMethodContent"></div>
@@ -1158,10 +1165,26 @@ function escapeHtml(text) {
     return d.innerHTML;
 }
 
-// ====== 登录方式演示/说明卡（小程序风格） ======
+// ====== 登录方式演示/说明卡（小程序风格，含示意图） ======
 function showLoginMethodDemo(method) {
     var demoDiv = document.getElementById('loginMethodDemo');
     if (!demoDiv) return;
+
+    // 根据登录方法名显示对应的演示示意图
+    var imageMap = {
+        'password': '/static/images/demo/password-login.svg',
+        'qrcode': '/static/images/demo/qrcode-login.svg',
+        'cookie': '/static/images/demo/cookie-paste.svg',
+        'phone': '/static/images/demo/password-login.svg',
+        'oauth1': '/static/images/demo/password-login.svg',
+    };
+    var demoImg = document.getElementById('loginDemoImage');
+    if (demoImg && imageMap[method]) {
+        demoImg.src = imageMap[method];
+        document.getElementById('loginDemoImageArea').style.display = 'block';
+    } else if (demoImg) {
+        document.getElementById('loginDemoImageArea').style.display = 'none';
+    }
 
     fetch('/api/login/method-demo/' + encodeURIComponent(method))
     .then(function(r) { return r.json(); })
