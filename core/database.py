@@ -97,20 +97,29 @@ def _seed_forum_exploration(conn):
             print(f"  [种子] 跳过 preset {preset_name}: {e}")
             continue
         
-        # 从预设配置更新 tags_of_interest（如果有）
-        tags = preset.get("tags_of_interest", [])
-        if tags and preset.get("sections"):
-            for sid, section in preset["sections"].items():
+        # 从预设配置更新关键词（修复：sections可能是list，无需tags_of_interest存在）
+        raw_sections = preset.get("sections", [])
+        if isinstance(raw_sections, dict):
+            raw_sections = list(raw_sections.values())
+        if raw_sections and isinstance(raw_sections, list):
+            updated = 0
+            for section in raw_sections:
+                sid = str(section.get("id", section.get("section_id", "")))
                 kw = section.get("keywords", [])
                 if isinstance(kw, str):
                     kw = [kw]
+                if not kw:
+                    kw = [section.get("name", sid)]
                 extra_tags = json.dumps(kw, ensure_ascii=False)
-                conn.execute(
+                r = conn.execute(
                     "UPDATE forum_exploration SET keywords=? WHERE platform_domain=? AND section_id=?",
                     (extra_tags, dom, sid)
                 )
+                if r.rowcount > 0:
+                    updated += 1
+            if updated:
                 conn.commit()
-            print(f"  [种子] {preset_name}: 更新了关键词")
+                print(f"  [种子] {preset_name}: 更新了 {updated} 个版块的关键词")
         
         # 存储平台能力到预设
         caps = preset.get("capabilities", {})

@@ -11,8 +11,13 @@
     color: #0d6efd;
     font-size: 0.8rem;
     margin: 2px;
+    cursor: pointer;
 }
 .keyword-badge:hover { background: rgba(13, 110, 253, 0.3); }
+.keyword-badge.selected {
+    background: #0d6efd;
+    color: #fff;
+}
 .edit-input {
     background: #2b2b2b;
     border: 1px solid #444;
@@ -40,13 +45,47 @@
 }
 .platform-tag .del { cursor: pointer; font-weight: bold; margin-left: 2px; color: #94a3b8; }
 .platform-tag .del:hover { color: #dc2626; }
+
+/* 内联折叠行样式 */
+.sub-collapse-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 14px; cursor: pointer; user-select: none;
+    border-bottom: 1px solid #e9ecef; transition: background .1s;
+}
+.sub-collapse-header:hover { background: rgba(0,0,0,0.02); }
+.sub-collapse-header .arrow { transition: transform .2s; display: inline-block; }
+.sub-collapse-header .arrow.collapsed { transform: rotate(-90deg); }
+.sub-collapse-body { padding: 8px 14px; border-bottom: 1px solid #e9ecef; }
+
+/* 发布标准表 */
+.rules-table { font-size: 0.8rem; width: 100%; }
+.rules-table td { padding: 4px 10px; vertical-align: top; }
+.rules-table .label { color: #64748b; white-space: nowrap; width: 100px; }
+
+/* 关心板块关键词 */
+.keyword-grid { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.interested-section {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 6px; font-size: 0.8rem;
+    background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
+    margin: 2px;
+}
+.interested-section .del { cursor: pointer; font-weight: bold; color: #86efac; }
+.interested-section .del:hover { color: #dc2626; }
+.auto-keyword-hint {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 0.7rem; background: #f1f5f9; color: #475569;
+    margin: 1px; cursor: pointer; border: 1px solid #e2e8f0;
+}
+.auto-keyword-hint:hover { background: #dbeafe; border-color: #93c5fd; }
+.auto-keyword-hint.selected { background: #2563eb; color: #fff; border-color: #2563eb; }
 </style>
 
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h3 class="mb-1">🔍 平台探索管理</h3>
-            <p class="text-muted mb-0 small">板块信息 · 发布能力 · 关心标签 · 采集配置</p>
+            <p class="text-muted mb-0 small">板块信息 · 发布能力 · 发帖要求 · 关心标签 · 板块关键词</p>
         </div>
         <div>
             <button class="btn btn-outline-success btn-sm me-2" onclick="reseedData()">
@@ -82,84 +121,105 @@
         </div>
         <div id="platform_{{ loop.index }}" class="collapse {% if loop.first %}show{% endif %}">
             <div class="card-body p-0">
-                <!-- Row 1: 板块信息 -->
-                {% if p.has_data and p.sections %}
-                <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
-                    <div class="d-flex justify-content-between align-items-center px-2 py-1 border-bottom small" style="font-size:0.75rem;">
-                        <span class="text-muted">{{ p.count }} 个版块</span>
+                {% set platform_idx = loop.index %}
+                {% set platform_domain = p.domain %}
+
+                <!-- ════════════════════════════════════ -->
+                <!-- Row 1: 板块列表（可折叠）               -->
+                <!-- ════════════════════════════════════ -->
+                <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow1_{{ loop.index }}">
+                    <span><strong style="font-size:0.85rem;color:#475569;">📋 板块列表 {% if p.has_data %}({{ p.count }}){% endif %}</strong></span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div id="secRow1_{{ loop.index }}" class="collapse show">
+                    {% if p.has_data and p.sections %}
+                    <div class="sub-collapse-body p-0">
+                    <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+                        <div class="d-flex justify-content-between align-items-center px-2 py-1 border-bottom small" style="font-size:0.75rem;">
+                            <span class="text-muted">{{ p.count }} 个版块</span>
+                            {% if p.count > 20 %}
+                            <div class="d-flex gap-1 align-items-center" id="sectionPageCtrl_{{ loop.index }}">
+                                <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
+                                        onclick="loadSectionPage('{{ p.domain }}', {{ loop.index }}, -1)">«</button>
+                                <span id="sectionPageInfo_{{ loop.index }}">1/{{ ((p.count + 19) // 20) }}</span>
+                                <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
+                                        onclick="loadSectionPage('{{ p.domain }}', {{ loop.index }}, 1)">»</button>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <table class="table table-sm table-hover mb-0" style="font-size:0.8rem;" id="sectionTable_{{ loop.index }}">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th style="width:40px;">#</th>
+                                    <th style="width:80px;">版块ID</th>
+                                    <th>版块名称</th>
+                                    <th style="width:60px;">可发</th>
+                                    <th>关键词</th>
+                                    <th>标签</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sectionTbody_{{ loop.index }}">
+                                {% for s in p.sections %}
+                                <tr class="section-row">
+                                    <td>{{ loop.index }}</td>
+                                    <td><code>{{ s.section_id }}</code></td>
+                                    <td>{{ s.section_name }}</td>
+                                    <td>
+                                        <span class="badge {% if s.can_post %}bg-success{% else %}bg-danger{% endif %}"
+                                              style="font-size:0.65rem;">
+                                            {{ '✓' if s.can_post else '✗' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% set kw = s.keywords|from_json if s.keywords and s.keywords|length > 2 else [] %}
+                                        {% for k in (kw if kw is iterable and kw is not string else [s.section_name])[:5] %}
+                                        <span class="keyword-badge badge">{{ k }}</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% set toi = s.tags_of_interest|from_json if s.tags_of_interest and s.tags_of_interest|length > 2 else [] %}
+                                        {% if toi %}
+                                        {% for t in (toi if toi is iterable and toi is not string else [])[:3] %}
+                                        <span class="platform-tag" style="font-size:0.65rem;padding:1px 5px;">{{ t }}</span>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                         {% if p.count > 20 %}
-                        <div class="d-flex gap-1 align-items-center" id="sectionPageCtrl_{{ loop.index }}">
-                            <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
-                                    onclick="loadSectionPage('{{ p.domain }}', {{ loop.index }}, -1)">«</button>
-                            <span id="sectionPageInfo_{{ loop.index }}">1/{{ ((p.count + 19) // 20) }}</span>
-                            <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
-                                    onclick="loadSectionPage('{{ p.domain }}', {{ loop.index }}, 1)">»</button>
+                        <div class="d-flex justify-content-between align-items-center px-2 py-1 border-top small" style="font-size:0.75rem;">
+                            <span class="text-muted" id="sectionPageStatus_{{ loop.index }}">第 1/{{ ((p.count + 19) // 20) }} 页</span>
                         </div>
                         {% endif %}
                     </div>
-                    <table class="table table-sm table-hover mb-0" style="font-size:0.8rem;" id="sectionTable_{{ loop.index }}">
-                        <thead class="sticky-top bg-light">
-                            <tr>
-                                <th style="width:40px;">#</th>
-                                <th style="width:80px;">版块ID</th>
-                                <th>版块名称</th>
-                                <th style="width:60px;">可发</th>
-                                <th>关键词</th>
-                                <th>标签</th>
-                            </tr>
-                        </thead>
-                        <tbody id="sectionTbody_{{ loop.index }}">
-                            {% for s in p.sections %}
-                            <tr class="section-row">
-                                <td>{{ loop.index }}</td>
-                                <td><code>{{ s.section_id }}</code></td>
-                                <td>{{ s.section_name }}</td>
-                                <td>
-                                    <span class="badge {% if s.can_post %}bg-success{% else %}bg-danger{% endif %}"
-                                          style="font-size:0.65rem;">
-                                        {{ '✓' if s.can_post else '✗' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% set kw = s.keywords|from_json if s.keywords and s.keywords|length > 2 else [] %}
-                                    {% for k in (kw if kw is iterable and kw is not string else [s.section_name])[:5] %}
-                                    <span class="keyword-badge badge">{{ k }}</span>
-                                    {% endfor %}
-                                </td>
-                                <td>
-                                    {% set toi = s.tags_of_interest|from_json if s.tags_of_interest and s.tags_of_interest|length > 2 else [] %}
-                                    {% if toi %}
-                                    {% for t in (toi if toi is iterable and toi is not string else [])[:3] %}
-                                    <span class="platform-tag" style="font-size:0.65rem;padding:1px 5px;">{{ t }}</span>
-                                    {% endfor %}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% if p.count > 20 %}
-                    <div class="d-flex justify-content-between align-items-center px-2 py-1 border-top small" style="font-size:0.75rem;">
-                        <span class="text-muted" id="sectionPageStatus_{{ loop.index }}">第 1/{{ ((p.count + 19) // 20) }} 页</span>
+                    </div>
+                    {% else %}
+                    <div class="sub-collapse-body">
+                        <div class="text-muted small">
+                            暂无探索数据
+                            <button class="btn btn-sm btn-outline-primary ms-2" style="font-size:0.75rem;"
+                                    onclick="autoExplore('{{ p.domain }}', {{ loop.index }})">
+                                🚀 自动探索
+                            </button>
+                        </div>
                     </div>
                     {% endif %}
                 </div>
-                {% else %}
-                <div class="p-3 text-muted small">
-                    暂无探索数据
-                    <button class="btn btn-sm btn-outline-primary ms-2" style="font-size:0.75rem;"
-                            onclick="autoExplore('{{ p.domain }}', {{ loop.index }})">
-                        🚀 自动探索
-                    </button>
-                </div>
-                {% endif %}
 
-                <!-- Row 2: 平台发布能力 -->
-                {% if p.capabilities %}
-                <div class="p-3 border-top">
-                    <strong style="font-size:0.85rem;color:#475569;">📋 平台发布能力</strong>
+                <!-- ════════════════════════════════════ -->
+                <!-- Row 2: 平台发布能力（可折叠）            -->
+                <!-- ════════════════════════════════════ -->
+                <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow2_{{ loop.index }}">
+                    <span><strong style="font-size:0.85rem;color:#475569;">📋 平台发布能力</strong></span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div id="secRow2_{{ loop.index }}" class="collapse show">
+                    <div class="sub-collapse-body">
+                    {% if p.capabilities %}
+                    {% set caps = p.capabilities %}
                     <table class="cap-table table table-borderless mb-0">
-                        {% set caps = p.capabilities %}
                         {% if caps.publish %}
                         <tr>
                             <td class="label">发布类型</td>
@@ -192,6 +252,9 @@
                                 {% if caps.publish.code_highlighting %}<span class="cap-tag">代码高亮</span>{% endif %}
                                 {% if caps.publish.math_formula %}<span class="cap-tag">数学公式</span>{% endif %}
                                 {% if caps.publish.mermaid %}<span class="cap-tag">Mermaid</span>{% endif %}
+                                {% if not caps.publish.supports_markdown and not caps.publish.supports_richtext and not caps.publish.allow_bbcode and not caps.publish.allow_html and not caps.publish.code_highlighting %}
+                                <span class="text-muted">未配置</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endif %}
@@ -203,6 +266,9 @@
                                 {% if caps.upload_limits.image_types %}
                                 ({{ caps.upload_limits.image_types|join(', ') }})
                                 {% endif %}
+                                {% if not caps.upload_limits.max_image_size_mb and not caps.upload_limits.image_types %}
+                                <span class="text-muted">未配置</span>
+                                {% endif %}
                             </td>
                         </tr>
                         <tr>
@@ -211,6 +277,9 @@
                                 {% if caps.upload_limits.max_attachment_size_mb %}最大 {{ caps.upload_limits.max_attachment_size_mb }}MB{% endif %}
                                 {% if caps.upload_limits.attachment_types %}
                                 ({{ caps.upload_limits.attachment_types|join(', ') }})
+                                {% endif %}
+                                {% if not caps.upload_limits.max_attachment_size_mb and not caps.upload_limits.attachment_types %}
+                                <span class="text-muted">未配置</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -223,6 +292,9 @@
                                 {% if caps.restrictions.vip_required %}<span class="cap-tag">需VIP</span>{% endif %}
                                 {% if caps.restrictions.min_posts_for_links %}<span class="cap-tag">发链需{{ caps.restrictions.min_posts_for_links }}帖</span>{% endif %}
                                 {% if caps.restrictions.min_level_for_original %}<span class="cap-tag">原创需Lv{{ caps.restrictions.min_level_for_original }}</span>{% endif %}
+                                {% if not caps.restrictions.audit_required and not caps.restrictions.vip_required and not caps.restrictions.min_posts_for_links and not caps.restrictions.min_level_for_original %}
+                                <span class="text-muted">无特殊限制</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endif %}
@@ -237,22 +309,147 @@
                         </tr>
                         {% endif %}
                     </table>
+                    <div class="mt-2">
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;"
+                                onclick="editCapabilities('{{ p.domain }}', {{ loop.index }})">📝 编辑能力</button>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">暂未配置平台能力信息。
+                        <button class="btn btn-sm btn-outline-primary ms-2" style="font-size:0.75rem;"
+                                onclick="editCapabilities('{{ p.domain }}', {{ loop.index }})">📝 配置能力</button>
+                    </div>
+                    {% endif %}
+                    </div>
                 </div>
-                {% else %}
-                <div class="p-3 border-top text-muted small">暂未配置平台能力信息。</div>
-                {% endif %}
 
-                <!-- Row 3: 标签 + 管理配置 -->
-                <div class="p-3 border-top d-flex flex-wrap gap-3 align-items-start">
-                    <!-- 关心标签 -->
-                    <div style="flex:1;min-width:250px;">
-                        <strong style="font-size:0.85rem;color:#475569;">🏷️ 关心标签</strong>
+                <!-- ════════════════════════════════════ -->
+                <!-- Row 3: 发帖标准要求（可折叠 · 新增）     -->
+                <!-- ════════════════════════════════════ -->
+                <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow3_{{ loop.index }}">
+                    <span><strong style="font-size:0.85rem;color:#475569;">📏 发帖标准要求</strong></span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div id="secRow3_{{ loop.index }}" class="collapse show">
+                    <div class="sub-collapse-body">
+                    {% set caps = p.capabilities or {} %}
+                    {% set rules = caps.get('forum_rules', caps) %}
+                    <table class="rules-table">
+                        <tr>
+                            <td class="label">标题长度</td>
+                            <td>
+                                {% set mt = caps.get('publish', {}).get('max_title_length', '—') %}
+                                {% set mn = caps.get('publish', {}).get('min_title_length', '—') %}
+                                {% if mt != '—' or mn != '—' %}
+                                    最长 <strong>{{ mt }}</strong> 字{% if mn != '—' %}，最短 <strong>{{ mn }}</strong> 字{% endif %}
+                                {% else %}
+                                    <span class="text-muted">未配置</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">正文长度</td>
+                            <td>
+                                {% set mx = caps.get('publish', {}).get('max_content_chars', '—') %}
+                                {% set mi = caps.get('publish', {}).get('min_content_chars', '—') %}
+                                {% if mx != '—' or mi != '—' %}
+                                    最长 <strong>{{ mx }}</strong> 字{% if mi != '—' %}，最少 <strong>{{ mi }}</strong> 字{% endif %}
+                                {% else %}
+                                    <span class="text-muted">未配置</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">图片支持</td>
+                            <td>
+                                {% set img = caps.get('upload_limits', {}).get('max_image_size_mb', 0) %}
+                                {% if img > 0 %}
+                                    ✅ 支持（最大 <strong>{{ img }}MB</strong>）
+                                    {% if caps.get('upload_limits', {}).get('image_types') %}
+                                    ({{ caps.get('upload_limits', {}).get('image_types', [])|join(', ') }})
+                                    {% endif %}
+                                {% elif rules.get('image_supported') %}
+                                    ✅ 支持（最大 <strong>{{ rules.get('image_max_size_mb', '—') }}MB</strong>）
+                                {% else %}
+                                    <span class="text-muted">未配置</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">附件支持</td>
+                            <td>
+                                {% set att = caps.get('upload_limits', {}).get('max_attachment_size_mb', 0) %}
+                                {% if att > 0 %}
+                                    ✅ 支持（最大 <strong>{{ att }}MB</strong>）
+                                    {% if caps.get('upload_limits', {}).get('attachment_types') %}
+                                    ({{ caps.get('upload_limits', {}).get('attachment_types', [])|join(', ') }})
+                                    {% endif %}
+                                {% elif rules.get('attachment_supported') %}
+                                    ✅ 支持（最大 <strong>{{ rules.get('attachment_max_size_mb', '—') }}MB</strong>）
+                                {% else %}
+                                    <span class="text-muted">未配置</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">内容格式</td>
+                            <td>
+                                {% set pub = caps.get('publish', {}) %}
+                                {% set fmts = [] %}
+                                {% if pub.get('supports_markdown') %}{% set _ = fmts.append('Markdown') %}{% endif %}
+                                {% if pub.get('supports_richtext') %}{% set _ = fmts.append('富文本') %}{% endif %}
+                                {% if pub.get('allow_bbcode') %}{% set _ = fmts.append('BBCode') %}{% endif %}
+                                {% if pub.get('allow_html') %}{% set _ = fmts.append('HTML') %}{% endif %}
+                                {% if fmts %}{{ fmts|join(' · ') }}{% else %}<span class="text-muted">未配置</span>{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">审核需求</td>
+                            <td>
+                                {% set rst = caps.get('restrictions', {}) %}
+                                {% if rst.get('audit_required') %}
+                                    ⚠️ <strong>需要审核</strong>{% if rst.get('review_time') %}（{{ rst.get('review_time') }}）{% endif %}
+                                {% else %}
+                                    <span class="text-success">无需审核</span>
+                                {% endif %}
+                                {% if rst.get('vip_required') %} · <span class="cap-tag">需VIP</span>{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">其他规则</td>
+                            <td>
+                                {% set extra_rules = [] %}
+                                {% if rules.get('allow_self_promotion') == false %}{% set _ = extra_rules.append('禁止自推广') %}{% endif %}
+                                {% if rules.get('require_captcha') %}{% set _ = extra_rules.append('需验证码') %}{% endif %}
+                                {% if rules.get('allow_edit') %}{% set _ = extra_rules.append('可编辑(' ~ rules.get('edit_time_limit_minutes', '—') ~ 'min)') %}{% endif %}
+                                {% if rules.get('allow_delete') %}{% set _ = extra_rules.append('可删除(' ~ rules.get('delete_time_limit_minutes', '—') ~ 'min)') %}{% endif %}
+                                {% if rules.get('post_min_chars') %}{% set _ = extra_rules.append('最少' ~ rules.get('post_min_chars') ~ '字') %}{% endif %}
+                                {% if extra_rules %}{{ extra_rules|join(' · ') }}{% else %}<span class="text-muted">未配置</span>{% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                    {% if not p.capabilities and not rules.get('image_supported') %}
+                    <div class="text-muted small mt-1">暂无发帖标准数据，请先配置平台能力。</div>
+                    {% endif %}
+                    </div>
+                </div>
+
+                <!-- ════════════════════════════════════ -->
+                <!-- Row 4: 关心关键词+板块（可折叠 · 新增） -->
+                <!-- ════════════════════════════════════ -->
+                <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow4_{{ loop.index }}">
+                    <span><strong style="font-size:0.85rem;color:#475569;">🎯 关心板块 &amp; 关键词</strong></span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div id="secRow4_{{ loop.index }}" class="collapse show">
+                    <div class="sub-collapse-body">
+                    <div class="mb-2">
+                        <strong style="font-size:0.8rem;color:#475569;">🏷️ 关心标签</strong>
                         <div class="tag-input-group mt-1" id="tagGroup_{{ loop.index }}">
                             <input type="text" id="tagInput_{{ loop.index }}"
                                    placeholder="输入标签后回车…"
                                    onkeydown="if(event.key==='Enter')addTag('{{ p.domain }}', {{ loop.index }})">
                             <button class="btn btn-primary btn-sm" onclick="addTag('{{ p.domain }}', {{ loop.index }})">+</button>
-                            <button class="btn btn-outline-secondary btn-sm" onclick="saveTags('{{ p.domain }}', {{ loop.index }})">💾</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="saveTags('{{ p.domain }}', {{ loop.index }})">💾 保存标签</button>
                         </div>
                         <div id="tagList_{{ loop.index }}" class="mt-1" style="display:flex;flex-wrap:wrap;gap:2px;">
                             {% for t in p.tags_of_interest %}
@@ -265,37 +462,89 @@
                             <span class="text-muted" style="font-size:0.75rem;">暂无标签</span>
                             {% endif %}
                         </div>
+                    </div>
+
+                    <div class="mt-2">
+                        <strong style="font-size:0.8rem;color:#475569;">📌 关注的版块</strong>
+                        <div id="interestedSections_{{ loop.index }}" class="keyword-grid">
+                            {% if p.has_data and p.sections %}
+                                {% for s in p.sections[:20] %}
+                                <span class="interested-section" id="intSec_{{ loop.index0 }}_{{ s.section_id }}">
+                                    {{ s.section_name }}
+                                    <span class="del" onclick="removeInterestedSection('{{ p.domain }}', {{ loop.index0 }}, '{{ s.section_id }}')">×</span>
+                                </span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted" style="font-size:0.75rem;">暂无板块数据</span>
+                            {% endif %}
+                        </div>
                         <small class="text-muted" style="font-size:0.7rem;display:block;margin-top:4px;">
-                            标签用于AI采集筛选和推荐
+                            从论坛板块自动提取，勾选可作为AI采集优先级
                         </small>
                     </div>
 
-                    <!-- 管理配置入口（预留） -->
-                    <div style="min-width:200px;">
-                        <strong style="font-size:0.85rem;color:#475569;">⚙️ 管理配置</strong>
-                        <div class="mt-1 d-flex gap-1 flex-wrap">
-                            <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
-                                    onclick="alert('AI数据采集配置（即将推出）')">
-                                🤖 AI采集
-                            </button>
-                            <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
-                                    onclick="alert('视频采集配置（即将推出）')">
-                                🎬 视频采集
-                            </button>
-                            <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
-                                    onclick="syncFromJson('{{ p.domain }}')">
-                                📥 JSON同步
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;"
-                                    onclick="editCapabilities('{{ p.domain }}', {{ loop.index }})">
-                                📝 编辑能力
-                            </button>
+                    <div class="mt-2">
+                        <strong style="font-size:0.8rem;color:#475569;">🔑 候选关键词（点击勾选到上方标签）</strong>
+                        <div id="autoKeywords_{{ loop.index }}" class="keyword-grid mt-1">
+                            {% if p.has_data and p.sections %}
+                                {% set all_kw = [] %}
+                                {% for s in p.sections[:30] %}
+                                    {% set skw = s.keywords|from_json if s.keywords and s.keywords|length > 2 else [s.section_name] %}
+                                    {% for k in (skw if skw is iterable and skw is not string else [s.section_name]) %}
+                                        {% if k|lower not in all_kw|map('lower')|list %}
+                                        <span class="auto-keyword-hint"
+                                              onclick="addKeywordFromHint('{{ p.domain }}', {{ platform_idx }}, '{{ k|e }}')"
+                                              title="点击添加到关心标签">
+                                            {{ k }}
+                                        </span>
+                                        {% set _ = all_kw.append(k) %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted" style="font-size:0.75rem;">暂无关键词数据</span>
+                            {% endif %}
                         </div>
                         <small class="text-muted" style="font-size:0.7rem;display:block;margin-top:4px;">
-                            预留AI/视频采集引用入口
+                            从板块关键词自动提取，点击可添加到关心标签
                         </small>
                     </div>
+                    </div>
                 </div>
+
+                <!-- ════════════════════════════════════ -->
+                <!-- Row 5: 管理配置（可折叠）               -->
+                <!-- ════════════════════════════════════ -->
+                <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow5_{{ loop.index }}">
+                    <span><strong style="font-size:0.85rem;color:#475569;">⚙️ 管理配置</strong></span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div id="secRow5_{{ loop.index }}" class="collapse show">
+                    <div class="sub-collapse-body">
+                    <div class="d-flex gap-1 flex-wrap">
+                        <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
+                                onclick="alert('AI数据采集配置（即将推出）')">
+                            🤖 AI采集
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
+                                onclick="alert('视频采集配置（即将推出）')">
+                            🎬 视频采集
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
+                                onclick="syncFromJson('{{ p.domain }}')">
+                            📥 JSON同步
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;"
+                                onclick="editCapabilities('{{ p.domain }}', {{ loop.index }})">
+                            📝 编辑能力
+                        </button>
+                    </div>
+                    <small class="text-muted" style="font-size:0.7rem;display:block;margin-top:4px;">
+                        预留AI/视频采集引用入口
+                    </small>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -358,12 +607,34 @@ function saveTags(domain, idx) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('tagInput_' + idx).placeholder = '保存成功 ✓';
-            setTimeout(() => { document.getElementById('tagInput_' + idx).placeholder = '输入标签后回车…'; }, 2000);
+            const btn = document.querySelector(`#tagGroup_${idx} button:last-child`);
+            btn.textContent = '✅ 已保存';
+            setTimeout(() => { btn.innerHTML = '💾 保存标签'; }, 2000);
         } else {
             alert('保存失败: ' + (data.error || ''));
         }
     });
+}
+
+// ─── 候选关键词点击添加到标签 ─────────────
+function addKeywordFromHint(domain, idx, keyword) {
+    initPendingTags(domain, idx);
+    if (!pendingTags[domain].includes(keyword)) {
+        pendingTags[domain].push(keyword);
+        renderTags(domain, idx);
+    }
+}
+
+// ─── 关心版块管理 ─────────────────────
+var interestedSections = {};
+
+function removeInterestedSection(domain, idx, sectionId) {
+    if (!interestedSections[domain]) {
+        interestedSections[domain] = {};
+    }
+    // 可视化移除
+    const el = document.getElementById('intSec_' + idx + '_' + sectionId);
+    if (el) el.remove();
 }
 
 // ─── 其他功能 ─────────────────────────
@@ -425,7 +696,6 @@ function loadSectionPage(domain, idx, direction) {
     var newPage = data.page + direction;
     if (newPage < 1) return;
 
-    // 获取当前总页数
     var info = document.getElementById('sectionPageInfo_' + idx);
     var parts = info.textContent.split('/');
     var totalPages = parseInt(parts[1]) || 1;
@@ -434,7 +704,6 @@ function loadSectionPage(domain, idx, direction) {
     data.page = newPage;
     info.textContent = newPage + '/' + totalPages;
 
-    // 显示加载状态
     var tbody = document.getElementById('sectionTbody_' + idx);
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:10px;">⏳ 加载中...</td></tr>';
 
@@ -494,7 +763,7 @@ function loadSectionPage(domain, idx, direction) {
     });
 }
 
-// ─── 自动探索（从账号来源引入） ─────────
+// ─── 自动探索 ─────────────────────────
 function autoExplore(domain, idx) {
     var btn = event.target;
     btn.disabled = true;

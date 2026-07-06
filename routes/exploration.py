@@ -317,25 +317,25 @@ def api_custom_explore():
     script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "pw_explore.py")
     os.makedirs(os.path.dirname(script_path), exist_ok=True)
 
-    # 写探索脚本
+    # 写探索脚本（使用中央防检测模块）
     script_content = f'''# -*- coding: utf-8 -*-
 """PW explore: {domain}"""
 import sys, os, json, time
 sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
 from core.explorer import save_exploration_results, explore_discuz_forums, _detect_platform_type
+from core.anti_detect import create_human_context, human_delay, human_wait_page_ready
 from flashsloth.core.database import get_db
 from playwright.sync_api import sync_playwright
 
 SITE = "https://{domain}"
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True, args=["--no-sandbox","--disable-blink-features=AutomationControlled"])
-    ctx = browser.new_context(
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        viewport={{"width":1920,"height":1080}}, locale="zh-CN")
+    # 使用中央防风模块创建人类模拟上下文
+    ctx = create_human_context(browser)
     ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{{get:()=>undefined}})")
     page = ctx.new_page()
     page.goto(SITE, wait_until="domcontentloaded", timeout=30000)
-    time.sleep(3)
+    human_wait_page_ready(page)
     ptype = _detect_platform_type(page)
     print(f"平台类型: {{ptype}}")
     sections = []
@@ -503,4 +503,67 @@ def api_auto_explore(domain):
         "message": f"'{domain}' 无可用的预设配置，请先运行 Playwright 手动探索",
         "needs_custom_exploration": True,
         "domain": domain,
+    })
+
+
+# ─── API: 保存关心板块配置 ─────────────
+@app.route("/api/exploration/interested-sections/<domain>", methods=["POST"])
+@login_required
+def api_save_interested_sections(domain):
+    """保存关心板块配置（section_id + 优先级关键词）"""
+    domain = _normalize_domain(domain)
+    data = request.get_json() or {}
+    section_ids = data.get("section_ids", [])
+    if not isinstance(section_ids, list):
+        section_ids = [section_ids]
+
+    conn = get_db()
+    try:
+        # 将关心的板块标记到 tags_of_interest（以 "care:" 前缀标识）
+        care_tags = json.dumps([f"care:{sid}" for sid in section_ids], ensure_ascii=False)
+        conn.execute(
+            "UPDATE forum_exploration SET tags_of_interest=? WHERE platform_domain=?",
+            (care_tags, domain)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "message": f"已保存 {len(section_ids)} 个关心板块"})
+    except Exception as e:
+        conn.close()
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ─── API: 获取所有板块关键词（供UI自动提取）──
+@app.route("/api/exploration/all-keywords/<domain>")
+@login_required
+def api_all_keywords(domain):
+    """获取指定域名下所有板块的关键词集合"""
+    domain = _normalize_domain(domain)
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT section_id, section_name, keywords FROM forum_exploration WHERE platform_domain=? AND can_post=1",
+        (domain,)
+    ).fetchall()
+    conn.close()
+
+    all_keywords = set()
+    section_keywords = {}
+    for r in rows:
+        try:
+            kw = json.loads(r["keywords"]) if isinstance(r["keywords"], str) else []
+        except:
+            kw = [r["section_name"]]
+        if isinstance(kw, list):
+            all_keywords.update(kw)
+        section_keywords[r["section_id"]] = {
+            "name": r["section_name"],
+            "keywords": kw if isinstance(kw, list) else [kw],
+        }
+
+    return jsonify({
+        "success": True,
+        "domain": domain,
+        "all_keywords": sorted(all_keywords),
+        "sections": section_keywords,
+        "count": len(rows),
     })

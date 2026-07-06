@@ -1,24 +1,25 @@
 """FlashSloth — Playwright 论坛探索引擎
 可复用：检测论坛类型 → 爬取版块列表 → 保存到 forum_exploration 表
+防风特性：继承 core/anti_detect 模块的所有人类行为模拟
 """
 import json, time, os, sys, re, random
 from typing import Optional
+from flashsloth.core.anti_detect import (
+    create_human_context, HumanPage, BehaviorRecorder,
+    human_delay, human_wait_page_ready, human_scroll,
+)
 
 MAX_OPS = 8
-_human_delay_min = 2.0
-_human_delay_max = 4.0
-_last_request_time = 0
 
 
-def _delay():
-    global _last_request_time
-    now = time.time()
-    if _last_request_time > 0:
-        elapsed = now - _last_request_time
-        if elapsed < _human_delay_min:
-            time.sleep(_human_delay_min - elapsed + random.random())
-    time.sleep(_human_delay_min + random.random() * (_human_delay_max - _human_delay_min))
-    _last_request_time = time.time()
+def _get_human_context(browser):
+    """创建带防风特性的浏览器上下文（供所有平台使用）"""
+    return create_human_context(browser)
+
+
+def _get_human_page(page) -> HumanPage:
+    """包装为 HumanPage（所有操作自动模拟人类）"""
+    return HumanPage(page)
 
 
 def _check_banned(page) -> bool:
@@ -59,7 +60,7 @@ def explore_discuz_forums(page, site_url: str, domain: str) -> list:
 
     # OP1: 访问 forum.php
     page.goto(f"{site_url}/forum.php", wait_until="domcontentloaded", timeout=30000)
-    _delay()
+    human_delay()
     if _check_banned(page):
         return sections
 

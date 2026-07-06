@@ -270,10 +270,746 @@ def get_provider(name: str) -> Optional[GatewayProvider]:
 def list_providers() -> list[GatewayProvider]:
     return list(_providers.values())
 
+class TelegramProvider(GatewayProvider):
+    """Telegram Bot — 通过 Bot API 发送消息"""
+    name = "telegram"
+    display_name = "Telegram"
+    icon = "✈️"
+    description = "Telegram Bot API 消息通知"
+    config_fields = [
+        {"key": "bot_token", "label": "Bot Token", "type": "password", "required": True,
+         "placeholder": "123456:ABCdef..."},
+        {"key": "chat_id", "label": "聊天ID / Channel ID", "type": "text", "required": True,
+         "placeholder": "-1001234567890"},
+        {"key": "parse_mode", "label": "解析模式", "type": "select", "default": "HTML",
+         "options": [{"value": "HTML", "label": "HTML"}, {"value": "MarkdownV2", "label": "MarkdownV2"}, {"value": "text", "label": "纯文本"}]},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        token = config.get("bot_token", "")
+        chat_id = config.get("chat_id", "")
+        if not token or not chat_id:
+            return {"success": False, "error": "Bot Token 或 Chat ID 未配置"}
+        import urllib.request
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+        text = f"<b>{icon} {message.title}</b>\n"
+        if message.body:
+            text += f"{message.body}\n"
+        if message.source:
+            text += f"\n🔹 <i>{message.source}</i>"
+        mode = config.get("parse_mode", "HTML")
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": mode, "disable_web_page_preview": True}
+        try:
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class DiscordProvider(GatewayProvider):
+    """Discord Webhook — 通过 Discord Webhook 发送消息"""
+    name = "discord"
+    display_name = "Discord"
+    icon = "🎮"
+    description = "Discord 频道 Webhook"
+    config_fields = [
+        {"key": "webhook_url", "label": "Discord Webhook URL", "type": "url", "required": True,
+         "placeholder": "https://discord.com/api/webhooks/..."},
+        {"key": "username", "label": "机器人名称（可选）", "type": "text", "placeholder": "FlashSloth Bot"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "Discord Webhook URL 未配置"}
+        import urllib.request
+        level_colors = {"info": 0x3498db, "success": 0x2ecc71, "warn": 0xf39c12, "error": 0xe74c3c}
+        embed = {"title": message.title, "description": message.body, "color": level_colors.get(message.level, 0x3498db)}
+        if message.source:
+            embed["footer"] = {"text": f"来源: {message.source}"}
+        payload = {"embeds": [embed]}
+        if config.get("username"):
+            payload["username"] = config["username"]
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class SlackProvider(GatewayProvider):
+    """Slack Webhook — 通过 Slack Incoming Webhook 发送"""
+    name = "slack"
+    display_name = "Slack"
+    icon = "💬"
+    description = "Slack 频道 Incoming Webhook"
+    config_fields = [
+        {"key": "webhook_url", "label": "Slack Webhook URL", "type": "url", "required": True,
+         "placeholder": "https://hooks.slack.com/services/..."},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "Slack Webhook URL 未配置"}
+        import urllib.request
+        level_icons = {"info": ":information_source:", "success": ":white_check_mark:", "warn": ":warning:", "error": ":x:"}
+        icon = level_icons.get(message.level, ":information_source:")
+        text = f"{icon} *{message.title}*\n{message.body}"
+        if message.source:
+            text += f"\n_来源: {message.source}_"
+        payload = {"text": text}
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+
+# ═══════════════════════════════════════════════
+# 新增 Provider（移植自 Hermes Agent）
+# ═══════════════════════════════════════════════
+
+
+class WhatsAppProvider(GatewayProvider):
+    """WhatsApp Business Cloud API"""
+    name = "whatsapp"
+    display_name = "WhatsApp"
+    icon = "💬"
+    description = "WhatsApp Business Cloud API 发送消息"
+    config_fields = [
+        {"key": "access_token", "label": "永久 Access Token", "type": "password", "required": True,
+         "placeholder": "EAAx..."},
+        {"key": "phone_number_id", "label": "发件号码 ID", "type": "text", "required": True,
+         "placeholder": "123456789012345"},
+        {"key": "to", "label": "目标号码（含国家码）", "type": "text", "required": True,
+         "placeholder": "8613800138000"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        token = config.get("access_token", "")
+        phone_id = config.get("phone_number_id", "")
+        to = config.get("to", "")
+        if not token or not phone_id or not to:
+            return {"success": False, "error": "WhatsApp 配置不完整"}
+        import urllib.request
+        body_text = f"{message.title}\n\n{message.body}" if message.body else message.title
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "text",
+            "text": {"body": body_text},
+        }
+        try:
+            req = urllib.request.Request(
+                f"https://graph.facebook.com/v18.0/{phone_id}/messages",
+                data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class DingTalkProvider(GatewayProvider):
+    """钉钉机器人 Webhook"""
+    name = "dingtalk"
+    display_name = "钉钉"
+    icon = "🔔"
+    description = "钉钉群机器人 Webhook"
+    config_fields = [
+        {"key": "webhook_url", "label": "钉钉 Webhook URL", "type": "url", "required": True,
+         "placeholder": "https://oapi.dingtalk.com/robot/send?access_token=xxx"},
+        {"key": "secret", "label": "加签密钥（可选）", "type": "password",
+         "placeholder": "SEC..."},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "钉钉 Webhook URL 未配置"}
+        import urllib.request
+        import hashlib, base64, time as time_mod, hmac
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+        content = f"{icon} **{message.title}**\n{message.body or ''}"
+        if message.source:
+            content += f"\n\n_来源: {message.source}_"
+        payload = {"msgtype": "markdown", "markdown": {"title": message.title[:50], "text": content}}
+        secret = config.get("secret", "")
+        if secret:
+            ts = str(int(time_mod.time() * 1000))
+            string_to_sign = f"{ts}\n{secret}"
+            sign = base64.b64encode(hmac.new(secret.encode(), string_to_sign.encode(), digestmod=hashlib.sha256).digest()).decode()
+            url = f"{url}&timestamp={ts}&sign={sign}"
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class WeChatProvider(GatewayProvider):
+    """个人微信（通过 iLink Bot API 或 WeChat Ferret / 企业微信通道）"""
+    name = "wechat"
+    display_name = "微信"
+    icon = "💚"
+    description = "微信个人号通知（通过 iLink Bot API 或企业微信应用消息）"
+    config_fields = [
+        {"key": "mode", "label": "接入方式", "type": "select", "required": True,
+         "options": [{"value": "qywx_app", "label": "企业微信应用消息"},
+                     {"value": "ilink", "label": "iLink Bot API"}],
+         "default": "qywx_app"},
+        {"key": "corpid", "label": "企业 ID（企业微信模式）", "type": "text", "placeholder": "ww..."},
+        {"key": "corpsecret", "label": "应用 Secret（企业微信模式）", "type": "password", "placeholder": "..."},
+        {"key": "agentid", "label": "应用 AgentId（企业微信模式）", "type": "text", "placeholder": "1000002"},
+        {"key": "touser", "label": "接收人（@all 或 UserID）", "type": "text", "placeholder": "@all"},
+        {"key": "api_url", "label": "iLink API URL", "type": "url", "placeholder": "http://localhost:8066/..."},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        mode = config.get("mode", "qywx_app")
+        if mode == "qywx_app":
+            return self._send_qywx_app(message, config)
+        return {"success": False, "error": "iLink 模式暂未实现，请使用企业微信应用消息模式"}
+
+    def _send_qywx_app(self, message: GatewayMessage, config: dict) -> dict:
+        corpid = config.get("corpid", "")
+        corpsecret = config.get("corpsecret", "")
+        agentid = config.get("agentid", "")
+        touser = config.get("touser", "@all")
+        if not corpid or not corpsecret or not agentid:
+            return {"success": False, "error": "企业微信应用配置不完整"}
+        import urllib.request
+        try:
+            # 获取 access_token
+            token_req = urllib.request.Request(
+                f"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={corpid}&corpsecret={corpsecret}")
+            token_resp = json.loads(urllib.request.urlopen(token_req, timeout=10).read())
+            access_token = token_resp.get("access_token", "")
+            if not access_token:
+                return {"success": False, "error": f"获取 token 失败: {token_resp.get('errmsg', '')}"}
+            level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+            icon = level_icons.get(message.level, "ℹ️")
+            content = f"{icon} {message.title}\n{message.body or ''}"
+            if message.link:
+                content += f"\n<a href='{message.link}'>查看详情</a>"
+            payload = {
+                "touser": touser, "msgtype": "text", "agentid": int(agentid),
+                "text": {"content": content},
+            }
+            req = urllib.request.Request(
+                f"https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={access_token}",
+                data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
+            if resp.get("errcode") == 0:
+                return {"success": True, "message_id": str(resp.get("msgid", ""))}
+            return {"success": False, "error": f"发送失败: {resp.get('errmsg', '')}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class EmailProvider(GatewayProvider):
+    """Email (SMTP)"""
+    name = "email"
+    display_name = "邮件"
+    icon = "📧"
+    description = "通过 SMTP 发送邮件通知"
+    config_fields = [
+        {"key": "smtp_host", "label": "SMTP 服务器", "type": "text", "required": True,
+         "placeholder": "smtp.gmail.com"},
+        {"key": "smtp_port", "label": "端口", "type": "text", "required": True, "default": "587",
+         "placeholder": "587"},
+        {"key": "use_tls", "label": "使用 TLS", "type": "select", "default": "true",
+         "options": [{"value": "true", "label": "是"}, {"value": "false", "label": "否"}]},
+        {"key": "username", "label": "用户名", "type": "text", "required": True},
+        {"key": "password", "label": "密码/App Password", "type": "password", "required": True},
+        {"key": "from_addr", "label": "发件地址", "type": "text", "required": True},
+        {"key": "to_addr", "label": "收件地址", "type": "text", "required": True},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        host = config.get("smtp_host", "")
+        port = int(config.get("smtp_port", 587))
+        use_tls = config.get("use_tls", "true") == "true"
+        username = config.get("username", "")
+        password = config.get("password", "")
+        from_addr = config.get("from_addr", "")
+        to_addr = config.get("to_addr", "")
+        if not host or not username or not password or not to_addr:
+            return {"success": False, "error": "SMTP 配置不完整"}
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            body = f"{message.title}\n\n{message.body or ''}"
+            if message.source:
+                body += f"\n\n来源: {message.source}"
+            msg = MIMEText(body, "plain", "utf-8")
+            msg["Subject"] = message.title
+            msg["From"] = from_addr
+            msg["To"] = to_addr
+            if use_tls:
+                server = smtplib.SMTP(host, port)
+                server.starttls()
+            else:
+                server = smtplib.SMTP_SSL(host, port) if port == 465 else smtplib.SMTP(host, port)
+            server.login(username, password)
+            server.sendmail(from_addr, [to_addr], msg.as_string())
+            server.quit()
+            return {"success": True, "message_id": str(int(time.time()))}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class MatrixProvider(GatewayProvider):
+    """Matrix 协议"""
+    name = "matrix"
+    display_name = "Matrix"
+    icon = "🧩"
+    description = "Matrix 协议消息通知"
+    config_fields = [
+        {"key": "homeserver", "label": "Homeserver URL", "type": "url", "required": True,
+         "placeholder": "https://matrix.org"},
+        {"key": "access_token", "label": "Access Token", "type": "password", "required": True},
+        {"key": "room_id", "label": "房间 ID", "type": "text", "required": True,
+         "placeholder": "!roomid:matrix.org"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        hs = config.get("homeserver", "").rstrip("/")
+        token = config.get("access_token", "")
+        room = config.get("room_id", "")
+        if not hs or not token or not room:
+            return {"success": False, "error": "Matrix 配置不完整"}
+        import urllib.request
+        import urllib.parse
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+        body = f"{icon} **{message.title}**\n\n{message.body or ''}"
+        payload = {"msgtype": "m.text", "body": f"{icon} {message.title}\n{message.body or ''}",
+                   "format": "org.matrix.custom.html", "formatted_body": body.replace('\n', '<br>')}
+        try:
+            req = urllib.request.Request(
+                f"{hs}/_matrix/client/r0/rooms/{urllib.parse.quote(room, safe='')}/send/m.room.message",
+                data=json.dumps(payload).encode(),
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class TeamsProvider(GatewayProvider):
+    """Microsoft Teams Webhook"""
+    name = "teams"
+    display_name = "Microsoft Teams"
+    icon = "💼"
+    description = "Teams 频道 Webhook"
+    config_fields = [
+        {"key": "webhook_url", "label": "Teams Webhook URL", "type": "url", "required": True,
+         "placeholder": "https://outlook.office.com/webhook/..."},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "Teams Webhook URL 未配置"}
+        import urllib.request
+        level_colors = {"info": "0078D7", "success": "28A745", "warn": "FFC107", "error": "DC3545"}
+        color = level_colors.get(message.level, "0078D7")
+        sections = [{"activityTitle": message.title, "text": message.body or "", "activitySubtitle": f"来源: {message.source}" if message.source else ""}]
+        payload = {"@type": "MessageCard", "@context": "http://schema.org/extensions",
+                   "themeColor": color, "summary": message.title, "sections": sections}
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class LINEProvider(GatewayProvider):
+    """LINE Notify / Messaging API"""
+    name = "line"
+    display_name = "LINE"
+    icon = "💚"
+    description = "LINE 消息通知（支持 Notify 和 Messaging API）"
+    config_fields = [
+        {"key": "mode", "label": "模式", "type": "select", "required": True,
+         "options": [{"value": "notify", "label": "LINE Notify"},
+                     {"value": "messaging", "label": "Messaging API"}],
+         "default": "notify"},
+        {"key": "token", "label": "Access Token / Channel Token", "type": "password", "required": True},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        mode = config.get("mode", "notify")
+        token = config.get("token", "")
+        if not token:
+            return {"success": False, "error": "LINE Token 未配置"}
+        import urllib.request
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+
+        if mode == "notify":
+            try:
+                payload = urllib.parse.urlencode({"message": f"{icon} {message.title}\n{message.body or ''}"}).encode()
+                req = urllib.request.Request("https://notify-api.line.me/api/notify", data=payload,
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/x-www-form-urlencoded"},
+                    method="POST")
+                resp = urllib.request.urlopen(req, timeout=15)
+                return {"success": True, "status": resp.status}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        else:
+            try:
+                payload = json.dumps({"messages": [{"type": "text", "text": f"{icon} {message.title}\n{message.body or ''}"}]}).encode()
+                req = urllib.request.Request("https://api.line.me/v2/bot/message/broadcast", data=payload,
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    method="POST")
+                resp = urllib.request.urlopen(req, timeout=15)
+                return {"success": True, "status": resp.status}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+
+class MattermostProvider(GatewayProvider):
+    """Mattermost Webhook"""
+    name = "mattermost"
+    display_name = "Mattermost"
+    icon = "🔷"
+    description = "Mattermost Incoming Webhook"
+    config_fields = [
+        {"key": "webhook_url", "label": "Webhook URL", "type": "url", "required": True,
+         "placeholder": "https://mattermost.example.com/hooks/xxx"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "Mattermost Webhook URL 未配置"}
+        import urllib.request
+        level_icons = {"info": ":information_source:", "success": ":white_check_mark:", "warn": ":warning:", "error": ":x:"}
+        icon = level_icons.get(message.level, ":information_source:")
+        text = f"{icon} **{message.title}**\n\n{message.body or ''}"
+        payload = {"text": text}
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class GoogleChatProvider(GatewayProvider):
+    """Google Chat Webhook"""
+    name = "google_chat"
+    display_name = "Google Chat"
+    icon = "💬"
+    description = "Google Chat Webhook 通知"
+    config_fields = [
+        {"key": "webhook_url", "label": "Webhook URL", "type": "url", "required": True,
+         "placeholder": "https://chat.googleapis.com/v1/spaces/.../messages"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "Google Chat Webhook URL 未配置"}
+        import urllib.request
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+        text = f"{icon} <b>{message.title}</b>\n{message.body or ''}"
+        payload = {"text": text}
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class QQBotProvider(GatewayProvider):
+    """QQ 频道机器人 / QQ 群机器人"""
+    name = "qqbot"
+    display_name = "QQ Bot"
+    icon = "🐧"
+    description = "QQ 机器人消息通知（QQ 频道 / 群机器人）"
+    config_fields = [
+        {"key": "mode", "label": "模式", "type": "select", "required": True,
+         "options": [{"value": "channel", "label": "QQ 频道"},
+                     {"value": "group", "label": "QQ 群"}],
+         "default": "channel"},
+        {"key": "appid", "label": "Bot AppID", "type": "text", "required": True},
+        {"key": "token", "label": "Bot Token", "type": "password", "required": True},
+        {"key": "channel_id", "label": "频道 ID / 群 ID", "type": "text", "required": True},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        appid = config.get("appid", "")
+        token = config.get("token", "")
+        channel_id = config.get("channel_id", "")
+        if not appid or not token or not channel_id:
+            return {"success": False, "error": "QQ Bot 配置不完整"}
+        import urllib.request
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+        content = f"{icon}{message.title}\n{message.body or ''}"
+        payload = {"content": content}
+        try:
+            req = urllib.request.Request(
+                f"https://api.sgroup.qq.com/channels/{channel_id}/messages",
+                data=json.dumps(payload).encode(),
+                headers={"Authorization": f"Bot {appid}.{token}", "Content-Type": "application/json"},
+                method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class ntfyProvider(GatewayProvider):
+    """ntfy.sh — 轻量级推送通知"""
+    name = "ntfy"
+    display_name = "ntfy"
+    icon = "🔔"
+    description = "ntfy.sh 轻量级推送通知"
+    config_fields = [
+        {"key": "topic", "label": "Topic", "type": "text", "required": True,
+         "placeholder": "my_notifications"},
+        {"key": "server", "label": "服务器（可选）", "type": "url", "default": "https://ntfy.sh",
+         "placeholder": "https://ntfy.sh"},
+        {"key": "priority", "label": "优先级", "type": "select", "default": "3",
+         "options": [{"value": "1", "label": "1-最低"}, {"value": "2", "label": "2-低"},
+                     {"value": "3", "label": "3-普通"}, {"value": "4", "label": "4-高"}, {"value": "5", "label": "5-紧急"}]},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        topic = config.get("topic", "")
+        server = (config.get("server") or "https://ntfy.sh").rstrip("/")
+        if not topic:
+            return {"success": False, "error": "ntfy Topic 未配置"}
+        import urllib.request
+        priority_map = {"info": "3", "success": "3", "warn": "4", "error": "5"}
+        priority = config.get("priority", priority_map.get(message.level, "3"))
+        try:
+            payload = f"{message.title}\n{message.body or ''}".encode()
+            req = urllib.request.Request(f"{server}/{topic}", data=payload,
+                headers={"Title": message.title[:100], "Priority": priority,
+                         "Tags": "flashsloth", "Content-Type": "text/plain"},
+                method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class HomeAssistantProvider(GatewayProvider):
+    """Home Assistant 通知"""
+    name = "home_assistant"
+    display_name = "Home Assistant"
+    icon = "🏠"
+    description = "通过 Home Assistant 的 notify 服务发送通知"
+    config_fields = [
+        {"key": "ha_url", "label": "HA 服务器 URL", "type": "url", "required": True,
+         "placeholder": "http://homeassistant.local:8123"},
+        {"key": "token", "label": "Long-Lived Access Token", "type": "password", "required": True},
+        {"key": "service", "label": "Notify 服务名", "type": "text", "default": "notify.mobile_app_phone",
+         "placeholder": "notify.mobile_app_xxx"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        ha_url = config.get("ha_url", "").rstrip("/")
+        token = config.get("token", "")
+        service = config.get("service", "notify.mobile_app_phone")
+        if not ha_url or not token:
+            return {"success": False, "error": "Home Assistant 配置不完整"}
+        import urllib.request
+        level_map = {"info": "info", "success": "success", "warn": "warning", "error": "error"}
+        level = level_map.get(message.level, "info")
+        payload = {
+            "service": service,
+            "data": {"title": message.title, "message": message.body or "",
+                     "data": {"tag": "flashsloth", "priority": "high", "level": level,
+                              "url": message.link or ""}},
+        }
+        try:
+            req = urllib.request.Request(f"{ha_url}/api/services/notify/{service}",
+                data=json.dumps(payload, ensure_ascii=False).encode(),
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class SignalProvider(GatewayProvider):
+    """Signal 消息（signal-cli HTTP 接口）"""
+    name = "signal"
+    display_name = "Signal"
+    icon = "🔒"
+    description = "通过 signal-cli REST API 发送消息"
+    config_fields = [
+        {"key": "signal_url", "label": "signal-cli HTTP URL", "type": "url", "required": True,
+         "placeholder": "http://127.0.0.1:8080"},
+        {"key": "account", "label": "Signal 账号（手机号）", "type": "text", "required": True,
+         "placeholder": "+8613800138000"},
+        {"key": "recipient", "label": "接收者（手机号或 Group ID）", "type": "text", "required": True},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("signal_url", "").rstrip("/")
+        account = config.get("account", "")
+        recipient = config.get("recipient", "")
+        if not url or not account or not recipient:
+            return {"success": False, "error": "Signal 配置不完整"}
+        import urllib.request
+        body = f"{message.title}\n\n{message.body or ''}"
+        try:
+            payload = json.dumps({"message": body, "number": account, "recipients": [recipient]}).encode()
+            req = urllib.request.Request(f"{url}/v2/send",
+                data=payload,
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=30)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class SimpleXProvider(GatewayProvider):
+    """SimpleX Chat 通知"""
+    name = "simplex"
+    display_name = "SimpleX"
+    icon = "🟣"
+    description = "SimpleX Chat 消息通知"
+    config_fields = [
+        {"key": "webhook_url", "label": "SimpleX Bot Webhook URL", "type": "url", "required": True},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        url = config.get("webhook_url", "")
+        if not url:
+            return {"success": False, "error": "SimpleX Webhook URL 未配置"}
+        import urllib.request
+        payload = json.dumps({"text": f"{message.title}\n{message.body or ''}"}).encode()
+        try:
+            req = urllib.request.Request(url, data=payload,
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class SMSProvider(GatewayProvider):
+    """SMS 短信通知（通用 HTTP API）"""
+    name = "sms"
+    display_name = "短信"
+    icon = "📱"
+    description = "通过 SMS API 网关发送短信"
+    config_fields = [
+        {"key": "api_url", "label": "SMS API URL", "type": "url", "required": True},
+        {"key": "api_key", "label": "API Key", "type": "password", "required": True},
+        {"key": "phone", "label": "目标手机号", "type": "text", "required": True},
+        {"key": "template", "label": "消息模板（{title} 和 {body} 会被替换）", "type": "text",
+         "default": "【FlashSloth】{title}: {body}",
+         "placeholder": "【FlashSloth】{title}: {body}"},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        api_url = config.get("api_url", "")
+        api_key = config.get("api_key", "")
+        phone = config.get("phone", "")
+        if not api_url or not api_key or not phone:
+            return {"success": False, "error": "SMS 配置不完整"}
+        import urllib.request
+        template = config.get("template", "【FlashSloth】{title}: {body}")
+        text = template.replace("{title}", message.title).replace("{body}", message.body or "")
+        payload = json.dumps({"phone": phone, "message": text, "api_key": api_key}).encode()
+        try:
+            req = urllib.request.Request(api_url, data=payload,
+                headers={"Content-Type": "application/json"}, method="POST")
+            resp = urllib.request.urlopen(req, timeout=15)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+class iMessageProvider(GatewayProvider):
+    """iMessage / BlueBubbles"""
+    name = "imessage"
+    display_name = "iMessage"
+    icon = "💬"
+    description = "通过 BlueBubbles API 发送 iMessage"
+    config_fields = [
+        {"key": "api_url", "label": "BlueBubbles API URL", "type": "url", "required": True,
+         "placeholder": "http://127.0.0.1:1234"},
+        {"key": "password", "label": "API Password", "type": "password", "required": True},
+        {"key": "chat_guid", "label": "聊天 GUID", "type": "text", "required": True},
+    ]
+
+    def send(self, message: GatewayMessage, config: dict) -> dict:
+        api_url = config.get("api_url", "").rstrip("/")
+        password = config.get("password", "")
+        chat_guid = config.get("chat_guid", "")
+        if not api_url or not password or not chat_guid:
+            return {"success": False, "error": "iMessage 配置不完整"}
+        import urllib.request
+        body = f"{message.title}\n\n{message.body or ''}"
+        payload = json.dumps({"chatGuid": chat_guid, "text": body}).encode()
+        try:
+            req = urllib.request.Request(f"{api_url}/api/v1/chat/send",
+                data=payload,
+                headers={"password": password, "Content-Type": "application/json"},
+                method="POST")
+            resp = urllib.request.urlopen(req, timeout=30)
+            return {"success": True, "status": resp.status}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
 # 注册内置 Provider
 register_provider(WebhookProvider())
 register_provider(FeishuProvider())
 register_provider(WeComProvider())
+register_provider(TelegramProvider())
+register_provider(DiscordProvider())
+register_provider(SlackProvider())
+register_provider(WhatsAppProvider())
+register_provider(DingTalkProvider())
+register_provider(WeChatProvider())
+register_provider(EmailProvider())
+register_provider(MatrixProvider())
+register_provider(TeamsProvider())
+register_provider(LINEProvider())
+register_provider(MattermostProvider())
+register_provider(GoogleChatProvider())
+register_provider(QQBotProvider())
+register_provider(ntfyProvider())
+register_provider(HomeAssistantProvider())
+register_provider(SignalProvider())
+register_provider(SimpleXProvider())
+register_provider(SMSProvider())
+register_provider(iMessageProvider())
 
 
 # ═══════════════════════════════════════════════

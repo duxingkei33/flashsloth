@@ -166,34 +166,13 @@ class XianyuPlaywrightLogin:
                 args=launch_args,
             )
 
-        # 桌面端 User-Agent（默认）
-        # 如需模拟手机端，可替换为：
-        #   Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X)
-        #   AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148
-        #   注意：手机 UA 下 goofish.com 可能重定向到 App 下载页
-        self.context = self.browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/125.0.0.0 Safari/537.36"
-            ),
-            viewport={"width": 1280, "height": 900},
-            locale="zh-CN",
-            timezone_id="Asia/Shanghai",
-            # 注入额外 Cookie/Storage 避免被检测
-            permissions=["clipboard-read", "clipboard-write"],
-        )
-
-        # 注入反检测脚本 — 隐藏 Navigator.webdriver
+        # 使用中央防风模块创建人类模拟上下文
+        from flashsloth.core.anti_detect import create_human_context
+        self.context = create_human_context(self.browser, viewport={"width": 1280, "height": 900})
+        
+        # 额外注入闲鱼特定的反检测脚本
         self.context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5],
-            });
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['zh-CN', 'zh', 'en'],
-            });
-            // 覆盖 chrome.runtime 检测
+            // 补充闲鱼/淘宝特定的反检测
             window.chrome = {runtime: {}};
         """)
 
