@@ -133,16 +133,28 @@ class OSHWHubArticlePublisher(Publisher):
                         intro_input.fill(intro)
                         self.logger.info("✅ 文章简介已填写")
 
-                # ── 4. 封面上传（可选） ──
+                # ── 4. 封面上传 ──
                 cover_path = _ensure_cover_image(article)
                 if cover_path:
                     _tmp_files.append(cover_path)
                     try:
-                        file_input = page.locator("input[type='file']").first
-                        if file_input.count() > 0:
-                            file_input.set_input_files(cover_path)
-                            page.wait_for_timeout(3000)
+                        # 用 file_chooser 触发 Ant Design Upload（用expect_file_chooser不行因为sync API）
+                        # 先点击上传区域打开文件选择器
+                        upload_area = page.locator(".create_upload__R9JpM, button:has-text('上传图片')").first
+                        if upload_area.count() > 0:
+                            with page.expect_file_chooser() as fc_info:
+                                upload_area.click()
+                            fc = fc_info.value
+                            fc.set_files(cover_path)
+                            page.wait_for_timeout(5000)
                             self.logger.info(f"✅ 封面上传: {os.path.basename(cover_path)}")
+                        else:
+                            # fallback: 直接set_input_files到隐藏input
+                            file_input = page.locator("input[type='file']").first
+                            if file_input.count() > 0:
+                                file_input.set_input_files(cover_path)
+                                page.wait_for_timeout(3000)
+                                self.logger.info(f"✅ 封面上传(fallback): {os.path.basename(cover_path)}")
                     except Exception as e:
                         self.logger.warning(f"⚠️ 封面上传失败: {e}")
 

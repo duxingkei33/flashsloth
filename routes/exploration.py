@@ -14,41 +14,73 @@ from flashsloth.core.database import get_db
 @app.route("/exploration")
 @login_required
 def exploration_page():
-    """探索数据管理页面（带分页）"""
+    """探索数据管理页面（折叠面板，首项展开其余折叠，排序从DB动态加载）"""
     conn = get_db()
     
-    page = request.args.get("page", 1, type=int)
-    per_page = 3  # 每页3个平台
-    
-    # 获取所有平台/域名的分组
-    all_rows = conn.execute(
-        "SELECT DISTINCT platform, platform_domain FROM forum_exploration ORDER BY platform"
+    # 从 platform_accounts 获取所有已注册平台（自动引入，不写死）
+    # 排序由 DB 控制：先按 sort_order（NULL=999），再按 platform
+    accounts = conn.execute(
+        "SELECT DISTINCT pa.id, pa.platform, pa.config_json, "
+        "COALESCE(pa.sort_order, 999) AS sort_order "
+        "FROM platform_accounts pa WHERE pa.is_active=1 "
+        "ORDER BY sort_order, pa.platform"
     ).fetchall()
     
-    total = len(all_rows)
-    total_pages = max(1, (total + per_page - 1) // per_page)
-    page = max(1, min(page, total_pages))
-    start = (page - 1) * per_page
-    end = start + per_page
+    # 已探索的平台域
+    explored = set()
+    for r in conn.execute("SELECT DISTINCT platform_domain FROM forum_exploration").fetchall():
+        explored.add(r["platform_domain"])
     
-    platforms = []
-    for r in all_rows[start:end]:
-        sections = conn.execute(
-            "SELECT * FROM forum_exploration WHERE platform=? AND platform_domain=? ORDER BY section_id",
-            (r["platform"], r["platform_domain"])
-        ).fetchall()
-        platforms.append({
-            "platform": r["platform"],
-            "domain": r["platform_domain"],
-            "sections": [dict(s) for s in sections],
-            "count": len(sections),
+    # 构建平台列表（已探索+未探索）
+    all_platforms = []
+    seen = set()
+    for a in accounts:
+        try:
+            cfg = json.loads(a["config_json"]) if isinstance(a["config_json"], str) else {}
+        except:
+            cfg = {}
+        domain = cfg.get("site_url", "").replace("https://", "").replace("http://", "").split("/")[0] if cfg.get("site_url") else a["platform"]
+        key = (a["platform"], domain)
+        if key in seen:
+            continue
+        seen.add(key)
+        has_data = domain in explored
+        all_platforms.append({
+            "platform": a["platform"],
+            "domain": domain,
+            "has_data": has_data,
+            "count": 0,
+            "sections": [],
         })
     
+    # 补充有探索数据但不在accounts中的平台（追加在末尾）
+    for r in conn.execute("SELECT DISTINCT platform, platform_domain FROM forum_exploration").fetchall():
+        key = (r["platform"], r["platform_domain"])
+        if key not in seen:
+            seen.add(key)
+            all_platforms.append({
+                "platform": r["platform"],
+                "domain": r["platform_domain"],
+                "has_data": True,
+                "count": 0,
+                "sections": [],
+            })
+    
+    # 加载每个平台的探索数据
+    for p in all_platforms:
+        if p["has_data"]:
+            sections = conn.execute(
+                "SELECT * FROM forum_exploration WHERE platform=? AND platform_domain=? ORDER BY section_id",
+                (p["platform"], p["domain"])
+            ).fetchall()
+            p["sections"] = [dict(s) for s in sections]
+            p["count"] = len(sections)
+    
     conn.close()
+    
     return render_template("exploration.html",
-                         platforms=platforms,
-                         platforms_json=json.dumps(platforms, ensure_ascii=False),
-                         page=page, total_pages=total_pages, total=total)
+                         platforms=all_platforms,
+                         platforms_json=json.dumps(all_platforms, ensure_ascii=False))
 
 
 @app.route("/api/exploration/<int:fid>", methods=["POST"])

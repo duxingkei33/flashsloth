@@ -24,6 +24,16 @@
             color: #ccc;
             font-size: 0.85rem;
         }
+        /* 折叠 chevron 旋转动画 */
+        .card-header .bi-chevron-down {
+            transition: transform 0.25s ease;
+        }
+        .card-header.collapsed .bi-chevron-down {
+            transform: rotate(0deg);
+        }
+        .card-header:not(.collapsed) .bi-chevron-down {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 <body class="bg-dark text-light">
@@ -54,10 +64,10 @@
                     <i class="bi bi-arrow-repeat"></i> 从JSON同步
                 </button>
                 <span class="text-muted small">数据来源: Playwright 探索 → JSON缓存 → 数据库</span>
-            </div>
-        </div>
+                </div>
+                </div>
 
-        {% if platforms %}
+                {% if platforms %}
         {% for p in platforms %}
         <div class="card bg-dark border-secondary section-card">
             <div class="card-header bg-black border-secondary d-flex justify-content-between align-items-center" 
@@ -67,19 +77,29 @@
                         <i class="bi bi-chevron-down me-1" id="chevron_{{ loop.index }}"></i>
                         <i class="bi bi-globe2"></i> {{ p.platform }}
                         <small class="text-muted ms-2">{{ p.domain }}</small>
+                        {% if not p.has_data %}
+                        <span class="badge bg-warning ms-2">待探索</span>
+                        {% endif %}
                     </h5>
                 </div>
                 <div>
                     <span class="badge bg-info me-2">{{ p.count }} 条记录</span>
+                    {% if p.has_data %}
                     <button class="btn btn-sm btn-outline-info me-1" onclick="event.stopPropagation();showRawJson({{ loop.index0 }})">
                         <i class="bi bi-filetype-json"></i> JSON
                     </button>
                     <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();syncToRegistry('{{ p.domain }}')">
                         <i class="bi bi-arrow-left-right"></i> 同步
                     </button>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation();explorePlatform('{{ p.domain }}','{{ p.platform }}')">
+                        <i class="bi bi-play-fill"></i> 开始探索
+                    </button>
+                    {% endif %}
                 </div>
             </div>
-            <div class="collapse show" id="platform_{{ loop.index }}">
+            {# 首项默认展开，其余折叠 #}
+            <div class="collapse {% if loop.first %}show{% endif %}" id="platform_{{ loop.index }}">
             <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-dark table-hover mb-0 align-middle">
@@ -302,6 +322,27 @@ function copyJson() {
         document.body.removeChild(ta);
         alert('已复制');
     });
+}
+
+function explorePlatform(domain, platform) {
+    if (!confirm('开始探索 ' + domain + ' 平台？将使用Playwright模拟浏览')) return;
+    const resultDiv = document.createElement('div');
+    resultDiv.className = 'mt-2 small';
+    document.querySelector('.container-fluid.py-4').appendChild(resultDiv);
+    resultDiv.innerHTML = '<span class="text-warning"><i class="bi bi-hourglass-split"></i> 探索任务已提交...</span>';
+    fetch('/api/exploration/custom', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain, platform, login_method: 'cookie'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        resultDiv.innerHTML = data.success
+            ? '<span class="text-success">✅ ' + data.message + '</span>'
+            : '<span class="text-danger">❌ ' + (data.error || '失败') + '</span>';
+        if (data.success) setTimeout(() => location.reload(), 3000);
+    })
+    .catch(e => { resultDiv.innerHTML = '<span class="text-danger">❌ 错误: ' + e + '</span>'; });
 }
 
 function startCustomExplore(e) {

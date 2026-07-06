@@ -275,6 +275,11 @@ def init_db():
         conn.execute("ALTER TABLE platform_accounts ADD COLUMN keep_alive INTEGER DEFAULT 0")
     except Exception:
         pass
+    # 迁移：platform_accounts 添加 sort_order（探索页排序用，不写死）
+    try:
+        conn.execute("ALTER TABLE platform_accounts ADD COLUMN sort_order INTEGER DEFAULT 0")
+    except Exception:
+        pass
     conn.commit()
 
     # ─── 首次运行：自动生成随机 admin 账号 ───
