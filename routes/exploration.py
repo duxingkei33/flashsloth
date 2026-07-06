@@ -7,7 +7,7 @@
 """
 from flashsloth.routes._app import app
 
-import json
+import json, os
 from flask import render_template, request, jsonify
 from flask_login import login_required, current_user
 
@@ -286,7 +286,7 @@ def api_sync_exploration(domain):
     return jsonify({"success": True, "domain": domain, "sections": sections, "count": len(sections)})
 
 
-# ─── 原有API: 自定义探索 ──────────────
+# ─── API: 自定义探索 ──────────────────────────────
 @app.route("/api/exploration/custom", methods=["POST"])
 @login_required
 def api_custom_explore():
@@ -301,3 +301,124 @@ def api_custom_explore():
     if existing > 0:
         return jsonify({"success": False, "error": f"'{domain}' 已有 {existing} 条探索数据"})
     return jsonify({"success": True, "message": f"自定义探索 '{domain}' 已提交到后台队列"})
+
+
+# ─── API: 探索状态自动检测 ──────────────────────
+@app.route("/api/exploration/discover-accounts", methods=["GET"])
+@login_required
+def api_discover_from_accounts():
+    """扫描 platform_accounts，返回已探索 / 未探索的平台列表"""
+    conn = get_db()
+    accounts = conn.execute(
+        "SELECT DISTINCT pa.id, pa.platform, pa.account_name, pa.config_json, "
+        "COALESCE(pa.sort_order, 999) AS sort_order "
+        "FROM platform_accounts pa WHERE pa.is_active=1 "
+        "ORDER BY sort_order, pa.platform"
+    ).fetchall()
+
+    # 已探索的域名集合
+    explored_domains = set()
+    for r in conn.execute("SELECT DISTINCT platform_domain FROM forum_exploration").fetchall():
+        explored_domains.add(r["platform_domain"].strip().lower())
+
+    results = {"explored": [], "unexplored": []}
+    seen = set()
+    for a in accounts:
+        try:
+            cfg = json.loads(a["config_json"]) if isinstance(a["config_json"], str) else {}
+        except:
+            cfg = {}
+        raw_url = cfg.get("site_url", "")
+        if not raw_url:
+            continue
+        domain = raw_url.replace("https://", "").replace("http://", "").split("/")[0].lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
+        key = (a["platform"], domain)
+        if key in seen:
+            continue
+        seen.add(key)
+        entry = {
+            "platform": a["platform"],
+            "account_name": a["account_name"],
+            "domain": domain,
+            "site_url": raw_url,
+        }
+        if domain in explored_domains:
+            entry["section_count"] = conn.execute(
+                "SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?", (domain,)
+            ).fetchone()[0]
+            results["explored"].append(entry)
+        else:
+            results["unexplored"].append(entry)
+
+    conn.close()
+    return jsonify({"success": True, **results})
+
+
+# ─── API: 自动探索未探索的平台 ──────────────────
+@app.route("/api/exploration/auto-explore/<domain>", methods=["POST"])
+@login_required
+def api_auto_explore(domain):
+    """对指定域名尝试自动探索：先查 config 预设 JSON，再尝试 Playwright 探索"""
+    conn = get_db()
+
+    # 查这个域名的来源账号
+    account = conn.execute(
+        "SELECT * FROM platform_accounts WHERE is_active=1 ORDER BY id"
+    ).fetchall()
+
+    target_acct = None
+    for a in account:
+        try:
+            cfg = json.loads(a["config_json"]) if isinstance(a["config_json"], str) else {}
+        except:
+            cfg = {}
+        raw_url = cfg.get("site_url", "")
+        if not raw_url:
+            continue
+        d = raw_url.replace("https://", "").replace("http://", "").split("/")[0].lower()
+        if d.startswith("www."):
+            d = d[4:]
+        if d == domain:
+            target_acct = dict(a)
+            target_acct["config"] = cfg
+            break
+
+    if not target_acct:
+        conn.close()
+        return jsonify({"success": False, "error": f"未找到域名 {domain} 对应的账号"})
+
+    # 尝试从 config/platform_*.json 预设种子
+    root = os.path.dirname(os.path.dirname(__file__))
+    config_dir = os.path.join(root, "config")
+
+    # 尝试匹配已知预设
+    preset_map = {
+        "amobbs.com": ("platform_amobbs", "discuz_amobbs"),
+        "mydigit.cn": ("platform_mydigit", "discuz_mydigit"),
+        "csdn.net": ("platform_csdn", "csdn"),
+        "oshwhub.com": ("platform_oshwhub", "oshwhub"),
+    }
+
+    if domain in preset_map:
+        preset_name, plat = preset_map[domain]
+        preset_path = os.path.join(config_dir, f"{preset_name}.json")
+        if os.path.exists(preset_path):
+            from flashsloth.core.database import _seed_forum_exploration
+            _seed_forum_exploration(conn)
+            conn.close()
+            return jsonify({
+                "success": True,
+                "message": f"已从预设 {preset_name}.json 加载探索数据",
+                "domain": domain,
+                "platform": plat,
+            })
+
+    conn.close()
+    return jsonify({
+        "success": True,
+        "message": f"'{domain}' 无可用的预设配置，请先运行 Playwright 手动探索",
+        "needs_custom_exploration": True,
+        "domain": domain,
+    })
