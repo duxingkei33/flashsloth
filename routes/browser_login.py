@@ -6,6 +6,7 @@ import json, threading
 
 from flask_login import login_required, current_user
 from flashsloth.core.database import get_db
+from flashsloth.core.credential_crypto import encrypt_config
 
 # ═══════════════════════════════════════════════════
 # 阿莫论坛 (amobbs) Playwright 登录
@@ -65,6 +66,7 @@ def amobbs_captcha_click():
                if acct:
                    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
                    cfg["cookie"] = cookies
+                   encrypt_config(cfg)  # 🔐
                    conn.execute(
                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
                        (json.dumps(cfg), aid)
@@ -152,6 +154,7 @@ def xianyu_login_solve():
                if acct:
                    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
                    cfg["cookie"] = cookies
+                   encrypt_config(cfg)  # 🔐
                    conn.execute(
                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
                        (json.dumps(cfg), aid)
@@ -235,6 +238,7 @@ def oshwhub_captcha_click():
                if acct:
                    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
                    cfg["cookie"] = cookies
+                   encrypt_config(cfg)  # 🔐
                    conn.execute(
                        "UPDATE platform_accounts SET config_json=? WHERE id=?",
                        (json.dumps(cfg), aid)

@@ -12,6 +12,7 @@ from flask_login import login_required, current_user
 from flashsloth.core.database import get_db, DB_PATH
 from flashsloth.core.publisher import get_publisher, list_publishers
 from flashsloth.core.credential_crypto import decrypt_config, encrypt_config
+import time
 
 # ─── 平台账号管理 ──────────────────────────────
 @app.route("/accounts")
@@ -891,7 +892,7 @@ def api_platform_login_close(platform):
 
 
 def _save_cookie_to_account(aid: int, cookie_str: str):
-	"""保存 Cookie 到账号配置"""
+	"""保存 Cookie 到账号配置（加密后存储）"""
 	conn = get_db()
 	acct = conn.execute(
 		"SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
@@ -900,6 +901,7 @@ def _save_cookie_to_account(aid: int, cookie_str: str):
 	if acct:
 		cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
 		cfg["cookie"] = cookie_str
+		encrypt_config(cfg)  # 🔐 加密后再存储
 		conn.execute(
 			"UPDATE platform_accounts SET config_json=? WHERE id=?",
 			(json.dumps(cfg), aid)
