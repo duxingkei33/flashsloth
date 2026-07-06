@@ -8,6 +8,7 @@ OSHWHub (立创开源硬件平台) 签到插件 — Playwright 方案
 """
 import os, sys, json, logging, sqlite3
 from typing import Optional
+import concurrent.futures
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 try:
@@ -62,6 +63,13 @@ class OshwhubSignin(SigninBase):
         return _parse_cookies(self.cookie)
 
     def signin(self) -> dict:
+        """在独立线程中运行 Playwright，避免 asyncio 冲突"""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(self._sync_signin_impl)
+            return future.result()
+
+    def _sync_signin_impl(self) -> dict:
+        """同步 Playwright 签到的实际实现"""
         try:
             from playwright.sync_api import sync_playwright
 
