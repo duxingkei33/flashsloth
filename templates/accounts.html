@@ -581,6 +581,13 @@ function renderCapabilityFields(method, allMethods) {
         btnCaptcha.style.display = 'none';
         btnRefresh.style.display = 'none';
         screenshotArea.style.display = 'none';
+    } else if (method === 'phone') {
+        btnStart.style.display = 'inline-block';
+        btnStart.textContent = '📱 发送验证码';
+        btnStart.disabled = false;
+        btnCaptcha.style.display = 'none';
+        btnRefresh.style.display = 'none';
+        screenshotArea.style.display = 'none';
     } else {
         btnStart.style.display = 'none';
         btnCaptcha.style.display = 'none';
@@ -829,6 +836,61 @@ function unifiedLoginStart() {
     if (_loginMethod === 'qrcode') {
         // QR 码扫码登录
         startQrCodeLogin();
+        return;
+    }
+
+    if (_loginMethod === 'phone') {
+        // 手机验证码登录
+        var aid = parseInt(document.getElementById('editAccountId').value) || 0;
+        var phone = getFieldValue('cfg_phone');
+        var siteUrl = getFieldValue('cfg_site_url');
+
+        if (!phone) {
+            showLoginStatus('error', '请输入手机号码');
+            _isLoginRunning = false;
+            return;
+        }
+
+        showLoginStatus('info', '⏳ 正在打开登录页并发送验证码...');
+        var btn = document.getElementById('btnStartLogin');
+        btn.disabled = true;
+        btn.textContent = '⏳ 发送中...';
+
+        fetch('/api/platform/' + _loginPlatform + '/login/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                account_id: aid,
+                method: 'phone',
+                phone: phone,
+                site_url: siteUrl
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.logged_in && data.cookies) {
+                setFieldValue('cfg_cookie', data.cookies);
+                showLoginStatus('success', '✅ 登录成功！Cookie 已自动获取');
+                setTimeout(unifiedSaveOnly, 500);
+            } else if (data.needs_captcha && data.image) {
+                showLoginScreenshot(data.image);
+                showLoginStatus('warning', '📱 验证码已发送，请输入验证码后点击「提交验证码」');
+                document.getElementById('btnCaptchaLogin').style.display = 'inline-block';
+                document.getElementById('btnCaptchaLogin').textContent = '📱 提交验证码';
+                document.getElementById('btnRefreshScreenshot').style.display = 'inline-block';
+            } else {
+                showLoginStatus('error', '❌ ' + (data.error || '操作失败'));
+                btn.disabled = false;
+                btn.textContent = '📱 发送验证码';
+                _isLoginRunning = false;
+            }
+        })
+        .catch(function(e) {
+            showLoginStatus('error', '❌ 网络错误: ' + e.message);
+            btn.disabled = false;
+            btn.textContent = '📱 发送验证码';
+            _isLoginRunning = false;
+        });
         return;
     }
 

@@ -632,7 +632,12 @@ def api_platform_login_start(platform):
 		with lock:
 			sess_id = f"generic_{current_user.id}"
 			inst = get_generic_login(sess_id)
-			result = inst.login(platform, username, password, site_url)
+			method = data.get("method", "password")
+			if method == "phone":
+				phone = data.get("phone", "")
+				result = inst.phone_login(platform, phone, site_url)
+			else:
+				result = inst.login(platform, username, password, site_url)
 			if result.get("logged_in") and result.get("cookies") and aid:
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
@@ -966,6 +971,17 @@ LOGIN_METHOD_DEMOS = {
 			"④ 粘贴到 Cookie 输入框中并保存",
 		],
 		"note": "Cookie 模式下需要手动续期，建议作为密码登录的备选方案",
+	},
+	"phone": {
+		"title": "📞 手机验证码登录",
+		"steps": [
+			"① 选择「手机验证码登录」方式",
+			"② 输入手机号码",
+			"③ 点击「发送验证码」— 系统通过 Playwright 在登录页自动发送",
+			"④ 查看截图中的验证码输入框，填入收到的验证码",
+			"⑤ 提交后 Cookie 自动保存",
+		],
+		"note": "适用于支持手机号+验证码登录的平台，如知乎、掘金等",
 	},
 }
 

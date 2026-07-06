@@ -196,6 +196,108 @@ class GenericPlaywrightLogin:
                 "logged_in": False,
             }
 
+    def phone_login(self, platform: str, phone: str = "", site_url: str = "") -> dict:
+        """手机验证码登录流程：打开登录页 → 切换到手机/SMS Tab → 输手机号 → 发验证码 → 截图"""
+        self.platform_config = LOGIN_PAGE_MAP.get(platform, {})
+        login_url = self.platform_config.get("login_url", site_url)
+        if site_url and not login_url:
+            login_url = site_url
+        if not login_url:
+            return {"success": False, "error": "无法确定登录地址"}
+
+        try:
+            self._ensure_browser()
+            page = self.page
+            page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(3000)
+
+            # 尝试切换到手机/SMS Tab
+            tab_selectors = [
+                'div[class*="tab"]:has-text("手机")',
+                'div[class*="tab"]:has-text("短信")',
+                'a:has-text("手机")',
+                'a:has-text("短信")',
+                'span:has-text("手机")',
+                'span:has-text("短信")',
+                'button:has-text("手机")',
+                'button:has-text("短信")',
+                '[class*="phone"]',
+            ]
+            for sel in tab_selectors:
+                try:
+                    tab_btn = page.wait_for_selector(sel, timeout=2000)
+                    if tab_btn and tab_btn.is_visible():
+                        tab_btn.click()
+                        page.wait_for_timeout(1000)
+                        break
+                except Exception:
+                    pass
+
+            # 填入手机号
+            if phone:
+                phone_sel = 'input[type="tel"], input[name*="phone"], input[id*="phone"], '
+                phone_sel += 'input[placeholder*="手机"], input[placeholder*="phone"]'
+                try:
+                    phone_input = page.wait_for_selector(phone_sel, timeout=5000)
+                    if phone_input:
+                        phone_input.click()
+                        page.fill(phone_sel, phone)
+                        page.wait_for_timeout(500)
+                except Exception:
+                    pass
+
+            # 点击"发送验证码"按钮
+            try:
+                code_btn_selectors = [
+                    'button:has-text("发送")',
+                    'button:has-text("获取")',
+                    'button:has-text("验证码")',
+                    '[class*="send"]',
+                    '[class*="captcha"]',
+                ]
+                for cb_sel in code_btn_selectors:
+                    try:
+                        send_btn = page.wait_for_selector(cb_sel, timeout=2000)
+                        if send_btn and send_btn.is_visible():
+                            send_btn.click()
+                            page.wait_for_timeout(2000)
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            page.wait_for_timeout(2000)
+            screenshot_b64 = self.take_screenshot()
+
+            # 检测是否已有验证码输入框（表示已发送成功）
+            has_code_input = False
+            try:
+                code_input = page.query_selector(
+                    'input[placeholder*="验证码"], input[name*="captcha"], input[id*="captcha"], '
+                    'input[placeholder*="code"], input[name*="code"]'
+                )
+                if code_input:
+                    has_code_input = True
+            except Exception:
+                pass
+
+            return {
+                "success": True,
+                "logged_in": False,
+                "needs_captcha": True,
+                "image": screenshot_b64,
+                "message": "📱 验证码已发送到手机，请输入验证码" if has_code_input
+                           else "📞 请输入手机号并手动发送验证码",
+                "phone_input_ready": True,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"手机登录启动异常: {str(e)[:100]}",
+                "logged_in": False,
+            }
+
     def submit_captcha_and_login(self, platform: str = "") -> dict:
         """已验证码已处理，尝试提交并检查登录状态"""
         try:
