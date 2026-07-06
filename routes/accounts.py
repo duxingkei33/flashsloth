@@ -11,6 +11,7 @@ from flask_login import login_required, current_user
 
 from flashsloth.core.database import get_db, DB_PATH
 from flashsloth.core.publisher import get_publisher, list_publishers
+from flashsloth.core.credential_crypto import decrypt_config, encrypt_config
 
 # ─── 平台账号管理 ──────────────────────────────
 @app.route("/accounts")
@@ -44,6 +45,7 @@ def api_accounts_config(aid):
     if not acct:
         return jsonify({"success": False, "error": "账号不存在"})
     cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    decrypt_config(cfg)  # 解密敏感字段
     cfg["_platform"] = acct["platform"]
     cfg["_accountName"] = acct["account_name"]
     # 脱敏敏感字段
@@ -100,7 +102,7 @@ def add_account():
        if existing:
            conn.execute(
                "UPDATE platform_accounts SET account_name=?, config_json=?, is_active=1 WHERE id=?",
-               (name, json.dumps(cfg), edit_id_int),
+               (name, json.dumps(encrypt_config(cfg)), edit_id_int),
            )
            conn.commit()
            conn.close()
@@ -108,7 +110,7 @@ def add_account():
            return redirect(url_for("accounts"))
    conn.execute(
        "INSERT INTO platform_accounts (user_id, platform, account_name, config_json) VALUES (?, ?, ?, ?)",
-       (current_user.id, platform, name, json.dumps(cfg)),
+       (current_user.id, platform, name, json.dumps(encrypt_config(cfg))),
    )
    conn.commit()
    conn.close()
@@ -131,6 +133,7 @@ def edit_account(aid):
        conn.close()
        return redirect(url_for("accounts"))
    orig_cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+   decrypt_config(orig_cfg)  # 解密敏感字段
    
    if request.method == "POST":
        name = request.form.get("account_name", "")
@@ -219,6 +222,7 @@ def api_account_status(aid):
         return jsonify({"success": False, "error": "账号不存在"})
     acct = dict(acct)
     cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    decrypt_config(cfg)  # 解密用于 Playwright 检测
     cookie = cfg.get("cookie", "")
     site_url = cfg.get("site_url", "")
     platform = acct["platform"]

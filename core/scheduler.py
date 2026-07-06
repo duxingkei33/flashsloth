@@ -7,7 +7,8 @@ import os, json, time, random, threading
 from datetime import datetime
 
 from flashsloth.core.database import get_db
-
+from flashsloth.core.notifier import notify_info, notify_warn, notify_error
+from flashsloth.core.credential_crypto import decrypt_config
 # 调度器状态
 _scheduler_running = False
 _scheduler_stop = threading.Event()
@@ -92,6 +93,7 @@ def _tick_scheduler():
         try:
             d = dict(acct)
             cfg = json.loads(d.get("config_json") or "{}")
+            decrypt_config(cfg)  # 解密凭证用于签到
             d["config"] = cfg
 
             # 跳过禁用签到的账号

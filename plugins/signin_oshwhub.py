@@ -191,8 +191,10 @@ class OshwhubSignin(SigninBase):
 
 
 def _save_cookie_to_account_config(username_hint: str, cookie_str: str):
-    """将签到获取的新鲜 Cookie 保存回数据库"""
+    """将签到获取的新鲜 Cookie 保存回数据库（加密存储）"""
     try:
+        from flashsloth.core.credential_crypto import decrypt_config, encrypt_config
+        
         conn = sqlite3.connect(
             os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
         )
@@ -201,7 +203,9 @@ def _save_cookie_to_account_config(username_hint: str, cookie_str: str):
         ).fetchone()
         if row and cookie_str:
             cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+            decrypt_config(cfg)  # 先解密
             cfg["cookie"] = cookie_str
+            encrypt_config(cfg)  # 重新加密
             conn.execute(
                 "UPDATE platform_accounts SET config_json=? WHERE id=?",
                 (json.dumps(cfg), row["id"]),
