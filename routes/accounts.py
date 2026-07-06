@@ -243,45 +243,88 @@ def api_account_status(aid):
     # ─── 动态站点处理 ─────────────────────────────
     if cookie and site_url:
         try:
-            # 先尝试访问首页（不限于 forum.php）
-            test_url = site_url.rstrip("/")
-            r = requests.get(
-                test_url,
-                headers={
-                    "Cookie": cookie,
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                },
-                timeout=15,
-                allow_redirects=True,
-            )
-            result["status_code"] = r.status_code
-            html_lower = r.text.lower()
-            # 通用登录检测关键词
-            login_keywords = ["欢迎", "退出", "logout", "我的帖子", "我的中心",
-                              "个人中心", "设置", "消息", "提醒", "注销", "退出登录"]
-            logout_keywords = ["登录", "注册", "立即登录", "找回密码", "立即注册"]
-            is_logged_in = False
-            for kw in login_keywords:
-                if kw in r.text:
-                    is_logged_in = True
-                    break
-            if not is_logged_in:
-                for kw in logout_keywords:
-                    if kw in html_lower:
-                        is_logged_in = False
-                        break
-                else:
-                    # 没有登出关键词则默认为已登录
-                    if r.status_code == 200:
+            # OSHWHub/JS渲染平台 — 用 Playwright 验证 Cookie
+            js_platforms = {"oshwhub", "zhihu", "juejin"}
+            if platform in js_platforms:
+                # 导入 Playwright，专门检查登录态
+                from playwright.sync_api import sync_playwright
+                with sync_playwright() as pw:
+                    browser = pw.chromium.launch(
+                        headless=True,
+                        args=['--no-sandbox', '--disable-setuid-sandbox',
+                              '--disable-dev-shm-usage']
+                    )
+                    ctx = browser.new_context(
+                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+                    )
+                    # 注入 Cookie
+                    cookies = []
+                    for pair in cookie.split(";"):
+                        pair = pair.strip()
+                        if not pair or "=" not in pair:
+                            continue
+                        n, v = pair.split("=", 1)
+                        cookies.append({"name": n.strip(), "value": v.strip(),
+                                        "domain": ".oshwhub.com", "path": "/"})
+                    ctx.add_cookies(cookies)
+                    page = ctx.new_page()
+                    try:
+                        page.goto(site_url, wait_until="domcontentloaded", timeout=30000)
+                        page.wait_for_timeout(5000)
+                        # 检查是否被重定向到登录页
+                        is_logged_in = "login" not in page.url.lower() and \
+                                       "passport" not in page.url.lower()
+                        result["logged_in"] = is_logged_in
+                        result["status"] = "✅ 已登录（Cookie 有效）" if is_logged_in else "❌ Cookie 已过期"
+                        result["page_title"] = page.title()
+                        result["page_preview"] = page.inner_text("body")[:600]
+                    except Exception as e:
+                        result["logged_in"] = False
+                        result["status"] = f"❌ Playwright 检测异常: {str(e)[:100]}"
+                    finally:
+                        page.close()
+                        browser.close()
+            else:
+                # 先尝试访问首页（不限于 forum.php）
+                test_url = site_url.rstrip("/")
+                r = requests.get(
+                    test_url,
+                    headers={
+                        "Cookie": cookie,
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    },
+                    timeout=15,
+                    allow_redirects=True,
+                )
+                result["status_code"] = r.status_code
+                html_lower = r.text.lower()
+                # 通用登录检测关键词
+                login_keywords = ["欢迎", "退出", "logout", "我的帖子", "我的中心",
+                                  "个人中心", "设置", "消息", "提醒", "注销", "退出登录"]
+                logout_keywords = ["登录", "注册", "立即登录", "找回密码", "立即注册"]
+                is_logged_in = False
+                for kw in login_keywords:
+                    if kw in r.text:
                         is_logged_in = True
-            result["logged_in"] = is_logged_in
-            result["status"] = "✅ 已登录（Cookie 有效）" if is_logged_in else "❌ Cookie 已失效"
-            tm = re.search(r'<title>(.*?)</title>', r.text)
-            result["page_title"] = tm.group(1) if tm else "(无标题)"
-            text = re.sub(r'<script[^>]*>.*?</script>', '', r.text, flags=re.DOTALL)
-            text = re.sub(r'<[^>]+>', ' ', text)
-            text = re.sub(r'\s+', ' ', text).strip()
-            result["page_preview"] = text[:600]
+                        break
+                if not is_logged_in:
+                    for kw in logout_keywords:
+                        if kw in html_lower:
+                            is_logged_in = False
+                            break
+                    else:
+                        # 没有登出关键词则默认为已登录
+                        if r.status_code == 200:
+                            is_logged_in = True
+                result["logged_in"] = is_logged_in
+                result["status"] = "✅ 已登录（Cookie 有效）" if is_logged_in else "❌ Cookie 已失效"
+                tm = re.search(r'<title>(.*?)</title>', r.text)
+                result["page_title"] = tm.group(1) if tm else "(无标题)"
+                text = re.sub(r'<script[^>]*>.*?</script>', '', r.text, flags=re.DOTALL)
+                text = re.sub(r'<[^>]+>', ' ', text)
+                text = re.sub(r'\s+', ' ', text).strip()
+                result["page_preview"] = text[:600]
         except Exception as e:
             result["logged_in"] = False
             result["status"] = f"❌ 检测异常: {str(e)[:100]}"
