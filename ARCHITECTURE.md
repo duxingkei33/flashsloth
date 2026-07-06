@@ -197,14 +197,18 @@ API Key + Timestamp + Signature:
 
 | 组件 | 位置 | 状态 | 说明 |
 |------|------|------|------|
-| 统一流水线调度器 | `core/pipeline.py` | 🔜 新建 | 抽取出三模块共有流程 |
+| 统一流水线调度器 | `core/pipeline.py` | ✅ 已建 | 抽取出三模块共有流程 |
+| 反检测中央模块 | `core/anti_detect.py` | ✅ 已建 (v4.39) | 全平台Playwright人类模拟 |
+| 通知网关 22 Provider | `core/gateway.py` | ✅ 已建 (v4.39) | 邮件/Telegram/Discord/Slack/钉钉/企业微信/飞书等 |
+| 网关配置Web UI | `templates/gateway.html` + `routes/gateway.py` | ✅ 已建 (v4.39) | Web可视化配置+测试 |
+| 通知系统 | `core/notifier.py` + `routes/notifications.py` | ✅ 已建 | 统一通知API+轮询 |
 | 视频编译器 | `core/video_compiler.py` | 🔜 新建 | 剧本→转码→字幕→打包 |
 | 商品编译器 | `core/product_compiler.py` | 🔜 新建 | 商品描述→图片→定价 |
 | 视频数据模型 | `core/video.py` | 🔜 新建 | `Video` dataclass |
 | 商品数据模型 | `core/product.py` | 🔜 新建 | `Product` dataclass |
-| API网关路由 | `routes/api_v2.py` | 🔜 新建 | 所有对外REST API |
-| 网关配置页面 | `templates/gateway.html` | 🔜 新建 | Web可视化配置 |
-| 通知系统 | `core/notifier.py` | 🔜 新建 | 邮件/钉钉/微信推送 |
+| API网关路由 | `routes/api_v2.py` | ✅ 已建 | 所有对外REST API |
+| 闲鱼V2 MTOP发布器 | `plugins/publisher_xianyu_v2.py` | ✅ 已建 (v4.39) | MTOP签名API+AI类目+CDN图片 |
+| 闲鱼客户端SDK | `plugins/xianyu_client/` | ✅ 已建 (v4.39) | 纯Python MTOP签名包 |
 | 闲鱼API v2 | `sdk/adapters/xianyu_v2.py` | ✅ 已建 | 搜索/详情/比价 |
 
 ---
