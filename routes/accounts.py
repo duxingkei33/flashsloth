@@ -566,6 +566,256 @@ def api_platform_login_screenshot(platform):
 	return jsonify({"success": False, "error": f"平台 {platform} 不支持截图"})
 
 
+# ═══════════════════════════════════════════════════
+# 统一 QR 码扫码登录 API
+# ═══════════════════════════════════════════════════
+_qr_login_sessions: dict[str, dict] = {}
+_qr_login_locks: dict[str, threading.Lock] = {}
+
+def _get_qr_lock(session_id: str) -> threading.Lock:
+	if session_id not in _qr_login_locks:
+		_qr_login_locks[session_id] = threading.Lock()
+	return _qr_login_locks[session_id]
+
+
+@app.route("/api/login/qrcode/<platform>/start", methods=["POST"])
+@login_required
+def api_qrcode_login_start(platform):
+	"""启动 QR 码扫码登录 — Playwright 打开平台登录页，返回截图/QR码"""
+	data = request.get_json() or {}
+	aid = data.get("account_id", 0)
+	site_url = data.get("site_url", "")
+
+	sess_id = f"qrcode_{current_user.id}_{platform}_{int(time.time())}"
+	lock = _get_qr_lock(sess_id)
+
+	try:
+		from playwright.sync_api import sync_playwright
+
+		with lock:
+			with sync_playwright() as pw:
+				browser = pw.chromium.launch(
+					headless=True,
+					args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+				)
+				ctx = browser.new_context(
+					user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+					viewport={"width": 1280, "height": 800}, locale="zh-CN",
+				)
+				page = ctx.new_page()
+
+				# 导航到平台登录页
+				login_url = data.get("login_url", site_url or "")
+				if not login_url:
+					login_page_map = {
+						"discuz": "/member.php?mod=logging&action=login",
+						"amobbs": "/member.php?mod=logging&action=login",
+						"csdn": "https://passport.csdn.net/login",
+						"oshwhub": "https://oshwhub.com/login",
+						"xianyu": "https://www.goofish.com/",
+						"wechat": "https://mp.weixin.qq.com/",
+						"zhihu": "https://www.zhihu.com/signin",
+						"bilibili": "https://www.bilibili.com/",
+						"juejin": "https://juejin.cn/",
+						"wordpress": f"{site_url.rstrip('/')}/wp-login.php" if site_url else "",
+					}
+					login_url = login_page_map.get(platform, site_url or "")
+
+				if not login_url:
+					return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
+
+				try:
+					page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
+					page.wait_for_timeout(3000)
+				except Exception as e:
+					page.screenshot(path="/tmp/qrcode_login_error.png")
+					return jsonify({"success": False, "error": f"无法打开登录页: {str(e)[:80]}"})
+
+				# 获取页面标题和截图
+				page_title = page.title()
+				import base64
+				img_b64 = base64.b64encode(page.screenshot(type="png", full_page=False)).decode()
+
+				# 保存会话
+				_qr_login_sessions[sess_id] = {
+					"platform": platform,
+					"browser": browser,
+					"context": ctx,
+					"page": page,
+					"created_at": time.time(),
+					"status": "waiting",
+					"user_id": current_user.id,
+					"account_id": aid,
+					"cookies": "",
+					"error": "",
+				}
+
+				return jsonify({
+					"success": True,
+					"session_id": sess_id,
+					"image": img_b64,
+					"page_title": page_title,
+					"message": "请查看页面截图，扫码/登录后系统将自动捕获 Cookie",
+				})
+
+	except Exception as e:
+		return jsonify({"success": False, "error": f"QR 码登录启动异常: {str(e)[:100]}"})
+
+
+@app.route("/api/login/qrcode/<platform>/poll/<session_id>")
+@login_required
+def api_qrcode_login_poll(platform, session_id):
+	"""轮询 QR 码/截图登录状态"""
+	sess = _qr_login_sessions.get(session_id)
+	if not sess:
+		return jsonify({"success": False, "error": "会话已过期或不存在", "status": "expired"})
+
+	if sess["user_id"] != current_user.id:
+		return jsonify({"success": False, "error": "无权限", "status": "forbidden"})
+
+	lock = _get_qr_lock(session_id)
+	with lock:
+		page = sess.get("page")
+		ctx = sess.get("context")
+		if not page or not ctx:
+			return jsonify({"success": False, "error": "浏览器已关闭", "status": "closed"})
+
+		try:
+			# 刷新截图
+			screenshot_b64 = ""
+			try:
+				import base64
+				screenshot_b64 = base64.b64encode(page.screenshot(type="png", full_page=False)).decode()
+			except:
+				pass
+
+			# 检查 Cookie
+			cookies = ctx.cookies()
+			all_cookies_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+
+			# 判断登录态
+			current_url = page.url.lower()
+			login_keywords = ["login", "signin", "passport", "oauth", "logon"]
+			on_login_page = any(kw in current_url for kw in login_keywords)
+			has_auth_cookies = any(
+				kw in c["name"].lower()
+				for c in cookies
+				for kw in ["auth", "token", "sid", "session", "login", "passport", "uid", "userid", "key"]
+			)
+
+			body_text = ""
+			try:
+				body_text = page.inner_text("body")[:500]
+			except:
+				pass
+
+			if has_auth_cookies and not on_login_page and len(cookies) > 2:
+				sess["status"] = "logged_in"
+				sess["cookies"] = all_cookies_str
+				aid = sess.get("account_id")
+				if aid:
+					_save_cookie_to_account(aid, all_cookies_str)
+				return jsonify({
+					"success": True,
+					"status": "logged_in",
+					"cookies": all_cookies_str,
+					"image": screenshot_b64,
+					"message": "✅ 登录成功！Cookie 已自动获取",
+				})
+			elif on_login_page:
+				return jsonify({
+					"success": True,
+					"status": "waiting",
+					"image": screenshot_b64,
+					"url": page.url[:100],
+					"page_preview": body_text[:300],
+					"message": "🔍 请查看截图，在浏览器中完成登录",
+				})
+			else:
+				return jsonify({
+					"success": True,
+					"status": "unknown",
+					"image": screenshot_b64,
+					"cookies_count": len(cookies),
+					"page_preview": body_text[:300],
+					"message": "⏳ 等待登录完成...",
+				})
+
+		except Exception as e:
+			return jsonify({"success": False, "error": f"轮询异常: {str(e)[:80]}", "status": "error"})
+
+
+@app.route("/api/login/qrcode/<platform>/close/<session_id>", methods=["POST"])
+@login_required
+def api_qrcode_login_close(platform, session_id):
+	"""关闭 QR 码登录浏览器会话"""
+	sess = _qr_login_sessions.pop(session_id, None)
+	if sess:
+		lock = _get_qr_lock(session_id)
+		with lock:
+			try:
+				page = sess.get("page")
+				if page:
+					page.close()
+				ctx = sess.get("context")
+				if ctx:
+					ctx.close()
+				browser = sess.get("browser")
+				if browser:
+					browser.close()
+			except:
+				pass
+	return jsonify({"success": True})
+
+
+# ═══════════════════════════════════════════════════
+# 登录方式演示/说明数据 API
+# ═══════════════════════════════════════════════════
+LOGIN_METHOD_DEMOS = {
+	"password": {
+		"title": "🔑 密码登录流程",
+		"steps": [
+			"① 输入该平台的用户名和密码",
+			"② 点击「开始浏览器登录」— 系统在后台打开浏览器",
+			"③ 如果出现验证码，查看截图后点击「点验证码并登录」",
+			"④ 登录成功后 Cookie 自动保存，无需手动粘贴",
+		],
+		"note": "适合大多数论坛和博客平台，如 amobbs、mydigit、CSDN",
+	},
+	"qrcode": {
+		"title": "📱 扫码登录流程",
+		"steps": [
+			"① 选择「扫码登录」方式",
+			"② 点击「生成二维码」— 系统打开平台登录页并截图",
+			"③ 截图中会显示二维码 / 扫码入口",
+			"④ 用手机 App（微信/淘宝/论坛App等）扫码",
+			"⑤ 系统自动检测到登录成功，Cookie 自动保存",
+		],
+		"note": "适合支持扫码登录的平台，如微信公众号、淘宝、B站等",
+	},
+	"cookie": {
+		"title": "🍪 Cookie 粘贴（备选方案）",
+		"steps": [
+			"① 在浏览器中手动登录该平台",
+			"② 打开 F12 → Application → Cookies → 找到该站点",
+			"③ 复制所有 Cookie 字符串（或导出为 Netscape 格式）",
+			"④ 粘贴到 Cookie 输入框中并保存",
+		],
+		"note": "Cookie 模式下需要手动续期，建议作为密码登录的备选方案",
+	},
+}
+
+
+@app.route("/api/login/method-demo/<method>")
+@login_required
+def api_login_method_demo(method):
+	"""返回指定登录方式的演示/说明数据"""
+	demo = LOGIN_METHOD_DEMOS.get(method)
+	if not demo:
+		return jsonify({"success": False, "error": "未知登录方式"})
+	return jsonify({"success": True, "demo": demo})
+
+
 @app.route("/api/platform/<platform>/login/close", methods=["POST"])
 @login_required
 def api_platform_login_close(platform):
@@ -619,5 +869,3 @@ def _save_cookie_to_account(aid: int, cookie_str: str):
 		)
 		conn.commit()
 	conn.close()
-
-

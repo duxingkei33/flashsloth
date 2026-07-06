@@ -153,7 +153,15 @@
             <div id="addPresetHints" style="margin-bottom:10px;"></div>
 
             <!-- ===== 登录方法选择 Tab ===== -->
-            <div id="loginMethodTabs" style="display:flex;gap:4px;margin-bottom:12px;border-bottom:2px solid #eee;padding-bottom:8px;"></div>
+            <div id="loginMethodTabs" style="display:flex;gap:4px;margin-bottom:8px;border-bottom:2px solid #eee;padding-bottom:8px;flex-wrap:wrap;"></div>
+
+            <!-- 登录方式说明演示卡（小程序风格） -->
+            <div id="loginMethodDemo" style="display:none;margin-bottom:12px;padding:12px;background:linear-gradient(135deg,#f8f9ff,#eef1ff);border:1px solid #d0d5f0;border-radius:10px;font-size:13px;">
+                <div id="loginDemoTitle" style="font-weight:600;font-size:14px;margin-bottom:8px;"></div>
+                <div id="loginDemoSteps" style="color:#555;line-height:1.7;margin-bottom:6px;"></div>
+                <div id="loginDemoNote" style="font-size:11px;color:#888;background:#fff;padding:6px 10px;border-radius:6px;border:1px dashed #ddd;"></div>
+            </div>
+
             <div id="loginMethodContent"></div>
 
             <!-- 预览截图区域（密码模式） -->
@@ -371,6 +379,9 @@ function renderMethodFields(method, fields, methodDef) {
     const preset = _presetsData[platform];
     let html = '';
 
+    // 显示登录方式演示/说明卡（小程序风格）
+    showLoginMethodDemo(method);
+
     // 描述文字
     if (methodDef && methodDef.description) {
         html += '<div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">💡 ' +
@@ -445,10 +456,21 @@ function renderMethodFields(method, fields, methodDef) {
     const btnCaptcha = document.getElementById('btnCaptchaLogin');
     const btnRefresh = document.getElementById('btnRefreshScreenshot');
     const screenshotArea = document.getElementById('loginScreenshotArea');
+    const btnSaveOnly = document.getElementById('btnSaveOnly');
 
     if (method === 'password') {
         // 密码模式：显示"开始浏览器登录"按钮
         btnStart.style.display = 'inline-block';
+        btnStart.textContent = '🚀 开始浏览器登录';
+        btnStart.disabled = false;
+        btnCaptcha.style.display = 'none';
+        btnRefresh.style.display = 'none';
+        screenshotArea.style.display = 'none';
+    } else if (method === 'qrcode') {
+        // QR码扫码登录：显示"生成二维码"按钮
+        btnStart.style.display = 'inline-block';
+        btnStart.textContent = '📱 打开扫码登录页';
+        btnStart.disabled = false;
         btnCaptcha.style.display = 'none';
         btnRefresh.style.display = 'none';
         screenshotArea.style.display = 'none';
@@ -516,6 +538,13 @@ function unifiedLoginStart() {
     if (_isLoginRunning) return;
     _isLoginRunning = true;
 
+    if (_loginMethod === 'qrcode') {
+        // QR 码扫码登录
+        startQrCodeLogin();
+        return;
+    }
+
+    // 密码登录
     var username = getFieldValue('cfg_username');
     var password = getFieldValue('cfg_password');
     var siteUrl = getFieldValue('cfg_site_url');
@@ -617,7 +646,28 @@ function unifiedLoginCaptcha() {
 
 // ====== 统一浏览器登录：刷新截图 ======
 function unifiedRefreshScreenshot() {
-    fetch('/api/platform/' + _loginPlatform + '/login/screenshot')
+    var platform = _loginPlatform;
+    if (_loginMethod === 'qrcode' && _qrSessionId) {
+        // QR 码刷新 — 重新轮询
+        fetch('/api/login/qrcode/' + platform + '/poll/' + _qrSessionId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.image) {
+                document.getElementById('loginScreenshotImg').src = 'data:image/png;base64,' + data.image;
+            }
+            if (data.status === 'logged_in' && data.cookies) {
+                clearInterval(_qrPollTimer);
+                _qrPollTimer = null;
+                setFieldValue('cfg_cookie', data.cookies);
+                showLoginStatus('success', '✅ 登录成功！');
+            } else {
+                showLoginStatus('info', '🔄 ' + (data.message || '截图已刷新'));
+            }
+        })
+        .catch(function() {});
+        return;
+    }
+    fetch('/api/platform/' + platform + '/login/screenshot')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success && data.image) {
@@ -629,6 +679,13 @@ function unifiedRefreshScreenshot() {
 
 // ====== 统一：仅保存（提交表单） ======
 function unifiedSaveOnly() {
+    // 关闭 QR 码登录会话
+    if (_qrSessionId) {
+        fetch('/api/login/qrcode/' + _loginPlatform + '/close/' + _qrSessionId, {method: 'POST'}).catch(function() {});
+        if (_qrPollTimer) clearInterval(_qrPollTimer);
+        _qrPollTimer = null;
+        _qrSessionId = null;
+    }
     // 关闭浏览器会话（如果有）
     if (_isLoginRunning || _loginSession) {
         fetch('/api/platform/' + _loginPlatform + '/login/close', {method: 'POST'}).catch(function() {});
@@ -641,6 +698,13 @@ function unifiedSaveOnly() {
 
 // ====== 统一：关闭 ======
 function unifiedClose() {
+    // 关闭 QR 码登录会话
+    if (_qrSessionId) {
+        fetch('/api/login/qrcode/' + _loginPlatform + '/close/' + _qrSessionId, {method: 'POST'}).catch(function() {});
+        if (_qrPollTimer) clearInterval(_qrPollTimer);
+        _qrPollTimer = null;
+        _qrSessionId = null;
+    }
     if (_isLoginRunning || _loginSession) {
         fetch('/api/platform/' + _loginPlatform + '/login/close', {method: 'POST'}).catch(function() {});
     }
@@ -1092,6 +1156,156 @@ function escapeHtml(text) {
     var d = document.createElement('div');
     d.textContent = text || '';
     return d.innerHTML;
+}
+
+// ====== 登录方式演示/说明卡（小程序风格） ======
+function showLoginMethodDemo(method) {
+    var demoDiv = document.getElementById('loginMethodDemo');
+    if (!demoDiv) return;
+
+    fetch('/api/login/method-demo/' + encodeURIComponent(method))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.demo) {
+            demoDiv.style.display = 'none';
+            return;
+        }
+        var demo = data.demo;
+        document.getElementById('loginDemoTitle').textContent = demo.title || '';
+        var stepsHtml = '';
+        if (demo.steps) {
+            demo.steps.forEach(function(s) {
+                stepsHtml += '<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:2px;">' +
+                    '<span style="color:#4361ee;flex-shrink:0;">▸</span>' +
+                    '<span>' + escapeHtml(s) + '</span></div>';
+            });
+        }
+        document.getElementById('loginDemoSteps').innerHTML = stepsHtml;
+        if (demo.note) {
+            document.getElementById('loginDemoNote').textContent = '💡 ' + demo.note;
+            document.getElementById('loginDemoNote').style.display = 'block';
+        } else {
+            document.getElementById('loginDemoNote').style.display = 'none';
+        }
+        demoDiv.style.display = 'block';
+    })
+    .catch(function() {
+        demoDiv.style.display = 'none';
+    });
+}
+
+// ====== QR 码扫码登录 ======
+var _qrSessionId = null;
+var _qrPollTimer = null;
+
+function startQrCodeLogin() {
+    var siteUrl = getFieldValue('cfg_site_url');
+    var aid = document.getElementById('editAccountId').value;
+
+    showLoginStatus('info', '⏳ 正在打开平台登录页...');
+    var btn = document.getElementById('btnStartLogin');
+    btn.disabled = true;
+    btn.textContent = '⏳ 打开中...';
+
+    fetch('/api/login/qrcode/' + _loginPlatform + '/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            account_id: parseInt(aid) || 0,
+            site_url: siteUrl
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) {
+            showLoginStatus('error', '❌ ' + (data.error || '启动失败'));
+            btn.disabled = false;
+            btn.textContent = '📱 重新打开';
+            _isLoginRunning = false;
+            return;
+        }
+
+        _qrSessionId = data.session_id;
+        _loginSession = data.session_id;
+
+        // 显示截图
+        if (data.image) {
+            showLoginScreenshot(data.image);
+        }
+
+        showLoginStatus('info', '🔍 ' + (data.message || '请在截图页面中扫码/登录'));
+        document.getElementById('btnCaptchaLogin').style.display = 'none';
+        document.getElementById('btnRefreshScreenshot').style.display = 'inline-block';
+        btn.textContent = '📱 扫码中...';
+
+        // 开始轮询登录状态
+        startQrCodePolling();
+    })
+    .catch(function(e) {
+        showLoginStatus('error', '❌ 网络错误: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = '📱 重试';
+        _isLoginRunning = false;
+    });
+}
+
+function startQrCodePolling() {
+    if (_qrPollTimer) clearInterval(_qrPollTimer);
+    var pollCount = 0;
+
+    _qrPollTimer = setInterval(function() {
+        pollCount++;
+        // 最长轮询5分钟（30次 * 10秒）
+        if (pollCount > 30 || !_qrSessionId) {
+            clearInterval(_qrPollTimer);
+            _qrPollTimer = null;
+            if (_qrSessionId) {
+                showLoginStatus('warning', '⏰ 轮询超时，请点击「刷新截图」重新查看状态');
+            }
+            return;
+        }
+
+        fetch('/api/login/qrcode/' + _loginPlatform + '/poll/' + _qrSessionId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                if (data.status === 'expired' || data.status === 'closed') {
+                    clearInterval(_qrPollTimer);
+                    _qrPollTimer = null;
+                    showLoginStatus('error', '❌ 会话已过期');
+                }
+                return;
+            }
+
+            // 更新截图
+            if (data.image) {
+                document.getElementById('loginScreenshotImg').src = 'data:image/png;base64,' + data.image;
+            }
+
+            if (data.status === 'logged_in') {
+                // 登录成功！
+                clearInterval(_qrPollTimer);
+                _qrPollTimer = null;
+                _isLoginRunning = false;
+                if (data.cookies) {
+                    setFieldValue('cfg_cookie', data.cookies);
+                }
+                showLoginStatus('success', '✅ ' + (data.message || '登录成功！Cookie 已自动获取'));
+                document.getElementById('btnStartLogin').textContent = '✅ 已登录';
+                document.getElementById('btnStartLogin').disabled = true;
+                // 自动关闭截图区域
+                setTimeout(function() {
+                    document.getElementById('loginScreenshotArea').style.display = 'none';
+                }, 2000);
+            } else {
+                // 还在等待
+                showLoginStatus('info', '⏳ ' + (data.message || '等待扫码/登录...'));
+            }
+        })
+        .catch(function() {
+            // 静默处理轮询错误
+        });
+    }, 10000); // 每10秒轮询一次
 }
 
 // ====== Cookie 调试模式开关 ======
