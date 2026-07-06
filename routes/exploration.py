@@ -11,6 +11,14 @@ from flask_login import login_required, current_user
 from flashsloth.core.database import get_db
 
 
+def _normalize_domain(domain: str) -> str:
+    """Strip www. prefix so platform_accounts domains match forum_exploration domains."""
+    d = domain.strip().lower()
+    if d.startswith("www."):
+        d = d[4:]
+    return d
+
+
 @app.route("/exploration")
 @login_required
 def exploration_page():
@@ -29,7 +37,7 @@ def exploration_page():
     # 已探索的平台域
     explored = set()
     for r in conn.execute("SELECT DISTINCT platform_domain FROM forum_exploration").fetchall():
-        explored.add(r["platform_domain"])
+        explored.add(_normalize_domain(r["platform_domain"]))
     
     # 构建平台列表（已探索+未探索）
     all_platforms = []
@@ -39,15 +47,17 @@ def exploration_page():
             cfg = json.loads(a["config_json"]) if isinstance(a["config_json"], str) else {}
         except:
             cfg = {}
-        domain = cfg.get("site_url", "").replace("https://", "").replace("http://", "").split("/")[0] if cfg.get("site_url") else a["platform"]
-        key = (a["platform"], domain)
+        raw_domain = cfg.get("site_url", "").replace("https://", "").replace("http://", "").split("/")[0] if cfg.get("site_url") else a["platform"]
+        norm_domain = _normalize_domain(raw_domain)
+        key = (a["platform"], norm_domain)
         if key in seen:
             continue
         seen.add(key)
-        has_data = domain in explored
+        has_data = norm_domain in explored
         all_platforms.append({
             "platform": a["platform"],
-            "domain": domain,
+            "domain": raw_domain,
+            "norm_domain": norm_domain,
             "has_data": has_data,
             "count": 0,
             "sections": [],
@@ -55,7 +65,8 @@ def exploration_page():
     
     # 补充有探索数据但不在accounts中的平台（追加在末尾）
     for r in conn.execute("SELECT DISTINCT platform, platform_domain FROM forum_exploration").fetchall():
-        key = (r["platform"], r["platform_domain"])
+        norm_domain = _normalize_domain(r["platform_domain"])
+        key = (r["platform"], norm_domain)
         if key not in seen:
             seen.add(key)
             all_platforms.append({

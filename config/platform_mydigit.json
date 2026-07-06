@@ -1,0 +1,335 @@
+{
+  "platform": "discuz",
+  "name": "数码之家",
+  "domain": "mydigit.cn",
+  "site_url": "https://www.mydigit.cn",
+  "engine": "discuz",
+  "forum_rules": {
+    "post_min_chars": 2,
+    "post_max_chars": 100000,
+    "image_supported": true,
+    "image_max_size_mb": 5,
+    "image_types": [
+      "jpg",
+      "jpeg",
+      "png",
+      "gif"
+    ],
+    "attachment_supported": true,
+    "attachment_max_size_mb": 15,
+    "attachment_types": [
+      "zip",
+      "rar",
+      "7z",
+      "pdf",
+      "doc",
+      "xls"
+    ],
+    "allow_self_promotion": false,
+    "require_captcha": true,
+    "signin_bonus": "家元",
+    "require_review": false,
+    "allow_edit": true,
+    "edit_time_limit_minutes": 1440,
+    "allow_delete": true,
+    "delete_time_limit_minutes": 30
+  },
+  "upload_limits": {
+    "discuz_upload_api": "/misc.php?mod=swfupload&operation=upload",
+    "max_uploads_per_post": 15,
+    "total_attachments_per_post_mb": 30,
+    "thumbnail_generated": true,
+    "thumbnail_size": "200x200"
+  },
+  "announcement_url": "https://www.mydigit.cn/forum.php?mod=announcement",
+  "signin": {
+    "supported": true,
+    "type": "discuz_qiandao",
+    "url": "/plugin.php?id=dsu_paulsign:sign",
+    "bonus": "家元+2~10"
+  },
+  "explore_version": 2,
+  "sections": [
+    {
+      "id": "37",
+      "name": "数码值得买",
+      "keywords": [
+        "数码",
+        "推荐",
+        "优惠"
+      ]
+    },
+    {
+      "id": "44",
+      "name": "机顶盒/智能电视",
+      "keywords": [
+        "机顶盒",
+        "电视",
+        "盒子"
+      ]
+    },
+    {
+      "id": "36",
+      "name": "数码交易区",
+      "keywords": [
+        "交易",
+        "二手",
+        "买卖"
+      ]
+    },
+    {
+      "id": "82",
+      "name": "积分商城",
+      "keywords": [
+        "积分",
+        "兑换",
+        "商城"
+      ]
+    },
+    {
+      "id": "43",
+      "name": "数码杂谈",
+      "keywords": [
+        "数码",
+        "讨论"
+      ]
+    },
+    {
+      "id": "2",
+      "name": "智能手机",
+      "keywords": [
+        "手机",
+        "智能手机"
+      ]
+    },
+    {
+      "id": "39",
+      "name": "电脑软硬派",
+      "keywords": [
+        "电脑",
+        "软件",
+        "硬件"
+      ]
+    },
+    {
+      "id": "40",
+      "name": "WiFi/路由器",
+      "keywords": [
+        "wifi",
+        "路由器",
+        "网络"
+      ]
+    },
+    {
+      "id": "79",
+      "name": "安防/监控",
+      "keywords": [
+        "安防",
+        "监控",
+        "摄像头"
+      ]
+    },
+    {
+      "id": "63",
+      "name": "U盘存储技术",
+      "keywords": [
+        "u盘",
+        "存储",
+        "flash"
+      ]
+    },
+    {
+      "id": "64",
+      "name": "SSD存储技术",
+      "keywords": [
+        "ssd",
+        "固态",
+        "存储"
+      ]
+    },
+    {
+      "id": "41",
+      "name": "NAS/网络存储",
+      "keywords": [
+        "nas",
+        "网络存储"
+      ]
+    },
+    {
+      "id": "51",
+      "name": "拆机乐园",
+      "keywords": [
+        "拆机",
+        "拆解"
+      ]
+    },
+    {
+      "id": "52",
+      "name": "行业拆客",
+      "keywords": [
+        "拆解",
+        "行业"
+      ]
+    },
+    {
+      "id": "88",
+      "name": "硬件博物馆",
+      "keywords": [
+        "硬件",
+        "收藏",
+        "经典"
+      ]
+    },
+    {
+      "id": "56",
+      "name": "创意DIY",
+      "keywords": [
+        "diy",
+        "创意",
+        "制作"
+      ]
+    },
+    {
+      "id": "57",
+      "name": "能工巧匠",
+      "keywords": [
+        "手工",
+        "工匠",
+        "diy"
+      ]
+    },
+    {
+      "id": "48",
+      "name": "汽车拆客",
+      "keywords": [
+        "汽车",
+        "拆解"
+      ]
+    },
+    {
+      "id": "59",
+      "name": "电子学堂",
+      "keywords": [
+        "电子",
+        "学习",
+        "教程"
+      ]
+    },
+    {
+      "id": "61",
+      "name": "我爱单片机",
+      "keywords": [
+        "单片机",
+        "mcu"
+      ]
+    },
+    {
+      "id": "60",
+      "name": "维修达人",
+      "keywords": [
+        "维修",
+        "修理"
+      ]
+    },
+    {
+      "id": "66",
+      "name": "电源/充电器",
+      "keywords": [
+        "电源",
+        "充电器"
+      ]
+    },
+    {
+      "id": "67",
+      "name": "手电筒/照明",
+      "keywords": [
+        "手电",
+        "照明"
+      ]
+    },
+    {
+      "id": "68",
+      "name": "耳机发烧友",
+      "keywords": [
+        "耳机",
+        "hifi",
+        "音频"
+      ]
+    },
+    {
+      "id": "70",
+      "name": "3D打印/雕刻机",
+      "keywords": [
+        "3d打印",
+        "雕刻机"
+      ]
+    },
+    {
+      "id": "71",
+      "name": "我是工具控",
+      "keywords": [
+        "工具",
+        "仪器"
+      ]
+    },
+    {
+      "id": "72",
+      "name": "仪表谈谈",
+      "keywords": [
+        "仪表",
+        "测量"
+      ]
+    },
+    {
+      "id": "74",
+      "name": "骑行天地",
+      "keywords": [
+        "骑行",
+        "自行车"
+      ]
+    },
+    {
+      "id": "76",
+      "name": "摄友沙龙",
+      "keywords": [
+        "摄影",
+        "相机"
+      ]
+    },
+    {
+      "id": "80",
+      "name": "缘聚茶楼",
+      "keywords": [
+        "闲聊",
+        "水区"
+      ]
+    },
+    {
+      "id": "78",
+      "name": "站务中心",
+      "keywords": [
+        "站务",
+        "公告",
+        "管理"
+      ]
+    },
+    {
+      "id": "94",
+      "name": "免费家元充电站",
+      "keywords": [
+        "家元",
+        "积分",
+        "签到"
+      ]
+    },
+    {
+      "id": "45",
+      "name": "数码前沿",
+      "keywords": [
+        "数码",
+        "新品",
+        "前沿"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-bs-theme="dark">
+<html lang="zh-CN" >
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,12 +8,12 @@
     <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         .section-card { margin-bottom: 1.5rem; }
-        .section-row:hover { background: rgba(255,255,255,0.05); }
+        .section-row:hover { background: rgba(0,0,0,0.03); }
         .badge-postable { background: #198754; }
         .badge-nonpostable { background: #dc3545; }
         .keyword-badge { 
             background: rgba(13, 110, 253, 0.15); 
-            color: #6ea8fe;
+            color: #0d6efd;
             font-size: 0.8rem;
             margin: 2px;
         }
@@ -36,8 +36,8 @@
         }
     </style>
 </head>
-<body class="bg-dark text-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary">
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom border-secondary">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">
                 <i class="bi bi-shield-shaded"></i> FlashSloth
@@ -69,8 +69,8 @@
 
                 {% if platforms %}
         {% for p in platforms %}
-        <div class="card bg-dark border-secondary section-card">
-            <div class="card-header bg-black border-secondary d-flex justify-content-between align-items-center" 
+        <div class="card border section-card">
+            <div class="card-header bg-light border d-flex justify-content-between align-items-center" 
                  data-bs-toggle="collapse" data-bs-target="#platform_{{ loop.index }}" style="cursor:pointer;">
                 <div>
                     <h5 class="mb-0">
@@ -101,16 +101,18 @@
             {# 首项默认展开，其余折叠 #}
             <div class="collapse {% if loop.first %}show{% endif %}" id="platform_{{ loop.index }}">
             <div class="card-body p-0">
+                <div class="row g-0">
+                    <!-- 左侧：表格 -->
+                    <div class="col-md-7 col-lg-8 border-end">
                     <div class="table-responsive">
-                        <table class="table table-dark table-hover mb-0 align-middle">
+                        <table class="table table-hover mb-0 align-middle">
                             <thead>
                                 <tr>
-                                    <th style="width:80px">ID</th>
-                                    <th style="width:100px">版块ID</th>
+                                    <th style="width:60px">ID</th>
+                                    <th style="width:90px">版块ID</th>
                                     <th>版块名称</th>
-                                    <th style="width:80px">状态</th>
+                                    <th style="width:70px">状态</th>
                                     <th>关键词</th>
-                                    <th style="width:150px">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -136,22 +138,23 @@
                                             {% endfor %}
                                         </div>
                                     </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-warning" onclick="editRow({{ s.id }})">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger d-none" onclick="saveRow({{ s.id }})" id="save-{{ s.id }}">
-                                            <i class="bi bi-check-lg"></i> 保存
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary d-none" onclick="cancelEdit({{ s.id }})" id="cancel-{{ s.id }}">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+                    </div><!-- /col left -->
+                    <!-- 右侧：JSON 原始数据 -->
+                    <div class="col-md-5 col-lg-4 p-3" style="max-height:500px;overflow-y:auto;">
+                        <h6 class="text-muted mb-2" style="font-size:12px;">
+                            <i class="bi bi-filetype-json"></i> 原始配置数据
+                        </h6>
+                        <pre id="jsonInline_{{ loop.index0 }}" class="p-2 rounded" 
+                             style="font-size:11px;line-height:1.4;background:#f8f9fa;border:1px solid #dee2e6;
+                                    white-space:pre-wrap;word-break:break-all;margin:0;">
+                        </pre>
+                    </div>
+                </div><!-- /row -->
                 </div>
             </div>
             {% endfor %}
@@ -244,13 +247,13 @@
 <!-- JSON原始数据模态框 -->
 <div class="modal fade" id="jsonModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content bg-dark">
+    <div class="modal-content bg-light">
       <div class="modal-header border-secondary">
         <h5 class="modal-title"><i class="bi bi-filetype-json"></i> 原始JSON数据</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <pre id="jsonContent" class="text-light" style="max-height:60vh;overflow:auto;font-size:0.8rem;background:#1a1a1a;padding:12px;border-radius:6px;"></pre>
+        <pre id="jsonContent" class="text-dark" style="max-height:60vh;overflow:auto;font-size:0.8rem;background:#f8f9fa;padding:12px;border-radius:6px;"></pre>
       </div>
       <div class="modal-footer border-secondary">
         <button class="btn btn-sm btn-outline-info" onclick="copyJson()"><i class="bi bi-clipboard"></i> 复制</button>
@@ -261,8 +264,8 @@
 </div>
 
 <!-- 自定义网站探索入口 -->
-<div class="card bg-dark border-secondary mt-4">
-    <div class="card-header bg-black border-secondary">
+<div class="card bg-light border mt-4">
+    <div class="card-header bg-light border">
         <h5 class="mb-0"><i class="bi bi-plus-circle"></i> 自定义网站探索</h5>
     </div>
     <div class="card-body">
@@ -301,6 +304,25 @@
 // 平台原始数据JSON（由后端渲染时注入）
 const PLATFORM_DATA = {{ platforms_json|safe }};
 
+// 展开时自动填充右侧JSON面板
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[data-bs-toggle=\"collapse\"]').forEach(function(header) {
+        const targetId = header.getAttribute('data-bs-target').replace('#', '');
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        el.addEventListener('show.bs.collapse', function() {
+            const idx = Array.from(document.querySelectorAll('.collapse[id^=\"platform_\"]')).indexOf(el);
+            if (idx >= 0 && PLATFORM_DATA[idx]) {
+                const pre = document.getElementById('jsonInline_' + idx);
+                if (pre && !pre.getAttribute('data-loaded')) {
+                    pre.textContent = JSON.stringify(PLATFORM_DATA[idx], null, 2);
+                    pre.setAttribute('data-loaded', '1');
+                }
+            }
+        });
+    });
+});
+
 function showRawJson(idx) {
     const data = PLATFORM_DATA[idx];
     if (!data) { alert('没有数据'); return; }
@@ -313,7 +335,6 @@ function copyJson() {
     navigator.clipboard.writeText(text).then(() => {
         alert('已复制到剪贴板');
     }).catch(() => {
-        // fallback
         const ta = document.createElement('textarea');
         ta.value = text;
         document.body.appendChild(ta);
@@ -329,7 +350,7 @@ function explorePlatform(domain, platform) {
     const resultDiv = document.createElement('div');
     resultDiv.className = 'mt-2 small';
     document.querySelector('.container-fluid.py-4').appendChild(resultDiv);
-    resultDiv.innerHTML = '<span class="text-warning"><i class="bi bi-hourglass-split"></i> 探索任务已提交...</span>';
+    resultDiv.innerHTML = '<span class=\"text-warning\"><i class=\"bi bi-hourglass-split\"></i> 探索任务已提交...</span>';
     fetch('/api/exploration/custom', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -338,11 +359,11 @@ function explorePlatform(domain, platform) {
     .then(r => r.json())
     .then(data => {
         resultDiv.innerHTML = data.success
-            ? '<span class="text-success">✅ ' + data.message + '</span>'
-            : '<span class="text-danger">❌ ' + (data.error || '失败') + '</span>';
+            ? '<span class=\"text-success\">✅ ' + data.message + '</span>'
+            : '<span class=\"text-danger\">❌ ' + (data.error || '失败') + '</span>';
         if (data.success) setTimeout(() => location.reload(), 3000);
     })
-    .catch(e => { resultDiv.innerHTML = '<span class="text-danger">❌ 错误: ' + e + '</span>'; });
+    .catch(e => { resultDiv.innerHTML = '<span class=\"text-danger\">❌ 错误: ' + e + '</span>'; });
 }
 
 function startCustomExplore(e) {
@@ -354,7 +375,7 @@ function startCustomExplore(e) {
     if (!domain) { alert('请输入网站域名'); return; }
     
     const resultDiv = document.getElementById('customExploreResult');
-    resultDiv.innerHTML = '<span class="text-warning"><i class="bi bi-hourglass-split"></i> 探索任务已提交到后台队列...</span>';
+    resultDiv.innerHTML = '<span class=\"text-warning\"><i class=\"bi bi-hourglass-split\"></i> 探索任务已提交到后台队列...</span>';
     
     fetch('/api/exploration/custom', {
         method: 'POST',
@@ -364,14 +385,14 @@ function startCustomExplore(e) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            resultDiv.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> 探索任务已启动！${data.message || ''}</span>`;
+            resultDiv.innerHTML = '<span class=\"text-success\"><i class=\"bi bi-check-circle\"></i> 探索任务已启动！' + (data.message || '') + '</span>';
             setTimeout(() => location.reload(), 2000);
         } else {
-            resultDiv.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ${data.error || '启动失败'}</span>`;
+            resultDiv.innerHTML = '<span class=\"text-danger\"><i class=\"bi bi-exclamation-triangle\"></i> ' + (data.error || '启动失败') + '</span>';
         }
     })
     .catch(e => {
-        resultDiv.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> 网络错误: ${e}</span>`;
+        resultDiv.innerHTML = '<span class=\"text-danger\"><i class=\"bi bi-exclamation-triangle\"></i> 网络错误: ' + e + '</span>';
     });
 }
 </script>

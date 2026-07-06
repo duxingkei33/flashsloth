@@ -138,23 +138,14 @@ class OSHWHubArticlePublisher(Publisher):
                 if cover_path:
                     _tmp_files.append(cover_path)
                     try:
-                        # 用 file_chooser 触发 Ant Design Upload（用expect_file_chooser不行因为sync API）
-                        # 先点击上传区域打开文件选择器
-                        upload_area = page.locator(".create_upload__R9JpM, button:has-text('上传图片')").first
-                        if upload_area.count() > 0:
-                            with page.expect_file_chooser() as fc_info:
-                                upload_area.click()
-                            fc = fc_info.value
-                            fc.set_files(cover_path)
-                            page.wait_for_timeout(5000)
+                        # 直接对隐藏的 input[type='file'] 设置文件，绕过 click+file_chooser
+                        # OSHWHub 的封面上传使用 display:none 的 file input + SVG icon，
+                        # 点击 SVG 不会触发 file_chooser，必须直接 set_input_files
+                        file_input = page.locator("input[type='file']").first
+                        if file_input.count() > 0:
+                            file_input.set_input_files(cover_path)
+                            page.wait_for_timeout(3000)
                             self.logger.info(f"✅ 封面上传: {os.path.basename(cover_path)}")
-                        else:
-                            # fallback: 直接set_input_files到隐藏input
-                            file_input = page.locator("input[type='file']").first
-                            if file_input.count() > 0:
-                                file_input.set_input_files(cover_path)
-                                page.wait_for_timeout(3000)
-                                self.logger.info(f"✅ 封面上传(fallback): {os.path.basename(cover_path)}")
                     except Exception as e:
                         self.logger.warning(f"⚠️ 封面上传失败: {e}")
 
