@@ -163,19 +163,35 @@ def match_forum(domain: str, tags: list, title: str = "", body: str = "") -> Opt
     text = " ".join(tags) + " " + title + " " + (body or "")[:200]
     text_lower = text.lower()
     
-    # 计分匹配
+    # 计分匹配：优先匹配版块名本身，别名关键词权重减半
     scores = {}
     for fid, info in forums.items():
         score = 0
-        keywords = info.get("keywords", [info.get("name", "").lower()])
+        forum_name_lower = info.get("name", "").lower()
+        keywords = info.get("keywords", [forum_name_lower])
+        
         for kw in keywords:
-            if kw.lower() in text_lower:
-                score += 1
+            kw_lower = kw.lower()
+            if kw_lower in text_lower:
+                # 核心加权：关键词直接是版块名或版块名的一部分 → 权重更高
+                if kw_lower == forum_name_lower or forum_name_lower.startswith(kw_lower):
+                    score += 3
+                # 别名关键词（从 alias_map 来的）权重较低
+                else:
+                    score += 1
+        
+        # 额外：如果用户的标签/标题关键词直接出现在版块名中 → 奖励
+        for tag_word in tags + [title]:
+            tw = tag_word.lower().strip()
+            if tw and len(tw) >= 2 and tw in forum_name_lower:
+                score += 2
+        
         if score > 0:
             scores[fid] = score
     
     if scores:
-        best = max(scores, key=lambda k: scores[k])
+        # 得分相同优先选名称更短的（更泛用的版块，而非具体项目）
+        best = max(scores, key=lambda k: (scores[k], -len(forums[k].get("name", ""))))
         return best
     
     # 无匹配 → 返回默认版块
