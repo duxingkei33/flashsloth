@@ -471,7 +471,7 @@ def api_platform_login_start(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform == "xianyu":
+	elif platform in ("xianyu", "xianyu_v2"):
 		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -525,7 +525,7 @@ def api_platform_login_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform == "xianyu":
+	elif platform in ("xianyu", "xianyu_v2"):
 		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -572,7 +572,7 @@ def api_platform_login_screenshot(platform):
 			inst = _get_amobbs_login(f"user_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
-	elif platform == "xianyu":
+	elif platform in ("xianyu", "xianyu_v2"):
 		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -643,6 +643,7 @@ def api_qrcode_login_start(platform):
 						"csdn": "https://passport.csdn.net/login",
 						"oshwhub": "https://oshwhub.com/login",
 						"xianyu": "https://www.goofish.com/",
+						"xianyu_v2": "https://www.goofish.com/",
 						"wechat": "https://mp.weixin.qq.com/",
 						"zhihu": "https://www.zhihu.com/signin",
 						"bilibili": "https://www.bilibili.com/",
@@ -860,7 +861,7 @@ def api_platform_login_close(platform):
 				inst.close()
 			return jsonify({"success": True})
 
-	elif platform == "xianyu":
+	elif platform in ("xianyu", "xianyu_v2"):
 		from flashsloth.routes.browser_login import _xianyu_login_instances
 		lock = _get_login_lock(platform)
 		with lock:

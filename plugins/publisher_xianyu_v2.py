@@ -60,14 +60,29 @@ class XianyuV2Publisher(Publisher):
     name = "xianyu_v2"
     display_name = "闲鱼 V2（MTOP API）"
     login_methods = [
-        {"method": "cookie", "label": "Cookie 导入", "icon": "🍪", "priority": 1,
-         "fields": ["site_url", "cookie"],
-         "description": "从浏览器 F12 或文件导入 Cookie"},
-        {"method": "browser_auto", "label": "浏览器自动探测", "icon": "🌐", "priority": 2,
+        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 1,
          "fields": ["site_url"],
-         "description": "自动从已登录的浏览器提取闲鱼 Cookie"},
+         "description": "打开闲鱼/淘宝登录页截图，用手机淘宝扫码后自动捕获 Cookie"},
+        {"method": "password", "label": "淘宝账号密码登录", "icon": "🔑", "priority": 2,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入淘宝账号密码，Playwright 处理扫码/验证码"},
+        {"method": "cookie", "label": "Cookie 导入（JSON 格式）", "icon": "🍪", "priority": 99,
+         "fields": ["site_url", "cookie"],
+         "description": "从浏览器 F12 或 JSON 文件导入闲鱼 Cookie"},
     ]
     config_fields = [
+        {
+            "key": "site_url", "label": "闲鱼地址", "type": "text", "required": False,
+            "default": "https://goofish.com",
+        },
+        {
+            "key": "username", "label": "淘宝账号", "type": "text", "required": False,
+            "placeholder": "用于闲鱼登录的淘宝账号",
+        },
+        {
+            "key": "password", "label": "淘宝密码", "type": "password", "required": False,
+            "placeholder": "淘宝登录密码",
+        },
         {
             "key": "cookie", "label": "Cookie（JSON 格式）", "type": "password",
             "required": False,

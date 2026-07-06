@@ -76,6 +76,13 @@
         {"name": "闲鱼", "url": "https://goofish.com", "desc": "闲鱼二手交易"}
       ]
     },
+    "xianyu_v2": {
+      "display": "闲鱼 V2（MTOP API）",
+      "icon": "🟡",
+      "sites": [
+        {"name": "闲鱼", "url": "https://goofish.com", "desc": "闲鱼 MTOP API 版本"}
+      ]
+    },
     "github_pages": {
       "display": "GitHub Pages",
       "icon": "🐙",
