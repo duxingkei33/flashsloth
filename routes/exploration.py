@@ -83,6 +83,17 @@ def exploration_page():
 
     # 加载每个平台的探索数据 + 能力配置 + 标签
     for p in all_platforms:
+        # 加载登录能力（从 platform_reports JSON）
+        _reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+        _cap_map = {"wechat": "wechat_mp", "xianyu_v2": "xianyu"}
+        json_name = _cap_map.get(p["platform"], p["platform"])
+        cap_path = os.path.join(_reports_dir, f"{json_name}_login_capabilities.json")
+        if os.path.exists(cap_path):
+            try:
+                with open(cap_path, "r", encoding="utf-8") as f:
+                    p["login_capabilities"] = json.load(f)
+            except:
+                pass
         if p["has_data"]:
             # 使用归一化域名查询（forum_exploration 中域名无 www 前缀）
             query_domain = p["norm_domain"]

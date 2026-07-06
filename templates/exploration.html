@@ -518,13 +518,109 @@
                 </div>
 
                 <!-- ════════════════════════════════════ -->
-                <!-- Row 5: 管理配置（可折叠）               -->
+                <!-- Row 5: 登录能力（Playwright 真实检测） -->
                 <!-- ════════════════════════════════════ -->
                 <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow5_{{ loop.index }}">
-                    <span><strong style="font-size:0.85rem;color:#475569;">⚙️ 管理配置</strong></span>
+                    <span><strong style="font-size:0.85rem;color:#475569;">🔑 登录能力（Playwright 真实检测）</strong></span>
                     <span class="arrow">▼</span>
                 </div>
                 <div id="secRow5_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
+                    <div class="sub-collapse-body">
+                    {% if p.login_capabilities and p.login_capabilities.login_methods %}
+                    <table class="cap-table table table-borderless mb-0">
+                        <tr>
+                            <td class="label">探索时间</td>
+                            <td class="value">{{ p.login_capabilities.explored_at[:19] | replace('T', ' ') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">登录页</td>
+                            <td class="value">
+                                <a href="{{ p.login_capabilities.login_url }}" target="_blank" style="font-size:12px;color:#4361ee;">
+                                    {{ p.login_capabilities.login_url }}</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">支持的登录方式</td>
+                            <td class="value">
+                                {% for m in p.login_capabilities.login_methods %}
+                                {% if m.detected %}
+                                <span class="cap-tag" style="background:#dbeafe;color:#1e40af;">
+                                    {% if m.method == 'password' %}🔑
+                                    {% elif m.method == 'qrcode' %}📱
+                                    {% elif m.method == 'phone' %}📞
+                                    {% elif m.method == 'oauth' %}🔗
+                                    {% elif m.method == 'cookie' %}🍪
+                                    {% else %}🔹{% endif %}
+                                    {{ m.label }}
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% if p.login_capabilities.login_methods | selectattr('method', 'equalto', 'qrcode') | selectattr('sub_types') | list %}
+                        {% set qr_method = p.login_capabilities.login_methods | selectattr('method', 'equalto', 'qrcode') | first %}
+                        {% if qr_method.sub_types %}
+                        <tr>
+                            <td class="label">扫码子类型</td>
+                            <td class="value">
+                                {% for st in qr_method.sub_types %}
+                                <span class="cap-tag" style="background:#f0fff4;color:#166534;">
+                                    {{ '💬' if st.id == 'wechat' else '📲' if st.id == 'app' else '📱' }}
+                                    {{ st.label }}
+                                </span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endif %}
+                        {% if p.login_capabilities.login_methods | selectattr('method', 'equalto', 'oauth') | selectattr('providers') | list %}
+                        {% set oauth_method = p.login_capabilities.login_methods | selectattr('method', 'equalto', 'oauth') | first %}
+                        {% if oauth_method.providers %}
+                        <tr>
+                            <td class="label">第三方登录</td>
+                            <td class="value">
+                                {% for prov in oauth_method.providers %}
+                                <span class="cap-tag" style="background:#fef3c7;color:#92400e;">
+                                    {{ prov }}
+                                </span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endif %}
+                        <tr>
+                            <td class="label">备注</td>
+                            <td class="value" style="font-size:12px;color:#666;">
+                                {{ p.login_capabilities.note or '—' }}
+                            </td>
+                        </tr>
+                    </table>
+                    <div class="mt-2">
+                        <button class="btn btn-outline-info btn-sm" style="font-size:0.7rem;"
+                                onclick="refreshLoginCapability('{{ p.platform }}')">
+                            🔄 重新探索登录能力
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">
+                        尚未探索登录能力
+                        <button class="btn btn-sm btn-outline-primary ms-2" style="font-size:0.75rem;"
+                                onclick="refreshLoginCapability('{{ p.platform }}')">
+                            🚀 探索登录能力
+                        </button>
+                    </div>
+                    {% endif %}
+                    </div>
+                </div>
+
+                <!-- ════════════════════════════════════ -->
+                <!-- Row 6: 管理配置（可折叠）               -->
+                <!-- ════════════════════════════════════ -->
+                <div class="sub-collapse-header" data-bs-toggle="collapse" data-bs-target="#secRow6_{{ loop.index }}">
+                    <span><strong style="font-size:0.85rem;color:#475569;">⚙️ 管理配置</strong></span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div id="secRow6_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
                     <div class="sub-collapse-body">
                     <div class="d-flex gap-1 flex-wrap">
                         <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
@@ -907,6 +1003,29 @@ function checkUnexploredAccounts() {
             btn.disabled = false;
             btn.innerHTML = '🔍 检测未探索平台';
         }
+    });
+}
+
+// ─── 重新探索登录能力 ─────────────────
+function refreshLoginCapability(platform) {
+    var msg = '将用 Playwright 重新探索「' + platform + '」的登录能力，是否继续？';
+    if (!confirm(msg)) return;
+    var btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 探索中...'; }
+    fetch('/api/platform/' + platform + '/login-capabilities/refresh', {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert('✅ 登录能力已更新！点击「🔄 重新探索登录能力」刷新页面。');
+            location.reload();
+        } else {
+            alert('探索失败: ' + (data.error || ''));
+            if (btn) { btn.disabled = false; btn.innerHTML = '🔄 重新探索登录能力'; }
+        }
+    })
+    .catch(function(e) {
+        alert('请求失败: ' + e.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔄 重新探索登录能力'; }
     });
 }
 </script>

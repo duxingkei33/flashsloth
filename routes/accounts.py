@@ -4,6 +4,7 @@ from flashsloth.routes._app import app
 
 
 import json
+import os
 
 from flask import ( render_template, request, redirect, url_for,
                   flash, jsonify)
@@ -429,10 +430,142 @@ def api_account_keep_alive(aid):
 @app.route("/api/platforms/list")
 @login_required
 def api_platforms_list():
-	"""返回所有平台信息（含登录方法、配置字段）"""
+	"""返回所有平台信息（含登录方法、配置字段 + 登录能力）"""
 	from flashsloth.core.publisher import list_publishers
 	platforms = list_publishers()
+	# 注入从 JSON 读取的登录能力
+	import os
+	_reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+	for p in platforms:
+		pname = p["name"]
+		cap = _load_login_capabilities(pname)
+		if cap:
+			p["login_capabilities"] = cap
 	return jsonify({"success": True, "platforms": platforms})
+
+
+# ═══════════════════════════════════════════════════
+# 登录能力 API — 从 platform_reports JSON 读取
+# ═══════════════════════════════════════════════════
+
+# 平台名 → JSON文件名 映射（处理名称不一致）
+_PLATFORM_CAP_MAP = {
+    "wechat": "wechat_mp",
+    "xianyu_v2": "xianyu",
+    # 其他平台同名为：csdn, zhihu, bilibili, juejin, oshwhub, xianyu
+}
+
+_REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+
+
+def _load_login_capabilities(platform: str) -> dict | None:
+    """从 platform_reports 加载指定平台的登录能力数据"""
+    json_name = _PLATFORM_CAP_MAP.get(platform, platform)
+    report_path = os.path.join(_REPORTS_DIR, f"{json_name}_login_capabilities.json")
+    if os.path.exists(report_path):
+        try:
+            with open(report_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+
+@app.route("/api/platform/<platform>/login-capabilities")
+@login_required
+def api_platform_login_capabilities(platform):
+	"""返回指定平台的登录能力"""
+	cap = _load_login_capabilities(platform)
+	if cap:
+		return jsonify({"success": True, "platform": platform, "source": "json", **cap})
+	from flashsloth.core.publisher import list_login_methods
+	methods = list_login_methods(platform)
+	if methods:
+		return jsonify({
+			"success": True, "platform": platform, "source": "publisher",
+			"login_methods": methods,
+			"note": f"来自 {platform} publisher 的预设登录方式",
+		})
+	return jsonify({"success": False, "error": f"平台 {platform} 无登录能力数据"})
+
+
+@app.route("/api/platform/<platform>/login-capabilities/refresh", methods=["POST"])
+@login_required
+def api_platform_login_capabilities_refresh(platform):
+	"""重新探索平台的登录能力（用 Playwright）"""
+	# 把平台名映射到 JSON 名
+	json_name = _PLATFORM_CAP_MAP.get(platform, platform)
+	report_path = os.path.join(_REPORTS_DIR, f"{json_name}_login_capabilities.json")
+	login_url_map = {
+		"csdn": "https://passport.csdn.net/login",
+		"zhihu": "https://www.zhihu.com/signin",
+		"bilibili": "https://www.bilibili.com/",
+		"juejin": "https://juejin.cn/",
+		"wechat": "https://mp.weixin.qq.com/",
+		"wechat_mp": "https://mp.weixin.qq.com/",
+		"oshwhub": "https://oshwhub.com/login",
+		"xianyu": "https://www.goofish.com/",
+		"xianyu_v2": "https://www.goofish.com/",
+	}
+	url = login_url_map.get(platform) or login_url_map.get(json_name)
+	if not url:
+		return jsonify({"success": False, "error": f"未知登录地址，请先通过 Playwright 探索或提供 site_url"})
+
+	try:
+		from playwright.sync_api import sync_playwright
+		import base64
+		from datetime import datetime, timezone
+
+		with sync_playwright() as pw:
+			browser = pw.chromium.launch(
+				headless=True,
+				args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+			)
+			ctx = browser.new_context(
+				user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+				viewport={"width": 1920, "height": 1080},
+				locale="zh-CN",
+			)
+			page = ctx.new_page()
+			try:
+				page.goto(url, wait_until="domcontentloaded", timeout=30000)
+				page.wait_for_timeout(5000)
+				# 尝试点登录按钮
+				login_btn = page.query_selector(
+					'button:has-text("登录"), a:has-text("登录"), '
+					'[class*="login"] button, .login-btn'
+				)
+				if login_btn:
+					try: login_btn.click(); page.wait_for_timeout(3000)
+					except: pass
+				# 检测方法
+				from explore_login_capabilities import detect_login_methods
+				methods, raw = detect_login_methods(page)
+				note_methods = [m["label"] for m in methods if m.get("detected")]
+				if raw.get("third_party_providers"):
+					note_methods.append(f"第三方({','.join(raw['third_party_providers'])})")
+				result = {
+					"platform": platform,
+					"explored_at": datetime.now(timezone.utc).isoformat(),
+					"login_url": url,
+					"login_methods": methods,
+					"note": f"{platform}登录页支持{'/'.join(note_methods)}",
+					"raw_detection": raw,
+				}
+				os.makedirs(_REPORTS_DIR, exist_ok=True)
+				with open(report_path, "w", encoding="utf-8") as f:
+					json.dump(result, f, ensure_ascii=False, indent=2)
+			except Exception as e:
+				return jsonify({"success": False, "error": f"探索异常: {str(e)[:200]}"})
+			finally:
+				page.close(); ctx.close(); browser.close()
+
+		return jsonify({
+			"success": True, "platform": platform, "message": "登录能力已重新探索",
+			"login_methods": [m["method"] for m in methods if m.get("detected")],
+		})
+	except Exception as e:
+		return jsonify({"success": False, "error": f"Playwright 初始化异常: {str(e)[:200]}"})
 
 
 # ═══════════════════════════════════════════════════
