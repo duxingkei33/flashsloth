@@ -19,6 +19,7 @@
 - [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
 - [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
 - [x] 📊 Real-time account status detection (Playwright cookie verification)
+- [x] 🧩 Unified browser login button — shared edit dialog for all platforms
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
@@ -28,10 +29,10 @@
 - [x] Zhihu — Full Playwright rewrite (password/QR/Cookie)
 - [x] OSHWHub (JLCPCB Open Source) — Playwright publish + sign-in
 - [x] Juejin — Cookie-based publish (password/QR/Cookie)
-- [x] Bilibili Articles — Playwright publish (password/QR/Cookie)
+- [x] Bilibili Articles — Playwright publish + draft save + image upload (password/QR/Cookie)
 - [x] Twitter/X — tweepy API v2 OAuth1.0a
-- [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category
-- [x] Xianyu Product Listing (Reserved)
+- [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category + SDK
+- [x] Gallery Product Listing (Reserved)
 - [x] RSS Feed — Pure Python generation
 - [x] GitHub Pages — git push deployment
 
@@ -44,12 +45,13 @@
 ### 🔍 Platform Exploration
 - [x] Discuz forum auto-exploration (Playwright)
 - [x] Hourly incremental polling
-- [x] Anti-detection rate limiting (1 per domain per hour, dual-cache persistence)
+- [x] Anti-detection rate limiting (1/domain/hour, dual-cache memory+DB for cross-process)
 - [x] Forum section keyword matching
 - [x] Exploration data management page
+- [x] Platform publish capability display + tag section management
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
-- [x] OSHWHub sign-in (with auto re-login on cookie expiry)
+- [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
 - [x] CSDN sign-in
 - [x] amobbs / Discuz! sign-in
 - [x] Sign-in statistics (success/failure breakdown)
@@ -58,13 +60,23 @@
 ### 🛒 Xianyu Integration
 - [x] Product search (keyword/price range/sort/pagination)
 - [x] Price monitoring & comparison (LCSC components)
-- [x] MTOP Signature V2 publisher
+- [x] MTOP Signature V2 publisher + AI category recognition
 - [x] xianyu_client SDK (mtop/sign/session/media/category/limiter/guard)
 
 ### 🧠 Smart Matching
 - [x] AI section matching (multi-platform support)
 - [x] Keyword library sync
 - [x] AI provider dynamic management (21+ providers, balance query, test connection)
+
+### 📋 Approval Workflow
+- [x] Create/approve/reject/cancel approval requests
+- [x] Webhook endpoint (text commands like "approve 123")
+- [x] Gateway notifications + approval history
+
+### 📚 Unified Pipeline
+- [x] 3-module shared workflow engine (Collect→Compile→Preview→Draft→Publish)
+- [x] Visual pipeline flow chart
+- [x] Run history list
 
 ---
 
@@ -81,6 +93,7 @@
 │                    Gateway API Layer (routes/)                     │
 │  routes/accounts.py · gateway.py · ai.py · signin.py              │
 │  exploration.py · posts.py · api_v2.py · browser_login.py         │
+│  approval.py · notifications.py · price_monitor.py                │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -88,6 +101,7 @@
 │  publisher · gateway · scheduler · database · credential_crypto    │
 │  anti_detect · explorer · price_monitor · approval · notifier      │
 │  ai_provider · article · deployer · compiler · pipeline            │
+│  pipeline · signin · image_pipeline · captcha_handler              │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -101,6 +115,7 @@
 │                    Public Infrastructure                            │
 │  SQLite (flashsloth.db) · .fs_key encryption key · config/        │
 │  templates/ · static/ · platform_reports/ · scripts/               │
+│  DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -192,6 +207,7 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v4.51 | 2026-07-07 | Bilibili Publisher enhancements (save_as_draft+upload_image) + dev spec + exploration report |
 | v4.50 | 2026-07-07 | Demo diagrams + generic login adapters (CSDN/wechat/zhihu) |
 | v4.49 | 2026-07-07 | Account dialog overhaul — QR login + demo cards + captcha UX |
 | v4.48 | 2026-07-06 | Unified edit dialog — redirect /edit to /accounts, masked value save |

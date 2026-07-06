@@ -19,6 +19,7 @@
 - [x] 🖼️ 登录方式演示说明卡（小程序风格步骤指引）
 - [x] 🔒 凭证加密存储（Fernet AES-128-CBC + HMAC-SHA256）
 - [x] 📊 账号状态实时检测（Playwright验证登录态）
+- [x] 🧩 统一浏览器登录按钮 — 所有平台共用统一编辑弹窗登录流程
 
 ### 📝 多平台发布
 - [x] Discuz! 论坛（amobbs/mydigit 等）— 发帖+存草稿+签到
@@ -28,10 +29,10 @@
 - [x] 知乎 — Playwright 全面重写（密码/QR/Cookie）
 - [x] OSHWHub 立创开源硬件 — Playwright 发布+签到
 - [x] 掘金 — Cookie模拟发布（密码/QR/Cookie）
-- [x] Bilibili 专栏 — Playwright 发布（密码/QR/Cookie）
+- [x] Bilibili 专栏 — Playwright 发布+存草稿+图片上传（密码/QR/Cookie）
 - [x] Twitter/X — tweepy API v2 OAuth1.0a
-- [x] 闲鱼商品发布 — MTOP签名V2 + AI类目推荐
-- [x] 闲鱼商品发布（预留）
+- [x] 闲鱼商品发布 — MTOP签名V2 + AI类目推荐 + xianyu_client SDK
+- [x] Gallery 抽按商品发布（预留）
 - [x] RSS订阅 — 纯Python生成
 - [x] GitHub Pages — git push 部署
 
@@ -44,12 +45,13 @@
 ### 🔍 平台探索
 - [x] Discuz 版块自动探索（Playwright）
 - [x] 每小时增量轮询
-- [x] 防风限流（每域名1次/小时，双缓存持久化）
+- [x] 防风限流（每域名1次/小时，双缓存（内存+DB）持久化跨进程共享）
 - [x] 版块关键词匹配
 - [x] 探索数据管理页面
+- [x] 平台发布能力展示 + 标签栏目管理
 
 ### 👨‍👩‍👧‍👦 自动签到
-- [x] OSHWHub 签到（含Cookie过期自动重登）
+- [x] OSHWHub 签到（含Cookie过期自动重登+asyncio隔离修复）
 - [x] CSDN 签到
 - [x] amobbs / Discuz! 签到
 - [x] 签到统计（成功/失败分解）
@@ -58,13 +60,23 @@
 ### 🛒 闲鱼集成
 - [x] 商品搜索（关键词/价格范围/排序/分页）
 - [x] 价格监控与比价（LCSC 元器件）
-- [x] MTOP签名V2发布器
+- [x] MTOP签名V2发布器 + AI类目识别
 - [x] xianyu_client SDK（mtop/sign/session/media/category/limiter/guard）
 
 ### 🧠 智能匹配
 - [x] AI版块匹配（支持多平台）
 - [x] 关键词库同步
 - [x] AI 供应商动态管理（21+ 供应商，余额查询，测试连接）
+
+### 📋 审批流程
+- [x] 审批请求创建/通过/拒绝/取消
+- [x] Webhook 端点（文本命令如「通过 123」）
+- [x] 网关通知广播 + 审批历史查询
+
+### 📚 统一流水线
+- [x] 三大模块共享工作流引擎（Collect→Compile→Preview→Draft→Publish）
+- [x] 可视化流水线流程图
+- [x] 运行历史列表
 
 ---
 
@@ -81,6 +93,7 @@
 │                   Gateway API 层 (routes/)                        │
 │  routes/accounts.py · gateway.py · ai.py · signin.py             │
 │  exploration.py · posts.py · api_v2.py · browser_login.py        │
+│  approval.py · notifications.py · price_monitor.py               │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -88,6 +101,7 @@
 │  publisher · gateway · scheduler · database · credential_crypto   │
 │  anti_detect · explorer · price_monitor · approval · notifier     │
 │  ai_provider · article · deployer · compiler · pipeline           │
+│  pipeline · signin · image_pipeline · captcha_handler             │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -101,6 +115,7 @@
 │                   公共基础设施层                                    │
 │  SQLite (flashsloth.db) · .fs_key 加密密钥 · config/ · templates/│
 │  static/ · platform_reports/ · scripts/hourly_forum_check.py      │
+│  DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md                   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -192,6 +207,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| v4.51 | 2026-07-07 | B站发布器增强（save_as_draft+upload_image）+ 开发说明书 + 探索报告 |
 | v4.50 | 2026-07-07 | 演示示意图+CSDN/wechat/zhihu等通用登录适配 |
 | v4.49 | 2026-07-07 | 账号弹窗全面升级—QR扫码登录+演示说明卡+验证码交互优化 |
 | v4.48 | 2026-07-06 | 编辑弹窗统一改造—旧edit页面重定向到/accounts，掩码值保存 |
