@@ -3,173 +3,237 @@
   "total_forums": 33,
   "postable_forums": 33,
   "forums": {
-    "37": {
-      "name": "数码值得买",
-      "href": "forum-37-1.html"
-    },
-    "44": {
-      "name": "机顶盒/智能电视",
-      "href": "forum-44-1.html"
+    "2": {
+      "name": "智能手机",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
     "36": {
       "name": "数码交易区",
-      "href": "forum-36-1.html"
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
-    "82": {
-      "name": "积分商城",
-      "href": "forum-82-1.html"
-    },
-    "43": {
-      "name": "数码杂谈",
-      "href": "forum-43-1.html"
-    },
-    "2": {
-      "name": "智能手机",
-      "href": "forum-2-1.html"
+    "37": {
+      "name": "数码值得买",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
     "39": {
       "name": "电脑软硬派",
-      "href": "forum-39-1.html"
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
     "40": {
       "name": "WiFi/路由器",
-      "href": "forum-40-1.html"
-    },
-    "79": {
-      "name": "安防/监控",
-      "href": "forum-79-1.html"
-    },
-    "63": {
-      "name": "U盘存储技术",
-      "href": "forum-63-1.html"
-    },
-    "64": {
-      "name": "SSD存储技术",
-      "href": "forum-64-1.html"
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
     "41": {
       "name": "NAS/网络存储",
-      "href": "forum-41-1.html"
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
-    "51": {
-      "name": "拆机乐园",
-      "href": "forum-51-1.html"
+    "43": {
+      "name": "数码杂谈",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
-    "52": {
-      "name": "行业拆客",
-      "href": "forum-52-1.html"
-    },
-    "88": {
-      "name": "硬件博物馆",
-      "href": "forum-88-1.html"
-    },
-    "56": {
-      "name": "创意DIY",
-      "href": "forum-56-1.html"
-    },
-    "57": {
-      "name": "能工巧匠",
-      "href": "forum-57-1.html"
-    },
-    "48": {
-      "name": "汽车拆客",
-      "href": "forum-48-1.html"
-    },
-    "59": {
-      "name": "电子学堂",
-      "href": "forum-59-1.html"
-    },
-    "61": {
-      "name": "我爱单片机",
-      "href": "forum-61-1.html"
-    },
-    "60": {
-      "name": "维修达人",
-      "href": "forum-60-1.html"
-    },
-    "66": {
-      "name": "电源/充电器",
-      "href": "forum-66-1.html"
-    },
-    "67": {
-      "name": "手电筒/照明",
-      "href": "forum-67-1.html"
-    },
-    "68": {
-      "name": "耳机发烧友",
-      "href": "forum-68-1.html"
-    },
-    "70": {
-      "name": "3D打印/雕刻机",
-      "href": "forum-70-1.html"
-    },
-    "71": {
-      "name": "我是工具控",
-      "href": "forum-71-1.html"
-    },
-    "72": {
-      "name": "仪表谈谈",
-      "href": "forum-72-1.html"
-    },
-    "74": {
-      "name": "骑行天地",
-      "href": "forum-74-1.html"
-    },
-    "76": {
-      "name": "摄友沙龙",
-      "href": "forum-76-1.html"
-    },
-    "80": {
-      "name": "缘聚茶楼",
-      "href": "forum-80-1.html"
-    },
-    "78": {
-      "name": "站务中心",
-      "href": "forum-78-1.html"
-    },
-    "94": {
-      "name": "免费家元充电站",
-      "href": "forum-94-1.html"
+    "44": {
+      "name": "机顶盒/智能电视",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     },
     "45": {
       "name": "数码前沿",
-      "href": "forum-45-1.html"
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "48": {
+      "name": "汽车拆客",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "51": {
+      "name": "拆机乐园",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "52": {
+      "name": "行业拆客",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "56": {
+      "name": "创意DIY",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "57": {
+      "name": "能工巧匠",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "59": {
+      "name": "电子学堂",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "60": {
+      "name": "维修达人",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "61": {
+      "name": "我爱单片机",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "63": {
+      "name": "U盘存储技术",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "64": {
+      "name": "SSD存储技术",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "66": {
+      "name": "电源/充电器",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "67": {
+      "name": "手电筒/照明",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "68": {
+      "name": "耳机发烧友",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "70": {
+      "name": "3D打印/雕刻机",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "71": {
+      "name": "我是工具控",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "72": {
+      "name": "仪表谈谈",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "74": {
+      "name": "骑行天地",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "76": {
+      "name": "摄友沙龙",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "78": {
+      "name": "站务中心",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "79": {
+      "name": "安防/监控",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "80": {
+      "name": "缘聚茶楼",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "82": {
+      "name": "积分商城",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "88": {
+      "name": "硬件博物馆",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "94": {
+      "name": "免费家元充电站",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
     }
   },
-  "postable_fids": [
-    "2",
-    "36",
-    "37",
-    "39",
-    "40",
-    "41",
-    "43",
-    "44",
-    "45",
-    "48",
-    "51",
-    "52",
-    "56",
-    "57",
-    "59",
-    "60",
-    "61",
-    "63",
-    "64",
-    "66",
-    "67",
-    "68",
-    "70",
-    "71",
-    "72",
-    "74",
-    "76",
-    "78",
-    "79",
-    "80",
-    "82",
-    "88",
-    "94"
-  ],
-  "last_explored": "2026-07-06 10:20:24"
+  "last_explored": "2026-07-06 11:14:26"
 }

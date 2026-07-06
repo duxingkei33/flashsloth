@@ -28,23 +28,30 @@ def _load_forum_json(filename: str) -> dict:
             return json.load(f)
     return {}
 
-# 加载 amobbs
-_amobbs = _load_forum_json("amobbs_forums.json")
-if _amobbs.get("forums"):
-    FORUM_DATA["amobbs.com"] = {}
-    for fid, info in _amobbs["forums"].items():
-        if info.get("can_post"):
-            name = info["name"]
-            FORUM_DATA["amobbs.com"][fid] = {"name": name}
+def _load_forum_domain(domain: str, json_filename: str) -> None:
+    """Load forum data for a domain, with keyword preservation."""
+    data = _load_forum_json(json_filename)
+    if data.get("forums"):
+        FORUM_DATA[domain] = {}
+        for fid, info in data["forums"].items():
+            if info.get("can_post"):
+                entry = {"name": info["name"]}
+                # Preserve pre-computed keywords from exploration
+                if info.get("keywords"):
+                    entry["keywords"] = info["keywords"]
+                FORUM_DATA[domain][fid] = entry
+
+# 加载 amobbs (先新文件名，fallback旧文件名)
+for jname in ["amobbs_com_forums.json", "amobbs_forums.json.bak"]:
+    if os.path.exists(os.path.join(_data_dir, jname)):
+        _load_forum_domain("amobbs.com", jname)
+        break
 
 # 加载 mydigit
-_mydigit = _load_forum_json("mydigit_forums.json")
-if _mydigit.get("forums"):
-    FORUM_DATA["mydigit.cn"] = {}
-    for fid, info in _mydigit["forums"].items():
-        if info.get("can_post"):
-            name = info["name"]
-            FORUM_DATA["mydigit.cn"][fid] = {"name": name}
+for jname in ["mydigit_cn_forums.json", "mydigit_forums.json.bak"]:
+    if os.path.exists(os.path.join(_data_dir, jname)):
+        _load_forum_domain("mydigit.cn", jname)
+        break
 
 
 # ============================================================

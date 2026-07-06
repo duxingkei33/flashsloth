@@ -372,6 +372,9 @@ def main():
             time.sleep(30)
         
         domain = account['site_url'].replace('https://', '').replace('http://', '').split('/')[0]
+        # Strip www. for consistent domain naming (DB stores bare domain)
+        if domain.startswith('www.'):
+            domain = domain[4:]
         
         # Load existing data
         existing = get_existing_forum_data(domain)
@@ -402,13 +405,15 @@ def main():
         
         print(f"\n  📊 对比: DB有 {existing_count} 个版块, 实际找到 {new_count} 个")
         
+        platform_changed = False
+        
         if new_count == 0:
             print(f"  ⚠️ 未找到任何版块，可能解析失败，跳过更新")
             continue
         
         if existing_count != new_count:
             print(f"  🔄 版块数量变化! {existing_count} → {new_count}")
-            changes_detected = True
+            platform_changed = True
         else:
             # Check if names changed by computing hash
             old_hash = hashlib.md5(
@@ -420,17 +425,18 @@ def main():
             
             if old_hash != new_hash:
                 print(f"  🔄 版块名称有变化!")
-                changes_detected = True
+                platform_changed = True
             else:
                 print(f"  ✅ 无变化 (hash 匹配)")
         
-        if changes_detected:
+        if platform_changed:
+            changes_detected = True
             print(f"  💾 准备更新数据...")
             
             # Update JSON
             platform_type = 'discuz'
             json_out = {
-                'site_url': account['site_url'],
+                'site_url': f'https://{domain}',
                 'total_forums': new_count,
                 'postable_forums': sum(1 for f in new_forums.values() if f['can_post']),
                 'forums': {fid: {
@@ -446,7 +452,20 @@ def main():
             updated, inserted = update_exploration_db(platform_type, domain, new_forums)
             print(f"  💾 DB: 更新 {updated} 条, 新增 {inserted} 条")
             
-            # Mark changes detected for this session
+            # Clean up orphan sections (in DB but not found by Playwright)
+            new_fids = set(new_forums.keys())
+            existing_fids = set(existing.keys())
+            orphans = existing_fids - new_fids
+            if orphans:
+                conn = get_db()
+                deleted = conn.execute(
+                    "DELETE FROM forum_exploration WHERE platform_domain=? AND section_id IN ({})".format(
+                        ','.join(['?'] * len(orphans))),
+                    [domain] + list(orphans)
+                ).rowcount
+                conn.commit()
+                conn.close()
+                print(f"  🧹 清理 {deleted} 个失效版块 (已从DB移除)")
         else:
             print(f"  ⏭️ 无变化，跳过数据库更新")
     

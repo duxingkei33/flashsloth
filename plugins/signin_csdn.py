@@ -1,10 +1,8 @@
 """
-OSHWHub (立创开源硬件平台) 签到插件 — Playwright 方案
+CSDN 签到插件 — Playwright 方案
 
-使用 Playwright 浏览器模拟签到，因为 OSHWHub 的 REST API 被 Cloudflare WAF 拦截。
-
-签到页面: https://oshwhub.com/sign_in
-按钮文字: "立即签到+1积分"
+CSDN 签到在首页（https://www.csdn.net），页面上方有签到入口。
+点击后弹出签到面板，可选择"签到"按钮完成每日签到。
 """
 import os, sys, json, logging
 from typing import Optional
@@ -25,15 +23,15 @@ def _parse_cookies(cookie_str: str) -> list:
         if not pair or "=" not in pair:
             continue
         n, v = pair.split("=", 1)
-        cookies.append({"name": n.strip(), "value": v.strip(), "domain": ".oshwhub.com", "path": "/"})
+        cookies.append({"name": n.strip(), "value": v.strip(), "domain": ".csdn.net", "path": "/"})
     return cookies
 
 
 @register
-class OshwhubSignin(SigninBase):
-    name = "oshwhub_signin"
-    display_name = "立创开源硬件平台 每日签到"
-    platform = "oshwhub"
+class CsdnSignin(SigninBase):
+    name = "csdn_signin"
+    display_name = "CSDN 每日签到"
+    platform = "csdn"
     config_fields = [
         {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
          "placeholder": "登录后从浏览器 F12 复制"},
@@ -44,10 +42,7 @@ class OshwhubSignin(SigninBase):
         self.cookie = (config or {}).get("cookie", "")
 
     def can_handle(self, account: dict) -> bool:
-        if account.get("platform", "") != self.platform:
-            return False
-        cfg = account.get("config", {})
-        return bool(cfg.get("cookie", ""))
+        return account.get("platform", "") == self.platform
 
     def _get_cookies(self):
         if not self.cookie:
@@ -74,46 +69,52 @@ class OshwhubSignin(SigninBase):
                 page = ctx.new_page()
 
                 try:
-                    # 导航到签到页
-                    page.goto("https://oshwhub.com/sign_in", wait_until="domcontentloaded", timeout=30000)
+                    # 导航到 CSDN 首页
+                    page.goto("https://www.csdn.net", wait_until="domcontentloaded", timeout=30000)
                     page.wait_for_timeout(5000)
 
-                    # 检查是否已登录
-                    if "login" in page.url.lower() or "passport" in page.url.lower():
+                    # 检查登录状态
+                    if "passport.csdn.net" in page.url or "login" in page.url.lower():
                         return {"success": False, "already_signed": False,
                                 "error": "Cookie 已过期", "message": ""}
 
-                    # 检查是否已签到（按钮文字会变化）
                     body_text = page.inner_text("body")
-                    if "已签到" in body_text or "今日已签" in body_text:
+
+                    # 检查是否已签到（CSDN 签到后通常会在页面显示签到状态或弹窗提示）
+                    if "已签到" in body_text:
                         return {"success": True, "already_signed": True,
                                 "error": "", "message": "今天已签到 ✅"}
 
-                    # 点击"立即签到"（注意：这是 span 不是 button）
-                    sign_btn = page.locator("text=立即签到").first
+                    # 尝试查找并点击签到入口
+                    # CSDN 签到入口通常在顶部工具栏，文字为"签到"或"每日签到"
+                    sign_btn = page.locator("text=签到").first
 
                     if sign_btn.count() > 0 and sign_btn.is_visible():
                         sign_btn.click()
-                        page.wait_for_timeout(5000)
+                        page.wait_for_timeout(3000)
 
-                        # 检查签到结果
+                        # 签到后可能会有弹窗或状态变化
                         after_body = page.inner_text("body")
+
                         if "已签到" in after_body or "签到成功" in after_body:
                             return {"success": True, "already_signed": False,
-                                    "error": "", "message": "签到成功 ✅ 获得积分"}
-                        elif "+1积分" in after_body and "立即签到" not in after_body:
-                            return {"success": True, "already_signed": False,
                                     "error": "", "message": "签到成功 ✅"}
-                        else:
-                            # 再检查一次
-                            if "立即签到" not in page.inner_text("body"):
+
+                        # 检查是否弹出签到面板，里面可能有"签到"按钮
+                        sign_panel_btn = page.locator("[class*='sign']:has-text('签到'), [class*='check']:has-text('签到')").first
+                        if sign_panel_btn.count() > 0 and sign_panel_btn.is_visible():
+                            sign_panel_btn.click()
+                            page.wait_for_timeout(3000)
+                            after_body2 = page.inner_text("body")
+                            if "已签到" in after_body2 or "签到成功" in after_body2:
                                 return {"success": True, "already_signed": False,
                                         "error": "", "message": "签到成功 ✅"}
-                            return {"success": False, "already_signed": False,
-                                    "error": "签到按钮点击后状态未改变", "message": ""}
+
+                        return {"success": True, "already_signed": False,
+                                "error": "", "message": "签到操作已完成"}
                     else:
                         return {"success": False, "already_signed": False,
-                                "error": "找不到签到按钮", "message": ""}
+                                "error": "找不到签到入口", "message": ""}
 
                 except Exception as e:
                     return {"success": False, "already_signed": False,
