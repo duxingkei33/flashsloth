@@ -416,7 +416,11 @@ def main():
         if result['banned']:
             print(f"  🚫 平台被封杀，跳过")
             continue
-        
+
+        # ✅ 探索成功（未出错且未被封），记录限流时间到DB
+        from core.explorer import mark_explored
+        mark_explored(domain)
+
         # Compare with existing data
         new_forums = result['forums']
         existing_count = len(existing)
