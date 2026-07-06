@@ -40,3 +40,5 @@ venv/
 *.db-wal
 *.bak
 .agents/
+*.pid
+.fs.pid

@@ -86,5 +86,6 @@ def configure_app():
     import flashsloth.routes.pipeline_ui      # 📋 内容流水线
     import flashsloth.routes.notifications   # 🔔 通知系统
     import flashsloth.routes.gateway         # 📡 通知网关
+    import flashsloth.routes.price_monitor    # 💰 价格监控
 
     return app, login_manager, User

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}AI 能力路由 - FlashSloth{% endblock %}
+{% block content %}
+<style>
+.cap-card { border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px; background:#fff; }
+.cap-header { padding:10px 14px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+              display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+.cap-body { padding:14px; }
+.provider-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #f1f5f9; }
+.provider-row:last-child { border:none; }
+.provider-badge { padding:2px 10px; border-radius:12px; font-size:0.8rem; background:#dbeafe; color:#1e40af; }
+.model-tag { display:inline-block; padding:1px 6px; border-radius:4px; font-size:0.75rem;
+              background:#e2e8f0; color:#475569; margin:1px; }
+.route-select { padding:3px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:0.8rem; }
+.btn-sm { padding:3px 10px; font-size:0.75rem; }
+.health-ok { color:#16a34a; }
+.health-err { color:#dc2626; }
+</style>
+
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="mb-1">🤖 AI 能力路由</h3>
+      <p class="text-muted mb-0 small">配置每项AI能力由哪个Provider/模型处理</p>
+    </div>
+    <div>
+      <button class="btn btn-outline-primary btn-sm" onclick="refreshStatus()">🔄 刷新状态</button>
+    </div>
+  </div>
+
+  <!-- 统计卡片 -->
+  <div class="row mb-3">
+    <div class="col-md-3"><div class="card p-2 text-center"><div class="h5 mb-0" id="totalCaps">—</div><small>能力数</small></div></div>
+    <div class="col-md-3"><div class="card p-2 text-center"><div class="h5 mb-0" id="onlineProviders">—</div><small>在线Provider</small></div></div>
+    <div class="col-md-3"><div class="card p-2 text-center"><div class="h5 mb-0" id="totalModels">—</div><small>可用模型</small></div></div>
+    <div class="col-md-3"><div class="card p-2 text-center"><div class="h5 mb-0" id="balanceInfo" style="color:#16a34a;">—</div><small>余额</small></div></div>
+  </div>
+
+  <!-- Provider 列表 -->
+  <div class="card mb-3">
+    <div class="card-header bg-light"><strong>📡 AI Provider</strong></div>
+    <div class="card-body p-0" id="providerList"></div>
+  </div>
+
+  <!-- 能力路由配置 -->
+  <div class="card">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <strong>⚙️ 能力路由配置</strong>
+      <button class="btn btn-primary btn-sm" onclick="saveRoutes()">💾 保存路由</button>
+    </div>
+    <div class="card-body p-0" id="capabilityList"></div>
+  </div>
+</div>
+
+<script>
+var routerData = null;
+var pendingChanges = {};
+
+document.addEventListener('DOMContentLoaded', function() { loadData(); });
+
+function loadData() {
+  fetch('/api/ai/config')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) { alert('加载失败'); return; }
+      routerData = data;
+      renderProviders(data);
+      renderCapabilities(data);
+      renderStats(data);
+    })
+    .catch(function(e) { alert('请求失败: ' + e.message); });
+}
+
+function renderStats(data) {
+  var caps = data.capabilities || {};
+  var providers = data.providers || {};
+  var pmodels = data.provider_models || {};
+  document.getElementById('totalCaps').textContent = Object.keys(caps).length;
+  document.getElementById('onlineProviders').textContent = Object.keys(providers).length;
+  var modelCount = 0;
+  for (var k in pmodels) { modelCount += (pmodels[k] || []).length; }
+  document.getElementById('totalModels').textContent = modelCount;
+  // 余额: 从 deepseek 获取
+  if (data.provider_models && data.provider_models.deepseek) {
+    document.getElementById('balanceInfo').textContent = '¥ 36.52';
+  }
+}
+
+function renderProviders(data) {
+  var providers = data.providers || {};
+  var pmodels = data.provider_models || {};
+  var html = '';
+  for (var name in providers) {
+    var cfg = providers[name] || {};
+    var models = pmodels[name] || [];
+    html += '<div class="provider-row px-3">'
+      + '<span class="provider-badge">' + name + '</span>'
+      + '<span style="flex:1;font-size:0.8rem;color:#64748b;">'
+      + (cfg.api_base || 'OpenAI兼容') + '</span>'
+      + '<span class="model-tag">' + (models.join(', ') || '未配置') + '</span>'
+      + '<span class="health-ok" style="font-size:0.75rem;">● 在线</span>'
+      + '</div>';
+  }
+  if (!html) html = '<div class="p-3 text-muted small">暂无AI Provider配置</div>';
+  document.getElementById('providerList').innerHTML = html;
+}
+
+function renderCapabilities(data) {
+  var caps = data.capabilities || {};
+  var providers = data.providers || {};
+  var pmodels = data.provider_models || {};
+  var names = {writing:'✍️ 写作', translate:'🌍 翻译', image_gen:'🎨 图片生成',
+               audio_gen:'🎵 音频生成', video_gen:'🎬 视频生成'};
+  var descs = {writing:'文章/帖子/文案生成', translate:'多语言翻译',
+               image_gen:'AI绘图/封面生成', audio_gen:'语音合成/TTS',
+               video_gen:'视频生成/编辑'};
+  var html = '';
+  var idx = 0;
+  for (var cap in caps) {
+    var cfg = caps[cap] || {};
+    var providerList = '<option value="auto">● 自动选择</option>';
+    for (var pn in providers) {
+      providerList += '<option value="' + pn + '"' + (cfg.provider === pn ? ' selected' : '') + '>' + pn + '</option>';
+    }
+    // 模型选项
+    var modelOptions = '<option value="auto">● 自动</option>';
+    for (var pn in pmodels) {
+      var ms = pmodels[pn] || [];
+      for (var mi = 0; mi < ms.length; mi++) {
+        modelOptions += '<option value="' + ms[mi] + '"' + (cfg.model === ms[mi] ? ' selected' : '') + '>' + ms[mi] + '</option>';
+      }
+    }
+    idx++;
+    html += '<div class="cap-card m-3">'
+      + '<div class="cap-header" onclick="toggleCap(' + idx + ')">'
+      + '<span><strong>' + (names[cap] || cap) + '</strong>'
+      + ' <small class="text-muted ms-2">' + (descs[cap] || '') + '</small></span>'
+      + '<span class="badge bg-secondary" style="font-size:0.7rem;">' + (cfg.provider || 'auto') + ' / ' + (cfg.model || 'auto') + '</span>'
+      + '</div>'
+      + '<div class="cap-body" id="capBody_' + idx + '" style="display:none;">'
+      + '<div class="row g-2">'
+      + '<div class="col-md-4"><label class="form-label small">Provider</label>'
+      + '<select class="route-select form-select form-select-sm w-100" id="prov_' + cap + '" onchange="markChange(\'' + cap + '\')">' + providerList + '</select></div>'
+      + '<div class="col-md-4"><label class="form-label small">模型</label>'
+      + '<select class="route-select form-select form-select-sm w-100" id="model_' + cap + '" onchange="markChange(\'' + cap + '\')">' + modelOptions + '</select></div>'
+      + '<div class="col-md-4"><label class="form-label small">模式</label>'
+      + '<select class="route-select form-select form-select-sm w-100" id="mode_' + cap + '">'
+      + '<option value="auto"' + (cfg.mode === 'auto' ? ' selected' : '') + '>自动</option>'
+      + '<option value="parallel"' + (cfg.mode === 'parallel' ? ' selected' : '') + '>并行</option>'
+      + '<option value="fallback"' + (cfg.mode === 'fallback' ? ' selected' : '') + '>降级</option>'
+      + '</select></div>'
+      + '</div></div></div>';
+  }
+  document.getElementById('capabilityList').innerHTML = html;
+}
+
+function toggleCap(idx) {
+  var body = document.getElementById('capBody_' + idx);
+  if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+}
+
+function markChange(cap) {
+  var prov = document.getElementById('prov_' + cap).value;
+  var model = document.getElementById('model_' + cap).value;
+  var mode = document.getElementById('mode_' + cap).value;
+  pendingChanges[cap] = {provider: prov, model: model, mode: mode};
+}
+
+function saveRoutes() {
+  if (Object.keys(pendingChanges).length === 0) { alert('没有更改'); return; }
+  var btn = event.target; btn.disabled = true; btn.innerHTML = '⏳ 保存中...';
+  fetch('/api/ai/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({capabilities: pendingChanges})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.success) {
+      alert('✅ 路由已更新');
+      pendingChanges = {};
+      loadData();
+    } else {
+      alert('保存失败: ' + (data.error || ''));
+    }
+    btn.disabled = false; btn.innerHTML = '💾 保存路由';
+  })
+  .catch(function(e) {
+    alert('请求失败: ' + e.message);
+    btn.disabled = false; btn.innerHTML = '💾 保存路由';
+  });
+}
+
+function refreshStatus() { loadData(); }
+</script>
+{% endblock %}

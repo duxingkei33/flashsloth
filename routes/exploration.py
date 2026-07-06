@@ -134,6 +134,7 @@ def exploration_page():
 @app.route("/api/exploration/capabilities/<domain>", methods=["POST"])
 @login_required
 def api_update_capabilities(domain):
+    domain = _normalize_domain(domain)
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "无数据"})
@@ -164,6 +165,7 @@ def api_update_capabilities(domain):
 @app.route("/api/exploration/tags/<domain>", methods=["POST"])
 @login_required
 def api_update_tags(domain):
+    domain = _normalize_domain(domain)
     data = request.get_json()
     tags = data.get("tags", []) if data else []
     if not isinstance(tags, list):
@@ -198,6 +200,7 @@ def api_reseed_exploration():
 @app.route("/api/exploration/sections/<domain>")
 @login_required
 def api_exploration_sections(domain):
+    domain = _normalize_domain(domain)
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     per_page = min(per_page, 100)
@@ -267,6 +270,7 @@ def api_update_exploration(fid):
 @app.route("/api/exploration/sync/<domain>", methods=["POST"])
 @login_required
 def api_sync_exploration(domain):
+    domain = _normalize_domain(domain)
     conn = get_db()
     rows = conn.execute(
         "SELECT * FROM forum_exploration WHERE platform_domain=? AND can_post=1",
@@ -286,21 +290,98 @@ def api_sync_exploration(domain):
     return jsonify({"success": True, "domain": domain, "sections": sections, "count": len(sections)})
 
 
-# ─── API: 自定义探索 ──────────────────────────────
+# ─── API: 自定义探索（真Playwright）──────────────
 @app.route("/api/exploration/custom", methods=["POST"])
 @login_required
 def api_custom_explore():
     data = request.get_json() or {}
     domain = data.get("domain", "").strip()
-    platform = data.get("platform", "discuz")
+    platform = data.get("platform", "auto")
     if not domain:
         return jsonify({"success": False, "error": "请输入网站域名"})
     conn = get_db()
     existing = conn.execute("SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?", (domain,)).fetchone()[0]
-    conn.close()
     if existing > 0:
-        return jsonify({"success": False, "error": f"'{domain}' 已有 {existing} 条探索数据"})
-    return jsonify({"success": True, "message": f"自定义探索 '{domain}' 已提交到后台队列"})
+        conn.close()
+        return jsonify({"success": False, "error": f"'{domain}' 已有 {existing} 条探索数据，如需重新探索请先删除"})
+
+    # 从 platform_accounts 找账号配置
+    acct = conn.execute(
+        "SELECT config_json FROM platform_accounts WHERE is_active=1 AND user_id=? ORDER BY id LIMIT 1",
+        (current_user.id,)
+    ).fetchone()
+    conn.close()
+
+    # 启动 Playwright 探索（后台进程）
+    import subprocess, sys as _sys
+    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "pw_explore.py")
+    os.makedirs(os.path.dirname(script_path), exist_ok=True)
+
+    # 写探索脚本
+    script_content = f'''# -*- coding: utf-8 -*-
+"""PW explore: {domain}"""
+import sys, os, json, time
+sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
+from core.explorer import save_exploration_results, explore_discuz_forums, _detect_platform_type
+from flashsloth.core.database import get_db
+from playwright.sync_api import sync_playwright
+
+SITE = "https://{domain}"
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True, args=["--no-sandbox","--disable-blink-features=AutomationControlled"])
+    ctx = browser.new_context(
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        viewport={{"width":1920,"height":1080}}, locale="zh-CN")
+    ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{{get:()=>undefined}})")
+    page = ctx.new_page()
+    page.goto(SITE, wait_until="domcontentloaded", timeout=30000)
+    time.sleep(3)
+    ptype = _detect_platform_type(page)
+    print(f"平台类型: {{ptype}}")
+    sections = []
+    if ptype == "discuz":
+        sections = explore_discuz_forums(page, SITE, "{domain}")
+    conn = get_db()
+    save_exploration_results(conn, "{platform}" if "{platform}" != "auto" else ptype, "{domain}", sections)
+    conn.close()
+    browser.close()
+    print(f"完成: {{len(sections)}} sections")
+'''
+    with open(script_path, "w") as f:
+        f.write(script_content)
+
+    try:
+        result = subprocess.run(
+            [_sys.executable, script_path],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, "PYTHONPATH": os.path.dirname(os.path.dirname(__file__))}
+        )
+        # 清理临时脚本
+        try: os.unlink(script_path)
+        except: pass
+
+        if result.returncode != 0:
+            return jsonify({"success": False, "error": f"探索失败: {result.stderr[-500:]}"})
+
+        # 重新查询结果
+        conn = get_db()
+        new_count = conn.execute("SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?", (domain,)).fetchone()[0]
+        conn.close()
+        return jsonify({
+            "success": True,
+            "message": f"探索完成: 发现 {new_count} 个版块",
+            "domain": domain,
+            "sections_count": new_count,
+            "log": result.stdout[-500:],
+        })
+    except subprocess.TimeoutExpired:
+        try: os.unlink(script_path)
+        except: pass
+        return jsonify({"success": False, "error": "探索超时（>120秒），请重试或检查域名是否正确"})
+    except Exception as e:
+        try: os.unlink(script_path)
+        except: pass
+        return jsonify({"success": False, "error": f"探索异常: {e}"})
 
 
 # ─── API: 探索状态自动检测 ──────────────────────
@@ -361,6 +442,7 @@ def api_discover_from_accounts():
 @login_required
 def api_auto_explore(domain):
     """对指定域名尝试自动探索：先查 config 预设 JSON，再尝试 Playwright 探索"""
+    domain = _normalize_domain(domain)
     conn = get_db()
 
     # 查这个域名的来源账号

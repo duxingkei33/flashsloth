@@ -48,3 +48,27 @@ def from_json_filter(val):
         return json.loads(val)
     except Exception:
         return []
+
+
+# ─── 全局模板上下文 ───
+@app.context_processor
+def inject_global_context():
+    """注入所有模板通用的变量"""
+    import json
+    ctx = {}
+    try:
+        from flask_login import current_user
+        if current_user.is_authenticated:
+            from flashsloth.core.database import get_db
+            conn = get_db()
+            row = conn.execute(
+                "SELECT COUNT(*) as c FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%'",
+                (current_user.id,)
+            ).fetchone()
+            ctx["has_xianyu"] = (row and row["c"] > 0) if row else False
+            conn.close()
+        else:
+            ctx["has_xianyu"] = False
+    except Exception:
+        ctx["has_xianyu"] = False
+    return ctx
