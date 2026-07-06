@@ -1,0 +1,580 @@
+{
+  "site_url": "https://amobbs.com",
+  "total_forums": 95,
+  "postable_forums": 95,
+  "forums": {
+    "9986": {
+      "name": "VIP++汇总",
+      "href": "forum-9986-1.html",
+      "can_post": true
+    },
+    "10031": {
+      "name": "VIP++纯技术",
+      "href": "forum-10031-1.html",
+      "can_post": true
+    },
+    "10003": {
+      "name": "VIP汇总",
+      "href": "forum-10003-1.html",
+      "can_post": true
+    },
+    "10023": {
+      "name": "精华",
+      "href": "https://www.amobbs.com/forum.php?mod=forumdisplay&fid=10023&filter=digest&digest=1",
+      "can_post": true
+    },
+    "10024": {
+      "name": "悬赏",
+      "href": "https://www.amobbs.com/forum.php?mod=forumdisplay&fid=10024&specialtype=reward&specialtype=reward&filter=specialtype&rewardtype=1&page=1",
+      "can_post": true
+    },
+    "9998": {
+      "name": "论坛建设",
+      "href": "https://www.amobbs.com/forum-9998-1.html",
+      "can_post": true
+    },
+    "9942": {
+      "name": "深圳嘉立创",
+      "href": "https://www.amobbs.com/forum-9942-1.html",
+      "can_post": true
+    },
+    "10025": {
+      "name": "嘉立创EDA",
+      "href": "https://www.amobbs.com/forum-10025-1.html",
+      "can_post": true
+    },
+    "9966": {
+      "name": "在芯间商城",
+      "href": "https://www.amobbs.com/forum-9966-1.html",
+      "can_post": true
+    },
+    "10059": {
+      "name": "YesWatt 艺瓦特电源",
+      "href": "https://www.amobbs.com/forum-10059-1.html",
+      "can_post": true
+    },
+    "10061": {
+      "name": "AI编程",
+      "href": "https://www.amobbs.com/forum-10061-1.html",
+      "can_post": true
+    },
+    "10062": {
+      "name": "AI行业信息",
+      "href": "https://www.amobbs.com/forum-10062-1.html",
+      "can_post": true
+    },
+    "1024": {
+      "name": "机器人",
+      "href": "https://www.amobbs.com/forum-1024-1.html",
+      "can_post": true
+    },
+    "2060": {
+      "name": "电子综合",
+      "href": "https://www.amobbs.com/forum-2060-1.html",
+      "can_post": true
+    },
+    "1031": {
+      "name": "电脑综合",
+      "href": "https://www.amobbs.com/forum-1031-1.html",
+      "can_post": true
+    },
+    "10004": {
+      "name": "手机综合",
+      "href": "https://www.amobbs.com/forum-10004-1.html",
+      "can_post": true
+    },
+    "10017": {
+      "name": "家电维修",
+      "href": "https://www.amobbs.com/forum-10017-1.html",
+      "can_post": true
+    },
+    "3045": {
+      "name": "通信、网络",
+      "href": "https://www.amobbs.com/forum-3045-1.html",
+      "can_post": true
+    },
+    "10052": {
+      "name": "智能家居",
+      "href": "https://www.amobbs.com/forum-10052-1.html",
+      "can_post": true
+    },
+    "3081": {
+      "name": "HiFi与乐器",
+      "href": "https://www.amobbs.com/forum-3081-1.html",
+      "can_post": true
+    },
+    "3042": {
+      "name": "电子产品",
+      "href": "https://www.amobbs.com/forum-3042-1.html",
+      "can_post": true
+    },
+    "3054": {
+      "name": "仪表仪器",
+      "href": "https://www.amobbs.com/forum-3054-1.html",
+      "can_post": true
+    },
+    "1009": {
+      "name": "PCB",
+      "href": "https://www.amobbs.com/forum-1009-1.html",
+      "can_post": true
+    },
+    "10042": {
+      "name": "电源/电力/电池/光伏",
+      "href": "https://www.amobbs.com/forum-10042-1.html",
+      "can_post": true
+    },
+    "1037": {
+      "name": "电路仿真",
+      "href": "https://www.amobbs.com/forum-1037-1.html",
+      "can_post": true
+    },
+    "1010": {
+      "name": "机械综合",
+      "href": "https://www.amobbs.com/forum-1010-1.html",
+      "can_post": true
+    },
+    "10045": {
+      "name": "家居装修",
+      "href": "https://www.amobbs.com/forum-10045-1.html",
+      "can_post": true
+    },
+    "10038": {
+      "name": "汽车",
+      "href": "https://www.amobbs.com/forum-10038-1.html",
+      "can_post": true
+    },
+    "9999": {
+      "name": "电动自行车",
+      "href": "https://www.amobbs.com/forum-9999-1.html",
+      "can_post": true
+    },
+    "10028": {
+      "name": "3D打印",
+      "href": "https://www.amobbs.com/forum-10028-1.html",
+      "can_post": true
+    },
+    "10033": {
+      "name": "电机马达",
+      "href": "https://www.amobbs.com/forum-10033-1.html",
+      "can_post": true
+    },
+    "1025": {
+      "name": "飞行器",
+      "href": "https://www.amobbs.com/forum-1025-1.html",
+      "can_post": true
+    },
+    "9981": {
+      "name": "童趣DIY",
+      "href": "https://www.amobbs.com/forum-9981-1.html",
+      "can_post": true
+    },
+    "9976": {
+      "name": "乐高编程",
+      "href": "https://www.amobbs.com/forum-9976-1.html",
+      "can_post": true
+    },
+    "1027": {
+      "name": "雕刻机",
+      "href": "https://www.amobbs.com/forum-1027-1.html",
+      "can_post": true
+    },
+    "3021": {
+      "name": "PLC工控",
+      "href": "https://www.amobbs.com/forum-3021-1.html",
+      "can_post": true
+    },
+    "3032": {
+      "name": "智能小车",
+      "href": "https://www.amobbs.com/forum-3032-1.html",
+      "can_post": true
+    },
+    "3049": {
+      "name": "磁悬浮",
+      "href": "https://www.amobbs.com/forum-3049-1.html",
+      "can_post": true
+    },
+    "9960": {
+      "name": "VR虚拟现实",
+      "href": "https://www.amobbs.com/forum-9960-1.html",
+      "can_post": true
+    },
+    "10057": {
+      "name": "生态鱼缸",
+      "href": "https://www.amobbs.com/forum-10057-1.html",
+      "can_post": true
+    },
+    "9971": {
+      "name": "臭氧洗菜机",
+      "href": "https://www.amobbs.com/forum-9971-1.html",
+      "can_post": true
+    },
+    "3020": {
+      "name": "STM32/8",
+      "href": "https://www.amobbs.com/forum-3020-1.html",
+      "can_post": true
+    },
+    "1000": {
+      "name": "AVR",
+      "href": "https://www.amobbs.com/forum-1000-1.html",
+      "can_post": true
+    },
+    "1006": {
+      "name": "51单片机",
+      "href": "https://www.amobbs.com/forum-1006-1.html",
+      "can_post": true
+    },
+    "9936": {
+      "name": "飞思卡尔",
+      "href": "https://www.amobbs.com/forum-9936-1.html",
+      "can_post": true
+    },
+    "1028": {
+      "name": "PIC",
+      "href": "https://www.amobbs.com/forum-1028-1.html",
+      "can_post": true
+    },
+    "3013": {
+      "name": "瑞萨",
+      "href": "https://www.amobbs.com/forum-3013-1.html",
+      "can_post": true
+    },
+    "1032": {
+      "name": "ARM",
+      "href": "https://www.amobbs.com/forum-1032-1.html",
+      "can_post": true
+    },
+    "1002": {
+      "name": "DSP",
+      "href": "https://www.amobbs.com/forum-1002-1.html",
+      "can_post": true
+    },
+    "1029": {
+      "name": "FPGA",
+      "href": "https://www.amobbs.com/forum-1029-1.html",
+      "can_post": true
+    },
+    "3064": {
+      "name": "MSP430",
+      "href": "https://www.amobbs.com/forum-3064-1.html",
+      "can_post": true
+    },
+    "3030": {
+      "name": "PSoC",
+      "href": "https://www.amobbs.com/forum-3030-1.html",
+      "can_post": true
+    },
+    "3011": {
+      "name": "CortexM3",
+      "href": "https://www.amobbs.com/forum-3011-1.html",
+      "can_post": true
+    },
+    "9897": {
+      "name": "LGT",
+      "href": "https://www.amobbs.com/forum-9897-1.html",
+      "can_post": true
+    },
+    "9923": {
+      "name": "海尔单片机",
+      "href": "https://www.amobbs.com/forum-9923-1.html",
+      "can_post": true
+    },
+    "2070": {
+      "name": "其它MCU",
+      "href": "https://www.amobbs.com/forum-2070-1.html",
+      "can_post": true
+    },
+    "10039": {
+      "name": "手机操作系统",
+      "href": "https://www.amobbs.com/forum-10039-1.html",
+      "can_post": true
+    },
+    "1004": {
+      "name": "Windows",
+      "href": "https://www.amobbs.com/forum-1004-1.html",
+      "can_post": true
+    },
+    "3046": {
+      "name": "Linux",
+      "href": "https://www.amobbs.com/forum-3046-1.html",
+      "can_post": true
+    },
+    "9961": {
+      "name": "树莓派",
+      "href": "https://www.amobbs.com/forum-9961-1.html",
+      "can_post": true
+    },
+    "3004": {
+      "name": "嵌入式OS",
+      "href": "https://www.amobbs.com/forum-3004-1.html",
+      "can_post": true
+    },
+    "10058": {
+      "name": "ESP AI智能机器人DIY(开源项目)",
+      "href": "https://www.amobbs.com/forum-10058-1.html",
+      "can_post": true
+    },
+    "10055": {
+      "name": "热成像仪",
+      "href": "https://www.amobbs.com/forum-10055-1.html",
+      "can_post": true
+    },
+    "10011": {
+      "name": "户外220V储能电源",
+      "href": "https://www.amobbs.com/forum-10011-1.html",
+      "can_post": true
+    },
+    "10044": {
+      "name": "CD-PnP开源贴片机",
+      "href": "https://www.amobbs.com/forum-10044-1.html",
+      "can_post": true
+    },
+    "10037": {
+      "name": "Solidworks 3D外壳设计",
+      "href": "https://www.amobbs.com/forum-10037-1.html",
+      "can_post": true
+    },
+    "10035": {
+      "name": "基于树莓派CM4的开源硬件平台",
+      "href": "https://www.amobbs.com/forum-10035-1.html",
+      "can_post": true
+    },
+    "10012": {
+      "name": "EasyFlash/FlashDB",
+      "href": "https://www.amobbs.com/forum-10012-1.html",
+      "can_post": true
+    },
+    "10007": {
+      "name": "多功能示波器",
+      "href": "https://www.amobbs.com/forum-10007-1.html",
+      "can_post": true
+    },
+    "10009": {
+      "name": "脱机下载器",
+      "href": "https://www.amobbs.com/forum-10009-1.html",
+      "can_post": true
+    },
+    "10010": {
+      "name": "墨水屏终端",
+      "href": "https://www.amobbs.com/forum-10010-1.html",
+      "can_post": true
+    },
+    "10013": {
+      "name": "触屏控制器",
+      "href": "https://www.amobbs.com/forum-10013-1.html",
+      "can_post": true
+    },
+    "10014": {
+      "name": "STM32示波器",
+      "href": "https://www.amobbs.com/forum-10014-1.html",
+      "can_post": true
+    },
+    "10015": {
+      "name": "HMI人机界面",
+      "href": "https://www.amobbs.com/forum-10015-1.html",
+      "can_post": true
+    },
+    "10019": {
+      "name": "四通道桌面快充",
+      "href": "https://www.amobbs.com/forum-10019-1.html",
+      "can_post": true
+    },
+    "10020": {
+      "name": "无功补偿控制器",
+      "href": "https://www.amobbs.com/forum-10020-1.html",
+      "can_post": true
+    },
+    "10027": {
+      "name": "云报警器",
+      "href": "https://www.amobbs.com/forum-10027-1.html",
+      "can_post": true
+    },
+    "3071": {
+      "name": "春风电源",
+      "href": "https://www.amobbs.com/forum-3071-1.html",
+      "can_post": true
+    },
+    "1003": {
+      "name": "马潮AVR",
+      "href": "https://www.amobbs.com/forum-1003-1.html",
+      "can_post": true
+    },
+    "3051": {
+      "name": "魏坤示波仪",
+      "href": "https://www.amobbs.com/forum-3051-1.html",
+      "can_post": true
+    },
+    "9890": {
+      "name": "老陈VFD",
+      "href": "https://www.amobbs.com/forum-9890-1.html",
+      "can_post": true
+    },
+    "1026": {
+      "name": "开源充电器",
+      "href": "https://www.amobbs.com/forum-1026-1.html",
+      "can_post": true
+    },
+    "9931": {
+      "name": "开源移动电源",
+      "href": "https://www.amobbs.com/forum-9931-1.html",
+      "can_post": true
+    },
+    "3007": {
+      "name": "开源PLC",
+      "href": "https://www.amobbs.com/forum-3007-1.html",
+      "can_post": true
+    },
+    "3060": {
+      "name": "白沙怀表,液晶",
+      "href": "https://www.amobbs.com/forum-3060-1.html",
+      "can_post": true
+    },
+    "1038": {
+      "name": "傻孩子专栏",
+      "href": "https://www.amobbs.com/forum-1038-1.html",
+      "can_post": true
+    },
+    "3008": {
+      "name": "开源清扫车",
+      "href": "https://www.amobbs.com/forum-3008-1.html",
+      "can_post": true
+    },
+    "3040": {
+      "name": "STM8示波仪",
+      "href": "https://www.amobbs.com/forum-3040-1.html",
+      "can_post": true
+    },
+    "3039": {
+      "name": "蜗牛触摸板",
+      "href": "https://www.amobbs.com/forum-3039-1.html",
+      "can_post": true
+    },
+    "3072": {
+      "name": "GPS导航",
+      "href": "https://www.amobbs.com/forum-3072-1.html",
+      "can_post": true
+    },
+    "3058": {
+      "name": "Mini DVD",
+      "href": "https://www.amobbs.com/forum-3058-1.html",
+      "can_post": true
+    },
+    "9932": {
+      "name": "短信监控",
+      "href": "https://www.amobbs.com/forum-9932-1.html",
+      "can_post": true
+    },
+    "3076": {
+      "name": "RFID门禁",
+      "href": "https://www.amobbs.com/forum-3076-1.html",
+      "can_post": true
+    },
+    "3050": {
+      "name": "RF通信应用",
+      "href": "https://www.amobbs.com/forum-3050-1.html",
+      "can_post": true
+    },
+    "9930": {
+      "name": "胎压检测",
+      "href": "https://www.amobbs.com/forum-9930-1.html",
+      "can_post": true
+    }
+  },
+  "postable_fids": [
+    "1000",
+    "1002",
+    "1003",
+    "1004",
+    "1006",
+    "1009",
+    "1010",
+    "1024",
+    "1025",
+    "1026",
+    "1027",
+    "1028",
+    "1029",
+    "1031",
+    "1032",
+    "1037",
+    "1038",
+    "2060",
+    "2070",
+    "3004",
+    "3007",
+    "3008",
+    "3011",
+    "3013",
+    "3020",
+    "3021",
+    "3030",
+    "3032",
+    "3039",
+    "3040",
+    "3042",
+    "3045",
+    "3046",
+    "3049",
+    "3050",
+    "3051",
+    "3054",
+    "3058",
+    "3060",
+    "3064",
+    "3071",
+    "3072",
+    "3076",
+    "3081",
+    "9890",
+    "9897",
+    "9923",
+    "9930",
+    "9931",
+    "9932",
+    "9936",
+    "9942",
+    "9960",
+    "9961",
+    "9966",
+    "9971",
+    "9976",
+    "9981",
+    "9986",
+    "9998",
+    "9999",
+    "10003",
+    "10004",
+    "10007",
+    "10009",
+    "10010",
+    "10011",
+    "10012",
+    "10013",
+    "10014",
+    "10015",
+    "10017",
+    "10019",
+    "10020",
+    "10023",
+    "10024",
+    "10025",
+    "10027",
+    "10028",
+    "10031",
+    "10033",
+    "10035",
+    "10037",
+    "10038",
+    "10039",
+    "10042",
+    "10044",
+    "10045",
+    "10052",
+    "10055",
+    "10057",
+    "10058",
+    "10059",
+    "10061",
+    "10062"
+  ],
+  "last_explored": "2026-07-06 10:19:49"
+}

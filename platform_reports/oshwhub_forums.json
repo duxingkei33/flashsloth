@@ -1,0 +1,25 @@
+{
+  "domain": "oshwhub.com",
+  "forums": {
+    "article": {
+      "name": "文章",
+      "can_post": true,
+      "keywords": [
+        "文章",
+        "撰写技术文章/教程"
+      ],
+      "endpoint": "/article/create",
+      "desc": "撰写技术文章/教程"
+    },
+    "project": {
+      "name": "工程",
+      "can_post": true,
+      "keywords": [
+        "工程",
+        "创建开源硬件工程"
+      ],
+      "endpoint": "/project/create",
+      "desc": "创建开源硬件工程"
+    }
+  }
+}
