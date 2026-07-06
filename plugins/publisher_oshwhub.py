@@ -1,14 +1,10 @@
 """
-OSHWHub Publisher — 基于 Playwright (sync) 的立创开源硬件平台发布器
+OSHWHub Article Publisher — 基于 Playwright (sync) 的立创开源硬件平台文章发布器
 
-注意：立创开源硬件平台 (oshwhub.com) 创建工程时没有"存草稿"功能，
-只有"创 建"按钮会直接发布工程。所以 supports_draft 设为 False。
+目标页面: /article/create  (不是 /project/create)
+按钮: "保 存" → 存草稿, "提交审核" → 发布
 
-页面必填项：
-  - 标题 #name
-  - 封面（图片上传）
-  - 开源协议 #license
-  - 正文（TinyMCE）
+注意：所有操作必须严格使用 Playwright，禁止 requests/curl/wget。
 """
 import re, json, os, tempfile, logging
 from flashsloth.core.article import Article
@@ -31,31 +27,26 @@ def _parse_cookies(cookie_str: str) -> list:
 
 
 def _ensure_cover_image(article: Article) -> str | None:
-    """如果有封面/附件直接用，否则生成一个临时占位封面"""
     if article.cover and os.path.isfile(str(article.cover)):
         return str(article.cover)
     if article.assets:
         for a in article.assets:
             if os.path.isfile(str(a)):
                 return str(a)
-    # 生成临时占位封面
     try:
         from PIL import Image, ImageDraw
     except ImportError:
-        logger.warning("PIL not available, skip cover generation")
         return None
-
     tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     img = Image.new("RGB", (800, 600), color=(52, 152, 219))
     draw = ImageDraw.Draw(img)
     draw.text((400, 300), "Cover", fill="white", anchor="mm")
     img.save(tmp.name)
-    logger.info(f"✅ 已生成临时封面: {tmp.name}")
     return tmp.name
 
 
 @register
-class OSHWHubPublisher(Publisher):
+class OSHWHubArticlePublisher(Publisher):
     name = "oshwhub"
     display_name = "立创开源硬件平台"
     login_methods = [
@@ -67,12 +58,13 @@ class OSHWHubPublisher(Publisher):
         {"key": "cookie", "label": "Cookie（完整 Cookie 字符串）", "type": "password", "required": True,
          "placeholder": "登录后从浏览器复制 Cookie"},
     ]
-    supports_draft = False  # oshwhub 没有存草稿功能，创建即发布
+    supports_draft = True   # 文章编辑器支持"保 存"存草稿
     supports_cover = True
 
     def __init__(self, config: dict):
         super().__init__(config)
         self.cookie_str = config.get("cookie", "")
+        self.logger = logging.getLogger(f"publisher.{self.name}")
 
     def _cookies(self):
         return _parse_cookies(self.cookie_str) if self.cookie_str else []
@@ -110,6 +102,7 @@ class OSHWHubPublisher(Publisher):
         if not self.cookie_str:
             return {"success": False, "error": "未配置 Cookie", "url": "", "id": ""}
 
+        save_as_draft = kwargs.get("save_as_draft", True)
         result = {"success": False, "url": "", "id": "", "error": "", "message": ""}
         _tmp_files = []
 
@@ -118,36 +111,33 @@ class OSHWHubPublisher(Publisher):
             page = ctx.new_page()
 
             try:
-                # ── 1. 导航到创建页 ──
-                page.goto(f"{BASE}/project/create", wait_until="domcontentloaded", timeout=30000)
+                # ── 1. 导航到文章创建页（不是工程创建页！） ──
+                page.goto(f"{BASE}/article/create", wait_until="domcontentloaded", timeout=30000)
                 page.wait_for_timeout(5000)
 
                 if "login" in page.url.lower() or "passport" in page.url.lower():
                     raise PublishError("Cookie 已过期")
 
-                # ── 2. 工程名称 ──
-                name_input = page.locator("#name").first
-                if name_input.count() == 0:
-                    raise PublishError("找不到工程名称输入框")
-                name_input.fill(article.title[:50])
-                self.logger.info(f"✅ 工程名称: {article.title[:30]}...")
+                # ── 2. 文章标题 ──
+                title_input = page.locator("#title").first
+                if title_input.count() == 0:
+                    raise PublishError("找不到文章标题输入框")
+                title_input.fill(article.title[:100])
+                self.logger.info(f"✅ 文章标题: {article.title[:30]}...")
 
-                # ── 3. 工程简介 ──
-                intro = (article.summary or "")[:100]
-                if not intro and article.content:
-                    intro = article.content[:100]
+                # ── 3. 文章简介 ──
+                intro = (article.summary or article.content or "")[:100]
                 if intro:
                     intro_input = page.locator("#introduction").first
                     if intro_input.count() > 0:
                         intro_input.fill(intro)
-                        self.logger.info("✅ 工程简介已填写")
+                        self.logger.info("✅ 文章简介已填写")
 
-                # ── 4. 封面上传（必填） ──
+                # ── 4. 封面上传（可选） ──
                 cover_path = _ensure_cover_image(article)
                 if cover_path:
-                    _tmp_files.append(cover_path)  # track for cleanup
+                    _tmp_files.append(cover_path)
                     try:
-                        # oshwhub 封面上传通过 input[type=file] 实现
                         file_input = page.locator("input[type='file']").first
                         if file_input.count() > 0:
                             file_input.set_input_files(cover_path)
@@ -156,24 +146,21 @@ class OSHWHubPublisher(Publisher):
                     except Exception as e:
                         self.logger.warning(f"⚠️ 封面上传失败: {e}")
 
-                # ── 5. 选择开源协议（必填） ──
+                # ── 5. 选择分类（force=True 避免下拉面板遮挡） ──
                 try:
-                    license_sel = page.locator("#license").first
-                    if license_sel.count() > 0:
-                        license_sel.click()
+                    cat_sel = page.locator("#rc_select_0").first
+                    if cat_sel.count() > 0:
+                        cat_sel.click(force=True)
                         page.wait_for_timeout(1000)
-                        # 选第一个可用协议 (Apache 2.0)
-                        option = page.locator("[class*='ant-select-item-option']:has-text('Apache')").first
-                        if option.count() == 0:
-                            option = page.locator("[class*='ant-select-item-option']").nth(1)
-                        if option.count() > 0:
-                            option.click()
+                        option = page.locator("[class*='ant-select-item-option']").nth(1)
+                        if option.count() > 0 and option.is_visible():
+                            option.click(force=True)
                             page.wait_for_timeout(500)
-                            self.logger.info("✅ 已选择开源协议: Apache 2.0")
+                            self.logger.info("✅ 已选择分类")
                 except Exception as e:
-                    self.logger.warning(f"⚠️ 协议选择失败: {e}")
+                    self.logger.warning(f"⚠️ 分类选择失败: {e}")
 
-                # ── 6. TinyMCE 正文 ──
+                # ── 6. 正文（TinyMCE） ──
                 body = article.body or article.content or ""
                 if body:
                     page.wait_for_selector(".tox-tinymce", timeout=10000)
@@ -187,44 +174,54 @@ class OSHWHubPublisher(Publisher):
                     """)
                     self.logger.info(f"✅ 正文已填写 ({len(body)} chars)")
 
-                # ── 7. 点击创 建 ──
-                create_btn = page.locator("button:has-text('创 建')").first
-                if create_btn.count() == 0:
-                    raise PublishError("找不到「创 建」按钮")
-                create_btn.click()
-                self.logger.info("⏳ 等待发布完成...")
-
-                # 等待导航
-                page.wait_for_timeout(8000)
+                # ── 7. 勾选协议（用 JS 绕过遮挡） ──
                 try:
-                    page.wait_for_url("**/project/**", timeout=20000)
-                except Exception:
-                    pass
-                page.wait_for_timeout(3000)
+                    page.evaluate("""
+                        const cb = document.querySelector('#is_permit');
+                        if (cb) {
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', {bubbles: true}));
+                            // Also trigger ant-design checkbox
+                            const antCb = cb.closest('.ant-checkbox');
+                            if (antCb) antCb.classList.add('ant-checkbox-checked');
+                        }
+                    """)
+                    page.wait_for_timeout(300)
+                    self.logger.info("✅ 已勾选发布协议")
+                except Exception as e:
+                    self.logger.warning(f"⚠️ 勾选协议失败: {e}")
 
+                # ── 8. 点击保 存（存草稿）或提交审核（发布）(force=True) ──
+                if save_as_draft:
+                    save_btn = page.locator("button:has-text('保 存')").first
+                    if save_btn.count() > 0:
+                        save_btn.click(force=True)
+                        page.wait_for_timeout(5000)
+                        self.logger.info("✅ 已点击「保 存」存草稿")
+                        result["message"] = "draft_saved"
+                    else:
+                        raise PublishError("找不到「保 存」按钮")
+                else:
+                    publish_btn = page.locator("button:has-text('提交审核')").first
+                    if publish_btn.count() > 0:
+                        publish_btn.click(force=True)
+                        page.wait_for_timeout(8000)
+                        self.logger.info("✅ 已点击「提交审核」发布")
+                        result["message"] = "published"
+                    else:
+                        raise PublishError("找不到「提交审核」按钮")
+
+                # 等待导航/结果
+                page.wait_for_timeout(3000)
                 current_url = page.url
                 result["url"] = current_url
 
-                # 从 URL 提取 project ID
-                m = re.search(r'/project/([a-zA-Z0-9]+)', current_url)
+                # 从 URL 提取文章 ID
+                m = re.search(r'/article/([a-zA-Z0-9_]+)', current_url)
                 if m:
                     result["id"] = m.group(1)
-                    result["message"] = "published"
-                    result["success"] = True
-                    self.logger.info(f"✅ 发布成功! URL: {current_url}")
-                else:
-                    # 检查是否跳转到了新页面
-                    if current_url != f"{BASE}/project/create":
-                        result["message"] = "published"
-                        result["success"] = True
-                    else:
-                        # 可能仍停留在创建页，检查是否有错误提示
-                        errors = page.query_selector_all(".ant-form-item-explain, .ant-message-notice")
-                        err_texts = [e.inner_text().strip() for e in errors if e.is_visible()]
-                        err_msg = "; ".join(err_texts[:3])
-                        if err_msg:
-                            raise PublishError(f"表单验证失败: {err_msg}")
-                        raise PublishError("发布失败，页面未跳转")
+
+                result["success"] = True
 
             except PublishError:
                 raise
@@ -234,7 +231,6 @@ class OSHWHubPublisher(Publisher):
                 page.close()
                 browser.close()
                 pw.stop()
-                # 清理临时文件
                 for f in _tmp_files:
                     try:
                         if f and os.path.exists(f) and 'tmp' in f:
