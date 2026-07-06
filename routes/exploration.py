@@ -86,12 +86,20 @@ def exploration_page():
         if p["has_data"]:
             # 使用归一化域名查询（forum_exploration 中域名无 www 前缀）
             query_domain = p["norm_domain"]
+
+            # 总数
+            count = conn.execute(
+                "SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?",
+                (query_domain,)
+            ).fetchone()[0]
+            p["count"] = count
+
+            # 只取最近修改的 20 条（其余通过AJAX分页加载）
             sections = conn.execute(
-                "SELECT * FROM forum_exploration WHERE platform_domain=? ORDER BY section_id",
+                "SELECT * FROM forum_exploration WHERE platform_domain=? ORDER BY section_id LIMIT 20",
                 (query_domain,)
             ).fetchall()
             p["sections"] = [dict(s) for s in sections]
-            p["count"] = len(sections)
 
             # 从 forum_exploration 读取 tags_of_interest
             tags_set = set()
@@ -184,6 +192,37 @@ def api_reseed_exploration():
     _seed_forum_exploration(conn)
     conn.close()
     return jsonify({"success": True, "message": "种子数据已重新加载"})
+
+
+# ─── API: 分页加载板块列表 ────────────
+@app.route("/api/exploration/sections/<domain>")
+@login_required
+def api_exploration_sections(domain):
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    per_page = min(per_page, 100)
+    offset = (page - 1) * per_page
+
+    conn = get_db()
+    total = conn.execute(
+        "SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?",
+        (domain,)
+    ).fetchone()[0]
+    sections = conn.execute(
+        "SELECT * FROM forum_exploration WHERE platform_domain=? ORDER BY section_id LIMIT ? OFFSET ?",
+        (domain, per_page, offset)
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "domain": domain,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": max(1, (total + per_page - 1) // per_page),
+        "sections": [dict(s) for s in sections],
+    })
 
 
 # ─── 原有API: 单条更新 ───────────────

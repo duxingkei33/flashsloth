@@ -81,21 +81,20 @@
             <div class="card-body p-0">
                 <!-- Row 1: 板块信息 -->
                 {% if p.has_data and p.sections %}
-                {% set paginate_id = 'paginate_' ~ loop.index %}
-                <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
+                <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
                     <div class="d-flex justify-content-between align-items-center px-2 py-1 border-bottom small" style="font-size:0.75rem;">
-                        <span class="text-muted">{{ p.sections|length }} 个版块</span>
-                        {% if p.sections|length > 20 %}
-                        <div class="d-flex gap-1 align-items-center" id="{{ paginate_id ~ '_ctrl' }}">
+                        <span class="text-muted">{{ p.count }} 个版块</span>
+                        {% if p.count > 20 %}
+                        <div class="d-flex gap-1 align-items-center" id="sectionPageCtrl_{{ loop.index }}">
                             <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
-                                    onclick="pageSection('{{ paginate_id }}', -1)">«</button>
-                            <span id="{{ paginate_id ~ '_info' }}">1/{{ ((p.sections|length + 19) // 20) }}</span>
+                                    onclick="loadSectionPage('{{ p.domain }}', {{ loop.index }}, -1)">«</button>
+                            <span id="sectionPageInfo_{{ loop.index }}">1/{{ ((p.count + 19) // 20) }}</span>
                             <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
-                                    onclick="pageSection('{{ paginate_id }}', 1)">»</button>
+                                    onclick="loadSectionPage('{{ p.domain }}', {{ loop.index }}, 1)">»</button>
                         </div>
                         {% endif %}
                     </div>
-                    <table class="table table-sm table-hover mb-0" style="font-size:0.8rem;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:0.8rem;" id="sectionTable_{{ loop.index }}">
                         <thead class="sticky-top bg-light">
                             <tr>
                                 <th style="width:40px;">#</th>
@@ -106,9 +105,9 @@
                                 <th>标签</th>
                             </tr>
                         </thead>
-                        <tbody id="{{ paginate_id ~ '_tbody' }}">
+                        <tbody id="sectionTbody_{{ loop.index }}">
                             {% for s in p.sections %}
-                            <tr class="section-row" data-paginate="{{ paginate_id }}" data-page="{{ ((loop.index - 1) // 20) + 1 }}" {% if loop.index > 20 %}style="display:none;"{% endif %}>
+                            <tr class="section-row">
                                 <td>{{ loop.index }}</td>
                                 <td><code>{{ s.section_id }}</code></td>
                                 <td>{{ s.section_name }}</td>
@@ -136,6 +135,11 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    {% if p.count > 20 %}
+                    <div class="d-flex justify-content-between align-items-center px-2 py-1 border-top small" style="font-size:0.75rem;">
+                        <span class="text-muted" id="sectionPageStatus_{{ loop.index }}">第 1/{{ ((p.count + 19) // 20) }} 页</span>
+                    </div>
+                    {% endif %}
                 </div>
                 {% else %}
                 <div class="p-3 text-muted small">暂无探索数据，请先运行平台探索。</div>
@@ -400,30 +404,85 @@ function escapeHtml(s) {
     return d.innerHTML;
 }
 
-// ─── 板块分页 ─────────────────────────
-function pageSection(paginateId, direction) {
-    const tbody = document.getElementById(paginateId + '_tbody');
-    const rows = tbody.querySelectorAll('tr[data-paginate="' + paginateId + '"]');
-    if (rows.length === 0) return;
-    // 找当前页
-    let curPage = 1;
-    for (const r of rows) {
-        if (r.style.display !== 'none') {
-            curPage = parseInt(r.dataset.page) || 1;
-            break;
+// ─── 板块分页（AJAX加载） ──────────────
+var sectionPageData = {};
+
+function loadSectionPage(domain, idx, direction) {
+    var ctrl = document.getElementById('sectionPageCtrl_' + idx);
+    if (!sectionPageData[domain]) {
+        sectionPageData[domain] = {page: 1};
+    }
+    var data = sectionPageData[domain];
+    var newPage = data.page + direction;
+    if (newPage < 1) return;
+
+    // 获取当前总页数
+    var info = document.getElementById('sectionPageInfo_' + idx);
+    var parts = info.textContent.split('/');
+    var totalPages = parseInt(parts[1]) || 1;
+    if (newPage > totalPages) return;
+
+    data.page = newPage;
+    info.textContent = newPage + '/' + totalPages;
+
+    // 显示加载状态
+    var tbody = document.getElementById('sectionTbody_' + idx);
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:10px;">⏳ 加载中...</td></tr>';
+
+    fetch('/api/exploration/sections/' + domain + '?page=' + newPage + '&per_page=20')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.sections) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:10px;">加载失败</td></tr>';
+            return;
         }
-    }
-    const totalPages = Math.max(1, Math.ceil(rows.length / 20));
-    const newPage = Math.max(1, Math.min(totalPages, curPage + direction));
-    if (newPage === curPage) return;
-    // 显示新页
-    for (const r of rows) {
-        const p = parseInt(r.dataset.page) || 1;
-        r.style.display = (p === newPage) ? '' : 'none';
-    }
-    // 更新页码
-    const info = document.getElementById(paginateId + '_info');
-    if (info) info.textContent = newPage + '/' + totalPages;
+        if (data.sections.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:10px;">暂无更多版块</td></tr>';
+            return;
+        }
+        var html = '';
+        var base = (data.page - 1) * data.per_page;
+        for (var i = 0; i < data.sections.length; i++) {
+            var s = data.sections[i];
+            var num = base + i + 1;
+            var kw = [];
+            try { kw = JSON.parse(s.keywords || '[]'); } catch(e) {}
+            if (!Array.isArray(kw) || kw.length === 0) kw = [s.section_name];
+            var kwHtml = kw.slice(0, 5).map(function(k) {
+                return '<span class="keyword-badge badge">' + escapeHtml(k) + '</span>';
+            }).join('');
+
+            var toi = [];
+            try { toi = JSON.parse(s.tags_of_interest || '[]'); } catch(e) {}
+            var toiHtml = '';
+            if (Array.isArray(toi) && toi.length > 0) {
+                toiHtml = toi.slice(0, 3).map(function(t) {
+                    return '<span class="platform-tag" style="font-size:0.65rem;padding:1px 5px;">' + escapeHtml(t) + '</span>';
+                }).join('');
+            }
+
+            var canPostIcon = s.can_post
+                ? '<span class="badge bg-success" style="font-size:0.65rem;">✓</span>'
+                : '<span class="badge bg-danger" style="font-size:0.65rem;">✗</span>';
+
+            html += '<tr class="section-row">'
+                + '<td>' + num + '</td>'
+                + '<td><code>' + escapeHtml(String(s.section_id)) + '</code></td>'
+                + '<td>' + escapeHtml(s.section_name) + '</td>'
+                + '<td>' + canPostIcon + '</td>'
+                + '<td>' + kwHtml + '</td>'
+                + '<td>' + toiHtml + '</td>'
+                + '</tr>';
+        }
+        tbody.innerHTML = html;
+        var status = document.getElementById('sectionPageStatus_' + idx);
+        if (status) {
+            status.textContent = '第 ' + data.page + '/' + data.total_pages + ' 页';
+        }
+    })
+    .catch(function(e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:10px;">加载失败: ' + e.message + '</td></tr>';
+    });
 }
 </script>
 {% endblock %}
