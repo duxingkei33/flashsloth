@@ -494,6 +494,21 @@ class Compiler:
                 elif f.field_name in ("content", "message", "body"):
                     fields[f.field_name] = converted_body
 
+            # 🔥 智能版块匹配：Discuz 平台自动选择 FID
+            if platform == "discuz" and "fid" not in fields:
+                try:
+                    from flashsloth.core.forum_registry import match_forum
+                    # 尝试常见的 Discuz 域名
+                    for domain in ["amobbs.com", "mydigit.cn"]:
+                        fid = match_forum(domain, ir.tags, title, converted_body)
+                        if fid:
+                            fields["fid"] = fid
+                            fields["_forum_domain"] = domain
+                            warnings.append(f"自动匹配版块: {domain} → fid={fid}")
+                            break
+                except ImportError:
+                    pass  # forum_registry 不可用时跳过
+
             results[platform] = CompiledContent(
                 platform=platform,
                 display_name=rule.display_name,

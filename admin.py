@@ -37,7 +37,8 @@ import flashsloth.sdk.adapters.xianyu            # noqa
 import flashsloth.sdk.adapters.notion            # noqa
 import flashsloth.sdk.adapters.github_pages      # noqa
 import flashsloth.sdk.adapters.bilibili           # noqa
-import flashsloth.sdk.adapters.oshwhub            # noqa
+import flashsloth.sdk.adapters.oshwhub           # noqa
+import flashsloth.routes.comment_monitor          # noqa 💬
 
 # ─── 创建应用 ───
 from flashsloth.routes import configure_app

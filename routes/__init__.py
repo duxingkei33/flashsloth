@@ -79,5 +79,6 @@ def configure_app():
     import flashsloth.routes.api_v1
     from flashsloth.routes.api_v1 import init_api_v1
     init_api_v1()
+    import flashsloth.routes.comment_monitor  # 💬 评论监控路由
 
     return app, login_manager, User
