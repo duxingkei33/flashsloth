@@ -19,7 +19,8 @@ API 文档：
   https://api.bilibili.com/x/article/creative/draft/addition — 创建草稿
   https://api.bilibili.com/x/article/creative/draft/submit   — 发布草稿
 """
-import re, json
+from typing import Optional
+import re, json, os
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
 
@@ -79,6 +80,9 @@ class BilibiliPublisher(Publisher):
             "placeholder": "选择专栏发布时的默认分类",
         },
     ]
+
+    capabilities = ["publish", "test_connection", "upload_image"]
+    supports_draft = True
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -260,6 +264,17 @@ class BilibiliPublisher(Publisher):
                     "error": "创建草稿成功但未获取到文章 ID",
                 }
 
+            # ── 如果只存草稿，不发布 ──
+            save_as_draft = kwargs.get("save_as_draft", False)
+            if save_as_draft:
+                return {
+                    "success": True,
+                    "url": "",
+                    "id": str(draft_id),
+                    "error": "",
+                    "message": f"草稿已保存 (draft_id={draft_id})",
+                }
+
             # ── 第2步：提交发布 ──
             submit_data = {"draft_id": draft_id, "category": category}
             if self.bili_jct:
@@ -311,6 +326,63 @@ class BilibiliPublisher(Publisher):
                 "success": False, "url": "", "id": "",
                 "error": f"发布异常: {e}",
             }
+
+    def upload_image(self, local_path: str) -> dict:
+        """上传图片到 Bilibili 图床
+
+        使用 Bilibili 专栏图片上传 API:
+        POST https://api.bilibili.com/x/article/creative/image/upload
+
+        返回: {"success": bool, "url": str, "error": str}
+        """
+        if not self.cookie or not self._is_auth_valid():
+            return {"success": False, "url": "", "error": "Cookie 无效或未配置"}
+
+        if not local_path or not os.path.isfile(local_path):
+            return {"success": False, "url": "", "error": f"文件不存在: {local_path}"}
+
+        try:
+            import requests
+
+            file_size = os.path.getsize(local_path)
+            if file_size > 10 * 1024 * 1024:
+                return {
+                    "success": False, "url": "",
+                    "error": f"文件过大 ({file_size / 1024 / 1024:.1f}MB > 10MB)",
+                }
+
+            headers = self._headers()
+            with open(local_path, "rb") as f:
+                files = {
+                    "file": (
+                        os.path.basename(local_path),
+                        f,
+                        "image/jpeg" if local_path.lower().endswith((".jpg", ".jpeg")) else "image/png",
+                    ),
+                    "csrf": (None, self.bili_jct),
+                }
+                resp = requests.post(
+                    f"{BAPI}/x/article/creative/image/upload",
+                    files=files,
+                    headers=headers,
+                    timeout=30,
+                )
+
+            result = resp.json()
+            if result.get("code") == 0:
+                img_url = result.get("data", {}).get("url", "")
+                if img_url:
+                    return {"success": True, "url": img_url, "error": ""}
+
+            return {
+                "success": False, "url": "",
+                "error": f"上传失败: {result.get('message', '未知错误')} (code={result.get('code')})",
+            }
+
+        except ImportError:
+            return {"success": False, "url": "", "error": "缺少 requests 库"}
+        except Exception as e:
+            return {"success": False, "url": "", "error": f"上传异常: {e}"}
 
     def retract(self, article: Article, publish_log: dict = None) -> dict:
         """Bilibili 专栏暂不支持通过 API 撤回"""

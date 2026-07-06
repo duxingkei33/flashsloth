@@ -1,0 +1,220 @@
+{
+  "platform": "bilibili",
+  "display_name": "哔哩哔哩 (Bilibili)",
+  "site_url": "https://www.bilibili.com",
+  "exploration_date": "2026-07-07",
+  "tech_stack": [
+    "Next.js",
+    "Vite",
+    "jinkela (内部SPA框架)"
+  ],
+  "login": {
+    "url": "https://passport.bilibili.com/login",
+    "methods": {
+      "password": {
+        "description": "账号密码登录",
+        "fields": [
+          {
+            "key": "username",
+            "type": "text",
+            "placeholder": "请输入账号"
+          },
+          {
+            "key": "password",
+            "type": "password",
+            "placeholder": "请输入密码"
+          },
+          {
+            "key": "captcha",
+            "type": "text",
+            "placeholder": "输入图片中的内容",
+            "selector": ".body__captcha-input"
+          }
+        ],
+        "notes": "需要验证码，有极验(Geetest)验证码风控"
+      },
+      "qrcode": {
+        "description": "手机App扫码登录",
+        "api_generate": "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+        "api_poll": "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+        "notes": "推荐方案，无需验证码"
+      },
+      "phone": {
+        "description": "手机验证码登录",
+        "fields": [
+          {
+            "key": "phone",
+            "type": "text",
+            "placeholder": "手机号"
+          }
+        ]
+      },
+      "cookie": {
+        "description": "从浏览器F12复制Cookie",
+        "required_keys": [
+          "SESSDATA",
+          "bili_jct",
+          "DedeUserID"
+        ]
+      }
+    },
+    "selectors": {
+      "password_tab": ".login-tabs .tab-item:has-text('密码登录')",
+      "qrcode_tab": ".login-tabs .tab-item:has-text('扫码登录')",
+      "username_input": "input[placeholder='请输入账号']",
+      "password_input": "input[placeholder='请输入密码']",
+      "captcha_input": ".body__captcha-input",
+      "login_button": "button:has-text('登录')"
+    }
+  },
+  "publishing": {
+    "article": {
+      "api_create_draft": "https://api.bilibili.com/x/article/creative/draft/addition",
+      "api_submit_draft": "https://api.bilibili.com/x/article/creative/draft/submit",
+      "api_list_drafts": "https://api.bilibili.com/x/article/creative/draft/list",
+      "method": "API (POST form-data)",
+      "auth_required": "Cookie (SESSDATA + bili_jct + DedeUserID)",
+      "csrf": "bili_jct token required in POST data",
+      "content_format": "HTML (subset of HTML tags)",
+      "category_options": {
+        "0": "默认分类",
+        "1": "动画",
+        "2": "游戏",
+        "3": "科技",
+        "4": "生活",
+        "5": "娱乐",
+        "6": "影视"
+      },
+      "limits": {
+        "max_title_length": 200,
+        "supports_tags": true,
+        "supports_cover": true,
+        "supports_draft": true,
+        "supports_image_upload": true
+      }
+    },
+    "video": {
+      "upload_url": "https://member.bilibili.com/platform/upload/video",
+      "notes": "视频上传需要登录会员中心，使用Playwright操作"
+    }
+  },
+  "image_upload": {
+    "api": "https://api.bilibili.com/x/article/creative/image/upload",
+    "method": "multipart/form-data POST",
+    "auth_required": "Cookie + CSRF (bili_jct)",
+    "limits": {
+      "max_file_size": "10MB (推测)",
+      "supported_formats": [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "webp"
+      ]
+    }
+  },
+  "draft_management": {
+    "api_list": "https://api.bilibili.com/x/article/creative/draft/list",
+    "api_delete": "https://api.bilibili.com/x/article/creative/draft/delete",
+    "supports_draft": true,
+    "notes": "可以先创建草稿不上传发布"
+  },
+  "user_info": {
+    "api_nav": "https://api.bilibili.com/x/web-interface/nav",
+    "fields": [
+      "mid",
+      "uname",
+      "isLogin",
+      "level_info",
+      "face",
+      "coin",
+      "bcoin"
+    ]
+  },
+  "sign_in": {
+    "supported": false,
+    "notes": "Bilibili无公开签到API，仅移动端有每日签到任务"
+  },
+  "api_endpoints": {
+    "login": [
+      {
+        "url": "https://passport.bilibili.com/x/passport-login/captcha",
+        "desc": "登录验证码"
+      },
+      {
+        "url": "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+        "desc": "生成登录二维码"
+      },
+      {
+        "url": "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+        "desc": "轮询二维码状态"
+      },
+      {
+        "url": "https://api.bilibili.com/x/internal/gaia-gateway/ExGetAxe",
+        "desc": "风控密钥"
+      },
+      {
+        "url": "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbCongLing",
+        "desc": "风控验证"
+      },
+      {
+        "url": "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi",
+        "desc": "风控验证"
+      }
+    ],
+    "creative": [
+      {
+        "url": "https://api.bilibili.com/x/article/creative/draft/addition",
+        "desc": "创建草稿"
+      },
+      {
+        "url": "https://api.bilibili.com/x/article/creative/draft/submit",
+        "desc": "发布草稿"
+      },
+      {
+        "url": "https://api.bilibili.com/x/article/creative/draft/list",
+        "desc": "草稿列表"
+      },
+      {
+        "url": "https://api.bilibili.com/x/article/creative/draft/delete",
+        "desc": "删除草稿"
+      },
+      {
+        "url": "https://api.bilibili.com/x/article/creative/image/upload",
+        "desc": "上传图片"
+      },
+      {
+        "url": "https://member.bilibili.com/platform/home",
+        "desc": "创作者中心首页"
+      },
+      {
+        "url": "https://member.bilibili.com/platform/upload/article",
+        "desc": "专栏编辑器"
+      }
+    ],
+    "content": [
+      {
+        "url": "https://api.bilibili.com/x/space/article",
+        "desc": "用户专栏列表"
+      },
+      {
+        "url": "https://api.bilibili.com/x/article/viewinfo",
+        "desc": "专栏详情"
+      }
+    ]
+  },
+  "creative_center": {
+    "url": "https://member.bilibili.com/platform/home",
+    "requires_login": true,
+    "article_editor_url": "https://member.bilibili.com/platform/upload/article",
+    "notes": "需要先登录才能访问创作者中心"
+  },
+  "special_notes": [
+    "Bilibili有WBI签名机制，部分API需要动态计算w_rid参数",
+    "登录有极验(Geetest)滑动验证码防护，password登录需要验证码处理",
+    "推荐使用QR码登录方式，无需处理验证码",
+    "Cookie有效期未确认，建议定期刷新",
+    "专栏API使用form-data提交，而非JSON",
+    "图片上传和文章创建都需要CSRF token (bili_jct)"
+  ]
+}

@@ -23,7 +23,7 @@ Bilibili API 文档参考：
   https://api.bilibili.com/x/article/            — 专栏相关 API
 """
 from typing import Optional
-import re, json, time
+import re, json, time, os
 
 from ..adapter import PlatformAdapter, register, Article, Comment
 
@@ -123,10 +123,11 @@ class BilibiliAdapter(PlatformAdapter):
         需要 Cookie 中包含有效的 SESSDATA + bili_jct。
 
         kwargs 支持:
-            category: int  — 分类 ID（覆盖默认配置）
-            tags: list     — 文章标签
-            cover: str     — 封面图 URL
-            original: int  — 是否原创 (1=原创, 0=转载, 默认1)
+            category: int        — 分类 ID（覆盖默认配置）
+            tags: list           — 文章标签
+            cover: str           — 封面图 URL
+            original: int        — 是否原创 (1=原创, 0=转载, 默认1)
+            save_as_draft: bool  — 仅存草稿不发布 (默认 False)
 
         返回: {"success": bool, "url": str, "id": str, "error": str}
         """
@@ -202,6 +203,16 @@ class BilibiliAdapter(PlatformAdapter):
                 return {
                     "success": False, "url": "", "id": "",
                     "error": "创建草稿成功但未返回 ID",
+                }
+
+            # ── 如果只存草稿，不发布 ──
+            if kwargs.get("save_as_draft", False):
+                return {
+                    "success": True,
+                    "url": "",
+                    "id": str(draft_id),
+                    "error": "",
+                    "message": f"草稿已保存 (draft_id={draft_id})",
                 }
 
             # ── 第2步：发布草稿 ──
@@ -294,6 +305,60 @@ class BilibiliAdapter(PlatformAdapter):
         text = '\n'.join(parts)
 
         return text.strip()
+
+    def upload_image(self, local_path: str) -> dict:
+        """上传图片到 Bilibili 图床
+
+        Bilibili 专栏图片上传 API:
+        POST https://api.bilibili.com/x/article/creative/image/upload
+        multipart/form-data, 需要 Cookie + CSRF
+
+        返回: {"success": bool, "url": str, "error": str}
+        """
+        if not self._is_authenticated():
+            return {"success": False, "url": "", "error": "Cookie 无效或未配置"}
+
+        if not local_path or not os.path.isfile(local_path):
+            return {"success": False, "url": "", "error": f"文件不存在: {local_path}"}
+
+        try:
+            import requests as req
+
+            # 检查文件大小 (Bilibili 限制推测 10MB)
+            file_size = os.path.getsize(local_path)
+            if file_size > 10 * 1024 * 1024:
+                return {"success": False, "url": "", "error": f"文件过大 ({file_size / 1024 / 1024:.1f}MB > 10MB)"}
+
+            headers = self._headers()
+            # Bilibili 图片上传不需要 Content-Type header (requests 自动设置)
+
+            with open(local_path, "rb") as f:
+                files = {
+                    "file": (os.path.basename(local_path), f, "image/jpeg" if local_path.lower().endswith((".jpg", ".jpeg")) else "image/png"),
+                    "csrf": (None, self.bili_jct),
+                }
+                resp = req.post(
+                    f"{BAPI}/x/article/creative/image/upload",
+                    files=files,
+                    headers=headers,
+                    timeout=30,
+                )
+
+            result = resp.json()
+            if result.get("code") == 0:
+                img_url = result.get("data", {}).get("url", "")
+                if img_url:
+                    return {"success": True, "url": img_url, "error": ""}
+
+            return {
+                "success": False, "url": "",
+                "error": f"上传失败: {result.get('message', '未知错误')} (code={result.get('code')})",
+            }
+
+        except ImportError:
+            return {"success": False, "url": "", "error": "缺少 requests 库"}
+        except Exception as e:
+            return {"success": False, "url": "", "error": f"上传异常: {e}"}
 
     # ─── 撤回 ─────────────────────────────────
 
