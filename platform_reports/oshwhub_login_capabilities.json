@@ -1,7 +1,7 @@
 {
   "platform": "oshwhub",
-  "explored_at": "2026-07-06T23:14:17.625567+00:00",
-  "login_url": "https://oshwhub.com/login",
+  "explored_at": "2026-07-06T23:56:37.133983+00:00",
+  "login_url": "https://passport.jlc.com/login",
   "login_methods": [
     {
       "method": "qrcode",
@@ -9,10 +9,18 @@
       "detected": true,
       "sub_types": [
         {
-          "id": "app",
-          "label": "APP扫码",
+          "id": "wechat",
+          "label": "微信扫码",
           "detected": true
         }
+      ]
+    },
+    {
+      "method": "oauth",
+      "label": "第三方账号登录",
+      "detected": true,
+      "providers": [
+        "wechat_oauth"
       ]
     },
     {
@@ -21,17 +29,19 @@
       "detected": true
     }
   ],
-  "note": "oshwhub登录页支持扫码登录/Cookie粘贴",
+  "note": "oshwhub登录页支持扫码登录/第三方账号登录/Cookie粘贴/第三方(wechat_oauth)",
   "raw_detection": {
     "has_password_input": false,
     "has_phone_input": false,
     "has_code_button": false,
     "has_qrcode_img": false,
-    "has_wechat": false,
-    "has_app_qr": true,
-    "third_party_providers": [],
-    "page_title": "Error",
-    "page_url": "https://oshwhub.com/login"
+    "has_wechat": true,
+    "has_app_qr": false,
+    "third_party_providers": [
+      "wechat_oauth"
+    ],
+    "page_title": "嘉立创集团用户注册中心",
+    "page_url": "https://passport.jlc.com/register"
   },
   "error": null,
   "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/oshwhub_login.png"

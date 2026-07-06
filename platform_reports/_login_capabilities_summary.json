@@ -1,5 +1,5 @@
 {
-  "csdn": {
+  "bilibili": {
     "login_methods": [
       "password",
       "qrcode",
@@ -8,15 +8,7 @@
     ],
     "error": null
   },
-  "zhihu": {
-    "login_methods": [
-      "phone",
-      "qrcode",
-      "cookie"
-    ],
-    "error": null
-  },
-  "bilibili": {
+  "csdn": {
     "login_methods": [
       "password",
       "qrcode",
@@ -34,6 +26,14 @@
     ],
     "error": null
   },
+  "oshwhub": {
+    "login_methods": [
+      "qrcode",
+      "oauth",
+      "cookie"
+    ],
+    "error": null
+  },
   "wechat_mp": {
     "login_methods": [
       "password",
@@ -43,17 +43,18 @@
     ],
     "error": null
   },
-  "oshwhub": {
-    "login_methods": [
-      "qrcode",
-      "cookie"
-    ],
-    "error": null
-  },
   "xianyu": {
     "login_methods": [
       "qrcode",
       "oauth",
+      "cookie"
+    ],
+    "error": null
+  },
+  "zhihu": {
+    "login_methods": [
+      "phone",
+      "qrcode",
       "cookie"
     ],
     "error": null

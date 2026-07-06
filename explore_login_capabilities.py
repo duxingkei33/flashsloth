@@ -8,7 +8,7 @@ PLATFORMS = [
     ("bilibili",  "https://www.bilibili.com/"),
     ("juejin",    "https://juejin.cn/"),
     ("wechat_mp", "https://mp.weixin.qq.com/"),
-    ("oshwhub",   "https://oshwhub.com/login"),
+    ("oshwhub",   "https://passport.jlc.com/login"),
     ("xianyu",    "https://www.goofish.com/"),
 ]
 

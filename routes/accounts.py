@@ -503,7 +503,7 @@ def api_platform_login_capabilities_refresh(platform):
 		"juejin": "https://juejin.cn/",
 		"wechat": "https://mp.weixin.qq.com/",
 		"wechat_mp": "https://mp.weixin.qq.com/",
-		"oshwhub": "https://oshwhub.com/login",
+		"oshwhub": "https://passport.jlc.com/login",
 		"xianyu": "https://www.goofish.com/",
 		"xianyu_v2": "https://www.goofish.com/",
 	}
@@ -779,7 +779,7 @@ def api_qrcode_login_start(platform):
 						"discuz": "/member.php?mod=logging&action=login",
 						"amobbs": "/member.php?mod=logging&action=login",
 						"csdn": "https://passport.csdn.net/login",
-						"oshwhub": "https://oshwhub.com/login",
+						"oshwhub": "https://passport.jlc.com/login",
 						"xianyu": "https://www.goofish.com/",
 						"xianyu_v2": "https://www.goofish.com/",
 						"wechat": "https://mp.weixin.qq.com/",
