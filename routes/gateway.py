@@ -2,6 +2,8 @@
 from flashsloth.routes._app import app
 
 import json
+import uuid
+import threading
 from flask import render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 
@@ -178,3 +180,91 @@ def api_gateway_channels():
     ).fetchall()
     conn.close()
     return jsonify({"channels": [dict(c) for c in channels]})
+
+
+# ─── QR 扫码自动配置 ─────────────────────
+# 临时会话存储（内存，重启后清空）
+_qr_sessions: dict = {}
+_qr_lock = threading.Lock()
+
+
+@app.route("/api/gateway/start-callback", methods=["POST"])
+@login_required
+def api_gateway_start_callback():
+    """启动扫码自动配置流程：生成回调地址 + 会话"""
+    data = request.get_json(force=True, silent=True) or {}
+    platform = (data.get("platform") or "").strip()
+    if not platform:
+        return jsonify({"success": False, "error": "platform 必填"})
+
+    # 生成唯一会话 ID
+    session_id = uuid.uuid4().hex[:12]
+    tunnel_url = "http://103.97.178.234:5001"
+
+    # 回调地址：被扫码后平台 POST webhook 信息到此
+    callback_url = f"{tunnel_url}/api/gateway/callback/{session_id}"
+
+    with _qr_lock:
+        _qr_sessions[session_id] = {
+            "platform": platform,
+            "user_id": current_user.id,
+            "webhook_url": None,
+            "secret": None,
+            "created_at": __import__("time").time(),
+            "status": "waiting",
+        }
+
+    return jsonify({
+        "success": True,
+        "session_id": session_id,
+        "qr_url": callback_url,
+    })
+
+
+@app.route("/api/gateway/callback-result/<session_id>")
+@login_required
+def api_gateway_callback_result(session_id):
+    """轮询回调结果"""
+    with _qr_lock:
+        sess = _qr_sessions.get(session_id)
+    if not sess:
+        return jsonify({"success": False, "error": "会话不存在或已过期"})
+    if sess["user_id"] != current_user.id:
+        return jsonify({"success": False, "error": "无权限"})
+
+    if sess["webhook_url"]:
+        return jsonify({
+            "success": True,
+            "webhook_url": sess["webhook_url"],
+            "secret": sess.get("secret"),
+        })
+    # 5 分钟超时
+    if __import__("time").time() - sess["created_at"] > 300:
+        with _qr_lock:
+            _qr_sessions.pop(session_id, None)
+        return jsonify({"success": False, "error": "超时"})
+    return jsonify({"success": False, "error": "等待中"})
+
+
+@app.route("/api/gateway/callback/<session_id>", methods=["POST"])
+def api_gateway_webhook_callback(session_id):
+    """外部平台回调端点 — 接收扫码后发送的 webhook 验证请求"""
+    with _qr_lock:
+        sess = _qr_sessions.get(session_id)
+    if not sess:
+        return jsonify({"error": "会话不存在"}), 404
+
+    data = request.get_json(force=True, silent=True) or {}
+    # 不同平台不同字段名，统一提取
+    webhook_url = (
+        data.get("webhook_url") or data.get("url") or
+        data.get("request_url") or data.get("callback_url") or ""
+    )
+    secret = data.get("secret") or data.get("token") or ""
+
+    with _qr_lock:
+        sess["webhook_url"] = webhook_url
+        sess["secret"] = secret
+        sess["status"] = "completed"
+
+    return jsonify({"success": True})
