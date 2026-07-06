@@ -2,28 +2,111 @@
 
 ---
 
-# 🦥 FlashSloth
+# 🦥 FlashSloth — Your Personal Digital Asset Hub
 
-**Publish at sloth speed**
+> Sloth speed, lightning publishing
+> One dashboard to manage all your digital assets across the internet
 
-FlashSloth is an open-source multi-platform content publishing and site deployment system. Write once in Markdown, publish to multiple platforms with a single click, or deploy as a static site.
+---
 
 ## ✨ Features
 
-| Feature | Description |
-|---------|-------------|
-| **📝 Article Editor** | Markdown editor with live preview, tag management, draft/published states |
-| **📡 Multi-Platform** | 15+ platforms: Discuz! Forums, WordPress, WeChat, Juejin, Zhihu, CSDN, RSS, GitHub Pages, Xianyu, OSHWHub, Bilibili (WIP) |
-| **🔑 Account Management** | Multi-account per platform (alias-based), enable/disable, cookie status monitoring |
-| **🌐 Browser Auto-Login** | Playwright-based browser automation for amobbs, Xianyu, OSHWHub (JLCPCB passport), captcha handling |
-| **🧠 AI Provider Config** | Database-driven management for 21+ providers (DeepSeek, OpenAI, Anthropic, Gemini), zero-token connection test, balance query |
-| **📅 Auto Sign-In** | Discuz! forum auto check-in with random 1-hour window scheduling, per-account time settings |
-| **🚀 Site Deployment** | One-click static site deployment to GitHub Pages |
-| **↩️ Retract Management** | Retract published articles with optional re-publish |
-| **📊 Publish Tracking** | Full publish history and deploy status for every article |
-| **🔐 Security** | Auto-generated random admin credentials, no hardcoded secrets |
-| **💾 Storage** | Local storage + AList cloud storage, image/file attachments |
-| **🌐 i18n** | Chinese/English interface |
+### 🔐 Account Management
+- [x] Unified multi-platform account management (add/edit/delete/enable/disable)
+- [x] 🔑 Password + captcha login — Playwright browser automation
+- [x] 📱 QR code scan login — Remote browser screenshot + 10s polling cookie capture
+- [x] 🍪 Cookie paste (debug mode)
+- [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
+- [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
+- [x] 📊 Real-time account status detection (Playwright cookie verification)
+
+### 📝 Multi-Platform Publishing
+- [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
+- [x] WordPress — REST API publish (App Password auth)
+- [x] WeChat Official Account — Official API draft (AppID + AppSecret)
+- [x] CSDN — Playwright publish + sign-in
+- [x] Zhihu — Full Playwright rewrite (password/QR/Cookie)
+- [x] OSHWHub (JLCPCB Open Source) — Playwright publish + sign-in
+- [x] Juejin — Cookie-based publish (password/QR/Cookie)
+- [x] Bilibili Articles — Playwright publish (password/QR/Cookie)
+- [x] Twitter/X — tweepy API v2 OAuth1.0a
+- [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category
+- [x] Xianyu Product Listing (Reserved)
+- [x] RSS Feed — Pure Python generation
+- [x] GitHub Pages — git push deployment
+
+### 🔔 Notification Gateway
+- [x] 23 notification channels (Feishu/DingTalk/WeCom/WeChat/Telegram/Discord/Slack etc.)
+- [x] QR code auto-configuration via /callback endpoint
+- [x] Message queue + Provider registry
+- [x] Batch test / single channel test
+
+### 🔍 Platform Exploration
+- [x] Discuz forum auto-exploration (Playwright)
+- [x] Hourly incremental polling
+- [x] Anti-detection rate limiting (1 per domain per hour, dual-cache persistence)
+- [x] Forum section keyword matching
+- [x] Exploration data management page
+
+### 👨‍👩‍👧‍👦 Auto Sign-In
+- [x] OSHWHub sign-in (with auto re-login on cookie expiry)
+- [x] CSDN sign-in
+- [x] amobbs / Discuz! sign-in
+- [x] Sign-in statistics (success/failure breakdown)
+- [x] Random execution window (within 1 hour of configured time)
+
+### 🛒 Xianyu Integration
+- [x] Product search (keyword/price range/sort/pagination)
+- [x] Price monitoring & comparison (LCSC components)
+- [x] MTOP Signature V2 publisher
+- [x] xianyu_client SDK (mtop/sign/session/media/category/limiter/guard)
+
+### 🧠 Smart Matching
+- [x] AI section matching (multi-platform support)
+- [x] Keyword library sync
+- [x] AI provider dynamic management (21+ providers, balance query, test connection)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                  User Interface Layer (Flask Web UI)               │
+│  Dashboard · Articles · Sign-In · Xianyu Search · Accounts        │
+│  Config · Exploration Data · Gateway · Approval · AI Settings     │
+└──────────────────────────────────────────────────────────────────┘
+                              ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                    Gateway API Layer (routes/)                     │
+│  routes/accounts.py · gateway.py · ai.py · signin.py              │
+│  exploration.py · posts.py · api_v2.py · browser_login.py         │
+└──────────────────────────────────────────────────────────────────┘
+                              ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                 Unified Workflow Engine (core/)                    │
+│  publisher · gateway · scheduler · database · credential_crypto    │
+│  anti_detect · explorer · price_monitor · approval · notifier      │
+│  ai_provider · article · deployer · compiler · pipeline            │
+└──────────────────────────────────────────────────────────────────┘
+                              ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                Plugin + Adapter Layer (plugins/ + sdk/)            │
+│  publisher_*.py — 14 platform publishers                          │
+│  signin_*.py   — 3 sign-in plugins                                │
+│  generic_login.py · xianyu_client/ · sdk/adapters/                │
+└──────────────────────────────────────────────────────────────────┘
+                              ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                    Public Infrastructure                            │
+│  SQLite (flashsloth.db) · .fs_key encryption key · config/        │
+│  templates/ · static/ · platform_reports/ · scripts/               │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+> See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details
+
+---
 
 ## 🚀 Quick Start
 
@@ -53,7 +136,7 @@ python admin.py
 
 # 5. On first boot, you'll see:
 # ======================================================
-#   🦥 FlashSloth — 树懒的速度，闪电的发布
+#   🦥 FlashSloth — Sloth speed, lightning publishing
 #   🌐 http://0.0.0.0:5000
 #   👤 First boot: auto-generated admin credentials:
 #      Username: admin_a1b2c3
@@ -66,122 +149,63 @@ python admin.py
 
 > **⚠️ Production tips:**
 > - Set the `FLASHSLOTH_SECRET` env var for a fixed secret key
+> - Set `FS_ENCRYPTION_KEY` for a fixed encryption key
 > - Use Nginx + Gunicorn as a reverse proxy
-> - See tunnel section below for secure external access
 
 ### External Access
 
 ```bash
 # Use frpc or Cloudflare Tunnel to expose local port 5000
-# Example (frpc):
 frpc -c frpc.toml
 ```
 
-## 🔧 Environment Variables
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `FLASHSLOTH_SECRET` | Auto-generated | Recommended | Flask secret key |
+| `FLASHSLOTH_SECRET` | Auto-generated | Recommended | Flask secret key for production |
+| `FS_ENCRYPTION_KEY` | Auto-generated | Recommended | Fernet encryption key; falls back to .fs_key |
 | `FLASHSLOTH_HOST` | `0.0.0.0` | No | Listen address |
 | `FLASHSLOTH_PORT` | `5000` | No | Listen port |
 
-## 🏗️ Project Structure
+### Key Files
 
-```
-flashsloth/
-├── admin.py                  ← Web admin panel (main entry)
-├── core/
-│   ├── article.py            ← Unified article model
-│   ├── publisher.py          ← Publisher base class + registry
-│   ├── deployer.py           ← Deployer base class + registry
-│   ├── storage.py            ← Storage abstraction layer
-│   ├── config.py             ← Configuration
-│   ├── signin.py             ← Sign-in plugin base class
-│   ├── provider_registry.py  ← AI provider dynamic registry (21+)
-│   ├── provider_registry.json ← Provider preset data
-│   └── platform_presets.json ← Well-known site presets
-├── plugins/
-│   ├── publisher_*.py        ← Platform publishers (Discuz/WordPress/…)
-│   ├── *login.py             ← Playwright browser login modules
-│   ├── forum_signin.py       ← Sign-in orchestrator
-│   ├── signin_*.py           ← Per-platform sign-in implementations
-│   └── forum_reader.py       ← Forum reader
-├── sdk/
-│   ├── adapter.py            ← SDK adapter base class
-│   ├── router.py             ← SDK router
-│   └── adapters/*.py         ← Per-platform SDK adapters
-├── templates/                ← Jinja2 templates
-│   ├── base.html             ← Base layout
-│   ├── index.html            ← Dashboard (dynamic platform loading)
-│   ├── accounts.html         ← Account management (with site presets)
-│   ├── ai_settings.html      ← AI provider configuration
-│   ├── signin.html           ← Sign-in management
-│   └── ...
-└── flashsloth.db             ← SQLite database (auto-created)
-```
+- `.fs_key` — Fernet credential encryption key (mode 600), auto-generated on first boot
 
-## 📸 Workflow
+---
 
-```
-Create article → Edit Markdown → Save as draft
-    ↓
-Select target platforms + accounts
-    ↓
-Publish (Publisher writes to each platform)
-    ↓
-[Optional] Deploy to GitHub Pages (Deployer pushes to repo)
-    ↓
-[Optional] Retract → Re-publish
-```
+## 📊 Scheduled Tasks
 
-### Account Management Flow
+| Task | Interval | Description |
+|------|----------|-------------|
+| Auto Sign-In | Every minute | Daemon thread executes within configured time window (default 08:00-09:00) |
+| Forum Exploration | Hourly | `scripts/hourly_forum_check.py` — incremental Discuz section check |
+| Price Refresh | Per config | LCSC component price refresh |
 
-```
-Add new platform account
-  → Select platform from dropdown (e.g. Discuz / OSHWHub)
-  → Pick from well-known site presets (auto-fills site_url)
-  → Enter alias (auto-generated if left empty)
-  → Save → Browser auto-login
-  → Cookie saved automatically
-```
+---
 
-### AI Provider Configuration
+## 📋 Version History
 
-```
-Select provider (21+ presets) → Enter API Key → Test (zero-token /v1/models call)
-  → Auto-saves to database on success
-  → Supports multiple accounts per provider (alias)
-  → Balance query (DeepSeek/OpenAI)
-  → Enable/disable/delete
-```
+| Version | Date | Key Changes |
+|---------|------|-------------|
+| v4.50 | 2026-07-07 | Demo diagrams + generic login adapters (CSDN/wechat/zhihu) |
+| v4.49 | 2026-07-07 | Account dialog overhaul — QR login + demo cards + captcha UX |
+| v4.48 | 2026-07-06 | Unified edit dialog — redirect /edit to /accounts, masked value save |
+| v4.47 | 2026-07-06 | Fix test_connection decrypt compat + config_json encrypt/decrypt |
+| v4.46 | 2026-07-06 | Credential encryption — Fernet AES-128 for passwords/cookies/tokens |
+| v4.45 | 2026-07-06 | Gateway QR auto-config — /callback endpoint |
+| v4.42 | 2026-07-06 | OSHWHub auto re-login on cookie expiry + E2E draft save |
+| v4.41 | 2026-07-06 | Fix OSHWHub login status detection — Playwright cookie verify |
+| v4.39 | 2026-07-06 | 23-channel gateway + anti-detect module + Xianyu V2 MTOP + Explorer overhaul |
+| v4.36 | 2026-07-06 | Notification system + Gateway + unified pipeline + Xianyu search UI + exploration |
+| v4.35 | 2026-07-06 | Twitter/X Publisher + dynamic exploration sort |
+| v4.33 | 2026-07-06 | Zhihu publisher overhaul + exploration UI + sign-in stats fix |
 
-## 🖥️ Supported Platforms
-
-| Platform | Type | Status |
-|----------|------|--------|
-| Discuz! Forums | Forum posts | ✅ Stable (18 well-known forums preset) |
-| WordPress | Blog | ✅ Stable |
-| WeChat Official Account | Blog | ✅ Stable |
-| Juejin | Dev community | ✅ Stable |
-| Zhihu | Q&A | ✅ Stable |
-| CSDN | Tech blog | ✅ Stable |
-| RSS | Feed | ✅ Stable |
-| GitHub Pages | Static blog | ✅ Stable |
-| OSHWHub (JLCPCB) | Hardware community | ✅ Fixed (passport.jlc.com) |
-| Xianyu (Goofish) | Second-hand trading | ✅ Login + Product listing (WIP) |
-| Bilibili | Video/Articles | 🔧 Article publishing done, video WIP |
-
-## 🔒 Security
-
-- **Auto-generated random admin credentials** on first boot
-- API keys and passwords stored in database, never hardcoded
-- Sensitive info auto-redacted in logs
-- Set `FLASHSLOTH_SECRET` env var for production
-- Cloudflare Tunnel / frpc support for secure external access
-
-## 🤝 Contributing
-
-Bug reports and feature requests are welcome via GitHub Issues. For Pull Requests, please open an issue first to discuss.
+---
 
 ## 📄 License
 
