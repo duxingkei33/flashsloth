@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}通知中心{% endblock %}
+{% block content %}
+<style>
+.notif-container { max-width: 800px; margin: 0 auto; padding: 16px; }
+.notif-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 8px;
+}
+.notif-header h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.notif-actions { display: flex; gap: 6px; }
+.notif-actions button {
+    padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: 12px; background: #fff; cursor: pointer; transition: all .15s;
+}
+.notif-actions button:hover { background: #f8fafc; }
+
+.notif-list { }
+.notif-item {
+    display: flex; gap: 12px; padding: 14px 16px;
+    border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px;
+    transition: all .15s; cursor: pointer;
+}
+.notif-item:hover { border-color: #cbd5e1; background: #fafafa; }
+.notif-item.unread { background: #f0f7ff; border-color: #93c5fd; }
+.notif-icon { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center; padding-top: 2px; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-title {
+    font-size: 14px; font-weight: 500; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.notif-title .unread-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #2563eb; flex-shrink: 0;
+}
+.notif-message { font-size: 13px; color: #64748b; line-height: 1.4; margin-bottom: 4px; }
+.notif-meta {
+    font-size: 11px; color: #94a3b8; display: flex; gap: 8px; align-items: center;
+}
+.notif-meta .badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 4px;
+}
+.badge-info { background: #dbeafe; color: #2563eb; }
+.badge-success { background: #dcfce7; color: #16a34a; }
+.badge-warning { background: #fef3c7; color: #d97706; }
+.badge-error { background: #fef2f2; color: #dc2626; }
+
+.notif-empty {
+    text-align: center; padding: 60px 20px; color: #94a3b8;
+}
+.notif-empty .big-icon { font-size: 48px; margin-bottom: 12px; }
+
+@media (max-width: 600px) {
+    .notif-header { flex-direction: column; align-items: stretch; }
+    .notif-item { padding: 10px 12px; }
+}
+
+/* Navbar 通知徽标 */
+.notif-bell { position: relative; }
+.notif-badge {
+    position: absolute; top: -4px; right: -6px;
+    background: #dc2626; color: #fff; font-size: 9px;
+    min-width: 16px; height: 16px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; padding: 0 4px;
+}
+</style>
+
+<div class="notif-container">
+    <div class="notif-header">
+        <h1>🔔 通知中心</h1>
+        <div class="notif-actions">
+            <button onclick="markAllRead()" id="markAllBtn">✅ 全部已读</button>
+            <button onclick="loadNotifications()">🔄 刷新</button>
+        </div>
+    </div>
+
+    <div id="notifList" class="notif-list">
+        <div class="notif-empty">
+            <div class="big-icon">🔔</div>
+            <div>加载中…</div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentFilter = '';
+
+function loadNotifications(filter) {
+    if (filter !== undefined) currentFilter = filter;
+    const url = currentFilter
+        ? '/api/notifications?' + currentFilter
+        : '/api/notifications';
+
+    document.getElementById('notifList').innerHTML = '<div class="notif-empty"><div class="big-icon">🔄</div><div>加载中…</div></div>';
+
+    fetch(url)
+    .then(r => r.json())
+    .then(data => {
+        const items = data.notifications || [];
+        const list = document.getElementById('notifList');
+
+        if (items.length === 0) {
+            list.innerHTML = '<div class="notif-empty"><div class="big-icon">🔔</div><div>暂无通知</div></div>';
+            return;
+        }
+
+        list.innerHTML = items.map(n => {
+            const icons = {info: 'ℹ️', success: '✅', warn: '⚠️', error: '❌'};
+            const icon = icons[n.level] || 'ℹ️';
+            const unreadClass = n.is_read ? '' : ' unread';
+            const unreadDot = n.is_read ? '' : '<span class="unread-dot"></span>';
+
+            return `<div class="notif-item${unreadClass}" onclick="${n.is_read ? '' : "markRead("+n.id+")"}">
+                <div class="notif-icon">${icon}</div>
+                <div class="notif-body">
+                    <div class="notif-title">
+                        ${unreadDot} ${escapeHtml(n.title)}
+                    </div>
+                    ${n.message ? '<div class="notif-message">'+escapeHtml(n.message)+'</div>' : ''}
+                    <div class="notif-meta">
+                        <span class="badge badge-${n.level}">${n.level}</span>
+                        <span>${n.source}</span>
+                        <span>${n.created_at || ''}</span>
+                        ${n.link ? '<a href="'+escapeHtml(n.link)+'" target="_blank" style="color:#2563eb;">🔗 查看</a>' : ''}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        updateBadge(data.unread_count || 0);
+    });
+}
+
+function markRead(nid) {
+    fetch('/api/notifications/' + nid + '/read', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) loadNotifications();
+    });
+}
+
+function markAllRead() {
+    document.getElementById('markAllBtn').disabled = true;
+    fetch('/api/notifications/read-all', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('markAllBtn').disabled = false;
+        if (data.success) loadNotifications();
+    })
+    .catch(() => { document.getElementById('markAllBtn').disabled = false; });
+}
+
+function updateBadge(count) {
+    const badge = document.getElementById('notifBadge');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// Navbar 未读数自动刷新（每30秒）
+function pollUnread() {
+    fetch('/api/notifications/unread-count')
+    .then(r => r.json())
+    .then(data => updateBadge(data.count || 0))
+    .catch(() => {});
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// 页面加载
+loadNotifications();
+setInterval(pollUnread, 30000);
+</script>
+{% endblock %}

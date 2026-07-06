@@ -1,400 +1,429 @@
-<!DOCTYPE html>
-<html lang="zh-CN" >
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>探索数据管理 — FlashSloth</title>
-    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <style>
-        .section-card { margin-bottom: 1.5rem; }
-        .section-row:hover { background: rgba(0,0,0,0.03); }
-        .badge-postable { background: #198754; }
-        .badge-nonpostable { background: #dc3545; }
-        .keyword-badge { 
-            background: rgba(13, 110, 253, 0.15); 
-            color: #0d6efd;
-            font-size: 0.8rem;
-            margin: 2px;
-        }
-        .keyword-badge:hover { background: rgba(13, 110, 253, 0.3); }
-        .edit-input { 
-            background: #2b2b2b; 
-            border: 1px solid #444;
-            color: #ccc;
-            font-size: 0.85rem;
-        }
-        /* 折叠 chevron 旋转动画 */
-        .card-header .bi-chevron-down {
-            transition: transform 0.25s ease;
-        }
-        .card-header.collapsed .bi-chevron-down {
-            transform: rotate(0deg);
-        }
-        .card-header:not(.collapsed) .bi-chevron-down {
-            transform: rotate(180deg);
-        }
-    </style>
-</head>
-<body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom border-secondary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-shield-shaded"></i> FlashSloth
-            </a>
-            <div class="d-flex align-items-center gap-2">
-                <a href="/" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-house"></i> 首页
-                </a>
-                <a href="/settings" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-gear"></i> 设置
-                </a>
+{% extends "base.html" %}
+{% block title %}探索数据管理{% endblock %}
+{% block content %}
+<style>
+.section-card { margin-bottom: 1.5rem; }
+.section-row:hover { background: rgba(0,0,0,0.03); }
+.badge-postable { background: #198754; }
+.badge-nonpostable { background: #dc3545; }
+.keyword-badge {
+    background: rgba(13, 110, 253, 0.15);
+    color: #0d6efd;
+    font-size: 0.8rem;
+    margin: 2px;
+}
+.keyword-badge:hover { background: rgba(13, 110, 253, 0.3); }
+.edit-input {
+    background: #2b2b2b;
+    border: 1px solid #444;
+    color: #ccc;
+    font-size: 0.85rem;
+}
+.progress-step { cursor: pointer; }
+/* 能力配置表 */
+.cap-table { font-size: 0.85rem; margin-top: 8px; }
+.cap-table td { padding: 4px 8px !important; vertical-align: top; }
+.cap-table .label { color: #64748b; white-space: nowrap; min-width: 100px; }
+.cap-table .value { color: #333; max-width: 400px; }
+.cap-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 0.75rem; margin: 1px; background: #e2e8f0; color: #475569;
+}
+/* 标签输入 */
+.tag-input-group { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.tag-input-group input { border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; flex: 1; min-width: 120px; }
+.tag-input-group button { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; }
+.platform-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;
+    background: #dbeafe; color: #1e40af; margin: 2px;
+}
+.platform-tag .del { cursor: pointer; font-weight: bold; margin-left: 2px; color: #94a3b8; }
+.platform-tag .del:hover { color: #dc2626; }
+</style>
+
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="mb-1">🔍 平台探索管理</h3>
+            <p class="text-muted mb-0 small">板块信息 · 发布能力 · 关心标签 · 采集配置</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-success btn-sm me-2" onclick="reseedData()">
+                🔄 重新加载种子
+            </button>
+            <span class="text-muted small">数据: JSON预设 → DB</span>
+        </div>
+    </div>
+
+    {% if platforms %}
+    {% for p in platforms %}
+    <div class="card border section-card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center"
+             data-bs-toggle="collapse" data-bs-target="#platform_{{ loop.index }}" style="cursor:pointer;">
+            <div>
+                <h5 class="mb-0">
+                    {{ p.platform }}
+                    <small class="text-muted ms-2">{{ p.domain }}</small>
+                    <span class="badge {% if p.has_data %}bg-success{% else %}bg-secondary{% endif %} ms-2"
+                          style="font-size:0.7rem;">
+                        {{ p.count if p.has_data else '未探索' }}
+                    </span>
+                </h5>
+            </div>
+            <div>
+                {% if p.capabilities %}
+                <span class="badge bg-info me-2" style="font-size:0.7rem;">能力就绪</span>
+                {% endif %}
             </div>
         </div>
-    </nav>
-
-    <div class="container-fluid py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h3 class="mb-1"><i class="bi bi-compass"></i> 探索数据管理</h3>
-                <p class="text-muted mb-0 small">查看和编辑各平台探索到的版块/分类数据</p>
-            </div>
-            <div>
-                <button class="btn btn-outline-success btn-sm me-2" onclick="syncFromJson()">
-                    <i class="bi bi-arrow-repeat"></i> 从JSON同步
-                </button>
-                <span class="text-muted small">数据来源: Playwright 探索 → JSON缓存 → 数据库</span>
-                </div>
-                </div>
-
-                {% if platforms %}
-        {% for p in platforms %}
-        <div class="card border section-card">
-            <div class="card-header bg-light border d-flex justify-content-between align-items-center" 
-                 data-bs-toggle="collapse" data-bs-target="#platform_{{ loop.index }}" style="cursor:pointer;">
-                <div>
-                    <h5 class="mb-0">
-                        <i class="bi bi-chevron-down me-1" id="chevron_{{ loop.index }}"></i>
-                        <i class="bi bi-globe2"></i> {{ p.platform }}
-                        <small class="text-muted ms-2">{{ p.domain }}</small>
-                        {% if not p.has_data %}
-                        <span class="badge bg-warning ms-2">待探索</span>
-                        {% endif %}
-                    </h5>
-                </div>
-                <div>
-                    <span class="badge bg-info me-2">{{ p.count }} 条记录</span>
-                    {% if p.has_data %}
-                    <button class="btn btn-sm btn-outline-info me-1" onclick="event.stopPropagation();showRawJson({{ loop.index0 }})">
-                        <i class="bi bi-filetype-json"></i> JSON
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();syncToRegistry('{{ p.domain }}')">
-                        <i class="bi bi-arrow-left-right"></i> 同步
-                    </button>
-                    {% else %}
-                    <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation();explorePlatform('{{ p.domain }}','{{ p.platform }}')">
-                        <i class="bi bi-play-fill"></i> 开始探索
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-            {# 首项默认展开，其余折叠 #}
-            <div class="collapse {% if loop.first %}show{% endif %}" id="platform_{{ loop.index }}">
+        <div id="platform_{{ loop.index }}" class="collapse {% if loop.first %}show{% endif %}">
             <div class="card-body p-0">
-                <div class="row g-0">
-                    <!-- 左侧：表格 -->
-                    <div class="col-md-7 col-lg-8 border-end">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead>
-                                <tr>
-                                    <th style="width:60px">ID</th>
-                                    <th style="width:90px">版块ID</th>
-                                    <th>版块名称</th>
-                                    <th style="width:70px">状态</th>
-                                    <th>关键词</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for s in p.sections %}
-                                <tr class="section-row" data-id="{{ s.id }}">
-                                    <td class="text-muted small">{{ s.id }}</td>
-                                    <td><code class="text-info">{{ s.section_id }}</code></td>
-                                    <td>
-                                        <span class="section-name" data-field="section_name">{{ s.section_name }}</span>
-                                    </td>
-                                    <td>
-                                        {% if s.can_post %}
-                                            <span class="badge badge-postable">可发帖</span>
-                                        {% else %}
-                                            <span class="badge badge-nonpostable">不可发</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="keywords-container">
-                                            {% set kw_list = s.keywords|from_json %}
-                                            {% for kw in kw_list %}
-                                                <span class="badge keyword-badge">{{ kw }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    </td>
-                                </tr>
+                <!-- Row 1: 板块信息 -->
+                {% if p.has_data and p.sections %}
+                {% set paginate_id = 'paginate_' ~ loop.index %}
+                <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
+                    <div class="d-flex justify-content-between align-items-center px-2 py-1 border-bottom small" style="font-size:0.75rem;">
+                        <span class="text-muted">{{ p.sections|length }} 个版块</span>
+                        {% if p.sections|length > 20 %}
+                        <div class="d-flex gap-1 align-items-center" id="{{ paginate_id ~ '_ctrl' }}">
+                            <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
+                                    onclick="pageSection('{{ paginate_id }}', -1)">«</button>
+                            <span id="{{ paginate_id ~ '_info' }}">1/{{ ((p.sections|length + 19) // 20) }}</span>
+                            <button class="btn btn-sm btn-outline-secondary" style="padding:0 6px;font-size:0.7rem;"
+                                    onclick="pageSection('{{ paginate_id }}', 1)">»</button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <table class="table table-sm table-hover mb-0" style="font-size:0.8rem;">
+                        <thead class="sticky-top bg-light">
+                            <tr>
+                                <th style="width:40px;">#</th>
+                                <th style="width:80px;">版块ID</th>
+                                <th>版块名称</th>
+                                <th style="width:60px;">可发</th>
+                                <th>关键词</th>
+                                <th>标签</th>
+                            </tr>
+                        </thead>
+                        <tbody id="{{ paginate_id ~ '_tbody' }}">
+                            {% for s in p.sections %}
+                            <tr class="section-row" data-paginate="{{ paginate_id }}" data-page="{{ ((loop.index - 1) // 20) + 1 }}" {% if loop.index > 20 %}style="display:none;"{% endif %}>
+                                <td>{{ loop.index }}</td>
+                                <td><code>{{ s.section_id }}</code></td>
+                                <td>{{ s.section_name }}</td>
+                                <td>
+                                    <span class="badge {% if s.can_post %}bg-success{% else %}bg-danger{% endif %}"
+                                          style="font-size:0.65rem;">
+                                        {{ '✓' if s.can_post else '✗' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set kw = s.keywords|from_json if s.keywords and s.keywords|length > 2 else [] %}
+                                    {% for k in (kw if kw is iterable and kw is not string else [s.section_name])[:5] %}
+                                    <span class="keyword-badge badge">{{ k }}</span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% set toi = s.tags_of_interest|from_json if s.tags_of_interest and s.tags_of_interest|length > 2 else [] %}
+                                    {% if toi %}
+                                    {% for t in (toi if toi is iterable and toi is not string else [])[:3] %}
+                                    <span class="platform-tag" style="font-size:0.65rem;padding:1px 5px;">{{ t }}</span>
+                                    {% endfor %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-3 text-muted small">暂无探索数据，请先运行平台探索。</div>
+                {% endif %}
+
+                <!-- Row 2: 平台发布能力 -->
+                {% if p.capabilities %}
+                <div class="p-3 border-top">
+                    <strong style="font-size:0.85rem;color:#475569;">📋 平台发布能力</strong>
+                    <table class="cap-table table table-borderless mb-0">
+                        {% set caps = p.capabilities %}
+                        {% if caps.publish %}
+                        <tr>
+                            <td class="label">发布类型</td>
+                            <td class="value">
+                                {% if caps.publish.content_types %}
+                                {% for ct in caps.publish.content_types %}
+                                <span class="cap-tag">{{ ct }}</span>
                                 {% endfor %}
-                            </tbody>
-                        </table>
+                                {% else %}
+                                {{ caps.publish.type or '未知' }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">标题限制</td>
+                            <td class="value">
+                                {% if caps.publish.max_title_length %}
+                                最长 {{ caps.publish.max_title_length }} 字
+                                {% if caps.publish.min_title_length %} / 最短 {{ caps.publish.min_title_length }} 字{% endif %}
+                                {% else %}无特殊限制{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">内容格式</td>
+                            <td class="value">
+                                {% if caps.publish.supports_markdown %}<span class="cap-tag">Markdown</span>{% endif %}
+                                {% if caps.publish.supports_richtext %}<span class="cap-tag">富文本</span>{% endif %}
+                                {% if caps.publish.allow_bbcode %}<span class="cap-tag">BBCode</span>{% endif %}
+                                {% if caps.publish.allow_html %}<span class="cap-tag">HTML</span>{% endif %}
+                                {% if caps.publish.code_highlighting %}<span class="cap-tag">代码高亮</span>{% endif %}
+                                {% if caps.publish.math_formula %}<span class="cap-tag">数学公式</span>{% endif %}
+                                {% if caps.publish.mermaid %}<span class="cap-tag">Mermaid</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if caps.upload_limits %}
+                        <tr>
+                            <td class="label">图片限制</td>
+                            <td class="value">
+                                {% if caps.upload_limits.max_image_size_mb %}最大 {{ caps.upload_limits.max_image_size_mb }}MB{% endif %}
+                                {% if caps.upload_limits.image_types %}
+                                ({{ caps.upload_limits.image_types|join(', ') }})
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="label">附件限制</td>
+                            <td class="value">
+                                {% if caps.upload_limits.max_attachment_size_mb %}最大 {{ caps.upload_limits.max_attachment_size_mb }}MB{% endif %}
+                                {% if caps.upload_limits.attachment_types %}
+                                ({{ caps.upload_limits.attachment_types|join(', ') }})
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if caps.restrictions %}
+                        <tr>
+                            <td class="label">限制</td>
+                            <td class="value">
+                                {% if caps.restrictions.audit_required %}<span class="cap-tag">需审核</span>{% endif %}
+                                {% if caps.restrictions.vip_required %}<span class="cap-tag">需VIP</span>{% endif %}
+                                {% if caps.restrictions.min_posts_for_links %}<span class="cap-tag">发链需{{ caps.restrictions.min_posts_for_links }}帖</span>{% endif %}
+                                {% if caps.restrictions.min_level_for_original %}<span class="cap-tag">原创需Lv{{ caps.restrictions.min_level_for_original }}</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if caps.signin %}
+                        <tr>
+                            <td class="label">签到</td>
+                            <td class="value">
+                                <span class="cap-tag">{{ caps.signin.type }}</span>
+                                {% if caps.signin.daily_bonus %}<span class="cap-tag">每日奖励</span>{% endif %}
+                                {% if caps.signin.bonus_range %}{{ caps.signin.bonus_range }}{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-3 border-top text-muted small">暂未配置平台能力信息。</div>
+                {% endif %}
+
+                <!-- Row 3: 标签 + 管理配置 -->
+                <div class="p-3 border-top d-flex flex-wrap gap-3 align-items-start">
+                    <!-- 关心标签 -->
+                    <div style="flex:1;min-width:250px;">
+                        <strong style="font-size:0.85rem;color:#475569;">🏷️ 关心标签</strong>
+                        <div class="tag-input-group mt-1" id="tagGroup_{{ loop.index }}">
+                            <input type="text" id="tagInput_{{ loop.index }}"
+                                   placeholder="输入标签后回车…"
+                                   onkeydown="if(event.key==='Enter')addTag('{{ p.domain }}', {{ loop.index }})">
+                            <button class="btn btn-primary btn-sm" onclick="addTag('{{ p.domain }}', {{ loop.index }})">+</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="saveTags('{{ p.domain }}', {{ loop.index }})">💾</button>
+                        </div>
+                        <div id="tagList_{{ loop.index }}" class="mt-1" style="display:flex;flex-wrap:wrap;gap:2px;">
+                            {% for t in p.tags_of_interest %}
+                            <span class="platform-tag">
+                                {{ t }}
+                                <span class="del" onclick="removeTag('{{ p.domain }}', {{ loop.index }}, '{{ t }}')">×</span>
+                            </span>
+                            {% endfor %}
+                            {% if not p.tags_of_interest %}
+                            <span class="text-muted" style="font-size:0.75rem;">暂无标签</span>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted" style="font-size:0.7rem;display:block;margin-top:4px;">
+                            标签用于AI采集筛选和推荐
+                        </small>
                     </div>
-                    </div><!-- /col left -->
-                    <!-- 右侧：JSON 原始数据 -->
-                    <div class="col-md-5 col-lg-4 p-3" style="max-height:500px;overflow-y:auto;">
-                        <h6 class="text-muted mb-2" style="font-size:12px;">
-                            <i class="bi bi-filetype-json"></i> 原始配置数据
-                        </h6>
-                        <pre id="jsonInline_{{ loop.index0 }}" class="p-2 rounded" 
-                             style="font-size:11px;line-height:1.4;background:#f8f9fa;border:1px solid #dee2e6;
-                                    white-space:pre-wrap;word-break:break-all;margin:0;">
-                        </pre>
+
+                    <!-- 管理配置入口（预留） -->
+                    <div style="min-width:200px;">
+                        <strong style="font-size:0.85rem;color:#475569;">⚙️ 管理配置</strong>
+                        <div class="mt-1 d-flex gap-1 flex-wrap">
+                            <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
+                                    onclick="alert('AI数据采集配置（即将推出）')">
+                                🤖 AI采集
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
+                                    onclick="alert('视频采集配置（即将推出）')">
+                                🎬 视频采集
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
+                                    onclick="syncFromJson('{{ p.domain }}')">
+                                📥 JSON同步
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;"
+                                    onclick="editCapabilities('{{ p.domain }}', {{ loop.index }})">
+                                📝 编辑能力
+                            </button>
+                        </div>
+                        <small class="text-muted" style="font-size:0.7rem;display:block;margin-top:4px;">
+                            预留AI/视频采集引用入口
+                        </small>
                     </div>
-                </div><!-- /row -->
                 </div>
             </div>
-            {% endfor %}
-        {% else %}
-            <div class="text-center py-5">
-                <i class="bi bi-database-slash" style="font-size: 3rem; color: #555;"></i>
-                <p class="mt-3 text-muted">暂无探索数据</p>
-                <p class="small text-muted">请先运行探索脚本，或检查 platform_reports/ 下是否有 JSON 文件</p>
-            </div>
-        {% endif %}
+        </div>
     </div>
-
-    <script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let originals = {};
-
-        function editRow(id) {
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            const nameSpan = row.querySelector('.section-name');
-            const nameText = nameSpan.textContent.trim();
-            originals[id] = { name: nameText };
-            
-            nameSpan.innerHTML = `<input type="text" class="form-control form-control-sm edit-input" value="${nameText}" style="width:200px">`;
-            
-            document.getElementById(`save-${id}`).classList.remove('d-none');
-            document.getElementById(`cancel-${id}`).classList.remove('d-none');
-        }
-
-        function cancelEdit(id) {
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            const nameSpan = row.querySelector('.section-name');
-            nameSpan.textContent = originals[id].name;
-            
-            document.getElementById(`save-${id}`).classList.add('d-none');
-            document.getElementById(`cancel-${id}`).classList.add('d-none');
-        }
-
-        function saveRow(id) {
-            const row = document.querySelector(`tr[data-id="${id}"]`);
-            const input = row.querySelector('.section-name input');
-            const newName = input ? input.value : '';
-            
-            if (!newName) return;
-            
-            fetch(`/api/exploration/${id}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ section_name: newName })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    const nameSpan = row.querySelector('.section-name');
-                    nameSpan.textContent = newName;
-                    document.getElementById(`save-${id}`).classList.add('d-none');
-                    document.getElementById(`cancel-${id}`).classList.add('d-none');
-                    delete originals[id];
-                } else {
-                    alert('保存失败: ' + (data.error || '未知错误'));
-                }
-            })
-            .catch(e => alert('网络错误: ' + e));
-        }
-
-        function syncFromJson() {
-            fetch('/api/exploration/batch', { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('同步失败: ' + (data.error || ''));
-                }
-            })
-            .catch(e => alert('网络错误: ' + e));
-        }
-
-        function syncToRegistry(domain) {
-            fetch(`/api/exploration/sync/${domain}`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`已同步 ${data.count} 条数据到匹配引擎`);
-                }
-            })
-            .catch(e => alert('网络错误: ' + e));
-        }
-    </script>
-
-<!-- JSON原始数据模态框 -->
-<div class="modal fade" id="jsonModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content bg-light">
-      <div class="modal-header border-secondary">
-        <h5 class="modal-title"><i class="bi bi-filetype-json"></i> 原始JSON数据</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <pre id="jsonContent" class="text-dark" style="max-height:60vh;overflow:auto;font-size:0.8rem;background:#f8f9fa;padding:12px;border-radius:6px;"></pre>
-      </div>
-      <div class="modal-footer border-secondary">
-        <button class="btn btn-sm btn-outline-info" onclick="copyJson()"><i class="bi bi-clipboard"></i> 复制</button>
-        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">关闭</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 自定义网站探索入口 -->
-<div class="card bg-light border mt-4">
-    <div class="card-header bg-light border">
-        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> 自定义网站探索</h5>
-    </div>
-    <div class="card-body">
-        <form id="customExploreForm" class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label class="form-label small">网站域名</label>
-                <input type="text" class="form-control form-control-sm edit-input" id="customDomain" placeholder="例如: bbs.example.com">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">平台类型</label>
-                <select class="form-select form-select-sm edit-input" id="customPlatform">
-                    <option value="discuz">Discuz!</option>
-                    <option value="wordpress">WordPress</option>
-                    <option value="generic">通用</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">登录方式</label>
-                <select class="form-select form-select-sm edit-input" id="customLogin">
-                    <option value="cookie">Cookie登录</option>
-                    <option value="password">账号密码</option>
-                    <option value="qrcode">二维码扫码</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-sm btn-primary w-100" onclick="startCustomExplore(event)">
-                    <i class="bi bi-play-fill"></i> 开始探索
-                </button>
-            </div>
-        </form>
-        <div id="customExploreResult" class="mt-3 small text-muted"></div>
-    </div>
+    {% endfor %}
+    {% else %}
+    <div class="alert alert-info">暂无已注册平台，请先在 <a href="/accounts">账号管理</a> 添加平台账号。</div>
+    {% endif %}
 </div>
 
 <script>
-// 平台原始数据JSON（由后端渲染时注入）
-const PLATFORM_DATA = {{ platforms_json|safe }};
+// ─── 标签管理 ─────────────────────────
+let pendingTags = {};
 
-// 展开时自动填充右侧JSON面板
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('[data-bs-toggle=\"collapse\"]').forEach(function(header) {
-        const targetId = header.getAttribute('data-bs-target').replace('#', '');
-        const el = document.getElementById(targetId);
-        if (!el) return;
-        el.addEventListener('show.bs.collapse', function() {
-            const idx = Array.from(document.querySelectorAll('.collapse[id^=\"platform_\"]')).indexOf(el);
-            if (idx >= 0 && PLATFORM_DATA[idx]) {
-                const pre = document.getElementById('jsonInline_' + idx);
-                if (pre && !pre.getAttribute('data-loaded')) {
-                    pre.textContent = JSON.stringify(PLATFORM_DATA[idx], null, 2);
-                    pre.setAttribute('data-loaded', '1');
-                }
-            }
+function initPendingTags(domain, idx) {
+    if (!pendingTags[domain]) {
+        pendingTags[domain] = [];
+        document.querySelectorAll(`#tagList_${idx} .platform-tag`).forEach(el => {
+            const txt = el.textContent.trim().replace('×', '').trim();
+            if (txt) pendingTags[domain].push(txt);
         });
-    });
-});
-
-function showRawJson(idx) {
-    const data = PLATFORM_DATA[idx];
-    if (!data) { alert('没有数据'); return; }
-    document.getElementById('jsonContent').textContent = JSON.stringify(data, null, 2);
-    new bootstrap.Modal(document.getElementById('jsonModal')).show();
+    }
 }
 
-function copyJson() {
-    const text = document.getElementById('jsonContent').textContent;
-    navigator.clipboard.writeText(text).then(() => {
-        alert('已复制到剪贴板');
-    }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        alert('已复制');
-    });
+function addTag(domain, idx) {
+    initPendingTags(domain, idx);
+    const input = document.getElementById('tagInput_' + idx);
+    const tag = input.value.trim();
+    if (!tag || pendingTags[domain].includes(tag)) return;
+    pendingTags[domain].push(tag);
+    input.value = '';
+    renderTags(domain, idx);
 }
 
-function explorePlatform(domain, platform) {
-    if (!confirm('开始探索 ' + domain + ' 平台？将使用Playwright模拟浏览')) return;
-    const resultDiv = document.createElement('div');
-    resultDiv.className = 'mt-2 small';
-    document.querySelector('.container-fluid.py-4').appendChild(resultDiv);
-    resultDiv.innerHTML = '<span class=\"text-warning\"><i class=\"bi bi-hourglass-split\"></i> 探索任务已提交...</span>';
-    fetch('/api/exploration/custom', {
+function removeTag(domain, idx, tag) {
+    initPendingTags(domain, idx);
+    pendingTags[domain] = pendingTags[domain].filter(t => t !== tag);
+    renderTags(domain, idx);
+}
+
+function renderTags(domain, idx) {
+    const list = document.getElementById('tagList_' + idx);
+    const tags = pendingTags[domain] || [];
+    if (tags.length === 0) {
+        list.innerHTML = '<span class="text-muted" style="font-size:0.75rem;">暂无标签</span>';
+        return;
+    }
+    list.innerHTML = tags.map(t =>
+        `<span class="platform-tag">${escapeHtml(t)} <span class="del" onclick="removeTag('${domain}', ${idx}, '${escapeHtml(t)}')">×</span></span>`
+    ).join('');
+}
+
+function saveTags(domain, idx) {
+    initPendingTags(domain, idx);
+    const tags = pendingTags[domain] || [];
+    fetch('/api/exploration/tags/' + domain, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({domain, platform, login_method: 'cookie'})
-    })
-    .then(r => r.json())
-    .then(data => {
-        resultDiv.innerHTML = data.success
-            ? '<span class=\"text-success\">✅ ' + data.message + '</span>'
-            : '<span class=\"text-danger\">❌ ' + (data.error || '失败') + '</span>';
-        if (data.success) setTimeout(() => location.reload(), 3000);
-    })
-    .catch(e => { resultDiv.innerHTML = '<span class=\"text-danger\">❌ 错误: ' + e + '</span>'; });
-}
-
-function startCustomExplore(e) {
-    e.preventDefault();
-    const domain = document.getElementById('customDomain').value.trim();
-    const platform = document.getElementById('customPlatform').value;
-    const login = document.getElementById('customLogin').value;
-    
-    if (!domain) { alert('请输入网站域名'); return; }
-    
-    const resultDiv = document.getElementById('customExploreResult');
-    resultDiv.innerHTML = '<span class=\"text-warning\"><i class=\"bi bi-hourglass-split\"></i> 探索任务已提交到后台队列...</span>';
-    
-    fetch('/api/exploration/custom', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ domain, platform, login_method: login })
+        body: JSON.stringify({tags: tags})
     })
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            resultDiv.innerHTML = '<span class=\"text-success\"><i class=\"bi bi-check-circle\"></i> 探索任务已启动！' + (data.message || '') + '</span>';
-            setTimeout(() => location.reload(), 2000);
+            document.getElementById('tagInput_' + idx).placeholder = '保存成功 ✓';
+            setTimeout(() => { document.getElementById('tagInput_' + idx).placeholder = '输入标签后回车…'; }, 2000);
         } else {
-            resultDiv.innerHTML = '<span class=\"text-danger\"><i class=\"bi bi-exclamation-triangle\"></i> ' + (data.error || '启动失败') + '</span>';
+            alert('保存失败: ' + (data.error || ''));
         }
-    })
-    .catch(e => {
-        resultDiv.innerHTML = '<span class=\"text-danger\"><i class=\"bi bi-exclamation-triangle\"></i> 网络错误: ' + e + '</span>';
     });
 }
+
+// ─── 其他功能 ─────────────────────────
+function reseedData() {
+    if (!confirm('重新加载种子数据？不会覆盖已有记录。')) return;
+    fetch('/api/exploration/reseed', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) { location.reload(); }
+        else { alert('失败: ' + (data.error || '')); }
+    });
+}
+
+function syncFromJson(domain) {
+    fetch('/api/exploration/sync/' + domain, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`${domain}: 已同步 ${data.count} 个板块`);
+        } else {
+            alert('失败: ' + (data.error || ''));
+        }
+    });
+}
+
+function editCapabilities(domain, idx) {
+    const txt = prompt('输入平台能力配置JSON（或留空重置）：', '{\n  "publish": {},\n  "upload_limits": {},\n  "restrictions": {}\n}');
+    if (txt === null) return;
+    try {
+        const data = JSON.parse(txt);
+        fetch('/api/exploration/capabilities/' + domain, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(d => { if (d.success) location.reload(); else alert('失败: ' + d.error); });
+    } catch(e) {
+        alert('JSON格式错误: ' + e.message);
+    }
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// ─── 板块分页 ─────────────────────────
+function pageSection(paginateId, direction) {
+    const tbody = document.getElementById(paginateId + '_tbody');
+    const rows = tbody.querySelectorAll('tr[data-paginate="' + paginateId + '"]');
+    if (rows.length === 0) return;
+    // 找当前页
+    let curPage = 1;
+    for (const r of rows) {
+        if (r.style.display !== 'none') {
+            curPage = parseInt(r.dataset.page) || 1;
+            break;
+        }
+    }
+    const totalPages = Math.max(1, Math.ceil(rows.length / 20));
+    const newPage = Math.max(1, Math.min(totalPages, curPage + direction));
+    if (newPage === curPage) return;
+    // 显示新页
+    for (const r of rows) {
+        const p = parseInt(r.dataset.page) || 1;
+        r.style.display = (p === newPage) ? '' : 'none';
+    }
+    // 更新页码
+    const info = document.getElementById(paginateId + '_info');
+    if (info) info.textContent = newPage + '/' + totalPages;
+}
 </script>
-</body>
-</html>
+{% endblock %}

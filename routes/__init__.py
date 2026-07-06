@@ -80,6 +80,11 @@ def configure_app():
     from flashsloth.routes.api_v1 import init_api_v1
     init_api_v1()
     import flashsloth.routes.comment_monitor  # 💬 评论监控路由
+    import flashsloth.routes.api_v2  # 🚪 Gateway API v2
     import flashsloth.routes.exploration      # 🔍 探索数据管理
+    import flashsloth.routes.xianyu_search    # 🐟 闲鱼搜索
+    import flashsloth.routes.pipeline_ui      # 📋 内容流水线
+    import flashsloth.routes.notifications   # 🔔 通知系统
+    import flashsloth.routes.gateway         # 📡 通知网关
 
     return app, login_manager, User

@@ -741,5 +741,54 @@
         "游客帖子汇总"
       ]
     }
-  ]
+  ],
+  "capabilities": {
+    "publish": {
+      "type": "forum_post",
+      "content_types": [
+        "text",
+        "image",
+        "attachment",
+        "poll"
+      ],
+      "max_title_length": 80,
+      "min_content_chars": 6,
+      "allow_markdown": false,
+      "allow_bbcode": true,
+      "allow_html": false,
+      "allow_urls": true,
+      "allow_self_promotion": false
+    },
+    "upload_limits": {
+      "max_image_size_mb": 10,
+      "max_attachment_size_mb": 20,
+      "image_types": [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "bmp"
+      ],
+      "attachment_types": [
+        "zip",
+        "rar",
+        "pdf",
+        "doc",
+        "docx",
+        "sch",
+        "pcb"
+      ]
+    },
+    "signin": {
+      "type": "discuz_requests",
+      "daily_bonus": true,
+      "bonus_range": "1-20积分"
+    },
+    "restrictions": {
+      "new_user_cooldown_hours": 24,
+      "min_posts_for_links": 10,
+      "audit_required": false,
+      "level_required": false
+    }
+  }
 }

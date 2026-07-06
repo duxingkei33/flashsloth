@@ -458,6 +458,86 @@ class XianyuAdapter(PlatformAdapter):
                 "status": "连接失败",
             }
 
+    # ─── 商品搜索 ─────────────────────────────
+    # 基于 XianyuAutoAgent API v2 (xianyu_v2.py)
+
+    def search_products(
+        self,
+        keyword: str,
+        min_price: float = 0,
+        max_price: float = 0,
+        sort_by: str = "default",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> dict:
+        """搜索闲鱼商品
+
+        参数:
+            keyword:     搜索关键词
+            min_price:    最低价(0=不限)
+            max_price:    最高价(0=不限)
+            sort_by:     default | price_asc | price_desc | time
+            page:         页码
+            page_size:    每页数量
+
+        返回:
+            supported: bool
+            success: bool
+            total: int
+            products: list[dict]
+            error: str
+        """
+        try:
+            from .xianyu_v2 import XianyuApiV2
+
+            cookie = self.config.get("cookie", "") if self.config else ""
+            if not cookie:
+                return {"supported": True, "success": False,
+                        "error": "未配置闲鱼Cookie，请在账号设置中添加"}
+
+            client = XianyuApiV2(cookie)
+            results = client.search_products(
+                keyword=keyword, min_price=min_price, max_price=max_price,
+                sort_by=sort_by, page=page, page_size=page_size,
+            )
+            return {
+                "supported": True,
+                "success": True,
+                "total": len(results),
+                "products": [p.__dict__ for p in results],
+            }
+        except Exception as e:
+            return {"supported": True, "success": False,
+                    "error": f"搜索失败: {e}"}
+
+    def get_product_detail(self, item_id: str) -> dict:
+        """获取商品详情
+
+        返回:
+            supported: bool
+            success: bool
+            product: dict | None
+            error: str
+        """
+        try:
+            from .xianyu_v2 import XianyuApiV2
+
+            cookie = self.config.get("cookie", "") if self.config else ""
+            if not cookie:
+                return {"supported": True, "success": False,
+                        "error": "未配置闲鱼Cookie"}
+
+            client = XianyuApiV2(cookie)
+            product = client.get_item_info(item_id)
+            if product:
+                return {"supported": True, "success": True,
+                        "product": product.__dict__}
+            return {"supported": True, "success": False,
+                    "error": "商品不存在或无法访问"}
+        except Exception as e:
+            return {"supported": True, "success": False,
+                    "error": f"获取详情失败: {e}"}
+
     # ─── Playwright 登录 ──────────────────────
 
     def playwright_login(self) -> dict:

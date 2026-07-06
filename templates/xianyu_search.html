@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}闲鱼搜索{% endblock %}
+{% block content %}
+<style>
+.xy-container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.xy-search-box {
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+    border-radius: 16px; padding: 32px; margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(255,107,53,0.2);
+}
+.xy-search-box h1 { color: #fff; margin: 0 0 16px; font-size: 22px; display: flex; align-items: center; gap: 8px; }
+.xy-search-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.xy-search-row input[type="text"] {
+    flex: 1; min-width: 200px; padding: 12px 16px; border: none; border-radius: 10px;
+    font-size: 15px; outline: none;
+}
+.xy-search-row input[type="number"] {
+    width: 100px; padding: 12px 12px; border: none; border-radius: 10px;
+    font-size: 14px; outline: none;
+}
+.xy-search-row select {
+    padding: 12px; border: none; border-radius: 10px; font-size: 14px; outline: none;
+}
+.xy-search-row button {
+    padding: 12px 28px; border: none; border-radius: 10px;
+    background: #fff; color: #ff6b35; font-weight: 600; font-size: 15px;
+    cursor: pointer; transition: all .2s;
+}
+.xy-search-row button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.xy-search-row button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.xy-account-bar {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 4px;
+    font-size: 13px; color: rgba(255,255,255,0.85);
+}
+.xy-account-bar select {
+    padding: 6px 10px; border: none; border-radius: 6px; font-size: 13px;
+    background: rgba(255,255,255,0.2); color: #fff;
+}
+.xy-account-bar select option { color: #333; background: #fff; }
+.xy-account-bar .no-account { color: #ffe0b0; }
+
+.xy-filters {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px;
+    font-size: 13px; color: rgba(255,255,255,0.85);
+}
+.xy-filters label { display: flex; align-items: center; gap: 4px; }
+.xy-filters input { width: 70px; }
+
+/* 商品网格 */
+.xy-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px; margin-top: 16px;
+}
+.xy-card {
+    border: 1px solid #eee; border-radius: 12px; overflow: hidden;
+    background: #fff; transition: all .2s; cursor: pointer;
+}
+.xy-card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.1); }
+.xy-card-img {
+    width: 100%; height: 200px; object-fit: cover;
+    background: #f5f5f5; display: flex; align-items: center; justify-content: center;
+    color: #ccc; font-size: 40px;
+}
+.xy-card-body { padding: 12px 14px; }
+.xy-card-title {
+    font-size: 14px; font-weight: 500; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; margin-bottom: 6px;
+}
+.xy-card-price {
+    font-size: 18px; font-weight: 700; color: #ff6b35;
+}
+.xy-card-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: #999; margin-top: 6px;
+}
+.xy-card-seller { display: flex; align-items: center; gap: 4px; }
+.xy-card-location { font-size: 11px; }
+.xy-empty {
+    text-align: center; padding: 60px 20px; color: #999;
+}
+.xy-empty .big-icon { font-size: 64px; margin-bottom: 16px; }
+.xy-loading {
+    text-align: center; padding: 40px; color: #999; font-size: 14px;
+}
+.xy-error {
+    background: #fef2f2; color: #dc2626; padding: 12px 16px; border-radius: 8px;
+    margin-bottom: 12px; font-size: 14px;
+}
+
+/* 详情弹窗 */
+.xy-modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 999; justify-content: center;
+    align-items: center; padding: 20px;
+}
+.xy-modal {
+    background: #fff; border-radius: 16px; max-width: 700px; width: 100%;
+    max-height: 90vh; overflow-y: auto; padding: 24px; position: relative;
+}
+.xy-modal-close {
+    position: absolute; top: 12px; right: 16px; font-size: 24px;
+    cursor: pointer; color: #999; border: none; background: none;
+}
+.xy-modal-images { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; }
+.xy-modal-images img {
+    height: 200px; border-radius: 8px; flex-shrink: 0;
+}
+.xy-modal-title { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+.xy-modal-price { font-size: 24px; font-weight: 700; color: #ff6b35; margin-bottom: 8px; }
+.xy-modal-desc {
+    font-size: 14px; color: #555; line-height: 1.6; white-space: pre-wrap;
+    max-height: 200px; overflow-y: auto; margin-bottom: 16px;
+}
+.xy-modal-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: #666; }
+.xy-modal-info span { display: flex; gap: 4px; }
+.xy-modal-info .label { color: #999; min-width: 60px; }
+.xy-modal-link { margin-top: 16px; }
+
+/* 手机适配 */
+@media (max-width: 600px) {
+    .xy-search-box { padding: 20px; border-radius: 12px; }
+    .xy-search-row input[type="text"] { min-width: 100%; }
+    .xy-search-row input[type="number"] { width: 80px; }
+    .xy-grid { grid-template-columns: 1fr; }
+    .xy-modal { padding: 16px; }
+}
+</style>
+
+<div class="xy-container">
+    <div class="xy-search-box">
+        <h1>🐟 闲鱼搜搜</h1>
+
+        {% if accounts %}
+        <div class="xy-account-bar">
+            <span>使用账号：</span>
+            <select id="xyAccount">
+                {% for a in accounts %}
+                <option value="{{ a.id }}">{{ a.account_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% else %}
+        <div class="xy-account-bar">
+            <span class="no-account">⚠️ 未配置闲鱼账号，请先到 <a href="/accounts" style="color:#fff;text-decoration:underline;">账号管理</a> 添加</span>
+        </div>
+        {% endif %}
+
+        <div class="xy-search-row">
+            <input type="text" id="xyKeyword" placeholder="搜索闲鱼商品…" autofocus
+                   onkeydown="if(event.key==='Enter') doSearch()">
+            <select id="xySort">
+                <option value="default">综合排序</option>
+                <option value="price_asc">价格↑</option>
+                <option value="price_desc">价格↓</option>
+                <option value="time">最新</option>
+            </select>
+            <button id="xySearchBtn" onclick="doSearch()" {% if not accounts %}disabled{% endif %}>
+                🔍 搜索
+            </button>
+        </div>
+
+        <div class="xy-filters">
+            <label>价格：<input type="number" id="xyMinPrice" placeholder="最低" min="0" step="0.01"> — <input type="number" id="xyMaxPrice" placeholder="最高" min="0" step="0.01"></label>
+        </div>
+    </div>
+
+    <div id="xyError" class="xy-error" style="display:none;"></div>
+    <div id="xyLoading" class="xy-loading" style="display:none;">🔄 搜索中…</div>
+    <div id="xyEmpty" class="xy-empty" style="display:none;">
+        <div class="big-icon">🐟</div>
+        <div>输入关键词搜索闲鱼商品</div>
+    </div>
+    <div id="xyGrid" class="xy-grid"></div>
+</div>
+
+<!-- 详情弹窗 -->
+<div id="xyModalOverlay" class="xy-modal-overlay" onclick="if(event.target===this)closeDetail()">
+    <div class="xy-modal">
+        <button class="xy-modal-close" onclick="closeDetail()">×</button>
+        <div id="xyModalContent"></div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+
+function showError(msg) {
+    const el = document.getElementById('xyError');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 5000);
+}
+
+function doSearch(page) {
+    const keyword = document.getElementById('xyKeyword').value.trim();
+    if (!keyword) { showError('请输入搜索关键词'); return; }
+
+    currentPage = page || 1;
+    const accountId = document.getElementById('xyAccount')?.value || 0;
+    const sort = document.getElementById('xySort').value;
+    const minPrice = document.getElementById('xyMinPrice').value;
+    const maxPrice = document.getElementById('xyMaxPrice').value;
+
+    document.getElementById('xyGrid').innerHTML = '';
+    document.getElementById('xyEmpty').style.display = 'none';
+    document.getElementById('xyLoading').style.display = 'block';
+    document.getElementById('xySearchBtn').disabled = true;
+
+    fetch('/api/xianyu/search', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            keyword: keyword,
+            account_id: parseInt(accountId),
+            page: currentPage,
+            page_size: 20,
+            sort_by: sort,
+            min_price: minPrice || null,
+            max_price: maxPrice || null,
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('xyLoading').style.display = 'none';
+        document.getElementById('xySearchBtn').disabled = false;
+
+        if (!data.success) {
+            showError(data.error || '搜索失败');
+            return;
+        }
+
+        const products = data.products || [];
+        if (products.length === 0) {
+            document.getElementById('xyEmpty').style.display = 'block';
+            document.getElementById('xyEmpty').innerHTML = '<div class="big-icon">🔍</div><div>没有找到相关商品，试试其他关键词</div>';
+            return;
+        }
+
+        renderProducts(products);
+    })
+    .catch(err => {
+        document.getElementById('xyLoading').style.display = 'none';
+        document.getElementById('xySearchBtn').disabled = false;
+        showError('网络错误: ' + err.message);
+    });
+}
+
+function renderProducts(products) {
+    const grid = document.getElementById('xyGrid');
+    grid.innerHTML = products.map(p => {
+        const imgHtml = p.images && p.images[0]
+            ? `<img src="${p.images[0]}" alt="${escapeHtml(p.title)}" class="xy-card-img" onerror="this.style.display='none'">`
+            : `<div class="xy-card-img">📦</div>`;
+        return `<div class="xy-card" onclick="showDetail('${p.item_id}')">
+            ${imgHtml}
+            <div class="xy-card-body">
+                <div class="xy-card-title">${escapeHtml(p.title)}</div>
+                <div class="xy-card-price">¥${p.price}</div>
+                <div class="xy-card-meta">
+                    <span class="xy-card-seller">${p.seller_name ? '👤 '+escapeHtml(p.seller_name) : ''}</span>
+                    <span class="xy-card-location">${p.location || ''}</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function showDetail(itemId) {
+    const overlay = document.getElementById('xyModalOverlay');
+    const content = document.getElementById('xyModalContent');
+    content.innerHTML = '<div style="text-align:center;padding:40px;color:#999;">🔄 加载中…</div>';
+    overlay.style.display = 'flex';
+
+    fetch('/api/xianyu/detail/' + itemId)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            content.innerHTML = `<div style="color:#dc2626;padding:20px;">${escapeHtml(data.error)}</div>`;
+            return;
+        }
+        const p = data.product;
+        const imagesHtml = (p.images || []).map(img =>
+            `<img src="${img}" onerror="this.style.display='none'">`
+        ).join('');
+
+        let skuHtml = '';
+        if (p.sku_list && p.sku_list.length > 0) {
+            skuHtml = '<div style="margin-top:12px;"><strong>规格：</strong><ul style="margin:4px 0 0;padding-left:16px;">' +
+                p.sku_list.map(s => `<li>${escapeHtml(s.spec||s.spec_name||'')}: ¥${s.price||s.spec_price||p.price}</li>`).join('') +
+                '</ul></div>';
+        }
+
+        content.innerHTML = `
+            ${imagesHtml ? '<div class="xy-modal-images">'+imagesHtml+'</div>' : ''}
+            <div class="xy-modal-title">${escapeHtml(p.title)}</div>
+            <div class="xy-modal-price">¥${p.price} ${p.original_price && p.original_price > p.price ? '<span style="font-size:14px;color:#999;text-decoration:line-through;">¥'+p.original_price+'</span>' : ''}</div>
+            ${p.desc ? '<div class="xy-modal-desc">'+escapeHtml(p.desc)+'</div>' : ''}
+            <div class="xy-modal-info">
+                <span><span class="label">卖家</span> ${escapeHtml(p.seller_name||'未知')}</span>
+                <span><span class="label">信誉</span> ${p.seller_credit||0}</span>
+                <span><span class="label">所在地</span> ${p.location||'未知'}</span>
+                <span><span class="label">库存</span> ${p.stock||0}</span>
+                <span><span class="label">销量</span> ${p.sales||0}</span>
+                <span><span class="label">状态</span> ${p.status||'active'}</span>
+            </div>
+            ${skuHtml}
+            ${p.url ? '<div class="xy-modal-link"><a href="'+escapeHtml(p.url)+'" target="_blank" class="btn btn-primary">🔗 查看原链接</a></div>' : ''}
+        `;
+    })
+    .catch(err => {
+        content.innerHTML = `<div style="color:#dc2626;padding:20px;">加载失败: ${escapeHtml(err.message)}</div>`;
+    });
+}
+
+function closeDetail() {
+    document.getElementById('xyModalOverlay').style.display = 'none';
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}

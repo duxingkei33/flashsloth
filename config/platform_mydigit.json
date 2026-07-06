@@ -331,5 +331,49 @@
         "前沿"
       ]
     }
-  ]
+  ],
+  "capabilities": {
+    "publish": {
+      "type": "forum_post",
+      "content_types": [
+        "text",
+        "image",
+        "attachment",
+        "poll"
+      ],
+      "max_title_length": 80,
+      "min_content_chars": 6,
+      "max_content_chars": 50000,
+      "allow_bbcode": true,
+      "allow_html": false,
+      "allow_urls": true
+    },
+    "upload_limits": {
+      "max_image_size_mb": 5,
+      "max_attachment_size_mb": 15,
+      "image_types": [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif"
+      ],
+      "attachment_types": [
+        "zip",
+        "rar",
+        "pdf",
+        "doc",
+        "7z"
+      ]
+    },
+    "signin": {
+      "type": "discuz_requests",
+      "daily_bonus": true,
+      "bonus_range": "1-15积分"
+    },
+    "restrictions": {
+      "new_user_cooldown_hours": 24,
+      "min_posts_for_links": 5,
+      "audit_required": false
+    }
+  }
 }

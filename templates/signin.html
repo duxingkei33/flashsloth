@@ -63,8 +63,9 @@
 <!-- ====== 统计数据 ====== -->
 <div class="stats" style="margin-bottom:20px;">
     <div class="stat-card">
-        <div class="num">{{ today_total }}</div>
-        <div class="label">今日累计已签到</div>
+        <div class="num">{{ today_count }}</div>
+        <div class="label">今日新签到</div>
+        <div style="font-size:11px;color:#999;">累计 {{ today_total }} 次</div>
     </div>
     <div class="stat-card">
         <div class="num">{{ accounts|selectattr('has_signin')|selectattr('signin_enabled')|list|length }}</div>

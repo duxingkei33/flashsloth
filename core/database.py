@@ -23,19 +23,22 @@ def get_db():
 
 # ─── 论坛探索种子数据（从JSON文件加载）──────────
 def _seed_forum_exploration(conn):
-    """从 platform_reports/*.json 文件加载探索数据到 forum_exploration 表"""
+    """从 platform_reports/*.json + config/platform_*.json 加载探索数据到 forum_exploration 表"""
     import json
-    reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+    root = os.path.dirname(os.path.dirname(__file__))
+    reports_dir = os.path.join(root, "platform_reports")
+    config_dir = os.path.join(root, "config")
     
-    # 检查是否已有数据
+    # 检查是否已有数据——如果已有则不覆盖，除非 force=True
     existing = conn.execute("SELECT COUNT(*) FROM forum_exploration").fetchone()[0]
-    if existing > 0:
-        return  # 已有数据，不重复导入
+    if existing > 20:
+        print(f"  [种子] 已有 {existing} 条探索数据，跳过导入（如需强制重新导入请清空 forum_exploration 表）")
+        return
     
-    # 平台映射：文件名前缀 → platform名称
+    # ─── 从 platform_reports/ 加载论坛板块数据 ───
     platform_map = {
-        "amobbs_forums": ("discuz_amobbs", "amobbs.com", "阿莫电子论坛"),
-        "mydigit_forums": ("discuz_mydigit", "mydigit.cn", "数码之家"),
+        "amobbs_com_forums": ("discuz_amobbs", "amobbs.com", "阿莫电子论坛"),
+        "mydigit_cn_forums": ("discuz_mydigit", "mydigit.cn", "数码之家"),
     }
     
     count = 0
@@ -76,7 +79,52 @@ def _seed_forum_exploration(conn):
         count += inserted
         print(f"  [种子] {display} ({domain}): 已导入 {inserted} 个版块")
     
-    # OSHWHub项目类型也导入
+    # ─── 从 config/platform_*.json 加载增强数据（预设配置）───
+    preset_map = {
+        "platform_amobbs": ("discuz_amobbs", "amobbs.com"),
+        "platform_mydigit": ("discuz_mydigit", "mydigit.cn"),
+        "platform_csdn": ("csdn", "csdn.net"),
+    }
+    for preset_name, (plat, dom) in preset_map.items():
+        preset_path = os.path.join(config_dir, f"{preset_name}.json")
+        if not os.path.exists(preset_path):
+            continue
+        try:
+            with open(preset_path) as f:
+                preset = json.load(f)
+        except Exception as e:
+            print(f"  [种子] 跳过 preset {preset_name}: {e}")
+            continue
+        
+        # 从预设配置更新 tags_of_interest（如果有）
+        tags = preset.get("tags_of_interest", [])
+        if tags and preset.get("sections"):
+            for sid, section in preset["sections"].items():
+                kw = section.get("keywords", [])
+                if isinstance(kw, str):
+                    kw = [kw]
+                extra_tags = json.dumps(kw, ensure_ascii=False)
+                conn.execute(
+                    "UPDATE forum_exploration SET keywords=? WHERE platform_domain=? AND section_id=?",
+                    (extra_tags, dom, sid)
+                )
+                conn.commit()
+            print(f"  [种子] {preset_name}: 更新了关键词")
+        
+        # 存储平台能力到预设
+        caps = preset.get("capabilities", {})
+        if caps:
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO platform_config (platform, platform_domain, config_json) VALUES (?, ?, ?)",
+                    (plat, dom, json.dumps(caps, ensure_ascii=False))
+                )
+                conn.commit()
+                print(f"  [种子] {preset_name}: 存储了平台能力配置")
+            except Exception as e:
+                print(f"  [种子] {preset_name} 存储配置失败: {e}")
+    
+    # OSHWHub项目类型
     oshwhub_types = [
         ("oshwhub", "oshwhub.com", "project", "工程", "创建开源硬件工程"),
         ("oshwhub", "oshwhub.com", "article", "文章", "撰写技术文章/教程"),
@@ -94,7 +142,7 @@ def _seed_forum_exploration(conn):
             pass
     conn.commit()
     
-    print(f"  [种子] 论坛探索数据: 共导入 {count} 条记录")
+    print(f"  [种子] 论坛探索数据: 共导入/更新 {count} 条板块记录")
 
 
 def init_db():
@@ -228,6 +276,17 @@ def init_db():
             updated_at TEXT DEFAULT (datetime('now')),
             UNIQUE(platform_domain, section_id)
         );
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT DEFAULT '',
+            level TEXT DEFAULT 'info',
+            source TEXT DEFAULT 'system',
+            link TEXT DEFAULT '',
+            is_read INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
 
@@ -281,6 +340,68 @@ def init_db():
     except Exception:
         pass
     conn.commit()
+
+    # 迁移：notifications 表（旧数据库兼容）
+    try:
+        conn.execute("SELECT COUNT(*) FROM notifications")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT DEFAULT '',
+                level TEXT DEFAULT 'info',
+                source TEXT DEFAULT 'system',
+                link TEXT DEFAULT '',
+                is_read INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        conn.commit()
+
+    # 迁移：platform_config 表（平台能力配置）
+    try:
+        conn.execute("SELECT COUNT(*) FROM platform_config")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS platform_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform TEXT NOT NULL,
+                platform_domain TEXT NOT NULL,
+                config_json TEXT DEFAULT '{}',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(platform, platform_domain)
+            );
+        """)
+        conn.commit()
+
+    # 迁移：forum_exploration 添加 tags_of_interest 列
+    for col in ["tags_of_interest"]:
+        try:
+            conn.execute(f"ALTER TABLE forum_exploration ADD COLUMN {col} TEXT DEFAULT '[]'")
+        except Exception:
+            pass
+    conn.commit()
+
+    # 迁移：gateway_channels 表（通知网关终端配置）
+    try:
+        conn.execute("SELECT COUNT(*) FROM gateway_channels")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS gateway_channels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                config_json TEXT DEFAULT '{}',
+                enabled INTEGER DEFAULT 1,
+                user_id INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        conn.commit()
 
     # ─── 首次运行：自动生成随机 admin 账号 ───
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]

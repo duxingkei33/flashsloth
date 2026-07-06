@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}通知网关{% endblock %}
+{% block content %}
+<style>
+.gw-container { max-width: 900px; margin: 0 auto; padding: 16px; }
+.gw-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.gw-header h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.gw-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 20px; margin-bottom: 16px; transition: all .15s;
+}
+.gw-card:hover { border-color: #cbd5e1; }
+.gw-card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+}
+.gw-card-name { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.gw-card-platform {
+    font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 8px;
+    border-radius: 6px;
+}
+.gw-card-status {
+    font-size: 12px; padding: 2px 8px; border-radius: 6px;
+}
+.gw-card-status.enabled { background: #dcfce7; color: #16a34a; }
+.gw-card-status.disabled { background: #fef2f2; color: #dc2626; }
+.gw-card-actions { display: flex; gap: 6px; }
+.gw-card-actions button {
+    padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-size: 11px; background: #fff; cursor: pointer;
+}
+.gw-card-actions button:hover { background: #f8fafc; }
+.gw-card-actions .btn-danger { color: #dc2626; border-color: #fecaca; }
+.gw-card-actions .btn-danger:hover { background: #fef2f2; }
+.gw-card-actions .btn-primary { color: #2563eb; border-color: #93c5fd; }
+.gw-card-actions .btn-primary:hover { background: #eff6ff; }
+
+.gw-empty {
+    text-align: center; padding: 60px 20px; color: #94a3b8;
+}
+.gw-empty .big-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* 添加表单 */
+.gw-form {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 24px; margin-bottom: 20px;
+}
+.gw-form h2 { margin: 0 0 16px; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+.gw-form-row { margin-bottom: 12px; }
+.gw-form-row label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #475569; }
+.gw-form-row input, .gw-form-row select, .gw-form-row textarea {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: 14px;
+}
+.gw-form-row textarea { min-height: 60px; font-family: monospace; font-size: 12px; }
+.gw-form-row .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.gw-form-actions { display: flex; gap: 8px; margin-top: 16px; }
+.gw-btn-primary {
+    padding: 8px 20px; background: #2563eb; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.gw-btn-primary:hover { background: #1d4ed8; }
+.gw-btn-secondary {
+    padding: 8px 20px; background: #fff; color: #475569; border: 1px solid #d1d5db;
+    border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.gw-btn-secondary:hover { background: #f8fafc; }
+.gw-btn-success {
+    padding: 8px 20px; background: #16a34a; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.gw-btn-success:hover { background: #15803d; }
+
+.gw-config-fields { margin-top: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; }
+
+.gw-result {
+    margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 13px;
+}
+.gw-result.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.gw-result.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+@media (max-width: 600px) {
+    .gw-card-header { flex-direction: column; gap: 8px; align-items: stretch; }
+    .gw-card-actions { flex-wrap: wrap; }
+}
+</style>
+
+<div class="gw-container">
+    <div class="gw-header">
+        <h1>🔔 通知网关</h1>
+        <div>
+            <button class="gw-btn-secondary" onclick="toggleForm()" id="addBtn">➕ 添加终端</button>
+            <button class="gw-btn-success" onclick="testAll()" style="margin-left:8px;">📤 测试全部</button>
+        </div>
+    </div>
+
+    <!-- 添加/编辑表单 -->
+    <div class="gw-form" id="gwForm" style="display:none;">
+        <h2 id="formTitle">📡 添加通知终端</h2>
+        <input type="hidden" id="editId" value="">
+
+        <div class="gw-form-row">
+            <label>终端名称</label>
+            <input type="text" id="gwName" placeholder="如：我的飞书群、运维告警群..." autofocus>
+        </div>
+
+        <div class="gw-form-row">
+            <label>平台类型</label>
+            <select id="gwPlatform" onchange="onPlatformChange()">
+                <option value="">— 选择平台 —</option>
+                {% for p in providers %}
+                <option value="{{ p.name }}" data-fields='{{ p.config_fields|tojson }}'>{{ p.icon }} {{ p.display_name }} — {{ p.description }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="gwConfigFields" class="gw-config-fields" style="display:none;">
+            <p style="font-size:13px;color:#64748b;margin:0 0 8px;">配置参数：</p>
+        </div>
+
+        <div class="gw-form-actions">
+            <button class="gw-btn-primary" onclick="saveChannel()">💾 保存</button>
+            <button class="gw-btn-secondary" onclick="toggleForm()">取消</button>
+        </div>
+        <div id="gwFormResult" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- 渠道列表 -->
+    <div id="gwChannels">
+        {% if channels %}
+        {% for ch in channels %}
+        {% set cfg = ch.config_json|from_json if ch.config_json and ch.config_json|length > 2 else {} %}
+        <div class="gw-card" id="ch_{{ ch.id }}">
+            <div class="gw-card-header">
+                <div>
+                    <div class="gw-card-name">
+                        {{ ch.name }}
+                        <span class="gw-card-platform">{{ ch.platform }}</span>
+                        <span class="gw-card-status {{ 'enabled' if ch.enabled else 'disabled' }}">
+                            {{ '启用' if ch.enabled else '禁用' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="gw-card-actions">
+                    <button class="btn-primary" onclick="testChannel({{ ch.id }})">📤 测试</button>
+                    <button onclick="editChannel({{ ch.id }})">✏️ 编辑</button>
+                    {% if ch.enabled %}
+                    <button onclick="toggleChannel({{ ch.id }}, 0)">⏸️ 禁用</button>
+                    {% else %}
+                    <button onclick="toggleChannel({{ ch.id }}, 1)">▶️ 启用</button>
+                    {% endif %}
+                    <button class="btn-danger" onclick="deleteChannel({{ ch.id }})">🗑️ 删除</button>
+                </div>
+            </div>
+            {% if cfg %}
+            <div style="font-size:12px;color:#94a3b8;">
+                {% for k, v in cfg.items() %}
+                <span style="margin-right:12px;"><strong>{{ k }}:</strong> {{ '••••••' if 'secret' in k or 'key' in k or 'token' in k else v }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div id="result_{{ ch.id }}" class="gw-result" style="display:none;"></div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="gw-empty">
+            <div class="big-icon">📡</div>
+            <div>还没有配置任何通知终端</div>
+            <p style="font-size:13px;margin-top:8px;">点击「添加终端」绑定飞书/企微/Webhook</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+let providerFields = {};
+
+document.querySelectorAll('#gwPlatform option').forEach(opt => {
+    if (opt.value) {
+        try {
+            providerFields[opt.value] = JSON.parse(opt.dataset.fields || '[]');
+        } catch(e) { providerFields[opt.value] = []; }
+    }
+});
+
+function toggleForm() {
+    const form = document.getElementById('gwForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form.style.display === 'none') {
+        document.getElementById('editId').value = '';
+        document.getElementById('gwName').value = '';
+        document.getElementById('gwPlatform').value = '';
+        document.getElementById('gwConfigFields').style.display = 'none';
+        document.getElementById('gwConfigFields').innerHTML = '';
+        document.getElementById('formTitle').textContent = '📡 添加通知终端';
+    }
+}
+
+function onPlatformChange() {
+    const platform = document.getElementById('gwPlatform').value;
+    const container = document.getElementById('gwConfigFields');
+    const fields = providerFields[platform] || [];
+
+    if (!platform || fields.length === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    container.style.display = 'block';
+    container.innerHTML = '<p style="font-size:13px;color:#64748b;margin:0 0 8px;">配置参数：</p>' +
+        fields.map(f => {
+            const typeMap = {url: 'url', password: 'password', text: 'text', select: 'select', number: 'number'};
+            const inputType = typeMap[f.type] || 'text';
+            let input;
+            if (inputType === 'select' && f.options) {
+                input = `<select id="cfg_${f.key}" ${f.required ? 'required' : ''}>
+                    <option value="">— 选择 —</option>
+                    ${f.options.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+                </select>`;
+            } else {
+                input = `<input type="${inputType}" id="cfg_${f.key}" ${f.required ? 'required' : ''}
+                    placeholder="${f.placeholder || ''}" value="${f.default || ''}">`;
+            }
+            return `<div class="gw-form-row">
+                <label>${f.label} ${f.required ? '<span style="color:#dc2626;">*</span>' : ''}</label>
+                ${input}
+                ${f.placeholder ? '<div class="hint">' + f.placeholder + '</div>' : ''}
+            </div>`;
+        }).join('');
+}
+
+function saveChannel() {
+    const name = document.getElementById('gwName').value.trim();
+    const platform = document.getElementById('gwPlatform').value;
+    const editId = document.getElementById('editId').value;
+
+    if (!name || !platform) { alert('请填写名称和选择平台'); return; }
+
+    const config = {};
+    const fields = providerFields[platform] || [];
+    fields.forEach(f => {
+        const el = document.getElementById('cfg_' + f.key);
+        if (el) config[f.key] = el.value;
+    });
+
+    const url = editId ? '/api/gateway/channels/' + editId : '/api/gateway/channels';
+    const method = editId ? 'PUT' : 'POST';
+
+    document.getElementById('gwFormResult').innerHTML = '🔄 保存中...';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(editId ? {name: name, platform: platform, config: config} : {name: name, platform: platform, config: config})
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('gwFormResult').innerHTML =
+            `<div class="gw-result ${data.success ? 'success' : 'error'}">${data.success ? '✅ ' : '❌ '}${data.message || data.error}</div>`;
+        if (data.success) {
+            setTimeout(() => location.reload(), 1000);
+        }
+    });
+}
+
+function editChannel(id) {
+    toggleForm();
+    document.getElementById('formTitle').textContent = '✏️ 编辑终端';
+    document.getElementById('editId').value = id;
+
+    fetch('/api/gateway/channels')
+    .then(r => r.json())
+    .then(data => {
+        const ch = (data.channels || []).find(c => c.id === id);
+        if (!ch) return;
+        document.getElementById('gwName').value = ch.name;
+        document.getElementById('gwPlatform').value = ch.platform;
+        onPlatformChange();
+
+        try {
+            const cfg = JSON.parse(ch.config_json || '{}');
+            Object.keys(cfg).forEach(k => {
+                const el = document.getElementById('cfg_' + k);
+                if (el) el.value = cfg[k];
+            });
+        } catch(e) {}
+    });
+}
+
+function toggleChannel(id, enabled) {
+    fetch('/api/gateway/channels/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(r => r.json())
+    .then(data => { if (data.success) location.reload(); });
+}
+
+function deleteChannel(id) {
+    if (!confirm('确定删除这个通知终端？')) return;
+    fetch('/api/gateway/channels/' + id, {method: 'DELETE'})
+    .then(r => r.json())
+    .then(data => { if (data.success) location.reload(); });
+}
+
+function testChannel(id) {
+    const resultEl = document.getElementById('result_' + id);
+    resultEl.style.display = 'block';
+    resultEl.className = 'gw-result';
+    resultEl.textContent = '🔄 发送测试消息...';
+
+    fetch('/api/gateway/channels/' + id + '/test', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        resultEl.className = 'gw-result ' + (data.success ? 'success' : 'error');
+        resultEl.textContent = data.success ? '✅ 测试成功！' : '❌ 失败: ' + (data.error || '');
+    });
+}
+
+function testAll() {
+    if (!confirm('向所有已启用的终端发送测试消息？')) return;
+    fetch('/api/gateway/test-all', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        const msg = data.results.map(r =>
+            `${r.platform || r.channel}: ${r.success ? '✅' : '❌ ' + (r.error || '')}`
+        ).join('\n');
+        alert(`测试完成: ${data.success_count}/${data.total}\n\n${msg}`);
+    });
+}
+</script>
+{% endblock %}
