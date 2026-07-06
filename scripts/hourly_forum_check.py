@@ -15,6 +15,7 @@ import re
 import random
 
 # Ensure project root is in path
+sys.path.insert(0, os.path.expanduser('~/.hermes/flashsloth'))
 sys.path.insert(0, os.path.expanduser('~/.hermes'))
 
 # Use FS venv python, not system python
