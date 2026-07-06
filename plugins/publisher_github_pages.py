@@ -32,7 +32,7 @@ class GitHubPagesBlogPublisher(Publisher):
             "label": "博客文章目录",
             "type": "text",
             "required": True,
-            "default": "/opt/data/contenthub/blog/docs/posts",
+            "default": "~/.hermes/github-pages/blog/content/posts",
             "placeholder": "Markdown 文章存放目录",
         },
         {
@@ -56,7 +56,7 @@ class GitHubPagesBlogPublisher(Publisher):
     def __init__(self, config: dict):
         super().__init__(config)
         self.posts_dir = os.path.expanduser(
-            config.get("posts_dir", "/opt/data/contenthub/blog/docs/posts")
+            config.get("posts_dir", os.path.expanduser("~/.hermes/github-pages/blog/content/posts"))
         )
         self.site_url = config.get("site_url", "https://duxingkei33.github.io").rstrip("/")
         self.post_url_prefix = config.get("post_url_prefix", "")
