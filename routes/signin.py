@@ -37,6 +37,22 @@ def signin_page():
         (today,)
     ).fetchone()[0]
 
+   # 今日成功（同 today_total — distinct 账号今日签到成功的数量）
+   today_success = today_total
+   # 今日失败 — distinct 账号今日签到失败的
+   today_failure = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=0",
+        (today,)
+    ).fetchone()[0]
+   # 累计成功（所有签到成功次数，含重复签到）
+   total_success = conn.execute(
+        "SELECT COUNT(*) FROM signin_log WHERE success=1"
+   ).fetchone()[0]
+   # 累计失败（所有签到失败次数）
+   total_failure = conn.execute(
+        "SELECT COUNT(*) FROM signin_log WHERE success=0"
+   ).fetchone()[0]
+
    conn.close()
 
    # 检测每个账号的签到能力
@@ -82,6 +98,10 @@ def signin_page():
                         logs=[dict(l) for l in logs],
                         today_count=today_count,
                         today_total=today_total,
+                        today_success=today_success,
+                        today_failure=today_failure,
+                        total_success=total_success,
+                        total_failure=total_failure,
                         today=today,
                         signin_plugins=signin_plugins)
 

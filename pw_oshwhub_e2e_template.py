@@ -52,11 +52,8 @@ try:
         if fi.count() > 0:
             fi.set_input_files(COVER); time.sleep(3)
             logger.info("  封面 OK")
-            page.evaluate("""() => {
-                document.querySelectorAll('.ant-modal-close').forEach(b => b.click());
-                document.querySelectorAll('.ant-modal-wrap, .ant-modal-mask').forEach(el => el.remove());
-            }""")
-            time.sleep(0.5)
+            # 关闭 ant-modal（Escape 触发 Ant Design 原生关闭）
+            page.keyboard.press("Escape"); time.sleep(0.8)
 
     # 5. Category radio
     radios = page.locator("input[type='radio']")
@@ -93,50 +90,59 @@ try:
         if b['text']:
             logger.info(f"  btn: [{b['text']}] visible={b['visible']} cls={b['classes']}")
 
-    # Close any overlay/modal
-    page.evaluate("""() => {
-        document.querySelectorAll('.ant-modal-close').forEach(b => b.click());
-        document.querySelectorAll('.ant-modal-wrap, .ant-modal-mask, .ant-modal').forEach(el => el.remove());
-        document.querySelectorAll('.ant-drawer-mask, .ant-drawer').forEach(el => el.remove());
-    }""")
-    time.sleep(1)
+    # Close any overlay/modal — use Escape instead of DOM remove
+    page.keyboard.press("Escape"); time.sleep(0.8)
+    # Also try clicking close button as fallback
+    try:
+        close_btn = page.locator('.ant-modal-close').first
+        if close_btn.count() > 0 and close_btn.is_visible():
+            close_btn.click(); time.sleep(0.5)
+    except:
+        pass
 
-    # Try every visible button that looks like save/submit
+    after_url = page.url
+    # Try save/submit buttons - prioritize '保 存' (存草稿)
     save_done = False
-    for b_btn in all_buttons:
-        txt = b_btn['text']
-        if not txt or not b_btn['visible']:
-            continue
-        # Try common save/submit buttons
-        keywords = ['保存', '发布', '发作品', '提交', '存入草稿', '存草稿', '存为草稿', '下一步']
-        if any(k in txt for k in keywords):
-            logger.info(f"  尝试点击: [{txt}]")
-            try:
-                btn = page.locator(f"button:has-text('{txt}')").first
-                if btn.count() > 0 and btn.is_visible():
-                    # Click via JS
-                    page.evaluate(f"document.querySelector('button').click()")
-                    # Try specific selector
-                    for sel in [
-                        f"button:has-text('{txt}')",
-                        f"button:contains('{txt}')",
-                        f"//button[contains(text(), '{txt}')]",
-                    ]:
-                        try:
-                            el = page.locator(sel).first
-                            if el.count() > 0:
-                                el.click(force=True, timeout=3000)
-                                break
-                        except:
-                            continue
+    
+    # First, try the exact save button by text
+    for btn_text in ['保 存', '保存', '存草稿', '存入草稿']:
+        try:
+            btn = page.locator(f"button:has-text('{btn_text}')").first
+            if btn.count() > 0:
+                logger.info(f"  找到按钮: [{btn_text}], visible={btn.is_visible()}")
+                if btn.is_visible():
+                    page.keyboard.press("Escape"); time.sleep(0.5)
+                    btn.click(force=True, timeout=5000)
                     time.sleep(3)
                     if page.url != after_url:
                         after_url = page.url
                         logger.info(f"  URL changed to: {after_url}")
                     save_done = True
                     break
-            except Exception as e:
-                logger.warning(f"  点击 [{txt}] 失败: {e}")
+        except Exception as e:
+            logger.warning(f"  尝试 [{btn_text}] 失败: {e}")
+
+    # Fallback: filter from button list
+    if not save_done:
+        keywords = ['保存', '发布', '发作品', '提交', '存草稿', '存为草稿', '下一步']
+        for b_btn in all_buttons:
+            txt = b_btn['text'].replace(' ', '')
+            if not txt or not b_btn['visible']:
+                continue
+            if any(k in txt for k in keywords):
+                logger.info(f"  尝试点击 (fallback): [{txt}]")
+                try:
+                    btn = page.locator(f"button:has-text('{b_btn['text']}')").first
+                    if btn.count() > 0:
+                        page.keyboard.press("Escape"); time.sleep(0.5)
+                        btn.click(force=True, timeout=5000)
+                        time.sleep(3)
+                        if page.url != after_url:
+                            after_url = page.url
+                        save_done = True
+                        break
+                except Exception as e:
+                    logger.warning(f"  点击 [{txt}] 失败: {e}")
 
     if not save_done:
         logger.warning("  ⚠️ 未找到保存按钮，尝试直接提交表单...")

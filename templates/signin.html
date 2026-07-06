@@ -62,10 +62,30 @@
 
 <!-- ====== 统计数据 ====== -->
 <div class="stats" style="margin-bottom:20px;">
-    <div class="stat-card">
+    <div class="stat-card" style="border-left:4px solid #22c55e;">
         <div class="num">{{ today_count }}</div>
         <div class="label">今日新签到</div>
-        <div style="font-size:11px;color:#999;">累计 {{ today_total }} 次</div>
+        <div style="font-size:11px;color:#999;">首次成功签到</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #3b82f6;">
+        <div class="num">{{ today_success }}</div>
+        <div class="label">今日成功</div>
+        <div style="font-size:11px;color:#999;">含已签到</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #ef4444;">
+        <div class="num">{{ today_failure }}</div>
+        <div class="label">今日失败</div>
+        <div style="font-size:11px;color:#999;">签到失败的账号</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #22c55e;">
+        <div class="num">{{ total_success }}</div>
+        <div class="label">累计成功</div>
+        <div style="font-size:11px;color:#999;">历史总成功次数</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #ef4444;">
+        <div class="num">{{ total_failure }}</div>
+        <div class="label">累计失败</div>
+        <div style="font-size:11px;color:#999;">历史总失败次数</div>
     </div>
     <div class="stat-card">
         <div class="num">{{ accounts|selectattr('has_signin')|selectattr('signin_enabled')|list|length }}</div>

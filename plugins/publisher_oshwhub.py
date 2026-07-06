@@ -226,12 +226,18 @@ class OSHWHubArticlePublisher(Publisher):
                         self.logger.warning(f"⚠️ 封面上传失败: {e}")
 
                 # ── 4b. 关掉上传封面后弹出的 ant-modal 遮罩 ──
+                # 使用 Escape 键触发 Ant Design 原生关闭事件（dispatchEvent + DOM remove 无法触发 React 状态）
                 try:
-                    page.evaluate("""() => {
-                        document.querySelectorAll('.ant-modal-close').forEach(b => b.click());
-                        document.querySelectorAll('.ant-modal-wrap, .ant-modal-mask').forEach(el => el.remove());
-                    }""")
-                    page.wait_for_timeout(500)
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(800)
+                except Exception:
+                    pass
+                # 如果 Escape 没生效，再尝试点击关闭按钮
+                try:
+                    close_btn = page.locator('.ant-modal-close').first
+                    if close_btn.count() > 0 and close_btn.is_visible():
+                        close_btn.click()
+                        page.wait_for_timeout(500)
                 except Exception:
                     pass
 
@@ -279,11 +285,19 @@ class OSHWHubArticlePublisher(Publisher):
 
                 # ── 8. 点击保 存（存草稿）或提交审核（发布）(force=True) ──
                 if save_as_draft:
-                    page.evaluate("""() => {
-                        document.querySelectorAll('.ant-modal-close').forEach(b => b.click());
-                        document.querySelectorAll('.ant-modal-wrap, .ant-modal-mask, .ant-modal').forEach(el => el.remove());
-                    }""")
-                    page.wait_for_timeout(500)
+                    # 关闭可能残留的 modal（Escape 键比 DOM remove 更可靠）
+                    try:
+                        page.keyboard.press("Escape")
+                        page.wait_for_timeout(500)
+                    except Exception:
+                        pass
+                    try:
+                        close_btn = page.locator('.ant-modal-close').first
+                        if close_btn.count() > 0 and close_btn.is_visible():
+                            close_btn.click()
+                            page.wait_for_timeout(300)
+                    except Exception:
+                        pass
                     save_btn = page.locator("button:has-text('保 存')").first
                     if save_btn.count() > 0:
                         save_btn.click(force=True)
