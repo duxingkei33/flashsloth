@@ -48,7 +48,11 @@
 <div class="stats" style="margin-bottom:20px;">
     <div class="stat-card">
         <div class="num">{{ today_count }}</div>
-        <div class="label">今日已签到</div>
+        <div class="label">今日新签到</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ today_total }}</div>
+        <div class="label">今日已处理</div>
     </div>
     <div class="stat-card">
         <div class="num">{{ accounts|selectattr('has_signin')|selectattr('signin_enabled')|list|length }}</div>

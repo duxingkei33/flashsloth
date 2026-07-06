@@ -32,6 +32,10 @@ def signin_page():
         "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1 AND already_signed=0",
         (today,)
     ).fetchone()[0]
+   today_total = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1",
+        (today,)
+    ).fetchone()[0]
 
    conn.close()
 
@@ -77,6 +81,7 @@ def signin_page():
                         accounts=accts,
                         logs=[dict(l) for l in logs],
                         today_count=today_count,
+                        today_total=today_total,
                         today=today,
                         signin_plugins=signin_plugins)
 

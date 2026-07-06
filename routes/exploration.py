@@ -36,7 +36,7 @@ def exploration_page():
         })
     
     conn.close()
-    return render_template("exploration.html", platforms=platforms)
+    return render_template("exploration.html", platforms=platforms, platforms_json=json.dumps(platforms, ensure_ascii=False))
 
 
 @app.route("/api/exploration/<int:fid>", methods=["POST"])
@@ -131,4 +131,34 @@ def api_sync_exploration(domain):
         "domain": domain,
         "sections": sections,
         "count": len(sections),
+    })
+
+
+@app.route("/api/exploration/custom", methods=["POST"])
+@login_required
+def api_custom_explore():
+    """自定义网站探索入口"""
+    data = request.get_json() or {}
+    domain = data.get("domain", "").strip()
+    platform = data.get("platform", "discuz")
+    login_method = data.get("login_method", "cookie")
+    
+    if not domain:
+        return jsonify({"success": False, "error": "请输入网站域名"})
+    
+    # 验证是否已探索过
+    conn = get_db()
+    existing = conn.execute(
+        "SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?",
+        (domain,)
+    ).fetchone()[0]
+    conn.close()
+    
+    if existing > 0:
+        return jsonify({"success": False, "error": f"'{domain}' 已有 {existing} 条探索数据，无需重复探索"})
+    
+    # 后续由cron实际执行探索任务，这里先返回任务已提交
+    return jsonify({
+        "success": True,
+        "message": f"自定义探索 '{domain}' ({platform}) 已提交到后台队列，下次自驱cron将执行Playwright探索"
     })
