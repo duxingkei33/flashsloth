@@ -1,14 +1,11 @@
 """
 人机浏览器模拟 — 模拟真人操作，避免被论坛反爬封杀
 
-核心策略：
-1. 随机真实浏览器 UA 池（Chrome/Firefox/Edge）
-2. 完整浏览器 HTTP 头（Sec-CH-UA、Accept 等）
-3. 请求间随机延迟（200-1500ms）
-4. 自动处理 security_session_verify 等安全验证
-5. Referer 链式追踪
-6. 自动解析并处理 Discuz 表单
+⚠️ 已废弃（2026-07-06）：统一使用 Playwright + core/anti_detect.py
+   不再使用 requests/curl/wget 做任何平台操作。
+   此文件保留供参考，新代码禁止引用。
 """
+
 import random, time, re, json
 from typing import Optional
 from urllib.parse import urljoin

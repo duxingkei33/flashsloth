@@ -100,22 +100,43 @@
         <input type="hidden" id="editId" value="">
 
         <div class="gw-form-row">
-            <label>终端名称</label>
-            <input type="text" id="gwName" placeholder="如：我的飞书群、运维告警群..." autofocus>
+            <label for="gwName">终端名称</label>
+            <input type="text" id="gwName" placeholder="如：我的飞书群、运维告警群...（选择平台类型后自动生成）" autofocus>
+            <div class="hint">💡 选择平台类型后，若名称为空则自动填入平台名称</div>
         </div>
 
         <div class="gw-form-row">
-            <label>平台类型</label>
+            <label for="gwPlatform">平台类型</label>
             <select id="gwPlatform" onchange="onPlatformChange()">
                 <option value="">— 选择平台 —</option>
                 {% for p in providers %}
-                <option value="{{ p.name }}" data-fields='{{ p.config_fields|tojson }}'>{{ p.icon }} {{ p.display_name }} — {{ p.description }}</option>
+                <option value="{{ p.name }}" data-fields='{{ p.config_fields|tojson }}'
+                        data-display="{{ p.icon }} {{ p.display_name }}">{{ p.icon }} {{ p.display_name }} — {{ p.description }}</option>
                 {% endfor %}
             </select>
         </div>
 
         <div id="gwConfigFields" class="gw-config-fields" style="display:none;">
             <p style="font-size:13px;color:#64748b;margin:0 0 8px;">配置参数：</p>
+        </div>
+
+        <!-- 扫码自动配置区域 -->
+        <div id="gwQrConfig" class="gw-config-fields" style="display:none;margin-top:12px;background:#f0f7ff;border:1px solid #d0e4ff;">
+            <p style="font-size:13px;color:#1e40af;margin:0 0 8px;font-weight:500;">📱 扫码自动配置 — <span id="gwQrPlatform"></span></p>
+            <p style="font-size:12px;color:#64748b;margin:0 0 8px;">自动生成回调地址并生成二维码，扫码后自动填入 Webhook URL</p>
+            <div style="text-align:center;margin-bottom:8px;">
+                <img id="gwQrImg" src="" style="width:200px;height:200px;display:none;border:2px solid #fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);">
+            </div>
+            <div id="gwQrStatus" style="display:none;font-size:13px;text-align:center;margin-bottom:8px;"></div>
+            <div id="gwQrUrl" style="font-size:10px;color:#94a3b8;word-break:break-all;text-align:center;margin-bottom:8px;display:none;"></div>
+            <div id="gwQrResult" class="gw-result" style="display:none;"></div>
+            <div style="display:flex;gap:8px;justify-content:center;">
+                <button id="gwQrBtn" class="gw-btn-primary" onclick="startQrConfig()" style="background:#1e40af;">📱 扫码配置</button>
+                <button class="gw-btn-secondary" onclick="document.getElementById('gwQrConfig').style.display='none'">取消</button>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;margin:8px 0 0;text-align:center;">
+                ⚠️ 需要服务器有公网地址或使用隧道（ngrok/localtunnel）。部署后可自动配置。
+            </p>
         </div>
 
         <div class="gw-form-actions">
@@ -201,9 +222,22 @@ function onPlatformChange() {
     const container = document.getElementById('gwConfigFields');
     const fields = providerFields[platform] || [];
 
+    // 自动填充终端名称
+    const nameInput = document.getElementById('gwName');
+    if (!nameInput.value.trim()) {
+        const opt = document.querySelector('#gwPlatform option[value="' + platform + '"]');
+        if (opt) {
+            const display = opt.dataset.display || platform;
+            nameInput.value = display;
+        }
+    }
+
     if (!platform || fields.length === 0) {
         container.style.display = 'none';
         container.innerHTML = '';
+        // 隐藏扫码按钮
+        const qrArea = document.getElementById('gwQrConfig');
+        if (qrArea) qrArea.style.display = 'none';
         return;
     }
 
@@ -228,6 +262,98 @@ function onPlatformChange() {
                 ${f.placeholder ? '<div class="hint">' + f.placeholder + '</div>' : ''}
             </div>`;
         }).join('');
+
+    // 显示/隐藏扫码配置区域
+    showQrConfig(platform);
+}
+
+// ====== 扫码自动配置 ======
+function showQrConfig(platform) {
+    const qrArea = document.getElementById('gwQrConfig');
+    if (!qrArea) return;
+
+    const qrPlatforms = ['feishu', 'wecom', 'wechat', 'dingtalk'];
+    if (qrPlatforms.includes(platform)) {
+        qrArea.style.display = 'block';
+        document.getElementById('gwQrPlatform').textContent =
+            document.querySelector('#gwPlatform option[value="' + platform + '"]')?.textContent || platform;
+    } else {
+        qrArea.style.display = 'none';
+    }
+}
+
+function startQrConfig() {
+    const btn = document.getElementById('gwQrBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 启动中...';
+    document.getElementById('gwQrResult').style.display = 'none';
+
+    fetch('/api/gateway/start-callback', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({platform: document.getElementById('gwPlatform').value})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.qr_url) {
+            // 显示二维码
+            const qrImg = document.getElementById('gwQrImg');
+            qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' +
+                encodeURIComponent(data.qr_url);
+            qrImg.style.display = 'block';
+            document.getElementById('gwQrUrl').textContent = data.qr_url;
+            document.getElementById('gwQrStatus').textContent = '📱 请用手机扫码，平台会自动发送验证请求';
+            document.getElementById('gwQrStatus').style.color = '#16a34a';
+            document.getElementById('gwQrStatus').style.display = 'block';
+
+            // 开始轮询回调结果
+            window._gwQrPoll = setInterval(function() {
+                fetch('/api/gateway/callback-result/' + data.session_id)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.webhook_url) {
+                        clearInterval(window._gwQrPoll);
+                        // 自动填入 webhook_url
+                        const whInput = document.getElementById('cfg_webhook_url');
+                        if (whInput) whInput.value = d.webhook_url;
+                        if (d.secret) {
+                            const secInput = document.getElementById('cfg_secret');
+                            if (secInput) secInput.value = d.secret;
+                        }
+                        document.getElementById('gwQrStatus').textContent = '✅ 自动配置成功！Webhook URL 已填入';
+                        document.getElementById('gwQrStatus').style.color = '#16a34a';
+                        btn.disabled = false;
+                        btn.innerHTML = '✅ 已配置';
+                    }
+                })
+                .catch(function() {});
+            }, 2000);
+
+            // 5分钟后超时
+            setTimeout(function() {
+                if (window._gwQrPoll) {
+                    clearInterval(window._gwQrPoll);
+                    document.getElementById('gwQrStatus').textContent = '⏰ 超时，请重新点击"扫码配置"';
+                    document.getElementById('gwQrStatus').style.color = '#dc2626';
+                    btn.disabled = false;
+                    btn.innerHTML = '📱 扫码配置';
+                }
+            }, 300000);
+        } else {
+            document.getElementById('gwQrResult').style.display = 'block';
+            document.getElementById('gwQrResult').className = 'gw-result error';
+            document.getElementById('gwQrResult').textContent = '❌ ' + (data.error || '启动失败');
+            btn.disabled = false;
+            btn.innerHTML = '📱 扫码配置';
+        }
+    })
+    .catch(function(e) {
+        document.getElementById('gwQrResult').style.display = 'block';
+        document.getElementById('gwQrResult').className = 'gw-result error';
+        document.getElementById('gwQrResult').textContent = '❌ ' + e.message;
+        btn.disabled = false;
+        btn.innerHTML = '📱 扫码配置';
+    });
 }
 
 function saveChannel() {

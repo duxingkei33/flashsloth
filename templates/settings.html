@@ -41,47 +41,6 @@
     </form>
 </div>
 
-<!-- Publisher 设置 -->
-<div class="card" id="publishers">
-    <h2>📤 发布平台 (Publisher)</h2>
-    <p style="color:#666;font-size:13px;margin-bottom:16px;">
-        配置各平台的 API 凭证。配置后即可在仪表盘一键发布。
-    </p>
-    <form method="post" action="/settings/publishers">
-        {% for p in publishers %}
-        <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:12px;" id="{{ p.name }}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <strong>{{ p.display_name }}</strong>
-                <label style="font-size:13px;">
-                    <input type="checkbox" name="{{ p.name }}_enabled"
-                           {{ 'checked' if p.enabled else '' }}>
-                    启用
-                </label>
-            </div>
-            {% for field in p.config_fields %}
-            <div class="form-group">
-                <label>{{ field.label }}</label>
-                {% if field.type == 'select' %}
-                <select name="{{ p.name }}_{{ field.key }}">
-                    {% for opt in field.options %}
-                    <option value="{{ opt }}" {{ 'selected' if field.value == opt else '' }}>{{ opt }}</option>
-                    {% endfor %}
-                </select>
-                {% else %}
-                <input type="{{ field.type }}" name="{{ p.name }}_{{ field.key }}"
-                       value="{{ field.value or '' }}" placeholder="{{ field.placeholder or '' }}">
-                {% endif %}
-                {% if field.key in field.missing %}
-                <span style="color:#e63946;font-size:12px;">⚠️ 必填</span>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% endfor %}
-        <button type="submit" class="btn btn-primary">保存 Publisher 设置</button>
-    </form>
-</div>
-
 <!-- API Keys -->
 <div class="card" id="api-keys">
     <h2>🔑 API Keys（开放接口鉴权）</h2>

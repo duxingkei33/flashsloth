@@ -585,11 +585,3 @@ def api_ai_balance_refresh_one(acid):
    conn.close()
    return jsonify({"success": True, "balance": balance})
 
-
-# ─── AI 路由管理页面 ─────────────────────────
-@app.route("/ai/routes")
-@login_required
-def ai_routes_page():
-   """AI 能力路由管理界面"""
-   return render_template("ai_routes.html")
-

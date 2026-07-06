@@ -87,5 +87,6 @@ def configure_app():
     import flashsloth.routes.notifications   # 🔔 通知系统
     import flashsloth.routes.gateway         # 📡 通知网关
     import flashsloth.routes.price_monitor    # 💰 价格监控
+    import flashsloth.routes.approval         # 📋 审批管理
 
     return app, login_manager, User

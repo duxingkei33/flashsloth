@@ -36,6 +36,7 @@ def _parse_cookies(cookie_str: str) -> list:
 class ZhihuPublisher(Publisher):
     name = "zhihu"
     display_name = "知乎"
+    capabilities = ["publish_draft", "upload_image"]
 
     PLATFORM_LIMITS = {
         "zhihu.com": {
@@ -51,12 +52,17 @@ class ZhihuPublisher(Publisher):
     }
 
     login_methods = [
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
+         "fields": ["username", "password"],
+         "description": "输入知乎用户名和密码，Playwright 浏览器自动登录"},
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
          "fields": ["cookie"],
          "description": "登录知乎后从浏览器 F12 → Application → Cookies → zhihu.com 复制"},
     ]
     config_fields = [
-        {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
+        {"key": "username", "label": "用户名/邮箱", "type": "text", "required": False, "default": ""},
+        {"key": "password", "label": "密码", "type": "password", "required": False, "default": ""},
+        {"key": "cookie", "label": "Cookie（备选）", "type": "password", "required": False,
          "placeholder": "知乎全站 Cookie（从 F12 复制）"},
     ]
     supports_draft = True

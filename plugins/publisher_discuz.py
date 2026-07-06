@@ -42,7 +42,7 @@ class DiscuzPublisher(Publisher):
         {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 1,
          "fields": ["site_url", "username", "password"],
          "description": "输入论坛用户名密码，通过验证码自动登录"},
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 2,
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
          "fields": ["site_url", "cookie"],
          "description": "从浏览器 F12 复制 Cookie 直接粘贴"},
     ]

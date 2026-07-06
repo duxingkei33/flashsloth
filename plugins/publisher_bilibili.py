@@ -42,16 +42,21 @@ class BilibiliPublisher(Publisher):
     name = "bilibili"
     display_name = "Bilibili 专栏"
     login_methods = [
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
+         "fields": ["username", "password"],
+         "description": "输入 Bilibili 用户名和密码，Playwright 浏览器自动登录"},
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
          "fields": ["cookie"],
          "description": "登录 Bilibili 后从浏览器 F12 复制 Cookie"},
     ]
     config_fields = [
+        {"key": "username", "label": "用户名/邮箱", "type": "text", "required": False, "default": ""},
+        {"key": "password", "label": "密码", "type": "password", "required": False, "default": ""},
         {
             "key": "cookie",
-            "label": "Cookie（完整 Cookie 字符串）",
+            "label": "Cookie（备选）",
             "type": "password",
-            "required": True,
+            "required": False,
             "placeholder": "登录后从浏览器 F12 → Application → Cookies → bilibili.com 复制",
         },
         {

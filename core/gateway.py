@@ -478,13 +478,52 @@ class WeChatProvider(GatewayProvider):
         {"key": "agentid", "label": "应用 AgentId（企业微信模式）", "type": "text", "placeholder": "1000002"},
         {"key": "touser", "label": "接收人（@all 或 UserID）", "type": "text", "placeholder": "@all"},
         {"key": "api_url", "label": "iLink API URL", "type": "url", "placeholder": "http://localhost:8066/..."},
+        {"key": "to_wxid", "label": "接收人 wxid（iLink模式）", "type": "text", "placeholder": "wxid_..."},
     ]
 
     def send(self, message: GatewayMessage, config: dict) -> dict:
         mode = config.get("mode", "qywx_app")
         if mode == "qywx_app":
             return self._send_qywx_app(message, config)
-        return {"success": False, "error": "iLink 模式暂未实现，请使用企业微信应用消息模式"}
+        elif mode == "ilink":
+            return self._send_ilink(message, config)
+        return {"success": False, "error": f"未知模式: {mode}"}
+
+    def _send_ilink(self, message: GatewayMessage, config: dict) -> dict:
+        """通过 iLink Bot API 发送消息到微信个人号"""
+        api_url = config.get("api_url", "").rstrip("/")
+        to_wxid = config.get("to_wxid", "")
+        if not api_url:
+            return {"success": False, "error": "iLink API URL 未配置"}
+        import urllib.request
+        level_icons = {"info": "ℹ️", "success": "✅", "warn": "⚠️", "error": "❌"}
+        icon = level_icons.get(message.level, "ℹ️")
+        content = f"{icon} {message.title}\n{message.body or ''}"
+        if message.source:
+            content += f"\n🔹 {message.source}"
+        if message.link:
+            content += f"\n🔗 {message.link}"
+        try:
+            payload = json.dumps({"to_wxid": to_wxid, "content": content}, ensure_ascii=False).encode()
+            req = urllib.request.Request(
+                f"{api_url}/send_text",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            resp = urllib.request.urlopen(req, timeout=15)
+            resp_data = json.loads(resp.read())
+            if resp_data.get("code") == 0 or resp_data.get("success"):
+                return {"success": True, "message_id": str(resp_data.get("msg_id", ""))}
+            return {"success": True, "status": resp.status}
+        except urllib.error.HTTPError as e:
+            try:
+                err_body = e.read().decode()
+                return {"success": False, "error": f"iLink 发送失败 (HTTP {e.code}): {err_body[:200]}"}
+            except Exception:
+                return {"success": False, "error": f"iLink 发送失败 (HTTP {e.code})"}
+        except Exception as e:
+            return {"success": False, "error": f"iLink 发送异常: {e}"}
 
     def _send_qywx_app(self, message: GatewayMessage, config: dict) -> dict:
         corpid = config.get("corpid", "")

@@ -110,6 +110,11 @@
             #captchaSubmitBtn { padding: 12px 24px !important; font-size: 16px !important; min-height: 44px; }
         }
     </style>
+    <!-- 折叠组件（纯CSS/JS，不依赖Bootstrap）-->
+    <style>
+        .collapse:not(.show) { display: none; }
+        .sub-collapse-header.collapsed .arrow { transform: rotate(-90deg); }
+    </style>
 </head>
 <body>
     {% if current_user.is_authenticated %}
@@ -127,8 +132,6 @@
             <a href="/signin">签到</a>
             <a href="/deployers" style="color:#ffd700;">部署</a>
             <a href="/storage/settings">存储</a>
-            <a href="/ai/routes" style="color:#a78bfa;">🤖 AI路由</a>
-            <a href="/settings">设置</a>
             <a href="/ai/settings" style="color:#00d4ff;">🤖 AI</a>
         </div>
         <div>
@@ -137,9 +140,24 @@
             </a>
             <a href="/gateway" style="font-size:13px;">📡网关</a>
             <a href="/price-monitor" style="color:#f59e0b;">💰 价格</a>
-            <span style="font-size: 13px; opacity: .8;">{{ current_user.username }}</span>
-            <a href="/change_password">改密码</a>
-            <a href="/logout">退出</a>
+            <a href="/approval" style="color:#22c55e;">📋 审批</a>
+            <div class="user-dropdown" style="position:relative;display:inline-block;">
+                <span class="user-dropdown-trigger" style="font-size:13px;opacity:.8;cursor:default;padding:4px 8px;border-radius:6px;">👤 {{ current_user.username }} ▾</span>
+                <div class="user-dropdown-menu" style="display:none;position:absolute;right:0;top:100%;min-width:140px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:1000;padding:6px 0;">
+                    <a href="/settings" class="dropdown-item" style="display:block;padding:8px 16px;font-size:13px;color:#1e293b;text-decoration:none;transition:background .1s;">⚙️ 设置</a>
+                    <a href="/change_password" class="dropdown-item" style="display:block;padding:8px 16px;font-size:13px;color:#1e293b;text-decoration:none;transition:background .1s;">🔑 改密码</a>
+                    <div style="border-top:1px solid #f1f5f9;margin:4px 0;"></div>
+                    <a href="/logout" class="dropdown-item" style="display:block;padding:8px 16px;font-size:13px;color:#dc2626;text-decoration:none;transition:background .1s;">🚪 退出</a>
+                </div>
+                <style>
+                .user-dropdown:hover .user-dropdown-menu { display:block !important; }
+                .user-dropdown-menu .dropdown-item:hover { background:#f1f5f9; }
+                .user-dropdown-menu a { white-space:nowrap; }
+                @media (max-width: 768px) {
+                    .user-dropdown-menu { right:auto; left:0; }
+                }
+                </style>
+            </div>
         </div>
     </nav>
     {% endif %}

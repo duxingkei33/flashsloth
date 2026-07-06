@@ -1,8 +1,10 @@
 """FlashSloth — Playwright 论坛探索引擎
 可复用：检测论坛类型 → 爬取版块列表 → 保存到 forum_exploration 表
 防风特性：继承 core/anti_detect 模块的所有人类行为模拟
+资源节约：每域名每小时最多探索一次，全局限流
 """
-import json, time, os, sys, re, random
+import json, time, os, sys, re, random, threading
+from pathlib import Path
 from typing import Optional
 from flashsloth.core.anti_detect import (
     create_human_context, HumanPage, BehaviorRecorder,
@@ -10,6 +12,35 @@ from flashsloth.core.anti_detect import (
 )
 
 MAX_OPS = 8
+
+# ─── 全局限流器 ───────────────────────
+_EXPLORE_LOCK = threading.Lock()
+_EXPLORE_HISTORY: dict[str, float] = {}  # domain → last_explore_timestamp
+_MIN_INTERVAL_SECONDS = 3600  # 每个域名最少间隔1小时
+
+
+def can_explore(domain: str) -> bool:
+    """检查域名是否可探索（频率限制）"""
+    global _EXPLORE_HISTORY
+    now = time.time()
+    with _EXPLORE_LOCK:
+        last = _EXPLORE_HISTORY.get(domain, 0)
+        if now - last < _MIN_INTERVAL_SECONDS:
+            remaining = int(_MIN_INTERVAL_SECONDS - (now - last))
+            print(f"  ⏳ 探索限流: {domain} 还需等待 {remaining}s")
+            return False
+        _EXPLORE_HISTORY[domain] = now
+    return True
+
+
+def get_explore_cooldown(domain: str) -> int:
+    """获取域名冷却剩余秒数"""
+    global _EXPLORE_HISTORY
+    now = time.time()
+    with _EXPLORE_LOCK:
+        last = _EXPLORE_HISTORY.get(domain, 0)
+        remaining = int(_MIN_INTERVAL_SECONDS - (now - last))
+        return max(0, remaining)
 
 
 def _get_human_context(browser):

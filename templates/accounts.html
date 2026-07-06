@@ -88,7 +88,8 @@
 
         <!-- 操作按钮组 -->
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
-            <a href="/accounts/edit/{{ a.id }}" class="btn btn-sm btn-primary">✏️ 编辑</a>
+            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开浏览器验证登录态，查找用户名">🔍 测试连接</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
 
             {% if p.name in ('amobbs', 'discuz') %}
             <button onclick="amobbsLogin({{ a.id }})" class="btn btn-sm btn-warning">🌐 浏览器登录</button>
@@ -139,10 +140,11 @@
 <div id="addFormBox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;padding:28px;max-width:550px;width:90%;max-height:85vh;overflow-y:auto;">
-        <h2 style="margin-bottom:16px;font-size:18px;">➕ 添加账号 — <span id="addPlatName"></span></h2>
+        <h2 id="addFormTitle" style="margin-bottom:16px;font-size:18px;">➕ 添加账号 — <span id="addPlatName"></span></h2>
 
-        <form method="post" action="/accounts/add">
+        <form method="post" action="/accounts/add" id="accountForm">
             <input type="hidden" name="platform" id="addPlatInput">
+            <input type="hidden" name="edit_id" id="editAccountId" value="">
             <div class="form-group">
                 <label>账号别名 <span style="color:#999;font-size:12px;">（留空自动生成）</span></label>
                 <input type="text" name="account_name" id="addAccountName" placeholder="留空自动生成：discuz01、oshwhub01"
@@ -171,8 +173,18 @@
                 <button id="btnRefreshScreenshot" type="button" onclick="unifiedRefreshScreenshot()" class="btn btn-sm btn-info" style="display:none;">
                     🔄 刷新截图
                 </button>
-                <button id="btnSaveOnly" type="submit" class="btn btn-success">💾 仅保存</button>
+                <button id="btnSaveOnly" type="submit" class="btn btn-success">💾 保存</button>
                 <button type="button" onclick="unifiedClose()" class="btn" style="background:#eee;">取消</button>
+                <span style="flex:1;"></span>
+                <span id="debugCookieToggle" style="font-size:10px;color:#ccc;cursor:pointer;align-self:flex-end;"
+                      onclick="toggleDebugCookie()" title="仅用于调试/迁移：直接粘贴Cookie">🔧 调试</span>
+            </div>
+            <!-- Cookie 调试区（默认隐藏） -->
+            <div id="debugCookieArea" style="display:none;margin-top:8px;padding:8px;background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;">
+                <label style="font-size:11px;color:#996600;font-weight:600;">🍪 Cookie 调试模式</label>
+                <textarea id="debugCookieInput" name="cfg_cookie" rows="3" placeholder="从浏览器 F12 → Application → Cookies 复制完整 Cookie 字符串"
+                          style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;font-size:11px;margin-top:4px;"></textarea>
+                <p style="font-size:10px;color:#996600;margin:4px 0 0;">粘贴后点击「💾 保存」即可。仅用于Cookie迁移或调试。</p>
             </div>
             <div id="addLoginResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
         </form>
@@ -285,23 +297,27 @@ function onAddAccount() {
     document.getElementById('addPlatInput').value = opt.value;
     document.getElementById('addPlatName').textContent = opt.text.replace('➕ ', '');
     document.getElementById('addAccountName').value = '';
+    // 隐藏调试Cookie区
+    document.getElementById('debugCookieArea').style.display = 'none';
 
-    // 解析登录方法和配置字段
+    // 解析登录方法，过滤掉 cookie（隐藏到调试模式）
     let methods = [];
     try { methods = JSON.parse(opt.dataset.methods || '[]'); } catch(e) {}
-    if (!methods || methods.length === 0) {
-        // 无登录方法声明，使用配置字段渲染（旧式回退）
+    const mainMethods = methods.filter(function(m) { return m.method !== 'cookie'; });
+
+    if (!mainMethods || mainMethods.length === 0) {
+        // 无主登录方法，回退旧式渲染
         let fields = [];
         try { fields = JSON.parse(opt.dataset.fields || '[]'); } catch(e) {}
         renderConfigFields(fields);
         return;
     }
 
-    // 渲染登录方法 Tab
-    renderLoginTabs(methods);
-    // 默认选中第一个方法
-    if (methods.length > 0) {
-        selectLoginMethod(methods[0].method, methods);
+    // 渲染登录方法 Tab（不含cookie）
+    renderLoginTabs(mainMethods);
+    // 默认选中第一个非cookie方法
+    if (mainMethods.length > 0) {
+        selectLoginMethod(mainMethods[0].method, methods);
     }
 
     document.getElementById('addFormBox').style.display = 'flex';
@@ -314,7 +330,7 @@ function renderLoginTabs(methods) {
         const icon = m.icon || '🔑';
         const active = idx === 0 ? ' style="background:#4361ee;color:#fff;border-color:#4361ee;"' : '';
         html += '<div class="login-method-tab" data-method="' + m.method + '"' + active +
-            ' onclick="selectLoginMethod(\'' + m.method + '\')" style="cursor:pointer;padding:6px 14px;border:1px solid #ddd;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:4px;background:#f5f5f5;">' +
+            ' onclick="selectLoginMethod(\'' + m.method + '\', null)" style="cursor:pointer;padding:6px 14px;border:1px solid #ddd;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:4px;background:#f5f5f5;">' +
             icon + ' ' + escapeHtml(m.label) + '</div>';
     });
     tabsDiv.innerHTML = html;
@@ -1077,5 +1093,57 @@ function escapeHtml(text) {
     d.textContent = text || '';
     return d.innerHTML;
 }
+
+// ====== Cookie 调试模式开关 ======
+function toggleDebugCookie() {
+    var area = document.getElementById('debugCookieArea');
+    var toggle = document.getElementById('debugCookieToggle');
+    if (area.style.display === 'none' || area.style.display === '') {
+        area.style.display = 'block';
+        toggle.textContent = '🔧 关闭调试';
+        toggle.style.color = '#996600';
+    } else {
+        area.style.display = 'none';
+        toggle.textContent = '🔧 调试';
+        toggle.style.color = '#ccc';
+    }
+}
+
+// ====== 编辑账号（打开统一弹窗并预填） ======
+function onEditAccount(aid) {
+    fetch('/api/accounts/config/' + aid)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) { alert('获取账号信息失败'); return; }
+        var cfg = data.config || {};
+        var opt = document.querySelector('#newPlatformSelect option[value="' + cfg._platform + '"]');
+        
+        // 先设置平台选择
+        var sel = document.getElementById('newPlatformSelect');
+        if (opt) {
+            sel.value = cfg._platform || '';
+        }
+        
+        // 调用添加弹窗
+        onAddAccount();
+        
+        // 切换为编辑模式
+        document.getElementById('addFormTitle').innerHTML = '✏️ 编辑账号 — <span>' + (cfg._accountName || '') + '</span>';
+        document.getElementById('editAccountId').value = aid;
+        document.getElementById('addAccountName').value = cfg._accountName || '';
+        document.getElementById('btnSaveOnly').textContent = '💾 更新';
+        
+        // 预填所有配置字段（遍历所有 cfg_ 开头的输入框）
+        Object.keys(cfg).forEach(function(k) {
+            if (k.startsWith('_')) return; // 跳过内部字段
+            var input = document.querySelector('input[name="cfg_' + k + '"], textarea[name="cfg_' + k + '"]');
+            if (input) input.value = cfg[k] || '';
+        });
+    })
+    .catch(function(e) { alert('请求失败: ' + e.message); });
+}
+
+// ─── 重写添加弹窗的标题默认值 ────────────
+var _origFormTitle = '➕ 添加账号 — ';
 </script>
 {% endblock %}

@@ -309,21 +309,7 @@ def settings_page():
         "SELECT * FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
         (current_user.id,)
     ).fetchone()
-    accounts = conn.execute(
-        "SELECT * FROM platform_accounts WHERE user_id=?",
-        (current_user.id,)
-    ).fetchall()
     conn.close()
-
-    publishers = list_publishers()
-    # 合并账号信息
-    for p in publishers:
-        p["accounts"] = [dict(a) for a in accounts if a["platform"] == p["name"]]
-        p["enabled"] = len(p["accounts"]) > 0
-        # 补充当前配置值
-        for field in p["config_fields"]:
-            field["value"] = ""
-            field["missing"] = []
 
     pconfig = dict(pconfig) if pconfig else {}
     provider_cfg = {
@@ -334,10 +320,8 @@ def settings_page():
     return render_template("settings.html",
                          config={
                              "provider": provider_cfg,
-                             "publishers": {},
                              "builder": {"type": "mkdocs", "auto_deploy": True},
-                         },
-                         publishers=publishers)
+                         })
 
 
 @app.route("/settings/provider", methods=["POST"])

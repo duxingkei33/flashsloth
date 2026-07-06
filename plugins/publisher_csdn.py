@@ -47,12 +47,17 @@ class CSDNPublisher(Publisher):
     }
 
     login_methods = [
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
+         "fields": ["username", "password"],
+         "description": "输入 CSDN 用户名和密码，Playwright 浏览器自动登录"},
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
          "fields": ["cookie"],
          "description": "登录后从浏览器 F12 → Application → Cookies → csdn.net 复制"},
     ]
     config_fields = [
-        {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
+        {"key": "username", "label": "用户名/邮箱", "type": "text", "required": False, "default": ""},
+        {"key": "password", "label": "密码", "type": "password", "required": False, "default": ""},
+        {"key": "cookie", "label": "Cookie（备选）", "type": "password", "required": False,
          "placeholder": "CSDN 全站 Cookie（从 F12 复制）"},
         {"key": "article_type", "label": "默认文章类型", "type": "select", "required": False,
          "default": "original",

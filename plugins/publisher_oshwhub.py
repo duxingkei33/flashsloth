@@ -111,7 +111,10 @@ class OSHWHubArticlePublisher(Publisher):
     name = "oshwhub"
     display_name = "立创开源硬件平台"
     login_methods = [
-        {"method": "cookie", "label": "Cookie 粘贴", "icon": "🍪", "priority": 1,
+        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入邮箱/手机号和密码，Playwright 浏览器自动登录"},
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
          "fields": ["cookie"],
          "description": "从浏览器 F12 → Application → Cookies → oshwhub.com 复制"},
     ]

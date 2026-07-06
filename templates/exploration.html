@@ -54,7 +54,11 @@
 }
 .sub-collapse-header:hover { background: rgba(0,0,0,0.02); }
 .sub-collapse-header .arrow { transition: transform .2s; display: inline-block; }
-.sub-collapse-header .arrow.collapsed { transform: rotate(-90deg); }
+.sub-collapse-header.collapsed .arrow { transform: rotate(-90deg); }
+/* 主平台卡片箭头旋转 */
+.card-header .platform-arrow { transition: transform .2s; display:inline-block; }
+.card-header.collapsed .platform-arrow { transform: rotate(0deg); }
+.card-header:not(.collapsed) .platform-arrow { transform: rotate(90deg); }
 .sub-collapse-body { padding: 8px 14px; border-bottom: 1px solid #e9ecef; }
 
 /* 发布标准表 */
@@ -101,10 +105,11 @@
     {% if platforms %}
     {% for p in platforms %}
     <div class="card border section-card">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center"
+        <div class="card-header bg-light d-flex justify-content-between align-items-center {% if not loop.first %}collapsed{% endif %}"
              data-bs-toggle="collapse" data-bs-target="#platform_{{ loop.index }}" style="cursor:pointer;">
             <div>
                 <h5 class="mb-0">
+                    <span class="platform-arrow" style="display:inline-block;transition:transform .2s;margin-right:6px;">▶</span>
                     {{ p.platform }}
                     <small class="text-muted ms-2">{{ p.domain }}</small>
                     <span class="badge {% if p.has_data %}bg-success{% else %}bg-secondary{% endif %} ms-2"
@@ -131,7 +136,7 @@
                     <span><strong style="font-size:0.85rem;color:#475569;">📋 板块列表 {% if p.has_data %}({{ p.count }}){% endif %}</strong></span>
                     <span class="arrow">▼</span>
                 </div>
-                <div id="secRow1_{{ loop.index }}" class="collapse show">
+                <div id="secRow1_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
                     {% if p.has_data and p.sections %}
                     <div class="sub-collapse-body p-0">
                     <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
@@ -215,7 +220,7 @@
                     <span><strong style="font-size:0.85rem;color:#475569;">📋 平台发布能力</strong></span>
                     <span class="arrow">▼</span>
                 </div>
-                <div id="secRow2_{{ loop.index }}" class="collapse show">
+                <div id="secRow2_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
                     <div class="sub-collapse-body">
                     {% if p.capabilities %}
                     {% set caps = p.capabilities %}
@@ -329,7 +334,7 @@
                     <span><strong style="font-size:0.85rem;color:#475569;">📏 发帖标准要求</strong></span>
                     <span class="arrow">▼</span>
                 </div>
-                <div id="secRow3_{{ loop.index }}" class="collapse show">
+                <div id="secRow3_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
                     <div class="sub-collapse-body">
                     {% set caps = p.capabilities or {} %}
                     {% set rules = caps.get('forum_rules', caps) %}
@@ -440,7 +445,7 @@
                     <span><strong style="font-size:0.85rem;color:#475569;">🎯 关心板块 &amp; 关键词</strong></span>
                     <span class="arrow">▼</span>
                 </div>
-                <div id="secRow4_{{ loop.index }}" class="collapse show">
+                <div id="secRow4_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
                     <div class="sub-collapse-body">
                     <div class="mb-2">
                         <strong style="font-size:0.8rem;color:#475569;">🏷️ 关心标签</strong>
@@ -519,7 +524,7 @@
                     <span><strong style="font-size:0.85rem;color:#475569;">⚙️ 管理配置</strong></span>
                     <span class="arrow">▼</span>
                 </div>
-                <div id="secRow5_{{ loop.index }}" class="collapse show">
+                <div id="secRow5_{{ loop.index }}" class="collapse {% if platform_idx == 1 %}show{% endif %}">
                     <div class="sub-collapse-body">
                     <div class="d-flex gap-1 flex-wrap">
                         <button class="btn btn-outline-primary btn-sm" style="font-size:0.7rem;"
@@ -539,6 +544,15 @@
                             📝 编辑能力
                         </button>
                     </div>
+                    <div class="d-flex gap-1 flex-wrap mt-2">
+                        <input type="text" id="customDomain_{{ loop.index }}"
+                               placeholder="输入域名如 example.com"
+                               style="border:1px solid #d1d5db;border-radius:6px;padding:4px 8px;font-size:0.75rem;flex:1;min-width:150px;">
+                        <button class="btn btn-outline-info btn-sm" style="font-size:0.7rem;"
+                                onclick="customExplore({{ loop.index }})">
+                            🚀 自定义探索
+                        </button>
+                    </div>
                     <small class="text-muted" style="font-size:0.7rem;display:block;margin-top:4px;">
                         预留AI/视频采集引用入口
                     </small>
@@ -555,6 +569,82 @@
 </div>
 
 <script>
+// ─── 折叠组件（纯JS实现，不依赖Bootstrap）─────────────
+document.addEventListener('click', function(e) {
+    const toggle = e.target.closest('[data-bs-toggle="collapse"]');
+    if (!toggle) return;
+    const targetId = toggle.getAttribute('data-bs-target');
+    if (!targetId) return;
+    const target = document.querySelector(targetId);
+    if (!target) return;
+    target.classList.toggle('show');
+    toggle.classList.toggle('collapsed');
+
+    // 如果是主平台卡片（card-header），同步内部所有子行的展开/收起状态
+    if (toggle.classList.contains('card-header')) {
+        const isExpanding = target.classList.contains('show');
+        // 查找平台内部的所有子折叠头
+        target.querySelectorAll('.sub-collapse-header').forEach(function(subToggle) {
+            const subTargetId = subToggle.getAttribute('data-bs-target');
+            if (!subTargetId) return;
+            const subTarget = document.querySelector(subTargetId);
+            if (!subTarget) return;
+            if (isExpanding) {
+                subTarget.classList.add('show');
+                subToggle.classList.remove('collapsed');
+            } else {
+                subTarget.classList.remove('show');
+                subToggle.classList.add('collapsed');
+            }
+        });
+    }
+});
+
+// ─── 初始化折叠状态 ─────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(toggle) {
+        var targetId = toggle.getAttribute('data-bs-target');
+        if (!targetId) return;
+        var target = document.querySelector(targetId);
+        if (!target) return;
+        // 如果目标没有 show 类，给 toggle 加 collapsed
+        if (!target.classList.contains('show')) {
+            toggle.classList.add('collapsed');
+        }
+    });
+});
+
+// ─── 自定义探索 ─────────────────────
+function customExplore(idx) {
+    const input = document.getElementById('customDomain_' + idx);
+    const domain = input.value.trim();
+    if (!domain) { alert('请输入域名'); return; }
+    const btn = input.nextElementSibling;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 探索中...';
+    fetch('/api/exploration/custom', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain: domain, platform: 'auto'})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('探索失败: ' + (data.error || ''));
+            btn.disabled = false;
+            btn.innerHTML = '🚀 自定义探索';
+        }
+    })
+    .catch(function(e) {
+        alert('请求失败: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = '🚀 自定义探索';
+    });
+}
+
 // ─── 标签管理 ─────────────────────────
 let pendingTags = {};
 

@@ -54,6 +54,7 @@ def init_price_db():
         CREATE TABLE IF NOT EXISTS price_monitors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
+            account_id INTEGER DEFAULT 0,
             name TEXT NOT NULL,
             lcsc_code TEXT NOT NULL,
             datasheet_url TEXT DEFAULT '',
@@ -73,6 +74,12 @@ def init_price_db():
         );
     """)
     conn.commit()
+    # 迁移：添加 price_capable 列到 platform_accounts
+    try:
+        conn.execute("ALTER TABLE platform_accounts ADD COLUMN price_capable INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
     conn.close()
 
 

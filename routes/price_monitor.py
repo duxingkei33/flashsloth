@@ -31,6 +31,31 @@ def price_monitor_page():
                          monitors=[dict(m) for m in monitors],
                          histories=histories)
 
+@app.route("/api/price-monitor/accounts")
+@login_required
+def api_price_monitor_accounts():
+    """获取支持价格监控的平台账号"""
+    conn = get_db()
+    # 识别支持价格的平台：xianyu / taobao / lcsc
+    accounts = conn.execute(
+        "SELECT id, platform, account_name, price_capable, config_json "
+        "FROM platform_accounts "
+        "WHERE user_id=? AND is_active=1 "
+        "AND (price_capable=1 OR platform IN ('xianyu', 'taobao', 'lcsc', 'oshwhub')) "
+        "ORDER BY platform",
+        (current_user.id,)
+    ).fetchall()
+    conn.close()
+    result = []
+    for a in accounts:
+        result.append({
+            "id": a["id"],
+            "platform": a["platform"],
+            "account_name": a["account_name"],
+            "price_capable": a.get("price_capable", 0) or 1,
+        })
+    return jsonify({"success": True, "accounts": result})
+
 
 @app.route("/api/price-monitor/add", methods=["POST"])
 @login_required

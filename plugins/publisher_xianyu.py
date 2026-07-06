@@ -14,10 +14,20 @@ class XianyuPublisher(PlatformAdapter):
     icon = "🐟"
     supports_draft = False  # 闲鱼没有草稿功能
     capabilities = ["publish_product", "list_products", "get_product_info"]
-    login_methods = [{"type": "cookie", "label": "Cookie 登录", "priority": 1}]
+    login_methods = [
+        {"method": "password", "label": "淘宝账号密码登录", "icon": "🔑", "priority": 1,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入淘宝账号密码，Playwright 处理扫码/验证码"},
+        {"method": "cookie", "label": "Cookie 登录（备选）", "icon": "🍪", "priority": 99,
+         "fields": ["site_url", "cookie"],
+         "description": "从浏览器 F12 复制闲鱼 Cookie"},
+    ]
 
     config_fields = [
-        {"key": "cookies_str", "label": "闲鱼 Cookie 字符串", "type": "textarea", "required": True,
+        {"key": "site_url", "label": "闲鱼地址", "type": "text", "required": False, "default": "https://goofish.com"},
+        {"key": "username", "label": "淘宝账号（手机号/邮箱）", "type": "text", "required": False, "default": ""},
+        {"key": "password", "label": "淘宝密码", "type": "password", "required": False, "default": ""},
+        {"key": "cookie", "label": "Cookie（备选）", "type": "textarea", "required": False,
          "placeholder": "从浏览器复制的完整 Cookie"},
         {"key": "device_id", "label": "设备 ID（可选）", "type": "text", "placeholder": "自动生成 if empty"},
     ]

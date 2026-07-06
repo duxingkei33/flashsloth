@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}审批管理{% endblock %}
+{% block content %}
+<style>
+.approval-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 16px; margin-bottom: 12px; transition: all .15s;
+}
+.approval-card:hover { border-color: #cbd5e1; }
+.approval-card.pending { border-left: 4px solid #f59e0b; }
+.approval-card.approved { border-left: 4px solid #22c55e; opacity: 0.8; }
+.approval-card.rejected { border-left: 4px solid #ef4444; opacity: 0.8; }
+.approval-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.approval-meta { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+.approval-actions { display: flex; gap: 6px; }
+.approval-actions button {
+    padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none;
+}
+.btn-approve { background: #22c55e; color: #fff; }
+.btn-approve:hover { background: #16a34a; }
+.btn-reject { background: #ef4444; color: #fff; }
+.btn-reject:hover { background: #dc2626; }
+.empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+</style>
+
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="mb-1">📋 审批管理</h3>
+            <p class="text-muted mb-0 small">AI自动操作前需要您确认的请求 · 通过网关（微信/企微）回复也可处理</p>
+        </div>
+    </div>
+
+    {% if pending %}
+    <h5 class="mb-2" style="color:#f59e0b;">⏳ 待审批 ({{ pending|length }})</h5>
+    {% for p in pending %}
+    <div class="approval-card pending" id="card_{{ p.id }}">
+        <div class="approval-title">{{ p.title }}</div>
+        <div class="approval-meta">
+            🆔 #{{ p.id }} · 🔧 {{ p.action }} · 📡 {{ p.target_platform or '—' }}
+            · 🕐 {{ p.created_at[:16] }}
+            {% if p.requested_by != 'system' %} · 👤 {{ p.requested_by }}{% endif %}
+        </div>
+        {% if p.description %}
+        <p style="font-size:13px;color:#475569;margin-bottom:8px;">{{ p.description }}</p>
+        {% endif %}
+        {% if p.target_url %}
+        <p style="font-size:12px;margin-bottom:8px;"><a href="{{ p.target_url }}" target="_blank">🔗 {{ p.target_url }}</a></p>
+        {% endif %}
+        <div class="approval-actions">
+            <button class="btn-approve" onclick="respond({{ p.id }}, true)">✅ 通过</button>
+            <button class="btn-reject" onclick="respond({{ p.id }}, false)">❌ 拒绝</button>
+            {% if p.metadata %}
+            <small class="text-muted" style="font-size:11px;margin-left:8px;align-self:center;">
+                {{ p.metadata|tojson|truncate(100) }}
+            </small>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <div style="font-size:48px;margin-bottom:12px;">✅</div>
+        <p style="font-size:16px;">没有待审批的请求</p>
+        <p class="text-muted small">当AI需要执行敏感操作时，审批请求会出现在这里和您的微信上</p>
+    </div>
+    {% endif %}
+
+    {% if history %}
+    <hr class="my-4">
+    <h5 class="mb-2" style="color:#64748b;">📜 审批历史</h5>
+    {% for h in history %}
+    <div class="approval-card {{ h.status }}" id="hist_{{ h.id }}">
+        <div class="approval-title">
+            {% if h.status == 'approved' %}✅{% elif h.status == 'rejected' %}❌{% else %}⏳{% endif %}
+            {{ h.title }}
+        </div>
+        <div class="approval-meta">
+            🆔 #{{ h.id }} · 🔧 {{ h.action }} · 📡 {{ h.target_platform or '—' }}
+            · 🕐 {{ h.created_at[:16] }}
+            {% if h.responded_at %} · 处理于 {{ h.responded_at[:16] }}{% endif %}
+        </div>
+        {% if h.response_note %}
+        <p style="font-size:12px;color:#64748b;margin-bottom:0;">备注: {{ h.response_note }}</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<script>
+function respond(id, approved) {
+    var note = '';
+    if (!approved) {
+        note = prompt('请输入拒绝原因（可选）：');
+        if (note === null) return;
+    }
+    fetch('/api/approval/' + id + '/respond', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({approved: approved, note: note || ''})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) { location.reload(); }
+        else { alert('操作失败: ' + (d.error || '')); }
+    });
+}
+</script>
+{% endblock %}

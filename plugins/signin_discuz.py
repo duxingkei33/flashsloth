@@ -1,7 +1,11 @@
 """
-Discuz! 签到插件 (k_misign)
+Discuz! 签到插件 (k_misign) — Playwright 版本
 继承 SigninBase，注册为 signin_discuz_k_misign
 使用 platform_accounts 中已保存的 cookie 自动签到
+
+核心原则（死规矩）：
+- 必须引用账号里的 cookie 凭证
+- 必须用 Playwright（禁止 requests/curl/wget/httpx）
 
 扩展指南：
   新增论坛签到 → 在 plugins/ 下建 signin_xxx.py，
@@ -42,88 +46,126 @@ class DiscuzKmisignSignin(SigninBase):
         site_url = cfg.get("site_url", "")
         if not site_url or not cfg.get("cookie", ""):
             return False
-        # 可选探测 k_misign 插件是否存在
-        try:
-            import requests as _req
-            test_url = site_url.rstrip("/") + "/k_misign-sign.html"
-            check = _req.get(test_url, timeout=5, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            })
-            if check.status_code == 200:
-                return True
-        except Exception:
-            pass
-        return True  # 有 site_url + cookie 就尝试签到，失败了再报告
+        # 有 site_url + cookie 就尝试签到
+        return True
+
+    def _parse_cookies(self, cookie_str: str) -> list:
+        """将 Cookie 字符串解析为 Playwright 可接受的格式"""
+        cookies = []
+        domain = self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
+        # 确保 domain 以 "." 开头以便覆盖子域名
+        main_domain = "." + domain if not domain.startswith(".") else domain
+        for pair in cookie_str.split(";"):
+            pair = pair.strip()
+            if not pair or "=" not in pair:
+                continue
+            n, v = pair.split("=", 1)
+            cookies.append({"name": n.strip(), "value": v.strip(),
+                           "domain": main_domain, "path": "/"})
+        return cookies
 
     def signin(self) -> dict:
-        """执行 k_misign 签到"""
+        """使用 Playwright 执行 k_misign 签到"""
         if not self.site_url or not self.cookie:
             return {"success": False, "already_signed": False,
                     "error": "缺少 site_url 或 cookie", "message": ""}
 
         try:
-            from plugins.browser_session import HumanSession
-        except ImportError:
-            from browser_session import HumanSession
+            from playwright.sync_api import sync_playwright
+            from flashsloth.core.anti_detect import create_human_context, human_wait_page_ready
 
-        browser = HumanSession(base_url=self.site_url, min_delay=0.5, max_delay=2.0)
-        browser.set_cookies(self.cookie)
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-setuid-sandbox",
+                          "--disable-blink-features=AutomationControlled"],
+                )
+                ctx = create_human_context(browser)
 
-        sign_url = self.site_url.rstrip("/") + "/k_misign-sign.html"
-        resp = browser.get(sign_url)
+                # 注入 Cookie
+                cookies = self._parse_cookies(self.cookie)
+                if cookies:
+                    ctx.add_cookies(cookies)
 
-        uid_match = re.search(r"discuz_uid\s*=\s*'(\d+)'", resp.text)
-        if not uid_match or uid_match.group(1) == "0":
+                page = ctx.new_page()
+
+                sign_url = self.site_url.rstrip("/") + "/k_misign-sign.html"
+                page.goto(sign_url, wait_until="domcontentloaded", timeout=30000)
+                human_wait_page_ready(page, min_sec=2.0)
+
+                # 检查是否登录
+                html = page.content()
+                uid_match = re.search(r'discuz_uid\s*=\s*["\'](\d+)["\']', html)
+                if not uid_match or uid_match.group(1) == "0":
+                    browser.close()
+                    return {"success": False, "already_signed": False,
+                            "error": "Cookie 无效，未登录", "message": ""}
+
+                # 检查是否已签到
+                status_indicators = ["已签", "已签到", "签到成功", "今日已签", "您的签到排名"]
+                if any(t in html for t in status_indicators):
+                    browser.close()
+                    return {"success": True, "already_signed": True,
+                            "error": "", "message": "今天已签到"}
+
+                # 提取 formhash
+                formhash = None
+                for pattern in [
+                    r'name="formhash"[^>]+value="([^"]+)"',
+                    r'formhash\s*=\s*"([^"]+)"',
+                    r'formhash=([a-zA-Z0-9]+)',
+                ]:
+                    match = re.search(pattern, html)
+                    if match:
+                        formhash = match.group(1)
+                        break
+
+                if not formhash:
+                    link_match = re.search(
+                        r'k_misign:sign&operation=qiandao&formhash=([a-zA-Z0-9]+)',
+                        html
+                    )
+                    if link_match:
+                        formhash = link_match.group(1)
+
+                if not formhash:
+                    browser.close()
+                    return {"success": False, "already_signed": False,
+                            "error": "无法获取 formhash", "message": ""}
+
+                # 执行签到 — 直接访问签到链接
+                qiandao_url = (
+                    f"{self.site_url}/plugin.php?id=k_misign:sign"
+                    f"&operation=qiandao&formhash={formhash}&format=empty"
+                )
+                page.goto(qiandao_url, wait_until="domcontentloaded", timeout=30000)
+                time.sleep(2)
+
+                # 验证签到结果
+                verify_resp = page.goto(sign_url, wait_until="domcontentloaded", timeout=30000)
+                time.sleep(1)
+                verify_html = page.content()
+
+                if any(t in verify_html for t in status_indicators):
+                    browser.close()
+                    return {"success": True, "already_signed": False,
+                            "error": "", "message": "签到成功 ✅"}
+
+                # 检查响应内容
+                body_text = page.inner_text("body")
+                if body_text:
+                    if "今日已签" in body_text or "签到成功" in body_text or "succeed" in body_text.lower():
+                        browser.close()
+                        return {"success": True, "already_signed": False,
+                                "error": "", "message": "签到成功 ✅"}
+                    browser.close()
+                    return {"success": False, "already_signed": False,
+                            "error": f"签到失败: {body_text[:200]}", "message": ""}
+
+                browser.close()
+                return {"success": False, "already_signed": False,
+                        "error": "签到失败，未知原因", "message": ""}
+
+        except Exception as e:
             return {"success": False, "already_signed": False,
-                    "error": "Cookie 无效，未登录", "message": ""}
-
-        status_indicators = ["已签", "已签到", "签到成功", "今日已签", "您的签到排名"]
-        if any(t in resp.text for t in status_indicators):
-            return {"success": True, "already_signed": True,
-                    "error": "", "message": "今天已签到"}
-
-        formhash = None
-        for pattern in [
-            r'name="formhash"[^>]+value="([^"]+)"',
-            r'formhash\s*=\s*"([^"]+)"',
-            r'formhash=([a-zA-Z0-9]+)',
-        ]:
-            match = re.search(pattern, resp.text)
-            if match:
-                formhash = match.group(1)
-                break
-
-        if not formhash:
-            link_match = re.search(
-                r'k_misign:sign&operation=qiandao&formhash=([a-zA-Z0-9]+)',
-                resp.text
-            )
-            if link_match:
-                formhash = link_match.group(1)
-
-        if not formhash:
-            return {"success": False, "already_signed": False,
-                    "error": "无法获取 formhash", "message": ""}
-
-        qiandao_url = (
-            f"{self.site_url}/plugin.php?id=k_misign:sign"
-            f"&operation=qiandao&formhash={formhash}&format=empty"
-        )
-        sign_resp = browser.get(qiandao_url)
-
-        time.sleep(1)
-        verify_resp = browser.get(sign_url)
-        if any(t in verify_resp.text for t in status_indicators):
-            return {"success": True, "already_signed": False,
-                    "error": "", "message": "签到成功 ✅"}
-
-        if sign_resp.text.strip():
-            msg = sign_resp.text.strip()[:200]
-            if "今日已签" in msg or "签到成功" in msg or "succeed" in msg.lower():
-                return {"success": True, "already_signed": False,
-                        "error": "", "message": "签到成功 ✅"}
-            return {"success": False, "already_signed": False,
-                    "error": f"签到失败: {msg}", "message": ""}
-
-        return {"success": False, "already_signed": False,
-                "error": "签到失败，未知原因", "message": ""}
+                    "error": f"签到异常: {e}", "message": ""}

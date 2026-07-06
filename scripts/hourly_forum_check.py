@@ -180,6 +180,24 @@ def explore_discuz(account):
     if domain.startswith('www.'):
         domain = domain[4:]
     
+    # 限流检查：每域名每小时最多探索一次
+    from core.explorer import can_explore, get_explore_cooldown
+    if not can_explore(domain):
+        remaining = get_explore_cooldown(domain)
+        print(f"  ⏳ 跳过 {domain}（距上次探索不足1小时，剩余 {remaining}s）")
+        return {
+            'domain': domain,
+            'account': account['account_name'],
+            'sections_found': 0,
+            'can_post_count': 0,
+            'changed': False,
+            'banned': False,
+            'error': None,
+            'forums': {},
+            'skipped': True,
+            'cooldown': remaining,
+        }
+    
     print(f"\n  🔍 探索 {domain} ({account['account_name']})")
     print(f"  URL: {site_url}")
     

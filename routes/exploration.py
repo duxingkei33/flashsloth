@@ -305,6 +305,15 @@ def api_custom_explore():
         conn.close()
         return jsonify({"success": False, "error": f"'{domain}' 已有 {existing} 条探索数据，如需重新探索请先删除"})
 
+    # 限流检查（每域名每小时一次）
+    from flashsloth.core.explorer import can_explore, get_explore_cooldown
+    if not can_explore(domain):
+        remaining = get_explore_cooldown(domain)
+        return jsonify({
+            "success": False, "error": f"探索频率限制: '{domain}' 还需等待 {remaining}s",
+            "cooldown_seconds": remaining,
+        })
+
     # 从 platform_accounts 找账号配置
     acct = conn.execute(
         "SELECT config_json FROM platform_accounts WHERE is_active=1 AND user_id=? ORDER BY id LIMIT 1",

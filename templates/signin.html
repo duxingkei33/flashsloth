@@ -60,8 +60,23 @@
     </div>
 </div>
 
-<!-- ====== 统计数据 ====== -->
-<div class="stats" style="margin-bottom:20px;">
+<!-- ====== 统计数据（两行布局） ====== -->
+<style>
+.signin-stats-row { display:flex; gap:16px; margin-bottom:8px; }
+.signin-stats-row .stat-card { flex:1; min-width:0; }
+.signin-stats-row-2 { display:flex; gap:16px; }
+.signin-stats-row-2 .stat-card { flex:1; min-width:0; }
+@media (max-width: 768px) {
+    .signin-stats-row, .signin-stats-row-2 { flex-wrap:wrap; }
+    .signin-stats-row .stat-card { flex:1 1 calc(50% - 8px); min-width:120px; }
+    .signin-stats-row-2 .stat-card { flex:1 1 calc(33% - 8px); min-width:100px; }
+}
+@media (max-width: 480px) {
+    .signin-stats-row .stat-card { flex:1 1 100%; }
+    .signin-stats-row-2 .stat-card { flex:1 1 calc(50% - 8px); }
+}
+</style>
+<div class="signin-stats-row">
     <div class="stat-card" style="border-left:4px solid #22c55e;">
         <div class="num">{{ today_count }}</div>
         <div class="label">今日新签到</div>
@@ -71,6 +86,16 @@
         <div class="num">{{ today_success }}</div>
         <div class="label">今日成功</div>
         <div style="font-size:11px;color:#999;">含已签到</div>
+    </div>
+</div>
+<div class="signin-stats-row-2">
+    <div class="stat-card">
+        <div class="num">{{ accounts|selectattr('has_signin')|selectattr('signin_enabled')|list|length }}</div>
+        <div class="label">可签到账号</div>
+    </div>
+    <div class="stat-card">
+        <div class="num">{{ accounts|length }}</div>
+        <div class="label">总账号</div>
     </div>
     <div class="stat-card" style="border-left:4px solid #ef4444;">
         <div class="num">{{ today_failure }}</div>
@@ -86,14 +111,6 @@
         <div class="num">{{ total_failure }}</div>
         <div class="label">累计失败</div>
         <div style="font-size:11px;color:#999;">历史总失败次数</div>
-    </div>
-    <div class="stat-card">
-        <div class="num">{{ accounts|selectattr('has_signin')|selectattr('signin_enabled')|list|length }}</div>
-        <div class="label">可签到账号</div>
-    </div>
-    <div class="stat-card">
-        <div class="num">{{ accounts|length }}</div>
-        <div class="label">总账号</div>
     </div>
 </div>
 
