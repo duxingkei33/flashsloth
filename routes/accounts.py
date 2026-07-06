@@ -403,6 +403,7 @@ def test_account(aid):
    if not acct:
        return jsonify({"success": False, "error": "账号不存在"})
    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+   decrypt_config(cfg)  # 解密凭证用于连接测试
    try:
        publisher = get_publisher(acct["platform"], cfg)
        if hasattr(publisher, "test_connection"):
