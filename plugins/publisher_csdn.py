@@ -8,7 +8,7 @@ CSDN Publisher — Playwright 浏览器自动化（sync API）
 - 存草稿: button:has-text('保存草稿')
 - 发布: button:has-text('发布文章')
 """
-import re, json, os
+import re, json, os, logging
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import Publisher, register, PublishError
 from playwright.sync_api import sync_playwright
@@ -68,6 +68,7 @@ class CSDNPublisher(Publisher):
         super().__init__(config)
         self.cookie_str = config.get("cookie", "")
         self.article_type = config.get("article_type", "original")
+        self.logger = logging.getLogger(f"publisher.{self.name}")
 
     def _cookies(self):
         return _parse_cookies(self.cookie_str) if self.cookie_str else []
