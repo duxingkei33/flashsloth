@@ -14,16 +14,25 @@ from flashsloth.core.database import get_db
 @app.route("/exploration")
 @login_required
 def exploration_page():
-    """探索数据管理页面"""
+    """探索数据管理页面（带分页）"""
     conn = get_db()
     
+    page = request.args.get("page", 1, type=int)
+    per_page = 3  # 每页3个平台
+    
     # 获取所有平台/域名的分组
-    rows = conn.execute(
+    all_rows = conn.execute(
         "SELECT DISTINCT platform, platform_domain FROM forum_exploration ORDER BY platform"
     ).fetchall()
     
+    total = len(all_rows)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    end = start + per_page
+    
     platforms = []
-    for r in rows:
+    for r in all_rows[start:end]:
         sections = conn.execute(
             "SELECT * FROM forum_exploration WHERE platform=? AND platform_domain=? ORDER BY section_id",
             (r["platform"], r["platform_domain"])
@@ -36,7 +45,10 @@ def exploration_page():
         })
     
     conn.close()
-    return render_template("exploration.html", platforms=platforms, platforms_json=json.dumps(platforms, ensure_ascii=False))
+    return render_template("exploration.html",
+                         platforms=platforms,
+                         platforms_json=json.dumps(platforms, ensure_ascii=False),
+                         page=page, total_pages=total_pages, total=total)
 
 
 @app.route("/api/exploration/<int:fid>", methods=["POST"])

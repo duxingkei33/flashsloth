@@ -156,32 +156,16 @@ class OSHWHubArticlePublisher(Publisher):
                 except Exception:
                     pass
 
-                # ── 5. 选择分类 ──
-                # 注意: #rc_select_0 是顶部搜索框不是分类。选分类用JS直接设置文章表单的分类值
+                # ── 5. 选择分类（OSHWHub分类是radio按钮，非下拉框）──
                 try:
-                    # 找到文章表单区域的分类下拉（可能有多个select，取第二个或文章表单内的）
-                    cat_selectors = page.locator(".ant-select-selector").all()
-                    # 文章分类通常是第2个或第3个ant-select（第一个是头部搜索）
-                    for sel in cat_selectors:
-                        parent_id = sel.evaluate("el => el.closest('.ant-select')?.id || ''")
-                        # 跳过头部搜索(rc_select_0)
-                        is_header = sel.evaluate("el => { const h = el.closest('[class*=header]'); return h ? h.className : ''; }")
-                        if 'rc_select_0' in parent_id or 'headerSearch' in is_header:
-                            continue
-                        sel.click(force=True)
-                        page.wait_for_timeout(1000)
-                        opts = page.locator("[class*='ant-select-item-option-content']")
-                        count = opts.count()
-                        if count >= 1:
-                            # 选第一个非空选项（跳过"请选择"类的占位项）
-                            for i in range(count):
-                                txt = opts.nth(i).inner_text().strip()
-                                if txt and txt not in ('请选择', ''):
-                                    opts.nth(i).click(force=True)
-                                    page.wait_for_timeout(500)
-                                    self.logger.info(f"✅ 已选择分类: {txt}")
-                                    break
-                            break
+                    radio_inputs = page.locator("input[type='radio']")
+                    count = radio_inputs.count()
+                    if count >= 1:
+                        # 选第一个radio（使用技巧/skill），用JS点击绕过遮挡
+                        first_radio = radio_inputs.first
+                        first_radio.evaluate("el => { el.checked = true; el.dispatchEvent(new Event('change', {bubbles: true})); }")
+                        page.wait_for_timeout(500)
+                        self.logger.info(f"✅ 已选择分类（radio #{1}/{count}）")
                 except Exception as e:
                     self.logger.warning(f"⚠️ 分类选择失败: {e}")
 
