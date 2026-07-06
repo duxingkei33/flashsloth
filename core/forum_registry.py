@@ -1,196 +1,271 @@
 """
-Forum Registry — 论坛版块注册表 + 智能FID匹配
+Forum & Platform Registry — 统一智能版块匹配系统
 
-功能：
-1. 存储各Discuz平台的版块信息（fid + 名称 + 关键词）
-2. 根据文章标签/内容自动匹配最合适的版块
-3. 支持AI匹配和关键词模糊匹配两种模式
+存储所有平台的版块/分类/项目类型数据，根据文章内容自动匹配。
+支持：Discuz论坛(amobbs/mydigit)、OSHWHub、CSDN等
 """
-import json, re, os
+import json, os, re
 from typing import Optional
 
-# 内置版块关键词映射
-# 每个版块预定义关键词，用于模糊匹配
-FORUM_KEYWORDS = {
-    "amobbs.com": {
-        "3020": {"name": "STM32/8", "keywords": ["stm32", "stm8", "cortex", "hal", "cube", "arm mcu"]},
-        "1000": {"name": "AVR", "keywords": ["avr", "atmega", "attiny", "arduino"]},
-        "1006": {"name": "51单片机", "keywords": ["51单片机", "8051", "stc", "keil"]},
-        "1024": {"name": "机器人", "keywords": ["机器人", "robot", "舵机", "机械臂"]},
-        "1025": {"name": "飞行器", "keywords": ["飞行器", "无人机", "飞控", "四轴", "pixhawk"]},
-        "1027": {"name": "雕刻机", "keywords": ["雕刻机", "cnc", "grbl"]},
-        "1028": {"name": "PIC", "keywords": ["pic", "microchip"]},
-        "1029": {"name": "FPGA", "keywords": ["fpga", "verilog", "vhdl", "zynq", "spartan"]},
-        "1031": {"name": "电脑综合", "keywords": ["电脑", "pc", "笔记本", "台式机", "cpu", "显卡"]},
-        "1032": {"name": "ARM", "keywords": ["arm", "imx", "rk", "全志", "s3c"]},
-        "1037": {"name": "电路仿真", "keywords": ["仿真", "simulation", "spice", "multisim", "proteus"]},
-        "2060": {"name": "电子综合", "keywords": ["电子", "电路", "元器件", "焊接", "pcb", "layout"]},
-        "2070": {"name": "其它MCU", "keywords": ["mcu", "单片机", "微控制器", "esp32", "esp8266"]},
-        "3011": {"name": "CortexM3", "keywords": ["cortex-m3", "stm32f1", "lm3s"]},
-        "3013": {"name": "瑞萨", "keywords": ["瑞萨", "renesas", "ra", "rl78"]},
-        "3021": {"name": "PLC工控", "keywords": ["plc", "工控", "modbus", "西门子", "三菱"]},
-        "3032": {"name": "智能小车", "keywords": ["智能车", "小车", "循迹", "避障"]},
-        "3042": {"name": "电子产品", "keywords": ["产品", "设计", "量产", "消费电子"]},
-        "3045": {"name": "通信、网络", "keywords": ["通信", "网络", "wifi", "蓝牙", "lora", "zigbee", "4g"]},
-        "3046": {"name": "Linux", "keywords": ["linux", "ubuntu", "debian", "嵌入式linux", "驱动"]},
-        "3054": {"name": "仪表仪器", "keywords": ["示波器", "万用表", "频谱仪", "仪器", "测量"]},
-        "3064": {"name": "MSP430", "keywords": ["msp430", "ti", "低功耗"]},
-        "3081": {"name": "HiFi与乐器", "keywords": ["hifi", "音频", "功放", "音箱", "dac"]},
-        "9897": {"name": "LGT", "keywords": ["lgt", "8位mcu"]},
-        "9923": {"name": "海尔单片机", "keywords": ["海尔", "hr"]},
-        "9936": {"name": "飞思卡尔", "keywords": ["飞思卡尔", "freescale", "nxp", "kinetis"]},
-        "9942": {"name": "深圳嘉立创", "keywords": ["嘉立创", "jlc", "打样", "pcb打样"]},
-        "9960": {"name": "VR虚拟现实", "keywords": ["vr", "虚拟现实", "ar", "增强现实"]},
-        "9961": {"name": "树莓派", "keywords": ["树莓派", "raspberry pi", "raspberry"]},
-        "9966": {"name": "在芯间商城", "keywords": ["在芯间", "元器件商城", "采购"]},
-        "9976": {"name": "乐高编程", "keywords": ["乐高", "lego", "ev3", "mindstorm"]},
-        "9981": {"name": "童趣DIY", "keywords": ["diy", "手工", "制作", "创客"]},
-        "9998": {"name": "论坛建设", "keywords": ["论坛", "建议", "反馈", "bug"]},
-        "10004": {"name": "手机综合", "keywords": ["手机", "android", "ios", "刷机"]},
-        "10017": {"name": "家电维修", "keywords": ["维修", "家电", "电视", "空调", "冰箱"]},
-        "10025": {"name": "嘉立创EDA", "keywords": ["eda", "立创eda", "原理图", "pcb设计"]},
-        "10028": {"name": "3D打印", "keywords": ["3d打印", "3d printer", "打印"]},
-        "10033": {"name": "电机马达", "keywords": ["电机", "马达", "步进", "伺服", "无刷"]},
-        "10038": {"name": "汽车", "keywords": ["汽车", "电动车", "obd", "can"]},
-        "10039": {"name": "手机操作系统", "keywords": ["操作系统", "手机os", "鸿蒙"]},
-        "10042": {"name": "电源技术", "keywords": ["电源", "开关电源", "buck", "boost", "充电", "电池"]},
-        "10045": {"name": "家居装修", "keywords": ["装修家居", "装修", "智能家居"]},
-        "10052": {"name": "智能家居", "keywords": ["home assistant", "智能家居系统", "智能灯", "智能开关", "homekit"]},
-        "10057": {"name": "生态鱼缸", "keywords": ["鱼缸", "生态", "水族"]},
-        "10059": {"name": "电源技术", "keywords": ["电源", "电力", "电池"]},
-        "10061": {"name": "AI编程", "keywords": ["ai", "人工智能", "机器学习", "深度学习", "gpt"]},
-        "10062": {"name": "AI行业信息", "keywords": ["ai行业", "大模型", "llm", "chatgpt"]},
+# ============================================================
+# 1. 论坛/平台版块数据库（从Playwright探索结果构建）
+# ============================================================
+
+# 数据结构：
+# {domain: {fid: {"name": str, "can_post": bool, "keywords": [str]}}}
+
+FORUM_DATA = {}
+PLATFORM_CATEGORIES = {}
+
+# ---------- 自动从探索JSON加载 ----------
+_data_dir = os.path.join(os.path.dirname(__file__), "..", "platform_reports")
+_data_dir = os.path.abspath(_data_dir)
+
+def _load_forum_json(filename: str) -> dict:
+    path = os.path.join(_data_dir, filename)
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+# 加载 amobbs
+_amobbs = _load_forum_json("amobbs_forums.json")
+if _amobbs.get("forums"):
+    FORUM_DATA["amobbs.com"] = {}
+    for fid, info in _amobbs["forums"].items():
+        if info.get("can_post"):
+            name = info["name"]
+            FORUM_DATA["amobbs.com"][fid] = {"name": name}
+
+# 加载 mydigit
+_mydigit = _load_forum_json("mydigit_forums.json")
+if _mydigit.get("forums"):
+    FORUM_DATA["mydigit.cn"] = {}
+    for fid, info in _mydigit["forums"].items():
+        if info.get("can_post"):
+            name = info["name"]
+            FORUM_DATA["mydigit.cn"][fid] = {"name": name}
+
+
+# ============================================================
+# 2. 非论坛平台分类 (OSHWHub, CSDN)
+# ============================================================
+
+PLATFORM_CATEGORIES = {
+    "oshwhub.com": {
+        "project_types": [
+            {"id": "project", "name": "工程", "endpoint": "/project/create", "desc": "开源硬件工程"},
+            {"id": "article", "name": "文章", "endpoint": "/article/create", "desc": "技术文章/教程"},
+        ],
+        "tags": [
+            "5G/5G技术", "智能硬件", "课设/毕设", "DIY设计", "汽车电子",
+            "消费电子", "工业电子", "家用电子", "医疗电子", "开源复刻",
+            "电力电子", "电路仿真", "测量仪表", "电工电子", "电路模块",
+            "星火计划2026", "星火计划2025", "星火计划2024", "星火计划2023",
+            "训练营", "征集令", "立创大赛", "电子设计大赛", "蓝桥杯大赛",
+            "3D打印", "CNC加工", "FPC软板", "方案验证板", "功能模块", "成品/套件",
+        ],
     },
-    "mydigit.cn": {
-        "40": {"name": "数码值得买/交易", "keywords": ["数码", "交易", "买卖", "二手", "优惠"]},
-        "41": {"name": "数码大家谈", "keywords": ["数码", "讨论", "综合"]},
-        "56": {"name": "拆机乐园", "keywords": ["拆机", "拆解", "维修", "内部"]},
-        "59": {"name": "我爱单片机", "keywords": ["单片机", "mcu", "arduino", "esp"]},
-        "60": {"name": "电脑硬件", "keywords": ["电脑", "硬件", "cpu", "内存", "硬盘"]},
-        "38": {"name": "电池/充电器", "keywords": ["电池", "充电", "充电器", "锂电"]},
-        "47": {"name": "工具/仪表", "keywords": ["工具", "万用表", "示波器", "电烙铁"]},
-        "63": {"name": "电源技术", "keywords": ["电源", "开关电源", "充电"]},
-    },
+    "csdn.net": {
+        "content_types": [
+            {"id": "original", "name": "原创"},
+            {"id": "reprint", "name": "转载"},
+            {"id": "translation", "name": "翻译"},
+        ],
+        "editor_url": "https://editor.csdn.net/md/",
+    }
 }
 
 
-def discover_forums(platform: str, site_url: str, cookies: list) -> dict:
-    """使用 Playwright 探索论坛版块（缓存到文件）
+# ============================================================
+# 3. Auto-generate keywords from forum names
+# ============================================================
+
+def _generate_keywords(name: str) -> list:
+    """根据版块名称自动生成匹配关键词"""
+    keywords = [name.lower()]
     
-    返回: {fid: {"name": str, "can_post": bool}}
-    """
-    from playwright.sync_api import sync_playwright
-    import re
+    # 常见分割符
+    parts = re.split(r'[/、,，&\s]+', name)
+    for p in parts:
+        p = p.strip().lower()
+        if p and len(p) >= 2 and p not in keywords:
+            keywords.append(p)
     
-    cache_path = os.path.expanduser(f"~/.hermes/flashsloth/forum_cache_{platform.replace('.', '_')}.json")
+    # 常见别名映射
+    alias_map = {
+        "单片机": ["mcu", "microcontroller", "esp32", "esp8266", "nrf", "ch32", "gd32", "stc"],
+        "stm32": ["stm32", "stm", "cortex"],
+        "fpga": ["fpga", "verilog", "vhdl"],
+        "linux": ["linux", "ubuntu", "debian"],
+        "树莓派": ["raspberry pi", "树莓派"],
+        "arduino": ["arduino"],
+        "pcb": ["pcb", "layout", "电路板"],
+        "电机": ["电机", "马达", "motor"],
+        "3d打印": ["3d打印", "3d printer", "3dp"],
+        "ai": ["ai", "人工智能", "machine learning", "deep learning"],
+        "机器人": ["机器人", "robot"],
+        "无人机": ["无人机", "drone", "飞控"],
+        "wifi": ["wifi", "无线", "无线网络"],
+        "蓝牙": ["蓝牙", "bluetooth"],
+        "传感器": ["传感器", "sensor"],
+        "arm": ["arm", "imx", "cortex-a"],
+        "家电维修": ["维修", "家电维修", "修理", "fix"],
+        "电池": ["电池", "battery", "锂电", "充电"],
+        "汽车": ["汽车", "car", "电动车", "ev"],
+        "智能家居": ["智能家居", "home assistant", "智能", "smart home"],
+        "通信": ["通信", "网络", "networking", "lora", "zigbee"],
+        "电源": ["电源", "power", "buck", "boost", "dc-dc", "开关电源"],
+        "mcu": ["mcu", "单片机", "微控制器", "esp32", "esp8266", "嵌入式"],
+    }
     
-    # 检查缓存
-    if os.path.exists(cache_path):
-        with open(cache_path) as f:
-            cached = json.load(f)
-        if cached.get("site_url") == site_url:
-            return cached["forums"]
+    for k, aliases in alias_map.items():
+        if k in name.lower():
+            for a in aliases:
+                if a not in keywords:
+                    keywords.append(a)
     
-    forums = {}
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
-        ctx = browser.new_context()
-        if cookies:
-            ctx.add_cookies(cookies)
-        page = ctx.new_page()
-        
-        try:
-            page.goto(f"{site_url}/forum.php", wait_until="domcontentloaded", timeout=20000)
-            page.wait_for_timeout(3000)
-            
-            links = page.query_selector_all("a[href*='forumdisplay'], a[href*='forum-']")
-            seen = set()
-            for a in links:
-                href = a.get_attribute("href") or ""
-                text = a.inner_text().strip()
-                fid_m = re.search(r'fid=(\d+)', href) or re.search(r'forum-(\d+)', href)
-                if fid_m and text and text not in seen and len(text) < 50:
-                    seen.add(text)
-                    fid = fid_m.group(1)
-                    if fid not in forums:
-                        forums[fid] = {"name": text, "can_post": None}
-            
-            # 抽样测试发帖权限（前30个）
-            test_list = list(forums.keys())[:30]
-            for fid in test_list:
-                try:
-                    page.goto(f"{site_url}/forum.php?mod=post&action=newthread&fid={fid}", 
-                             wait_until="domcontentloaded", timeout=8000)
-                    page.wait_for_timeout(1000)
-                    has_form = page.query_selector("input[name='subject']") is not None
-                    body = page.inner_text("body")[:100] or ""
-                    forums[fid]["can_post"] = has_form and "抱歉" not in body
-                except:
-                    forums[fid]["can_post"] = False
-        except:
-            pass
-        
-        browser.close()
-    
-    # 缓存到文件
-    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-    with open(cache_path, "w") as f:
-        json.dump({"site_url": site_url, "forums": forums}, f, ensure_ascii=False)
-    
-    return forums
+    return keywords
 
 
-def match_forum(platform: str, tags: list, title: str, body: str = "") -> Optional[str]:
-    """根据文章标签+标题+正文，匹配最佳版块FID
-    
-    策略：
-    1. 关键词精确匹配（预定义关键词库）
-    2. 标签分词匹配
-    3. 标题关键词匹配
-    4. 回退到最通用的版块
-    
-    Returns: fid (str) 或 None
+def _build_keyword_index():
+    """为所有已注册论坛自动生成关键词"""
+    for domain, forums in FORUM_DATA.items():
+        for fid, info in forums.items():
+            if "keywords" not in info:
+                info["keywords"] = _generate_keywords(info["name"])
+
+
+_build_keyword_index()
+
+
+# ============================================================
+# 4. 智能匹配引擎
+# ============================================================
+
+def match_forum(domain: str, tags: list, title: str = "", body: str = "") -> Optional[str]:
     """
-    domain = platform
-    if domain not in FORUM_KEYWORDS:
+    根据文章标签+标题+正文，匹配最佳版块FID
+    
+    Args:
+        domain: 平台域名 (e.g. 'amobbs.com', 'mydigit.cn')
+        tags: 文章标签列表
+        title: 文章标题
+        body: 文章正文
+        
+    Returns:
+        fid (str) 或 None
+    """
+    forums = FORUM_DATA.get(domain)
+    if not forums:
         return None
     
-    forums = FORUM_KEYWORDS[domain]
-    text = " ".join(tags) + " " + title + " " + body
+    text = " ".join(tags) + " " + title + " " + (body or "")[:200]
     text_lower = text.lower()
     
-    # 计分：每个标签/关键词命中加分
+    # 计分匹配
     scores = {}
     for fid, info in forums.items():
         score = 0
-        for kw in info["keywords"]:
+        keywords = info.get("keywords", [info.get("name", "").lower()])
+        for kw in keywords:
             if kw.lower() in text_lower:
                 score += 1
         if score > 0:
             scores[fid] = score
     
     if scores:
-        # 返回得分最高的
         best = max(scores, key=lambda k: scores[k])
         return best
     
-    # 无匹配：根据平台返回默认版块
+    # 无匹配 → 返回默认版块
     defaults = {
-        "amobbs.com": "3020",     # STM32/8（通用电子技术）
-        "mydigit.cn": "41",       # 数码大家谈
+        "amobbs.com": "3020",    # STM32/8
+        "mydigit.cn": "59",       # 电子学堂
     }
     return defaults.get(domain)
 
 
-def register_forum_match(platform: str, site_url: str, tags: list, 
-                         title: str = "", body: str = "") -> dict:
-    """一站式：探索+匹配
-    
-    先尝试从预定义关键词匹配，失败则探索论坛
+def get_forum_name(domain: str, fid: str) -> str:
+    """获取版块名称"""
+    forums = FORUM_DATA.get(domain, {})
+    info = forums.get(fid, {})
+    return info.get("name", f"fid={fid}")
+
+
+def list_postable_forums(domain: str) -> dict:
+    """列出某平台所有可发帖版块"""
+    return dict(FORUM_DATA.get(domain, {}))
+
+
+def match_platform_type(platform: str, tags: list, title: str = "", body: str = "") -> dict:
     """
+    OSHWHub/CSDN 等非论坛平台的类型匹配
+    
+    Returns:
+        {"type_id": str, "type_name": str, "tags": list}
+    """
+    if platform == "oshwhub.com":
+        # 判断适合工程还是文章
+        categories = PLATFORM_CATEGORIES.get("oshwhub.com", {})
+        project_types = categories.get("project_types", [])
+        
+        text = " ".join(tags) + " " + title + " " + (body or "")[:200]
+        text_lower = text.lower()
+        
+        # 工程关键词
+        project_kw = ["工程", "项目", "硬件", "pcb", "原理图", "电路", "设计", "制作", "开源"]
+        article_kw = ["教程", "文章", "笔记", "教程", "指南", "入门", "学习", "分享", "经验"]
+        
+        project_score = sum(1 for kw in project_kw if kw in text_lower)
+        article_score = sum(1 for kw in article_kw if kw in text_lower)
+        
+        if project_score >= article_score and project_score > 0:
+            return {"type_id": "project", "type_name": "工程", "endpoint": "/project/create"}
+        elif article_score > 0:
+            return {"type_id": "article", "type_name": "文章", "endpoint": "/article/create"}
+        
+        # 默认：工程
+        return {"type_id": "project", "type_name": "工程", "endpoint": "/project/create"}
+    
+    elif platform == "csdn.net":
+        # CSDN 默认原创
+        return {"type_id": "original", "type_name": "原创"}
+    
+    return {}
+
+
+def get_platform_info(domain: str) -> dict:
+    """获取平台完整信息"""
+    info = {"domain": domain, "type": "unknown", "forums": {}, "categories": {}}
+    
+    if domain in FORUM_DATA:
+        info["type"] = "discuz_forum"
+        info["forums"] = FORUM_DATA[domain]
+        info["postable_count"] = len(FORUM_DATA[domain])
+        info["default_fid"] = {"amobbs.com": "3020", "mydigit.cn": "59"}.get(domain)
+    
+    if domain in PLATFORM_CATEGORIES:
+        info["type"] = "content_platform"
+        info["categories"] = PLATFORM_CATEGORIES[domain]
+    
+    return info
+
+
+def discover_forums(platform: str, site_url: str, cookies: list) -> dict:
+    """
+    使用 Playwright 探索论坛版块（缓存到文件）
+    由各平台的探索脚本调用，这里提供接口
+    """
+    return {}
+
+
+def register_forum_match(platform: str, site_url: str, tags: list,
+                         title: str = "", body: str = "") -> dict:
+    """一站式：匹配版块"""
     fid = match_forum(platform, tags, title, body)
     if fid:
-        return {"fid": fid, "source": "keyword", "name": FORUM_KEYWORDS.get(platform, {}).get(fid, {}).get("name", "")}
+        name = get_forum_name(platform, fid)
+        return {"fid": fid, "source": "keyword", "name": name}
     
-    # 探索模式——需要cookie，由上层调用
-    return {"fid": None, "source": "need_explore"}
+    return {"fid": None, "source": "no_match"}

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>探索数据管理 — FlashSloth</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        .section-card { margin-bottom: 1.5rem; }
+        .section-row:hover { background: rgba(255,255,255,0.05); }
+        .badge-postable { background: #198754; }
+        .badge-nonpostable { background: #dc3545; }
+        .keyword-badge { 
+            background: rgba(13, 110, 253, 0.15); 
+            color: #6ea8fe;
+            font-size: 0.8rem;
+            margin: 2px;
+        }
+        .keyword-badge:hover { background: rgba(13, 110, 253, 0.3); }
+        .edit-input { 
+            background: #2b2b2b; 
+            border: 1px solid #444;
+            color: #ccc;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body class="bg-dark text-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-shield-shaded"></i> FlashSloth
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <a href="/" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-house"></i> 首页
+                </a>
+                <a href="/settings" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-gear"></i> 设置
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="mb-1"><i class="bi bi-compass"></i> 探索数据管理</h3>
+                <p class="text-muted mb-0 small">查看和编辑各平台探索到的版块/分类数据</p>
+            </div>
+            <div>
+                <button class="btn btn-outline-success btn-sm me-2" onclick="syncFromJson()">
+                    <i class="bi bi-arrow-repeat"></i> 从JSON同步
+                </button>
+                <span class="text-muted small">数据来源: Playwright 探索 → JSON缓存 → 数据库</span>
+            </div>
+        </div>
+
+        {% if platforms %}
+            {% for p in platforms %}
+            <div class="card bg-dark border-secondary section-card">
+                <div class="card-header bg-black border-secondary d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-globe2"></i> {{ p.platform }}
+                            <small class="text-muted ms-2">{{ p.domain }}</small>
+                        </h5>
+                    </div>
+                    <div>
+                        <span class="badge bg-info me-2">{{ p.count }} 条记录</span>
+                        <button class="btn btn-sm btn-outline-info" onclick="syncToRegistry('{{ p.domain }}')">
+                            <i class="bi bi-arrow-left-right"></i> 同步到匹配引擎
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th style="width:80px">ID</th>
+                                    <th style="width:100px">版块ID</th>
+                                    <th>版块名称</th>
+                                    <th style="width:80px">状态</th>
+                                    <th>关键词</th>
+                                    <th style="width:150px">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in p.sections %}
+                                <tr class="section-row" data-id="{{ s.id }}">
+                                    <td class="text-muted small">{{ s.id }}</td>
+                                    <td><code class="text-info">{{ s.section_id }}</code></td>
+                                    <td>
+                                        <span class="section-name" data-field="section_name">{{ s.section_name }}</span>
+                                    </td>
+                                    <td>
+                                        {% if s.can_post %}
+                                            <span class="badge badge-postable">可发帖</span>
+                                        {% else %}
+                                            <span class="badge badge-nonpostable">不可发</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="keywords-container">
+                                            {% set kw_list = s.keywords|from_json %}
+                                            {% for kw in kw_list %}
+                                                <span class="badge keyword-badge">{{ kw }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-warning" onclick="editRow({{ s.id }})">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger d-none" onclick="saveRow({{ s.id }})" id="save-{{ s.id }}">
+                                            <i class="bi bi-check-lg"></i> 保存
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary d-none" onclick="cancelEdit({{ s.id }})" id="cancel-{{ s.id }}">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-database-slash" style="font-size: 3rem; color: #555;"></i>
+                <p class="mt-3 text-muted">暂无探索数据</p>
+                <p class="small text-muted">请先运行探索脚本，或检查 platform_reports/ 下是否有 JSON 文件</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let originals = {};
+
+        function editRow(id) {
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            const nameSpan = row.querySelector('.section-name');
+            const nameText = nameSpan.textContent.trim();
+            originals[id] = { name: nameText };
+            
+            nameSpan.innerHTML = `<input type="text" class="form-control form-control-sm edit-input" value="${nameText}" style="width:200px">`;
+            
+            document.getElementById(`save-${id}`).classList.remove('d-none');
+            document.getElementById(`cancel-${id}`).classList.remove('d-none');
+        }
+
+        function cancelEdit(id) {
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            const nameSpan = row.querySelector('.section-name');
+            nameSpan.textContent = originals[id].name;
+            
+            document.getElementById(`save-${id}`).classList.add('d-none');
+            document.getElementById(`cancel-${id}`).classList.add('d-none');
+        }
+
+        function saveRow(id) {
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            const input = row.querySelector('.section-name input');
+            const newName = input ? input.value : '';
+            
+            if (!newName) return;
+            
+            fetch(`/api/exploration/${id}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ section_name: newName })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const nameSpan = row.querySelector('.section-name');
+                    nameSpan.textContent = newName;
+                    document.getElementById(`save-${id}`).classList.add('d-none');
+                    document.getElementById(`cancel-${id}`).classList.add('d-none');
+                    delete originals[id];
+                } else {
+                    alert('保存失败: ' + (data.error || '未知错误'));
+                }
+            })
+            .catch(e => alert('网络错误: ' + e));
+        }
+
+        function syncFromJson() {
+            fetch('/api/exploration/batch', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('同步失败: ' + (data.error || ''));
+                }
+            })
+            .catch(e => alert('网络错误: ' + e));
+        }
+
+        function syncToRegistry(domain) {
+            fetch(`/api/exploration/sync/${domain}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`已同步 ${data.count} 条数据到匹配引擎`);
+                }
+            })
+            .catch(e => alert('网络错误: ' + e));
+        }
+    </script>
+</body>
+</html>

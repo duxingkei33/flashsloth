@@ -21,6 +21,82 @@ def get_db():
     return conn
 
 
+# ─── 论坛探索种子数据（从JSON文件加载）──────────
+def _seed_forum_exploration(conn):
+    """从 platform_reports/*.json 文件加载探索数据到 forum_exploration 表"""
+    import json
+    reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+    
+    # 检查是否已有数据
+    existing = conn.execute("SELECT COUNT(*) FROM forum_exploration").fetchone()[0]
+    if existing > 0:
+        return  # 已有数据，不重复导入
+    
+    # 平台映射：文件名前缀 → platform名称
+    platform_map = {
+        "amobbs_forums": ("discuz_amobbs", "amobbs.com", "阿莫电子论坛"),
+        "mydigit_forums": ("discuz_mydigit", "mydigit.cn", "数码之家"),
+    }
+    
+    count = 0
+    for prefix, (platform_name, domain, display) in platform_map.items():
+        json_path = os.path.join(reports_dir, f"{prefix}.json")
+        if not os.path.exists(json_path):
+            print(f"  [种子] 跳过 {prefix}：文件不存在")
+            continue
+        
+        with open(json_path) as f:
+            data = json.load(f)
+        
+        forums = data.get("forums", {})
+        inserted = 0
+        for fid, info in forums.items():
+            can_post = info.get("can_post", False)
+            if not can_post:
+                continue
+            name = info.get("name", f"fid={fid}")
+            keywords = json.dumps([name], ensure_ascii=False)
+            extra = json.dumps({
+                "href": info.get("href", ""),
+                "postable": True,
+            }, ensure_ascii=False)
+            
+            try:
+                conn.execute(
+                    """INSERT OR IGNORE INTO forum_exploration 
+                       (platform, platform_domain, section_id, section_name, can_post, keywords, extra_info)
+                       VALUES (?, ?, ?, ?, 1, ?, ?)""",
+                    (platform_name, domain, fid, name, keywords, extra)
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"  [种子] 插入失败 {domain}/{fid}: {e}")
+        
+        conn.commit()
+        count += inserted
+        print(f"  [种子] {display} ({domain}): 已导入 {inserted} 个版块")
+    
+    # OSHWHub项目类型也导入
+    oshwhub_types = [
+        ("oshwhub", "oshwhub.com", "project", "工程", "创建开源硬件工程"),
+        ("oshwhub", "oshwhub.com", "article", "文章", "撰写技术文章/教程"),
+    ]
+    for pn, dom, sid, sname, desc in oshwhub_types:
+        try:
+            conn.execute(
+                """INSERT OR IGNORE INTO forum_exploration 
+                   (platform, platform_domain, section_id, section_name, can_post, keywords, extra_info)
+                   VALUES (?, ?, ?, ?, 1, ?, ?)""",
+                (pn, dom, sid, sname, json.dumps([sname, desc], ensure_ascii=False),
+                 json.dumps({"endpoint": f"/{sid}/create", "desc": desc}, ensure_ascii=False))
+            )
+        except Exception:
+            pass
+    conn.commit()
+    
+    print(f"  [种子] 论坛探索数据: 共导入 {count} 条记录")
+
+
 def init_db():
     """初始化数据库表结构 + 迁移 + 首次自动创建管理员"""
     global _BOOT_CREDENTIALS
@@ -139,8 +215,45 @@ def init_db():
             enabled INTEGER DEFAULT 1,
             UNIQUE(user_id, provider, alias)
         );
+        CREATE TABLE IF NOT EXISTS forum_exploration (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform TEXT NOT NULL,
+            platform_domain TEXT NOT NULL,
+            section_id TEXT NOT NULL,
+            section_name TEXT NOT NULL,
+            can_post INTEGER DEFAULT 1,
+            keywords TEXT DEFAULT '[]',
+            extra_info TEXT DEFAULT '{}',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(platform_domain, section_id)
+        );
     """)
     conn.commit()
+
+    # 迁移：添加 forum_exploration 兼容
+    try:
+        conn.execute("SELECT COUNT(*) FROM forum_exploration")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS forum_exploration (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform TEXT NOT NULL,
+                platform_domain TEXT NOT NULL,
+                section_id TEXT NOT NULL,
+                section_name TEXT NOT NULL,
+                can_post INTEGER DEFAULT 1,
+                keywords TEXT DEFAULT '[]',
+                extra_info TEXT DEFAULT '{}',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(platform_domain, section_id)
+            );
+        """)
+        conn.commit()
+
+    # ─── 种子数据（从JSON文件加载探索数据）───
+    _seed_forum_exploration(conn)
 
     # ─── 迁移：添加 ai_configs 新字段 ───
     from flashsloth.core.provider_registry import get_registry

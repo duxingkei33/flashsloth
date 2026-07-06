@@ -494,18 +494,50 @@ class Compiler:
                 elif f.field_name in ("content", "message", "body"):
                     fields[f.field_name] = converted_body
 
-            # 🔥 智能版块匹配：Discuz 平台自动选择 FID
-            if platform == "discuz" and "fid" not in fields:
+            # 🔥 智能版块/分类匹配：支持所有平台
+            if "fid" not in fields and "type_id" not in fields:
                 try:
-                    from flashsloth.core.forum_registry import match_forum
-                    # 尝试常见的 Discuz 域名
-                    for domain in ["amobbs.com", "mydigit.cn"]:
+                    from flashsloth.core.forum_registry import (
+                        match_forum, get_forum_name, match_platform_type
+                    )
+                    
+                    # 平台 → 域名映射
+                    domain_map = {
+                        "discuz_amobbs": "amobbs.com",
+                        "discuz_mydigit": "mydigit.cn",
+                        "discuz": None,  # 未知 Discuz → 由上层指定
+                        "oshwhub": "oshwhub.com",
+                        "csdn": "csdn.net",
+                    }
+                    
+                    domain = domain_map.get(platform)
+                    
+                    # 如果是 Discuz 论坛 → 匹配 FID
+                    if domain in ("amobbs.com", "mydigit.cn"):
                         fid = match_forum(domain, ir.tags, title, converted_body)
                         if fid:
                             fields["fid"] = fid
                             fields["_forum_domain"] = domain
-                            warnings.append(f"自动匹配版块: {domain} → fid={fid}")
-                            break
+                            name = get_forum_name(domain, fid)
+                            warnings.append(f"智能匹配版块: {domain} → {name}(fid={fid})")
+                    
+                    # 如果是 OSHWHub → 匹配项目类型
+                    elif domain == "oshwhub.com":
+                        type_info = match_platform_type("oshwhub.com", ir.tags, title, converted_body)
+                        if type_info:
+                            fields["project_type"] = type_info.get("type_id")
+                            fields["project_endpoint"] = type_info.get("endpoint")
+                            fields["type_id"] = type_info.get("type_id")
+                            warnings.append(f"智能匹配项目类型: OSHWHub → {type_info.get('type_name')}")
+                    
+                    # 如果是 CSDN → 匹配文章类型
+                    elif domain == "csdn.net":
+                        type_info = match_platform_type("csdn.net", ir.tags, title, converted_body)
+                        if type_info:
+                            fields["article_type"] = type_info.get("type_id")
+                            fields["type_id"] = type_info.get("type_id")
+                            warnings.append(f"智能匹配文章类型: CSDN → {type_info.get('type_name')}")
+                            
                 except ImportError:
                     pass  # forum_registry 不可用时跳过
 
