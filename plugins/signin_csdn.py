@@ -10,7 +10,7 @@ https://i.csdn.net/#/user-center/draw
    /user-center/draw 页面仅显示抽奖中奖记录，无可用的网页签到按钮。
 3. 插件会尝试查找签到入口，若找不到会报告清晰的状态。
 """
-import os, sys, json, logging
+import os, sys, json, logging, threading, asyncio
 from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
@@ -45,7 +45,23 @@ class CsdnSignin(SigninBase):
 
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)
-        self.cookie = (config or {}).get("cookie", "")
+        cfg = config or {}
+        # 解密敏感字段（DB 中可能加密存储）
+        try:
+            from flashsloth.core.credential_crypto import decrypt_config
+            decrypt_config(cfg)
+        except ImportError:
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
+                from core.credential_crypto import decrypt_config
+                decrypt_config(cfg)
+            except ImportError:
+                pass
+            except Exception:
+                pass
+        except Exception:
+            pass
+        self.cookie = cfg.get("cookie", "")
 
     def can_handle(self, account: dict) -> bool:
         return account.get("platform", "") == self.platform and bool(
