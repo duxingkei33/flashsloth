@@ -172,7 +172,7 @@ def start_fs():
     log("🔄 启动 FlashSloth...")
     try:
         proc = subprocess.Popen(
-            ["python3", "admin.py"],
+            [VENV_PYTHON, "admin.py"],
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
