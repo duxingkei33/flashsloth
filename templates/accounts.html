@@ -807,6 +807,14 @@ function renderMethodFields(method, fields, methodDef) {
         btnCaptcha.style.display = 'none';
         btnRefresh.style.display = 'none';
         screenshotArea.style.display = 'none';
+    } else if (method === 'phone') {
+        // 手机验证码登录：显示"发送验证码"按钮
+        btnStart.style.display = 'inline-block';
+        btnStart.textContent = '📱 发送验证码';
+        btnStart.disabled = false;
+        btnCaptcha.style.display = 'none';
+        btnRefresh.style.display = 'none';
+        screenshotArea.style.display = 'none';
     } else {
         btnStart.style.display = 'none';
         btnCaptcha.style.display = 'none';
