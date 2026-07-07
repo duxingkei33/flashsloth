@@ -51,36 +51,18 @@ class OshwhubAdapter(PlatformAdapter):
         self.cookie = (config or {}).get("cookie", "")
 
     def _has_valid_cookie(self) -> bool:
-        """检查是否有有效的 Cookie"""
+        """检查是否有有效的 Cookie（委派到统一验证器）"""
         if not self.cookie:
             return False
         try:
-            import requests
-            # 尝试访问用户信息接口
-            for api in ["/api/user/profile", "/api/user/info"]:
-                try:
-                    r = requests.get(
-                        f"{self.site_url}{api}",
-                        headers={
-                            "Cookie": self.cookie,
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                        },
-                        timeout=10,
-                    )
-                    if r.status_code == 200:
-                        return True
-                except:
-                    continue
-            # 回退：检查 Cookie 中是否有认证字段
-            auth_keywords = ["auth", "token", "session", "oshwhub", "identity"]
-            for item in self.cookie.split(";"):
-                item = item.strip()
-                if "=" in item:
-                    name = item.split("=")[0].strip().lower()
-                    for kw in auth_keywords:
-                        if kw in name:
-                            return True
-            return False
+            from flashsloth.core.cookie_validator import has_valid_cookie
+            return has_valid_cookie(
+                platform="oshwhub",
+                cookie_input=self.cookie,
+                input_type="string",
+                site_url=self.site_url,
+                username_hint=self.username,
+            )
         except Exception:
             return False
 

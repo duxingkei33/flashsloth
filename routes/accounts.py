@@ -513,24 +513,7 @@ def api_account_keep_alive(aid):
    return jsonify({"success": True, "keep_alive": bool(keep_alive)})
 
 
-# ═══════════════════════════════════════════════════
-# 统一平台信息 API
-# ═══════════════════════════════════════════════════
-@app.route("/api/platforms/list")
-@login_required
-def api_platforms_list():
-	"""返回所有平台信息（含登录方法、配置字段 + 登录能力）"""
-	from flashsloth.core.publisher import list_publishers
-	platforms = list_publishers()
-	# 注入从 JSON 读取的登录能力
-	import os
-	_reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
-	for p in platforms:
-		pname = p["name"]
-		cap = _load_login_capabilities(pname)
-		if cap:
-			p["login_capabilities"] = cap
-	return jsonify({"success": True, "platforms": platforms})
+
 
 
 # ─── API 缓存：空搜索缓存 30 秒 ───

@@ -664,7 +664,15 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
                     sc_result = _screenshot_scan_code(_page, sess.get("_scan_type", "auto"))
                     sc_b64 = sc_result.get("image", "")
 
-                    if has_auth_cookies and not on_login_page:
+                    # OSHWHub(passport.jlc.com) QR scan may stay on login page
+                    # but still have auth cookies set — treat as logged_in
+                    if platform == "oshwhub" and has_auth_cookies:
+                        sess["_poll_result"] = {
+                            "status": "logged_in",
+                            "cookies": all_cookies_str,
+                            "image": sc_b64,
+                        }
+                    elif has_auth_cookies and not on_login_page:
                         sess["_poll_result"] = {
                             "status": "logged_in",
                             "cookies": all_cookies_str,
@@ -916,25 +924,150 @@ class ScanLoginEngine:
             return True
         return False
 
-    @staticmethod
-    def get_session_info(session_id: str) -> Optional[dict]:
-        """获取 session 基本信息（不含内部 Playwright 对象）
-        
-        Args:
-            session_id: session 标识
-        
-        Returns:
-            dict 或 None（不存在时）
-        """
-        sess = _scan_login_sessions.get(session_id)
-        if not sess:
-            return None
-        return {
-            "platform": sess.get("platform"),
-            "status": sess.get("status"),
-            "scan_type": sess.get("scan_type"),
-            "created_at": sess.get("created_at"),
-            "account_id": sess.get("account_id"),
-            "user_id": sess.get("user_id"),
-            "ready": sess.get("_ready", False),
-        }
+
+# ═══════════════════════════════════════════════════════
+# 统一凭证管理（verify_credential / get_credential / save_credential）
+# ═══════════════════════════════════════════════════════
+
+
+def verify_credential(platform: str, account_id: int, user_id: int) -> dict:
+    """验证指定账号的凭证是否仍有效
+
+    从 DB 读取 platform_accounts 记录，解密 config_json 获取 cookie，
+    调用 cookie_validator.verify_cookie() 做验证。
+
+    Args:
+        platform: 平台名
+        account_id: 账号 ID
+        user_id: 用户 ID
+
+    Returns:
+        dict: {"valid": bool, "message": str, "detail": dict}
+    """
+    from flashsloth.core.database import get_db
+    from flashsloth.core.cookie_validator import verify_cookie
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, platform, account_name, config_json, user_id "
+            "FROM platform_accounts WHERE id=? AND user_id=?",
+            (account_id, user_id),
+        ).fetchone()
+    except Exception:
+        row = None
+    finally:
+        conn.close()
+
+    if not row:
+        return {"valid": False, "message": "账号不存在", "detail": {}}
+
+    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+    decrypt_config(cfg)
+
+    cookie_str = cfg.get("cookie", "") or cfg.get("cookies", "") or ""
+    if not cookie_str:
+        return {"valid": False, "message": "未配置 Cookie", "detail": {}}
+
+    result = verify_cookie(
+        platform=platform,
+        cookie_input=cookie_str,
+        input_type="string",
+        site_url=cfg.get("site_url", ""),
+        username_hint=cfg.get("username", ""),
+    )
+
+    return {
+        "valid": result.get("valid", False),
+        "message": result.get("message", ""),
+        "detail": result.get("detail", {}),
+    }
+
+
+def get_credential(account_id: int, user_id: int) -> dict:
+    """获取指定账号的凭证（Cookie + 配置）
+
+    从 DB 读取记录，解密 config_json。
+
+    Args:
+        account_id: 账号 ID
+        user_id: 用户 ID
+
+    Returns:
+        dict: {"cookie": str, "config": dict}
+    """
+    from flashsloth.core.database import get_db
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, platform, account_name, config_json, user_id "
+            "FROM platform_accounts WHERE id=? AND user_id=?",
+            (account_id, user_id),
+        ).fetchone()
+    except Exception:
+        row = None
+    finally:
+        conn.close()
+
+    if not row:
+        return {"cookie": "", "config": {}}
+
+    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+    decrypt_config(cfg)
+
+    cookie = cfg.get("cookie", "") or cfg.get("cookies", "") or ""
+    return {"cookie": cookie, "config": cfg}
+
+
+def save_credential(account_id: int, user_id: int, config: dict) -> bool:
+    """保存凭证到 DB（自动加密 config_json）
+
+    加密 config 后写入 platform_accounts.config_json。
+
+    Args:
+        account_id: 账号 ID
+        user_id: 用户 ID
+        config: 配置字典（含 cookie 等敏感字段）
+
+    Returns:
+        bool: 是否保存成功
+    """
+    from flashsloth.core.database import get_db
+
+    encrypt_config(config)
+    try:
+        conn = get_db()
+        conn.execute(
+            "UPDATE platform_accounts SET config_json=? WHERE id=? AND user_id=?",
+            (json.dumps(config, ensure_ascii=False), account_id, user_id),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def get_session_info(session_id: str) -> Optional[dict]:
+    """获取 session 基本信息（不含内部 Playwright 对象）
+    
+    Args:
+        session_id: session 标识
+    
+    Returns:
+        dict 或 None（不存在时）
+    """
+    from flashsloth.core.credential_provider import _scan_login_sessions
+    sess = _scan_login_sessions.get(session_id)
+    if not sess:
+        return None
+    return {
+        "platform": sess.get("platform"),
+        "status": sess.get("status"),
+        "scan_type": sess.get("scan_type"),
+        "created_at": sess.get("created_at"),
+        "account_id": sess.get("account_id"),
+        "user_id": sess.get("user_id"),
+        "ready": sess.get("_ready", False),
+    }

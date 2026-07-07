@@ -430,18 +430,13 @@ class OshwhubPlaywrightLogin:
         return None
 
     def _check_cookies_logged_in(self) -> bool:
-        """检查 Cookie 中是否有登录凭证（铁律：必须找真实登录凭证，禁止 cookie 数量判据）"""
+        """检查 Cookie 中是否有登录凭证（统一委派到 cookie_validator）"""
         try:
             cookies_list = self.context.cookies() if self.context else []
-            auth_keywords = ["auth", "token", "sid", "session", "jwt",
-                             "oshwhub", "identity", "user"]
-            for c in cookies_list:
-                name_lower = c.get("name", "").lower()
-                for kw in auth_keywords:
-                    if kw in name_lower:
-                        return True
-            return False
-        except:
+            from flashsloth.core.cookie_validator import verify_cookie
+            result = verify_cookie("oshwhub", cookies_list, input_type="list", phase="keyword")
+            return result.get("valid", False)
+        except Exception:
             return False
 
     def _get_cookie_string(self) -> str:

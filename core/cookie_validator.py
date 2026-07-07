@@ -154,7 +154,23 @@ def _keyword_wechat(cookie_map: dict) -> dict:
 
 
 def _keyword_oshwhub(cookie_map: dict) -> dict:
-    """立创开源硬件平台 oshwhub 专有校验"""
+    """立创开源硬件平台 oshwhub 专有校验
+
+    两阶段匹配：
+    Phase 1 (精确): 已知的 OSHWHub/嘉立创认证 cookie 名精确匹配
+    Phase 2 (松散): 关键字包含匹配兜底
+    """
+    # Phase 1: 精确匹配已知认证 cookie 名
+    precise_keys = [
+        "remember_user", "user_name", "username", "nickname", "uname",
+        "jlc_user", "jlc_token", "jlc_sid", "jlc_uid", "jlc_auth",
+        "oshwhub_user", "oshwhub_token", "oshwhub_auth",
+        "identity", "sessionid", "sid",
+    ]
+    for k, v in cookie_map.items():
+        if k in precise_keys and v.strip():
+            return {"valid": True, "message": f"OSHWHub 认证 Cookie 存在: {k}"}
+    # Phase 2: 松散关键字包含匹配（兜底）
     oshw_keys = ["auth", "token", "session", "oshwhub", "identity",
                   "user_name", "username", "nickname", "uname", "remember_user"]
     for k, v in cookie_map.items():

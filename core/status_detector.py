@@ -340,6 +340,7 @@ def detect_oshwhub(cookie_str: str, username_hint: str = "") -> dict:
     """
     OSHWHub API轻量检测
     用Cookie访问立创开源硬件平台用户信息
+    策略：先尝试 API 端点，API 失败后再 fallback 到 HTML 解析
     """
     result = {
         "logged_in": False,
@@ -347,108 +348,137 @@ def detect_oshwhub(cookie_str: str, username_hint: str = "") -> dict:
         "platform": "oshwhub",
         "site_url": "https://oshwhub.com",
     }
-    
+
     if not cookie_str:
         return result
-    
+
     try:
         sess = _make_session()
         for name, value in _parse_cookie_header(cookie_str).items():
             sess.cookies.set(name, value)
-        
-        # OSHWHub 主页 — 检查登录状态
-        resp = sess.get("https://oshwhub.com/", timeout=15, allow_redirects=True)
-        html = resp.text
-        
-        # ⚠️ 检查是否被重定向到登录页
-        if "login" in resp.url.lower() or "passport" in resp.url.lower() or "sign" in resp.url.lower():
-            result["error"] = "重定向到登录页（Cookie无效）"
-            result["status"] = "❌ Cookie已失效（被重定向到登录页）"
-            return result
-        
-        # 检查是否已登录: 查找右上角用户信息
+
         username = ""
-        name_patterns = [
-            r'"nickname"\s*:\s*"([^"]+)"',
-            r'"username"\s*:\s*"([^"]+)"',
-            r'<span[^>]*class="[^"]*user[^"]*"[^>]*>\s*([\u4e00-\u9fff\w]+)',
-            r'<a[^>]*href="/[^"]*"[^>]*>([\u4e00-\u9fff\w]+)</a>',
-        ]
-        for pat in name_patterns:
-            m = re.search(pat, html)
-            if m:
-                username = m.group(1).strip()
-                if username and len(username) >= 2:
-                    break
-        
-        # 从Cookie提取
-        if not username:
-            cookie_dict = _parse_cookie_header(cookie_str)
-            for ck_name in ["user_name", "username", "nickname", "uname"]:
-                if ck_name in cookie_dict:
-                    from urllib.parse import unquote
-                    username = unquote(cookie_dict[ck_name])
-                    if username:
-                        break
-        
-        if not username:
-            username = username_hint
-        
-        # 检查是否有退出/登录菜单
-        has_logout = bool(re.search(r'退出|注销|logout|sign.*out', html, re.IGNORECASE))
-        
-        # 尝试访问用户设置页面
         points = 0
         level = ""
-        if username:
+
+        # === Phase 1: Try API endpoints first ===
+        api_endpoints = [
+            "/api/user/profile",
+            "/api/user/info",
+            "/api/v1/user/me",
+        ]
+        for api_path in api_endpoints:
             try:
-                profile_resp = sess.get(f"https://oshwhub.com/{username}", timeout=15)
-                profile_html = profile_resp.text
-                
-                point_patterns = [
-                    r'(积分|经验|贡献)[：:>\s]*(\d[\d,.]*)',
-                    r'"score"\s*[:=]\s*(\d+)',
-                    r'"points"\s*[:=]\s*(\d+)',
-                ]
-                for pat in point_patterns:
-                    m = re.search(pat, profile_html)
-                    if m:
-                        try:
-                            val = m.group(2).replace(",", "") if m.lastindex >= 2 else m.group(1)
-                            points = int(val)
-                        except ValueError:
-                            pass
-                        break
+                api_resp = sess.get(
+                    "https://oshwhub.com" + api_path,
+                    timeout=10,
+                    headers={"Accept": "application/json",
+                             "Referer": "https://oshwhub.com/",
+                             "X-Requested-With": "XMLHttpRequest"},
+                )
+                if api_resp.status_code == 200:
+                    data = api_resp.json()
+                    if isinstance(data, dict):
+                        user_data = data.get("data", data)
+                        uname = (user_data.get("nickname") or user_data.get("username")
+                                 or user_data.get("name") or "")
+                        if uname and len(uname) >= 2:
+                            username = uname
+                            points = int(user_data.get("score", user_data.get("points", 0)))
+                            break
             except Exception:
-                pass
-        
-        # ⚠️ 必须同时有退出按钮 AND 用户名才认定为已登录（防止假Cookie误报）
-        logged_in = has_logout and bool(username)
+                continue
+
+        # === Phase 2: Fallback to homepage HTML parsing ===
+        if not username:
+            resp = sess.get("https://oshwhub.com/", timeout=15, allow_redirects=True)
+            html = resp.text
+
+            # Check if redirected to login page
+            if "login" in resp.url.lower() or "passport" in resp.url.lower() or "sign" in resp.url.lower():
+                result["error"] = "Redirect to login page (Cookie invalid)"
+                result["status"] = "Cookie invalid (redirected to login)"
+                return result
+
+            # Extract username from HTML
+            name_patterns = [
+                r'"nickname"\s*:\s*"([^"]+)"',
+                r'"username"\s*:\s*"([^"]+)"',
+                r'<span[^>]*class="[^"]*user[^"]*"[^>]*>\s*([一-鿿\w]+)',
+                r'<a[^>]*href="/[^"]*"[^>]*>([一-鿿\w]+)</a>',
+            ]
+            for pat in name_patterns:
+                m = re.search(pat, html)
+                if m:
+                    username = m.group(1).strip()
+                    if username and len(username) >= 2:
+                        break
+
+            # Extract from cookie
+            if not username:
+                cookie_dict = _parse_cookie_header(cookie_str)
+                for ck_name in ["user_name", "username", "nickname", "uname"]:
+                    if ck_name in cookie_dict:
+                        from urllib.parse import unquote
+                        username = unquote(cookie_dict[ck_name])
+                        if username:
+                            break
+
+            if not username:
+                username = username_hint
+
+            # Check logout button
+            has_logout = bool(re.search(r'logout|sign.*out|退出|注销', html, re.IGNORECASE))
+
+            # Try profile page for points
+            if username:
+                try:
+                    profile_resp = sess.get("https://oshwhub.com/" + username, timeout=15)
+                    profile_html = profile_resp.text
+                    point_patterns = [
+                        r'(积分|经验|贡献)[：:>\s]*(\d[\d,.]*)',
+                        r'"score"\s*[:=]\s*(\d+)',
+                        r'"points"\s*[:=]\s*(\d+)',
+                    ]
+                    for pat in point_patterns:
+                        m = re.search(pat, profile_html)
+                        if m:
+                            try:
+                                val = m.group(2).replace(",", "") if m.lastindex >= 2 else m.group(1)
+                                points = int(val)
+                            except ValueError:
+                                pass
+                            break
+                except Exception:
+                    pass
+
+            logged_in = has_logout and bool(username)
+        else:
+            logged_in = bool(username)
+
         result["logged_in"] = logged_in
         result["username"] = username
         result["display_name"] = username
         result["points"] = points
-        result["points_label"] = "积分"
+        result["points_label"] = "points"
         result["level"] = level
         result["verified_at"] = datetime.now().isoformat()
-        
+
         if logged_in:
             parts = [username] if username else []
             if points:
-                parts.append(f"积分:{points}")
+                parts.append("points:" + str(points))
             if level:
                 parts.append(level)
-            result["status"] = f"✅ {' | '.join(parts)}" if parts else "✅ 已登录（API检测）"
+            result["status"] = "Logged in: " + " | ".join(parts) if parts else "Logged in (API)"
         else:
-            result["status"] = "❌ Cookie已失效（API检测）"
-        
+            result["status"] = "Cookie invalid (API)"
+
     except Exception as e:
         result["error"] = str(e)[:200]
-        result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
-    
+        result["status"] = "API check error: " + str(e)[:80]
+
     return result
-
-
 def detect_xianyu(cookie_str: str) -> dict:
     """
     闲鱼 API轻量检测
