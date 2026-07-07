@@ -302,7 +302,7 @@ def api_sync_exploration(domain):
     return jsonify({"success": True, "domain": domain, "sections": sections, "count": len(sections)})
 
 
-# ─── API: 自定义探索（真Playwright）──────────────
+# ─── API: 自定义探索（BrowserEngine）─────────────
 @app.route("/api/exploration/custom", methods=["POST"])
 @login_required
 def api_custom_explore():
@@ -316,6 +316,7 @@ def api_custom_explore():
     if existing > 0:
         conn.close()
         return jsonify({"success": False, "error": f"'{domain}' 已有 {existing} 条探索数据，如需重新探索请先删除"})
+    conn.close()
 
     # 限流检查（每域名每小时一次）
     from flashsloth.core.explorer import can_explore, get_explore_cooldown
@@ -326,83 +327,48 @@ def api_custom_explore():
             "cooldown_seconds": remaining,
         })
 
-    # 从 platform_accounts 找账号配置
-    acct = conn.execute(
-        "SELECT config_json FROM platform_accounts WHERE is_active=1 AND user_id=? ORDER BY id LIMIT 1",
-        (current_user.id,)
-    ).fetchone()
-    conn.close()
+    # ── 使用 BrowserEngine 共享浏览器 ──
+    from flashsloth.core.browser_engine import BrowserEngine
+    from flashsloth.core.explorer import save_exploration_results, explore_discuz_forums, _detect_platform_type
+    from flashsloth.core.anti_detect import human_wait_page_ready
 
-    # 启动 Playwright 探索（后台进程）
-    import subprocess, sys as _sys
-    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "pw_explore.py")
-    os.makedirs(os.path.dirname(script_path), exist_ok=True)
+    engine = BrowserEngine.get_instance()
+    ctx = engine.create_isolated_context()
+    if ctx is None:
+        return jsonify({"success": False, "error": "浏览器引擎未就绪，请先在 Playwright 设置页启动浏览器"})
 
-    # 写探索脚本（使用中央防检测模块）
-    script_content = f'''# -*- coding: utf-8 -*-
-"""PW explore: {domain}"""
-import sys, os, json, time
-sys.path.insert(0, "{os.path.dirname(os.path.dirname(__file__))}")
-from core.explorer import save_exploration_results, explore_discuz_forums, _detect_platform_type
-from core.anti_detect import create_human_context, human_delay, human_wait_page_ready
-from flashsloth.core.database import get_db
-from playwright.sync_api import sync_playwright
-
-SITE = "https://{domain}"
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True, args=["--no-sandbox","--disable-blink-features=AutomationControlled"])
-    # 使用中央防风模块创建人类模拟上下文
-    ctx = create_human_context(browser)
-    ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{{get:()=>undefined}})")
-    page = ctx.new_page()
-    page.goto(SITE, wait_until="domcontentloaded", timeout=30000)
-    human_wait_page_ready(page)
-    ptype = _detect_platform_type(page)
-    print(f"平台类型: {{ptype}}")
-    sections = []
-    if ptype == "discuz":
-        sections = explore_discuz_forums(page, SITE, "{domain}")
-    conn = get_db()
-    save_exploration_results(conn, "{platform}" if "{platform}" != "auto" else ptype, "{domain}", sections)
-    conn.close()
-    browser.close()
-    print(f"完成: {{len(sections)}} sections")
-'''
-    with open(script_path, "w") as f:
-        f.write(script_content)
-
+    page = None
     try:
-        result = subprocess.run(
-            [_sys.executable, script_path],
-            capture_output=True, text=True, timeout=120,
-            env={**os.environ, "PYTHONPATH": os.path.dirname(os.path.dirname(__file__))}
-        )
-        # 清理临时脚本
-        try: os.unlink(script_path)
-        except: pass
-
-        if result.returncode != 0:
-            return jsonify({"success": False, "error": f"探索失败: {result.stderr[-500:]}"})
-
-        # 重新查询结果
+        page = ctx.new_page()
+        page.goto(f"https://{domain}", wait_until="domcontentloaded", timeout=30000)
+        human_wait_page_ready(page)
+        ptype = _detect_platform_type(page)
+        sections = []
+        if ptype == "discuz":
+            sections = explore_discuz_forums(page, f"https://{domain}", domain)
         conn = get_db()
-        new_count = conn.execute("SELECT COUNT(*) FROM forum_exploration WHERE platform_domain=?", (domain,)).fetchone()[0]
+        save_exploration_results(conn, platform if platform != "auto" else ptype, domain, sections)
         conn.close()
         return jsonify({
             "success": True,
-            "message": f"探索完成: 发现 {new_count} 个版块",
+            "message": f"探索完成: 发现 {len(sections)} 个版块",
             "domain": domain,
-            "sections_count": new_count,
-            "log": result.stdout[-500:],
+            "sections_count": len(sections),
         })
-    except subprocess.TimeoutExpired:
-        try: os.unlink(script_path)
-        except: pass
-        return jsonify({"success": False, "error": "探索超时（>120秒），请重试或检查域名是否正确"})
     except Exception as e:
-        try: os.unlink(script_path)
-        except: pass
         return jsonify({"success": False, "error": f"探索异常: {e}"})
+    finally:
+        if page:
+            try:
+                page.close()
+            except Exception:
+                pass
+        if ctx:
+            try:
+                ctx.close()
+            except Exception:
+                pass
+        engine.keep_alive()
 
 
 # ─── API: 探索状态自动检测 ──────────────────────

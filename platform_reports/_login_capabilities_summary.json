@@ -12,6 +12,7 @@
     "login_methods": [
       "qrcode",
       "password",
+      "phone",
       "oauth",
       "cookie"
     ],
@@ -170,5 +171,5 @@
     "detail": "FULL",
     "error": null
   },
-  "_last_checked_at": "2026-07-08T01:11:54"
+  "_last_checked_at": "2026-07-07T18:11:50.806584+00:00"
 }

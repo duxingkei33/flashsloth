@@ -1,6 +1,6 @@
 {
   "platform": "bilibili",
-  "explored_at": "2026-07-06T23:13:18.928666+00:00",
+  "explored_at": "2026-07-07T18:11:50.806584+00:00",
   "login_url": "https://www.bilibili.com/",
   "login_methods": [
     {
@@ -12,20 +12,20 @@
           "id": "wechat",
           "label": "微信扫码",
           "detected": true
-        },
-        {
-          "id": "app",
-          "label": "APP扫码",
-          "detected": true
         }
-      ],
-      "selector": "img[src*='qrcode']"
+      ]
     },
     {
       "method": "password",
       "label": "账号密码登录",
       "detected": true,
       "selector": "input[type='password']"
+    },
+    {
+      "method": "phone",
+      "label": "手机验证码登录",
+      "detected": true,
+      "selector": "phone input"
     },
     {
       "method": "oauth",
@@ -43,14 +43,15 @@
       "detected": true
     }
   ],
-  "note": "bilibili登录页支持扫码登录/账号密码登录/第三方账号登录/Cookie粘贴/第三方(qq/weibo/wechat_oauth)",
+  "note": "bilibili登录页支持扫码登录/账号密码登录/手机验证码登录/第三方账号登录/Cookie粘贴/第三方(qq,weibo,wechat_oauth)",
   "raw_detection": {
     "has_password_input": true,
-    "has_phone_input": false,
+    "has_phone_input": true,
     "has_code_button": false,
-    "has_qrcode_img": true,
+    "has_qrcode_img": false,
+    "has_qrcode_div": false,
     "has_wechat": true,
-    "has_app_qr": true,
+    "has_app_qr": false,
     "third_party_providers": [
       "qq",
       "weibo",

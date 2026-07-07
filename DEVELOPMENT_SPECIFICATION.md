@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v4.94 | **最后更新**: 2026-07-08 (每小时自动更新)
+**版本**: v5.05 | **最后更新**: 2026-07-08 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -29,7 +29,16 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 34,945 行 Python | 13,439 行 HTML | 130 Python 文件 | 31 模板文件
+**代码规模**: 39,296 行 Python | 13,098 行 HTML | 130 Python 文件 | 31 模板文件
+| 模块目录 | 行数 |
+|---------|:----:|
+| core/ | 11,682 |
+| routes/ | 9,351 |
+| plugins/ | 12,668 |
+| sdk/ | 4,563 |
+| scripts/ | 1,032 |
+| fs_mgr.py | 321 (全生命周期管理) |
+| admin.py | 81 (入口点) |
 
 ---
 
@@ -227,7 +236,8 @@
 | `RSS` | `RSSPublisher` | — | RSS 源生成 |
 | `GitHub Pages` | `GitHubPagesBlogPublisher` | 无需登录 | 本地 Markdown 写入 + git push |
 
-**通用发布流程**: `publish(Article)` → `process_images(Article)` → 平台特定 HTTP/Playwright → 返回 `{success, url, id, error}`
+**通用发布流程**: `publish(Article)` → `process_images(Article)` → `check_cookie()` (v5.04 新增: 发布前检查Cookie有效性) → 平台特定 HTTP/Playwright → 返回 `{success, url, id, error}`
+- **check_cookie()**: Publisher基类新增方法(v5.04)，发布前自动验证已保存Cookie是否过期；`publish_select`页面展示Cookie状态(有效/过期/不存在)，到期提醒用户刷新
 
 ### 3.3 网关通知模块 (`routes/gateway.py` + `core/gateway.py`)
 
@@ -270,7 +280,12 @@
 - **功能说明**: Playwright 自动爬取论坛版块结构存入 `forum_exploration` 表
 - **限流规则**: 每域名每小时最多探索一次（`explore_cooldown` 表持久化，双缓存策略 内存+DB）
 - **核心流程**: 检测论坛类型 → 爬取版块列表 → 对比差异(内容哈希) → 保存到 DB
-- **版块注册中心** (`core/forum_registry.py`): 从 `platform_reports/*.json` 自动加载论坛版块数据
+- **版块注册中心** (`core/forum_registry.py`, 397行): 从 `platform_reports/*.json` 自动加载论坛版块数据
+  - **v5.02 新增: 双轨读取模式** — `FORUM_REGISTRY_MODE` 环境变量 (auto/db/json)
+    - `auto` (默认): DB优先，DB无数据时fallback到JSON
+    - `json`: 仅从JSON文件读取（传统模式）
+    - `db`: 仅从DB读取
+  - 非论坛平台(oshwhub.com/csdn.net)不进入 FORUM_DATA，避免误匹配
 - **探索雷达 v2**: 新增通用平台雷达探索，支持电商/社交平台（得物/什么值得买/小红书）的自动化探索
 - **支持平台**: Discuz! (amobbs.com, mydigit.cn 等) + 得物/什么值得买/小红书/B站/知乎/掘金/微信公众号
 - **定时脚本**:
@@ -1387,6 +1402,10 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.05** | 2026-07-08 | **新平台探索: 51CTO + 豆瓣** — blog子域名WAF防护(SMS-only登录), 暂不适配。死代码清理(api_platforms_list)。 |
+| **v5.04** | 2026-07-08 | **发布前Cookie过期检查** — Publisher基类新增`check_cookie()`方法，`publish_select`页面展示Cookie状态(v5.04)。 |
+| **v5.03** | 2026-07-08 | **账号弹窗规范化** — 移除遗留平台专属登录弹窗(amobbs/xianyu/oshwhub)，统一使用通用账号弹窗。accounts.html缩减405行。 |
+| **v5.02** | 2026-07-08 | **Cookie验证器统一修复** — `core/cookie_validator.py`实现`verify_credential/get/save`，OSHWHub适配器迁移到统一验证。**forum_registry双轨读取** — JSON+DB双轨支撑(REGISTRY_MODE=auto/db/json)，消除keyword假阳性。status_detector API fallback修复。新平台探索:得物+什么值得买+小红书雷达数据。 |
 | **v4.94** | 2026-07-08 | **探索雷达 v2** — 新增得物/什么值得买/小红书通用平台雷达探索（含 category 分类字段）。扫码登录全流程优化+多方式选择+超时机制。RSS Publisher 登录方式预设。探索报告新增 category 分类字段。 |
 | **v4.93** | 2026-07-07 | **扫码登录全流程优化** — QR码登录不会误报成功(连锁3个Bug修复)。Cookie验证假阳性修复（P0级）— 需要 `has_exit_or_logout` 才算登录状态。 |
 | **v4.92** | 2026-07-07 | **统一凭证体系+扫码引擎重构** — 新增 `core/cookie_validator.py`(681行) 统一Cookie验证器消除4处散落代码。新增 `core/credential_provider.py`(962行) 统一扫码登录引擎。新增 `core/credential_guard.py`(190行) 凭证守护脚本。重构 `core/credential_crypto.py` 为统一凭证入口。 |
@@ -1420,7 +1439,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 ## 附录：文件完整清单
 
-### core/ (33 个 Python 文件, 11,377 行)
+### core/ (35 个 Python 文件, 11,682 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1434,14 +1453,14 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `compiled_cache.py` | 编译产物数据库缓存 |
 | `compiler.py` | 文章编译器 (MD→IR→输出) |
 | `config.py` | 全局配置加载 |
-| `cookie_validator.py` | **统一 Cookie 验证器 (681行, v4.92 新增)** |
+| `cookie_validator.py` | **统一 Cookie 验证器 (v5.02 修复 verify/save/get)** |
 | `credential_crypto.py` | Fernet AES-128-CBC 凭证加密 |
-| `credential_guard.py` | **凭证守护脚本 (190行, v4.92 新增)** |
-| `credential_provider.py` | **统一扫码登录引擎 + 凭证基础设施 (962行, v4.92 新增)** |
+| `credential_guard.py` | **凭证守护脚本 (v4.92 新增)** |
+| `credential_provider.py` | **统一扫码登录引擎 + 凭证基础设施 (v5.02 大幅更新)** |
 | `database.py` | 数据库初始化 + 连接 + 种子数据 |
 | `deployer.py` | 部署器基类 |
 | `explorer.py` | Playwright 论坛探索引擎 |
-| `forum_registry.py` | 统一智能版块匹配系统 |
+| `forum_registry.py` | **统一智能版块匹配系统 — 双轨读取 JSON+DB (397行, v5.02)** |
 | `gateway.py` | 通知网关核心（Provider 注册表，1181行） |
 | `image_pipeline.py` | 图片处理流水线 |
 | `notifier.py` | 统一通知系统 |
@@ -1451,20 +1470,20 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `provider.py` | Provider 统一内容来源基类 + 注册机制 |
 | `provider_registry.json` | AI 供应商注册表预设 |
 | `provider_registry.py` | 动态AI供应商注册表加载 |
-| `publisher.py` | Publisher 基类 + 注册机制 |
+| `publisher.py` | **Publisher 基类 + check_cookie() (v5.04)** |
 | `renderers.py` | 各平台编译产物渲染器(预览HTML) |
 | `scheduler.py` | 签到调度器（守护线程定时签到） |
 | `signin.py` | SigninBase 签到基类 + 注册机制 |
 | `status_cache.py` | 账号状态缓存系统(内存+SQLite) |
-| `status_detector.py` | 三层登录状态检测器 |
+| `status_detector.py` | 三层登录状态检测器 (v5.02 修复) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,282 行)
+### routes/ (25 个 Python 文件, 9,351 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
 | `_app.py` | 86 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
-| `accounts.py` | 1649 | 账号管理 — CRUD/状态检测/加密/批量操作 |
+| `accounts.py` | 1649 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化) |
 | `ai.py` | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | `api_v1.py` | 532 | 统一 REST API v1（API Key 鉴权） |
 | `api_v2.py` | 205 | Gateway REST API v2（系统/重启/重载） |
@@ -1481,14 +1500,14 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `logs.py` | 252 | **统一日志管理 — 发布/签到/部署/AI 四表统一管理 (v4.90 新增)** |
 | `notifications.py` | 67 | 通知中心/列表/标记已读 |
 | `platforms.py` | 19 | 平台预设配置 |
-| `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 |
+| `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合) |
 | `price_monitor.py` | 122 | 价格监控管理/刷新 |
 | `signin.py` | 374 | 签到管理/手动签到/统计 |
 | `storage_deploy.py` | 505 | 存储后端配置/部署器管理 |
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 12,673 行)
+### plugins/ (48 个 Python 文件, 12,668 行)
 **发布器 (16个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1564,7 +1583,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `xianyu/utils/xianyu_utils.py` | 闲鱼工具函数 |
 | `xianyu/utils/__init__.py` | 包标记 |
 
-### sdk/ (19 个 Python 文件, 4,581 行)
+### sdk/ (19 个 Python 文件, 4,563 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 包标记 |
@@ -1586,7 +1605,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `adapters/github_pages.py` | GitHub Pages 适配器 (370行) |
 | `adapters/giscus.py` | Giscus 适配器 |
 
-### templates/ (31 个 HTML 模板, 13,439 行)
+### templates/ (31 个 HTML 模板, 13,098 行)
 | 模板 | 说明 |
 |------|------|
 | `index.html` | 仪表盘总览 |
@@ -1630,6 +1649,15 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
 
+### 平台根文件
+
+| 文件 | 行数 | 说明 |
+|------|:----:|------|
+| `fs_mgr.py` | 321 | **全生命周期管理脚本** — start/stop/restart/tunnel/test (v5.03 新增) |
+| `admin.py` | 81 | FlashSloth 入口点 — 创建应用/初始化/启动 |
+| `__init__.py` | 3 | 包标记 |
+| `cli.py` | — | CLI 入口 |
+
 ### platform_reports/ (探索报告数据)
 | 文件 | 说明 |
 |------|------|
@@ -1641,13 +1669,15 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `zhihu.md` + `zhihu_exploration_report.json` | 知乎探索 |
 | `juejin.md` + `juejin_exploration_report.json` | 掘金探索 |
 | `wechat_mp.md` + `wechat_mp_exploration_report.json` | 微信公众号探索 |
-| `xiaohongshu_com.md` + `xiaohongshu_exploration_report.json` | **小红书探索 (v4.94 新增)** |
-| `smzdm_com.md` + `smzdm_exploration_report.json` | **什么值得买探索 (v4.94 新增)** |
-| `dewu_com.md` + `dewu_exploration_report.json` + `dewu_screenshot.png` | **得物探索 (v4.94 新增)** |
+| `xiaohongshu_com.md` + `xiaohongshu_exploration_report.json` | 小红书探索 (v4.94 新增) |
+| `smzdm_com.md` + `smzdm_exploration_report.json` | 什么值得买探索 (v4.94 新增) |
+| `dewu_com.md` + `dewu_exploration_report.json` + `dewu_screenshot.png` | 得物探索 (v4.94 新增) |
+| **`51cto_com.md` + `51cto_exploration_report.json`** | **51CTO 探索 — blog子域名WAF防护, SMS-only登录 (v5.05 新增)** |
+| **`douban_com.md` + `douban_exploration_report.json`** | **豆瓣探索 (v5.05 新增)** |
 | `*_login_capabilities.json` | 各平台登录能力配置 |
 | `_login_capabilities_summary.json` | 登录能力汇总 |
 
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v4.94 | Python 总行数: 34,945 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,439 行 | 最后更新: 2026-07-08*
+*版本: v5.05 | Python 总行数: 39,296 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,098 行 (31 模板) | 新增: fs_mgr.py(321) + admin.py(81) | 最后更新: 2026-07-08*

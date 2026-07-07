@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-07 23:42 | PM: duxingkei | 铁律: fs-iron-rules
+> 最后更新：2026-07-08 04:30 | PM: duxingkei | 铁律: fs-iron-rules
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -7,7 +7,7 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**v5.02** — forum_registry 双轨读取（JSON+DB）
+**v5.06** — P0 账号弹窗归一化 + Cookie验证修复 + 平台探索
 
 ---
 
@@ -21,6 +21,9 @@
 | 闲鱼V2发布器 | ✅ | MTOP API链路完整移植，含签名/风控/限流/CDN/AI类目 |
 | 平台发布器（7个） | ✅ | Discuz/CSDN/OSHWHub/知乎/B站/掘金/微信 |
 | 登录弹窗三种方式 | ✅ | 密码/QR码/短信验证码，全部通过验收 |
+| **P0账号弹窗归一化深化** | ✅ | 统一模态框+QR码优先+密码/验证码备选+Cookie仅调试模式 |
+| **统一凭证体系** | ✅ | ScanLoginEngine统一扫码引擎+QR码轮询10秒 |
+| **Cookie验证修复** | ✅ | DiscuzPublisher严格登录态检测+Playwright子进程降级+playwright_verify_raw |
 | QR码线程安全修复 | ✅ | 后台线程模式，22/22测试通过 |
 | 短信验证码登录 | ✅ | phone_login跨线程修复，支持CSDN/知乎/掘金/B站 |
 | 智能版块匹配引擎 | ✅ | forum_registry + 全平台匹配 |
@@ -48,19 +51,20 @@
 ### 🔄 正在进行/待办
 
 **P0 — 紧急**
-- [ ] **AI趋势日报飞书推送修复** — Claude正在修
-- [x] **login-capabilities refresh site_url传透** — ✅ 已完成（自动补 https:// 前缀）
-- [x] **QR码全平台优先级#1** — ✅ 已修复（登录方式首选项改为扫码登录）
-- [ ] 监控flashsloth-pm-daily-progress首次运行（明早9点）
+- [x] **统一凭证体系+账号弹窗归一化** — ✅ 已完成 (v4.92~v5.03)
+- [x] **login-capabilities refresh site_url传透** — ✅ 已完成
+- [x] **QR码全平台优先级#1** — ✅ 已修复
+- [x] **Cookie验证修复** — ✅ 已完成 (v5.06)
+- [x] **清理api_platforms_list死代码** — ✅ 已完成
 
 **P1 — 重要**
+- [ ] CSDN签到实测验证（需你在场）
+- [ ] bilibili/xianyuV2/Twitter发布实测（需你在场）
 - [ ] 验证flashsloth-exploration脚本是否完全修复
-- [ ] 评估剩余P0看门狗是否继续保留
 
 **P2 — 优化**
-- [ ] 发布前检查Cookie过期（代码改动，不动DB）
-- [x] **清理api_platforms_list死代码** — ✅ 已完成（该变量/函数已不存在于任何代码中，仅剩的TODO记录已标记完成）
 - [ ] forum_registry读DB（JSON/DB双轨）
+- [ ] 监控flashsloth-pm-daily-progress首次运行
 
 ---
 

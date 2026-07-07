@@ -43,6 +43,7 @@ PLAYWRIGHT_DEFAULT_CONFIG = {
     "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     "auto_start": True,                  # 登录后自动启动
     "auto_close_minutes": 10,            # 无活动自动关闭时间
+    "qr_login_timeout_minutes": 10,      # 扫码登录超时（分钟）
 }
 
 # 状态常量
@@ -152,15 +153,18 @@ class BrowserEngine:
             return False
 
     def update_config(self, updates: dict) -> dict:
-        """更新配置项并返回完整配置"""
+        """更新配置项并返回完整配置
+
+        「开放写入」策略：不仅更新已有键，也接受新键（如 qr_login_timeout_minutes），
+        保证前端 settings 页面保存的所有字段都能持久化。
+        """
         with self._lock:
             for k, v in updates.items():
-                if k in self._config:
-                    # 特殊处理 args 字段（逗号分隔→列表）
-                    if k == "args" and isinstance(v, str):
-                        self._config[k] = [a.strip() for a in v.split(",") if a.strip()]
-                    else:
-                        self._config[k] = v
+                # 特殊处理 args 字段（逗号分隔→列表）
+                if k == "args" and isinstance(v, str):
+                    self._config[k] = [a.strip() for a in v.split(",") if a.strip()]
+                else:
+                    self._config[k] = v
             self.save_config_to_db()
             return dict(self._config)
 
