@@ -24,7 +24,9 @@
 - [x] 🧩 Unified browser login button — shared edit dialog for all platforms
 - [x] 📱 Phone SMS login extended to CSDN/Bilibili publishers
 - [x] 🏗️ BrowserEngine persistent refactor — shared engine + subprocess Playwright verification (avoids WSGI deadlock)
-- [x] 🪟 Account modal deepening — amobbs/discuz/mydigit/wordpress login capability completion
+- [x] 🪟 Account modal deepening — amobbs/discuz/mydigit/wordpress + captcha input + 5-step progress bar + Amobbs border verification
+- [x] 🔍 Login status deep verification — real extraction of username/points/level + frontend display enhancement
+- [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
@@ -35,12 +37,14 @@
 - [x] OSHWHub (JLCPCB Open Source) — Playwright publish + sign-in
 - [x] Juejin — Cookie-based publish (password/QR/Cookie)
 - [x] Bilibili Articles — Playwright publish + draft save + image upload + login plugin + exploration reports (password/QR/Cookie)
-- [x] Twitter/X — tweepy API v2 OAuth1.0a + image upload pipeline + Article compatibility + draft isolation
+- [x] Twitter/X — tweepy API v2 OAuth1.0a + login capability/presets/image extraction + draft isolation
 - [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category + SDK
 - [x] Xianyu Auto-Reply System Integration — Docker service (product listing/order query)
+- [x] Xianyu Auto-Reply Sidecar Adapter — xianyu-auto-reply REST API + health monitoring
 - [x] Gallery Product Listing (Reserved)
 - [x] RSS Feed — Pure Python generation
 - [x] GitHub Pages — git push deployment
+- [x] 📋 Article list multi-select batch delete/publish
 
 ### 🔔 Notification Gateway
 - [x] 22 notification channels (Telegram/Discord/Slack/WhatsApp/DingTalk/WeCom/Feishu/WeChat/Email/Matrix/Teams/LINE etc.)
@@ -58,6 +62,7 @@
 - [x] Zhihu platform exploration — login/editor/capability data
 - [x] WeChat Official Account exploration — image upload/cover/summary capability
 - [x] WeChat full exploration + publisher enhancement
+- [x] 🤖 Zhihu/Juejin API lightweight login status detector
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
 - [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
@@ -102,6 +107,7 @@
 - [x] Comment notification push
 
 ### 📱 Mobile Support
+- [x] 📱 Full-page responsive enhancement — zero horizontal overflow at 375px, touch-friendly buttons/modals/nav/card grid
 - [x] Mobile CSS enhancements — responsive layout for phones/tablets
 
 ---
@@ -138,7 +144,7 @@
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                Plugin + Adapter Layer (plugins/ + sdk/)            │
-│  publisher_*.py — 15 platform publishers                          │
+│  publisher_*.py — 16 platform publishers                          │
 │  signin_*.py   — 3 sign-in plugins                                │
 │  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
@@ -242,6 +248,11 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v4.80 | 2026-07-07 | Mobile layout optimization — full-page responsive (375px zero overflow, touch-friendly buttons/modals/nav/card grid) |
+| v4.79 | 2026-07-07 | Login status deep verification — real username/points/level extraction + frontend display |
+| v4.78 | 2026-07-07 | Account page UI enhancement (search/platform colors/quick-add/time labels/batch progress) + article multi-select batch ops + Zhihu/Juejin API lightweight status + Xianyu Sidecar adapter |
+| v4.77 | 2026-07-07 | Account modal captcha input + 5-step progress bar + Amobbs border verify + Twitter/X login capability complete + ai_call_log fix |
+| v4.76 | 2026-07-07 | BrowserEngine thread safety + QR code background thread + signin registry fix |
 | v4.75 | 2026-07-07 | Account modal deepening — amobbs/discuz/mydigit/wordpress login completion |
 | v4.74 | 2026-07-07 | Provider framework → workspace — base→workspace, 3 Providers, config mgmt + mobile CSS |
 | v4.70 | 2026-07-07 | Sign-in stats fix — manual sign-in counting + de-duplication + state persistence |

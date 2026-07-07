@@ -24,7 +24,9 @@
 - [x] 🧩 统一浏览器登录按钮 — 所有平台共用统一编辑弹窗登录流程
 - [x] 📱 手机验证码登录扩展到 CSDN/Bilibili 发布器
 - [x] 🏗️ BrowserEngine 持久化重构 — 共享引擎+子进程Playwright验证（避免WSGI死锁）
-- [x] 🪟 账号弹窗归一化深化 — 补齐 amobbs/discuz/mydigit/wordpress 登录能力
+- [x] 🪟 账号弹窗归一化深化 — 补齐 amobbs/discuz/mydigit/wordpress + 验证码输入+5步进度条+Amobbs边框核验
+- [x] 🔍 登录状态深度验证 — 真实提取用户名/积分/等级 + 前端展示增强
+- [x] 🎨 账号页UI增强 — 搜索优化/平台颜色标签/快捷添加/时间标签/批量进度条
 
 ### 📝 多平台发布
 - [x] Discuz! 论坛（amobbs/mydigit 等）— 发帖+存草稿+签到
@@ -35,12 +37,14 @@
 - [x] OSHWHub 立创开源硬件 — Playwright 发布+签到
 - [x] 掘金 — Cookie模拟发布（密码/QR/Cookie）
 - [x] Bilibili 专栏 — Playwright 发布+存草稿+图片上传+登录插件+探索报告（密码/QR/Cookie）
-- [x] Twitter/X — tweepy API v2 OAuth1.0a + 图片上传管道 + Article兼容 + 草稿隔离
+- [x] Twitter/X — tweepy API v2 OAuth1.0a + 完善登录能力描述/平台预设/图片提取优化 + 草稿隔离
 - [x] 闲鱼商品发布 — MTOP签名V2 + AI类目推荐 + xianyu_client SDK
 - [x] 闲鱼自动回复系统集成 — Docker 服务对接（商品发布/订单查询）
+- [x] 闲鱼自动回复 Sidecar 适配器 — xianyu-auto-reply REST API 对接+健康监控
 - [x] Gallery 抽按商品发布（预留）
 - [x] RSS订阅 — 纯Python生成
 - [x] GitHub Pages — git push 部署
+- [x] 📋 文章列表多选批量删除/发布
 
 ### 🔔 通知网关
 - [x] 22 通知渠道（Telegram/Discord/Slack/WhatsApp/钉钉/企微/飞书/微信/邮件/Matrix/Teams/LINE 等）
@@ -58,6 +62,7 @@
 - [x] 知乎平台探索 — login/editor/capability 数据
 - [x] 微信公众号探索 — 图片上传/封面/摘要能力
 - [x] WeChat 公众号完整探索 + 发布器增强
+- [x] 🤖 知乎/掘金 API轻量登录状态检测器
 
 ### 👨‍👩‍👧‍👦 自动签到
 - [x] OSHWHub 签到（含Cookie过期自动重登+asyncio隔离修复）
@@ -102,6 +107,7 @@
 - [x] 评论通知推送
 
 ### 📱 移动端支持
+- [x] 📱 全页面响应式增强 — 375px iPhone 视口零水平溢出，触摸友好按钮/弹窗/导航/卡片网格
 - [x] 移动端 CSS 增强 — 响应式布局适配手机/平板
 
 ---
@@ -138,7 +144,7 @@
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    发布器 + 适配器层 (plugins/ + sdk/)             │
-│  publisher_*.py — 15 个平台发布器                                 │
+│  publisher_*.py — 16 个平台发布器                                 │
 │  signin_*.py   — 3 个签到插件                                    │
 │  provider_*.py — 3 个 Provider 插件 (Markdown/Notion/淘宝)       │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
@@ -242,6 +248,11 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| v4.80 | 2026-07-07 | 手机端排版优化 — 全页面响应式增强（375px零溢出、触摸友好按钮/弹窗/导航/卡片网格） |
+| v4.79 | 2026-07-07 | 登录状态深度验证 — 真实提取用户名/积分/等级 + 前端展示增强 |
+| v4.78 | 2026-07-07 | 账号页UI增强（搜索优化/平台颜色/快捷添加/时间标签/批量进度条）+ 文章列表多选批量操作 + 知乎/掘金API轻量状态检测 + 闲鱼Sidecar适配器 |
+| v4.77 | 2026-07-07 | 账号弹窗验证码输入+5步进度条+Amobbs边框核验 + Twitter/X登录能力完善 + ai_call_log修复 |
+| v4.76 | 2026-07-07 | BrowserEngine线程安全修复 + QR码后台线程 + signin注册器分裂修复 |
 | v4.75 | 2026-07-07 | 账号弹窗归一化深化 — 补齐 amobbs/discuz/mydigit/wordpress 登录能力 |
 | v4.74 | 2026-07-07 | Provider抽象框架整合到工作台 — base→workspace, 3 Providers, 配置管理 + 移动端CSS优化 |
 | v4.70 | 2026-07-07 | 签到统计修复 — 手动签到计入+重复签到去重+状态持久化 |
