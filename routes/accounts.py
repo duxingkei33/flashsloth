@@ -966,22 +966,61 @@ def api_platform_login_capabilities_refresh(platform):
 def api_login_scan_methods(platform):
     """返回指定平台支持的扫码登录方式列表
     
-    数据来源：core/credential_provider.PLATFORM_SCAN_INFO
-    每个平台可有多重扫码方式（如闲鱼：闲鱼App扫码 / 淘宝App扫码）
+    数据驱动（铁律#19）：
+    1. 优先从 PLATFORM_SCAN_INFO 读取（含 scan_app/hint 等丰富信息）
+    2. 如果不在其中，自动从探索数据 *_login_capabilities.json 动态推导
+    3. 都没有则返回空列表（不报错）
     """
     from flashsloth.core.credential_provider import PLATFORM_SCAN_INFO
     info = PLATFORM_SCAN_INFO.get(platform)
-    if not info:
+    if info:
         return jsonify({
-            "success": False,
-            "error": f"平台 {platform} 无扫码登录信息",
+            "success": True,
+            "platform": platform,
+            "login_url": info.get("login_url", ""),
+            "methods": info.get("scan_methods", []),
         })
-    methods = info.get("scan_methods", [])
+    
+    # 数据驱动：从探索 JSON 动态推导扫码方式
+    cap = _load_login_capabilities(platform)
+    if cap:
+        login_url = cap.get("login_url", "")
+        for m in cap.get("login_methods", []):
+            if m.get("method") == "qrcode" and m.get("detected"):
+                methods = []
+                sub_types = m.get("sub_types", [])
+                if sub_types:
+                    for st in sub_types:
+                        if st.get("detected"):
+                            methods.append({
+                                "id": st.get("id", "qrcode"),
+                                "name": st.get("label", "扫码登录"),
+                                "scan_app": st.get("label", "扫码"),
+                                "hint": f"请使用{st.get('label', '扫码')}功能扫描此二维码",
+                                "type": "qrcode",
+                            })
+                else:
+                    methods.append({
+                        "id": "qrcode",
+                        "name": "扫码登录",
+                        "scan_app": "扫码",
+                        "hint": "请使用扫码功能扫描此二维码",
+                        "type": "qrcode",
+                    })
+                return jsonify({
+                    "success": True,
+                    "platform": platform,
+                    "login_url": login_url,
+                    "methods": methods,
+                    "source": "exploration",  # 标记数据来源
+                })
+    
+    # 都没有 → 返回空列表，不报错（前端自动处理）
     return jsonify({
         "success": True,
         "platform": platform,
-        "login_url": info.get("login_url", ""),
-        "methods": methods,
+        "login_url": "",
+        "methods": [],
     })
 
 
