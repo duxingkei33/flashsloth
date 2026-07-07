@@ -132,6 +132,52 @@
     #platformSearchInput { font-size:16px; }
     /* 部署区块 */
     #deploy .stat-card { min-width:100% !important; flex:1 1 100% !important; }
+    .site-config-card { background:#fff;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1); }
+    .site-config-card h3 { margin:0 0 12px;font-size:16px;color:#1a1a2e;display:flex;align-items:center;gap:8px; }
+    .platform-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px; }
+    .platform-card { border:2px solid #eee;border-radius:10px;padding:14px;cursor:pointer;text-align:center;transition:all .15s; }
+    .platform-card:hover { border-color:#4361ee;box-shadow:0 2px 8px rgba(67,97,238,.12); }
+    .platform-card.selected { border-color:#4361ee;background:#f0f4ff; }
+    .platform-card .plat-icon { font-size:28px;margin-bottom:6px; }
+    .platform-card .plat-name { font-weight:600;font-size:14px; }
+    .platform-card .plat-desc { font-size:11px;color:#888;margin-top:4px;line-height:1.4; }
+    .platform-card .plat-file { font-size:10px;color:#aaa;margin-top:4px;font-family:monospace; }
+    .comment-select { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px; }
+    .comment-option { border:2px solid #eee;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:center;flex:1;min-width:120px;max-width:160px;transition:all .15s; }
+    .comment-option:hover { border-color:#2ec4b6; }
+    .comment-option.selected { border-color:#2ec4b6;background:#f0fdfa; }
+    .comment-option .co-icon { font-size:22px; }
+    .comment-option .co-name { font-size:13px;font-weight:600;margin-top:2px; }
+    .comment-option .co-desc { font-size:10px;color:#888;margin-top:2px; }
+    .comment-option .co-badge { font-size:9px;background:#2ec4b6;color:#fff;border-radius:4px;padding:1px 4px;display:inline-block;margin-top:2px; }
+    .comment-fields { background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:12px;display:none; }
+    .comment-fields.show { display:block; }
+    .plugin-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px; }
+    .plugin-card { border:1px solid #eee;border-radius:10px;padding:12px;transition:all .15s;position:relative; }
+    .plugin-card:hover { border-color:#d0d5f0;box-shadow:0 1px 4px rgba(0,0,0,.06); }
+    .plugin-card .plugin-header { display:flex;align-items:center;gap:8px;margin-bottom:6px; }
+    .plugin-card .plugin-icon { font-size:20px; }
+    .plugin-card .plugin-name { font-weight:600;font-size:13px;flex:1; }
+    .plugin-card .plugin-desc { font-size:11px;color:#888;line-height:1.4;margin-bottom:6px; }
+    .plugin-card .plugin-fields { display:none;margin-top:8px;padding-top:8px;border-top:1px solid #eee; }
+    .plugin-card .plugin-fields.show { display:block; }
+    .plugin-card .plugin-fields input { width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px; }
+    .plugin-card .plugin-fields label { font-size:11px;color:#666;display:block;margin-bottom:2px; }
+    .toggle-switch { position:relative;width:36px;height:20px;flex-shrink:0; }
+    .toggle-switch input { opacity:0;width:0;height:0; }
+    .toggle-slider { position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ddd;border-radius:20px;transition:.2s; }
+    .toggle-slider:before { content:"";position:absolute;height:16px;width:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s; }
+    .toggle-switch input:checked + .toggle-slider { background:#4361ee; }
+    .toggle-switch input:checked + .toggle-slider:before { transform:translateX(16px); }
+    .guide-link { font-size:11px;color:#4361ee;text-decoration:none;display:inline-block;margin-top:4px; }
+    .guide-link:hover { text-decoration:underline; }
+    .config-actions { display:flex;gap:8px;margin-top:16px;align-items:center; }
+    .config-status { font-size:12px;padding:6px 12px;border-radius:6px;display:none; }
+    .config-status.success { display:block;background:#d4edda;color:#155724; }
+    .config-status.error { display:block;background:#f8d7da;color:#721c24; }
+    .recommended-tag { font-size:9px;background:#ffd700;color:#1a1a2e;border-radius:4px;padding:1px 5px;display:inline-block;margin-left:4px;font-weight:600; }
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
 }
 
 /* ═══ 添加账号弹窗：引导卡片 ═══ */
@@ -549,87 +595,595 @@
 {% endif %}
 
 <!-- ====== 部署配置区块 (锚点 #deploy) ====== -->
-<div id="deploy" class="card" style="margin-top:24px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-        <h2 style="margin:0;font-size:18px;">🚀 站点部署配置</h2>
-        <a href="/deployers" class="btn btn-sm btn-primary">🔧 进入完整部署管理页</a>
-    </div>
-    <p style="font-size:13px;color:#888;margin:-4px 0 12px;">
-        配置博客平台、评论系统和功能插件。所有配置持久化到数据库。
-    </p>
-    <div id="deploySummary">
-        <p style="color:#999;font-size:13px;">⏳ 加载中...</p>
-    </div>
-    <script>
-    // 加载部署摘要（仅 #deploy 锚点可见时加载）
-    function loadDeploySummary() {
-        var el = document.getElementById('deploySummary');
-        if (!el) return;
-        fetch('/api/deploy/site-config')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data.success || !data.config) {
-                    el.innerHTML = '<p style="color:#999;font-size:13px;">暂无配置，请前往<a href="/deployers">部署管理页</a>配置</p>';
-                    return;
-                }
-                var cfg = data.config;
-                var platformName = cfg.platform || '未设置';
-                var commentName = cfg.comment_system || '未启用';
-                var pluginCount = 0;
-                try {
-                    var pc = JSON.parse(cfg.plugins_config || '{}');
-                    pluginCount = Object.keys(pc).length;
-                } catch(e) {}
+<div id="deploy" style="margin-top:24px;">
 
-                // 获取平台显示名
-                var platformIcon = '🌐';
-                fetch('/api/deploy/platforms')
-                    .then(function(r) { return r.json(); })
-                    .then(function(pdata) {
-                        if (pdata.success) {
-                            var p = pdata.platforms.find(function(x) { return x.id === cfg.platform; });
-                            if (p) { platformIcon = p.icon; platformName = p.name; }
-                        }
-                    })
-                    .catch(function() {})
-                    .finally(function() {
-                        el.innerHTML = '<div style="display:flex;gap:16px;flex-wrap:wrap;">'
-                            + '<div class="stat-card" style="flex:1;min-width:140px;padding:14px;text-align:center;background:#f8f9fa;border-radius:8px;">'
-                            + '<div style="font-size:24px;">' + platformIcon + '</div>'
-                            + '<div style="font-weight:600;font-size:15px;margin-top:4px;">' + platformName + '</div>'
-                            + '<div style="font-size:11px;color:#888;">博客平台</div>'
-                            + '</div>'
-                            + '<div class="stat-card" style="flex:1;min-width:140px;padding:14px;text-align:center;background:#f8f9fa;border-radius:8px;">'
-                            + '<div style="font-size:24px;">💬</div>'
-                            + '<div style="font-weight:600;font-size:15px;margin-top:4px;">' + commentName + '</div>'
-                            + '<div style="font-size:11px;color:#888;">评论系统</div>'
-                            + '</div>'
-                            + '<div class="stat-card" style="flex:1;min-width:140px;padding:14px;text-align:center;background:#f8f9fa;border-radius:8px;">'
-                            + '<div style="font-size:24px;">🔌</div>'
-                            + '<div style="font-weight:600;font-size:15px;margin-top:4px;">' + pluginCount + ' 个</div>'
-                            + '<div style="font-size:11px;color:#888;">已启用插件</div>'
-                            + '</div>'
-                            + '</div>';
-                    });
-            })
-            .catch(function() {
-                el.innerHTML = '<p style="color:#999;font-size:13px;">加载失败</p>';
-            });
-    }
-    // 页面加载或锚点跳转时触发
-    if (window.location.hash === '#deploy') {
-        loadDeploySummary();
-    }
-    // 监听 hash 变化
-    window.addEventListener('hashchange', function() {
-        if (window.location.hash === '#deploy') loadDeploySummary();
-    });
-    // 页面加载时也尝试加载（如果是直接访问）
-    document.addEventListener('DOMContentLoaded', function() {
-        if (window.location.hash === '#deploy') loadDeploySummary();
-    });
-    </script>
+<div class="site-config-card">
+    <h3>🌐 博客站点配置</h3>
+    <p style="font-size:12px;color:#888;margin:-6px 0 14px;">
+        配置博客平台、评论系统和功能插件 — 所有配置持久化到数据库
+    </p>
+
+    <!-- a. 博客平台选择 -->
+    <div id="platformSection">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">📖 选择博客平台</label>
+        <div class="platform-grid" id="platformGrid">
+            <p style="color:#999;font-size:13px;">正在加载博客平台列表...</p>
+        </div>
+    </div>
+
+    <!-- b. 评论系统配置 -->
+    <div id="commentSection" style="margin-top:16px;">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">💬 评论系统配置</label>
+        <div class="comment-select" id="commentSelect">
+            <div class="comment-option" data-comment="" onclick="selectComment(this)">
+                <div class="co-icon">🚫</div>
+                <div class="co-name">无评论</div>
+                <div class="co-desc">关闭评论功能</div>
+            </div>
+            <p style="color:#999;font-size:13px;">正在加载评论系统列表...</p>
+        </div>
+        <div id="commentConfigFields" class="comment-fields"></div>
+        <div id="commentGuideLink" style="display:none;margin-bottom:8px;">
+            <a href="#" target="_blank" class="guide-link" id="commentGuideHref">📖 查看配置引导教程 →</a>
+        </div>
+    </div>
+
+    <!-- c. 插件配置 -->
+    <div id="pluginSection" style="margin-top:16px;">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">🔌 站点插件</label>
+        <div class="plugin-grid" id="pluginGrid">
+            <p style="color:#999;font-size:13px;">正在加载插件列表...</p>
+        </div>
+    </div>
+
+    <!-- 保存按钮 -->
+    <div class="config-actions">
+        <button onclick="saveSiteConfig()" class="btn btn-success" style="font-size:14px;padding:10px 24px;">💾 保存站点配置</button>
+        <div id="configSaveStatus" class="config-status"></div>
+    </div>
 </div>
+
+<!-- 添加部署目标 -->
+<div class="card">
+    <h3>➕ 添加部署目标</h3>
+    <form method="post" action="/deployers/add" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+        <div class="form-group">
+            <label>部署器类型</label>
+            <select name="deployer_name" id="deployerSelect" onchange="toggleFields(this)" required>
+                <option value="">— 选择部署器 —</option>
+                {% for d in deployers %}
+                <option value="{{ d.name }}" data-fields='{{ d.config_fields|tojson }}'>{{ d.display_name }}</option>
+                {% endfor %}
+            </select>
+            {% if not deployers %}
+            <p style="color:#999;font-size:12px;margin-top:4px;">暂无可用的部署器插件</p>
+            {% endif %}
+        </div>
+        <div class="form-group">
+            <label>显示名称</label>
+            <input type="text" name="display_name" placeholder="例如: 我的博客" style="width:300px;">
+        </div>
+        <div id="dynamicFields" style="display:none;flex-direction:column;gap:12px;"></div>
+        <button type="submit" class="btn btn-success" style="width:200px;">+ 添加部署配置</button>
+    </form>
+</div>
+
+<!-- 已配置的部署目标 -->
+<div class="card" style="margin-top:16px;">
+    <h3>📡 已配置的部署目标</h3>
+    {% if configs %}
+    <table class="rsp-table">
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in configs %}
+            <tr>
+                <td><strong>{{ c.display_name or c.deployer_name }}</strong></td>
+                <td><span class="badge badge-info">{{ c.deployer_name }}</span></td>
+                <td>
+                    {% if c.is_active %}
+                    <span class="badge badge-success">启用</span>
+                    {% else %}
+                    <span class="badge badge-warning">禁用</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:4px;">
+                        <a href="/deployers/deploy/{{ c.id }}" class="btn btn-sm btn-success"
+                           onclick="return confirm('确认部署到 {{ c.display_name or c.deployer_name }}？')">
+                            🚀 部署
+                        </a>
+                        <a href="/deployers/test/{{ c.id }}" class="btn btn-sm btn-primary">测试</a>
+                        <a href="/deployers/delete/{{ c.id }}" class="btn btn-sm btn-danger"
+                           onclick="return confirm('确定删除？')">删除</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">
+        还没有部署配置。请选择上方部署器类型并添加。
+    </p>
+    {% endif %}
+</div>
+
+<!-- 部署记录 -->
+<div class="card" style="margin-top:16px;">
+    <h3>📋 部署记录</h3>
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>部署器</th>
+                <th>结果</th>
+                <th>详情</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td style="font-size:12px;color:#666;">{{ log.created_at[:16] }}</td>
+                <td><span class="badge badge-info">{{ log.deployer_name }}</span></td>
+                <td>
+                    {% if log.success %}
+                    <span class="badge badge-success">✅ 成功</span>
+                    {% else %}
+                    <span class="badge badge-danger" title="{{ log.error }}">❌ 失败</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:12px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ log.message or log.error or '-' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">暂无部署记录</p>
+    {% endif %}
+</div>
+
+</div>
+
+<script>
+// ====== 全局状态 ======
+var selectedPlatform = null;
+var selectedComment = null;
+var commentSystems = [];
+var plugins = [];
+var blogPlatforms = [];
+
+// ====== 加载数据 ======
+function loadSiteConfig() {
+    fetch('/api/deploy/site-config')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.config) {
+                var cfg = data.config;
+                selectedPlatform = cfg.platform || 'github_pages';
+                selectedComment = cfg.comment_system || '';
+
+                var commentCfg = {};
+                var pluginCfg = {};
+                try { commentCfg = JSON.parse(cfg.comment_config || '{}'); } catch(e) {}
+                try { pluginCfg = JSON.parse(cfg.plugins_config || '{}'); } catch(e) {}
+
+                window._savedCommentConfig = commentCfg;
+                window._savedPluginConfig = pluginCfg;
+            }
+        })
+        .catch(function() {})
+        .finally(function() {
+            loadPlatforms();
+        });
+}
+
+function loadPlatforms() {
+    fetch('/api/deploy/platforms')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                blogPlatforms = data.platforms;
+                renderPlatforms(data.platforms);
+                loadComments();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadComments() {
+    fetch('/api/deploy/comments')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                commentSystems = data.systems;
+                renderComments(data.systems);
+                loadPlugins();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadPlugins() {
+    fetch('/api/deploy/plugins')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                plugins = data.plugins;
+                renderPlugins(data.plugins);
+            }
+        })
+        .catch(function() {});
+}
+
+// ====== 渲染平台 ======
+function renderPlatforms(platforms) {
+    var grid = document.getElementById('platformGrid');
+    grid.innerHTML = '';
+    platforms.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'platform-card' + (selectedPlatform === p.id ? ' selected' : '');
+        card.dataset.platform = p.id;
+        card.onclick = function() { selectPlatform(p.id); };
+
+        var recHtml = '';
+        if (p.recommended_comments && p.recommended_comments.length > 0) {
+            recHtml = '<span class="recommended-tag">推荐 ' + p.recommended_comments[0] + '</span>';
+        }
+
+        card.innerHTML = '<div class="plat-icon">' + p.icon + '</div>'
+            + '<div class="plat-name">' + p.name + recHtml + '</div>'
+            + '<div class="plat-desc">' + p.desc + '</div>'
+            + '<div class="plat-file">' + p.config_file + '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function selectPlatform(pid) {
+    selectedPlatform = pid;
+    document.querySelectorAll('.platform-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.platform === pid);
+    });
+    var p = blogPlatforms.find(function(bp) { return bp.id === pid; });
+    if (p && p.recommended_comments && p.recommended_comments.length > 0) {
+        var rec = p.recommended_comments[0];
+        document.querySelectorAll('.comment-option').forEach(function(c) {
+            if (c.dataset.comment === rec) {
+                c.style.boxShadow = '0 0 0 2px #ffd700';
+            } else {
+                c.style.boxShadow = '';
+            }
+        });
+    }
+}
+
+// ====== 渲染评论系统 ======
+function renderComments(systems) {
+    var container = document.getElementById('commentSelect');
+    container.innerHTML = '';
+
+    var noneOption = document.createElement('div');
+    noneOption.className = 'comment-option' + (selectedComment === '' ? ' selected' : '');
+    noneOption.dataset.comment = '';
+    noneOption.onclick = function() { selectComment(this); };
+    noneOption.innerHTML = '<div class="co-icon">🚫</div>'
+        + '<div class="co-name">无评论</div>'
+        + '<div class="co-desc">关闭评论功能</div>';
+    container.appendChild(noneOption);
+
+    systems.forEach(function(s) {
+        var opt = document.createElement('div');
+        opt.className = 'comment-option' + (selectedComment === s.id ? ' selected' : '');
+        opt.dataset.comment = s.id;
+        opt.onclick = function() { selectComment(this); };
+        opt.innerHTML = '<div class="co-icon">' + s.icon + '</div>'
+            + '<div class="co-name">' + s.name + '</div>'
+            + '<div class="co-desc">' + s.desc + '</div>';
+        container.appendChild(opt);
+    });
+}
+
+function selectComment(el) {
+    document.querySelectorAll('.comment-option').forEach(function(c) { c.classList.remove('selected'); });
+    el.classList.add('selected');
+    selectedComment = el.dataset.comment;
+
+    var fieldsContainer = document.getElementById('commentConfigFields');
+    var guideLink = document.getElementById('commentGuideLink');
+    var guideHref = document.getElementById('commentGuideHref');
+
+    if (!selectedComment) {
+        fieldsContainer.classList.remove('show');
+        fieldsContainer.innerHTML = '';
+        guideLink.style.display = 'none';
+        return;
+    }
+
+    var sys = commentSystems.find(function(s) { return s.id === selectedComment; });
+    if (!sys) { fieldsContainer.classList.remove('show'); return; }
+
+    if (sys.url) {
+        guideHref.href = sys.url;
+        guideLink.style.display = 'block';
+    } else {
+        guideLink.style.display = 'none';
+    }
+
+    fieldsContainer.innerHTML = '<label style="font-weight:600;font-size:13px;margin-bottom:6px;display:block;">'
+        + sys.icon + ' ' + sys.name + ' 配置</label>';
+    var saved = window._savedCommentConfig || {};
+    (sys.fields || []).forEach(function(f) {
+        var group = document.createElement('div');
+        group.style.marginBottom = '8px';
+        var label = document.createElement('label');
+        label.style.fontSize = '12px';
+        label.style.fontWeight = '600';
+        label.style.display = 'block';
+        label.style.marginBottom = '2px';
+        label.textContent = f.label;
+        if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+        group.appendChild(label);
+
+        if (f.type === 'select' && f.options) {
+            var sel = document.createElement('select');
+            sel.className = 'comment-field';
+            sel.dataset.fieldKey = f.key;
+            sel.style.width = '100%';
+            sel.style.padding = '6px 8px';
+            sel.style.border = '1px solid #ddd';
+            sel.style.borderRadius = '4px';
+            sel.style.fontSize = '12px';
+            f.options.forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.label || o.value;
+                if (o.value === (saved[f.key] || f.default)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            group.appendChild(sel);
+        } else {
+            var input = document.createElement('input');
+            input.type = f.type === 'number' ? 'number' : 'text';
+            input.className = 'comment-field';
+            input.dataset.fieldKey = f.key;
+            input.placeholder = f.placeholder || '';
+            input.value = saved[f.key] || f.default || '';
+            input.style.width = '100%';
+            input.style.padding = '6px 8px';
+            input.style.border = '1px solid #ddd';
+            input.style.borderRadius = '4px';
+            input.style.fontSize = '12px';
+            if (f.required) input.required = true;
+            group.appendChild(input);
+        }
+        fieldsContainer.appendChild(group);
+    });
+
+    if (sys.url) {
+        var tip = document.createElement('p');
+        tip.style.fontSize = '11px';
+        tip.style.color = '#888';
+        tip.style.marginTop = '6px';
+        tip.innerHTML = '💡 如需扫码授权登录，请点击上方引导链接打开 ' + sys.name + ' 官方配置页';
+        fieldsContainer.appendChild(tip);
+    }
+
+    fieldsContainer.classList.add('show');
+}
+
+// ====== 渲染插件 ======
+function renderPlugins(plugins) {
+    var grid = document.getElementById('pluginGrid');
+    grid.innerHTML = '';
+    var saved = window._savedPluginConfig || {};
+
+    plugins.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'plugin-card';
+        card.dataset.plugin = p.id;
+
+        var enabled = saved[p.id] && saved[p.id].enabled === '1';
+        card.innerHTML = '<div class="plugin-header">'
+            + '<span class="plugin-icon">' + p.icon + '</span>'
+            + '<span class="plugin-name">' + p.name + '</span>'
+            + '<label class="toggle-switch">'
+            + '<input type="checkbox" data-plugin="' + p.id + '" ' + (enabled ? 'checked' : '')
+            + ' onchange="togglePlugin(this, \'' + p.id + '\')">'
+            + '<span class="toggle-slider"></span>'
+            + '</label>'
+            + '</div>'
+            + '<div class="plugin-desc">' + p.desc + '</div>'
+            + '<div class="plugin-fields' + (enabled ? ' show' : '') + '" id="pluginFields_' + p.id + '">';
+
+        (p.fields || []).forEach(function(f) {
+            var val = (saved[p.id] || {})[f.key] || f.default || '';
+            if (f.type === 'select' && f.options) {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<select data-plugin="' + p.id + '" data-field="' + f.key + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;">';
+                f.options.forEach(function(o) {
+                    card.innerHTML += '<option value="' + o.value + '"' + (val === o.value ? ' selected' : '') + '>' + (o.label || o.value) + '</option>';
+                });
+                card.innerHTML += '</select></div>';
+            } else if (f.type === 'textarea') {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<textarea data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;min-height:60px;font-family:monospace;">' + val + '</textarea></div>';
+            } else {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" value="' + val + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+            }
+        });
+
+        card.innerHTML += '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function togglePlugin(cb, pluginId) {
+    var fields = document.getElementById('pluginFields_' + pluginId);
+    if (fields) {
+        fields.classList.toggle('show', cb.checked);
+    }
+}
+
+// ====== 收集+保存配置 ======
+function collectCommentConfig() {
+    if (!selectedComment) return {};
+    var fields = document.querySelectorAll('.comment-field');
+    var cfg = {};
+    fields.forEach(function(f) {
+        cfg[f.dataset.fieldKey] = f.value;
+    });
+    return cfg;
+}
+
+function collectPluginConfig() {
+    var cfg = {};
+    document.querySelectorAll('.plugin-card').forEach(function(card) {
+        var pid = card.dataset.plugin;
+        var enabled = card.querySelector('input[type="checkbox"]');
+        if (!enabled || !enabled.checked) return;
+        cfg[pid] = { enabled: '1' };
+        card.querySelectorAll('input[data-field], select[data-field], textarea[data-field]').forEach(function(f) {
+            cfg[pid][f.dataset.field] = f.value;
+        });
+    });
+    return cfg;
+}
+
+function saveSiteConfig() {
+    var btn = document.querySelector('.config-actions .btn-success');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    var status = document.getElementById('configSaveStatus');
+    status.className = 'config-status';
+    status.style.display = 'none';
+
+    var payload = {
+        platform: selectedPlatform || 'github_pages',
+        comment_system: selectedComment || '',
+        comment_config: collectCommentConfig(),
+        plugins_config: collectPluginConfig(),
+    };
+
+    fetch('/api/deploy/site-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            status.className = 'config-status success';
+            status.textContent = '✅ ' + (data.message || '站点配置已保存');
+            status.style.display = 'block';
+        } else {
+            status.className = 'config-status error';
+            status.textContent = '❌ ' + (data.error || '保存失败');
+            status.style.display = 'block';
+        }
+    })
+    .catch(function(err) {
+        status.className = 'config-status error';
+        status.textContent = '❌ 请求失败: ' + err.message;
+        status.style.display = 'block';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '💾 保存站点配置';
+        setTimeout(function() {
+            status.style.display = 'none';
+        }, 3000);
+    });
+}
+
+// ====== 原有动态字段（保持兼容） ======
+function toggleFields(sel) {
+    var container = document.getElementById('dynamicFields');
+    var option = sel.options[sel.selectedIndex];
+    if (!option || !option.value) {
+        container.style.display = 'none';
+        return;
+    }
+    try {
+        var fields = JSON.parse(option.getAttribute('data-fields') || '[]');
+        container.innerHTML = '';
+        if (fields.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        fields.forEach(function(f) {
+            var group = document.createElement('div');
+            group.className = 'form-group';
+            var label = document.createElement('label');
+            label.textContent = f.label || f.key;
+            if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+            group.appendChild(label);
+
+            if (f.type === 'select') {
+                var select = document.createElement('select');
+                select.name = 'cfg_' + f.key;
+                select.required = f.required;
+                if (f.options) {
+                    f.options.forEach(function(o) {
+                        var opt = document.createElement('option');
+                        opt.value = o.value;
+                        opt.textContent = o.label || o.value;
+                        select.appendChild(opt);
+                    });
+                }
+                group.appendChild(select);
+            } else {
+                var input = document.createElement('input');
+                input.type = f.type === 'password' ? 'password' : 'text';
+                input.name = 'cfg_' + f.key;
+                input.placeholder = f.placeholder || '';
+                input.value = f.default || '';
+                input.style.width = '400px';
+                if (f.required) input.required = true;
+                group.appendChild(input);
+            }
+            container.appendChild(group);
+        });
+        container.style.display = 'flex';
+    } catch(e) {
+        container.style.display = 'none';
+    }
+}
+
+// 锚点跳转时自动加载
+function initDeploy() {
+    loadSiteConfig();
+}
+var _deployInitialized = false;
+if (window.location.hash === '#deploy') {
+    _deployInitialized = true;
+    initDeploy();
+}
+window.addEventListener('hashchange', function() {
+    if (window.location.hash === '#deploy' && !_deployInitialized) {
+        _deployInitialized = true;
+        initDeploy();
+    }
+});
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.hash === '#deploy' && !_deployInitialized) {
+        _deployInitialized = true;
+        initDeploy();
+    }
+});
+</script>
 
 <!-- ====== 添加账号弹窗 ====== -->
 <div id="addFormBox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
@@ -2384,24 +2938,35 @@ function testConnectionAdd() {
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        var html = '<div style="margin-bottom:12px;">';
-        html += '<p><strong>平台：</strong>' + escapeHtml(data.platform || platform) + '</p>';
+        // ⚠️ 兼容两种返回格式：flat（api_test_connection 修正后）和 wrapped（discuz publisher 旧格式）
+        // 修正后的 api_test_connection 返回 flat: {success, logged_in, username, status, ...}
+        // discuz publisher test_connection 旧格式: {result: {success, status: "已登录 — ..."}}
+        var resultData = data.result || data;
+        var platformName = data.platform || resultData.platform || platform;
+        var isLoggedIn = resultData.logged_in === true
+            || (resultData.status && (resultData.status.indexOf('已登录') >= 0 || resultData.status.indexOf('✅') >= 0));
+        var displayName = resultData.username || resultData.display_name || '';
+        var statusText = resultData.status || data.status || '⏳ 未知';
+        var errorText = resultData.error || data.error || '';
 
-        if (data.success && data.logged_in) {
+        var html = '<div style="margin-bottom:12px;">';
+        html += '<p><strong>平台：</strong>' + escapeHtml(platformName) + '</p>';
+
+        if (isLoggedIn) {
             html += '<div style="padding:12px;background:#f0fdf4;border:1px solid #22c55e;border-radius:8px;margin:8px 0;">';
             html += '<p style="font-size:20px;color:#22c55e;font-weight:600;">✅ 连接成功！</p>';
-            if (data.username) {
-                html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;">' + escapeHtml(data.username) + '</span></p>';
+            if (displayName) {
+                html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;">' + escapeHtml(displayName) + '</span></p>';
             }
             html += '</div>';
         } else {
             html += '<div style="padding:12px;background:#fef2f2;border:1px solid #ef4444;border-radius:8px;margin:8px 0;">';
-            html += '<p style="font-size:20px;color:#ef4444;font-weight:600;">❌ ' + (data.logged_in === false ? '连接失败' : '无法验证') + '</p>';
+            html += '<p style="font-size:20px;color:#ef4444;font-weight:600;">❌ ' + (resultData.logged_in === false ? '连接失败' : '无法验证') + '</p>';
             html += '</div>';
         }
-        html += '<p><strong>状态：</strong>' + escapeHtml(data.status || '⏳ 未知') + '</p>';
-        if (data.error) {
-            html += '<p style="color:#ef4444;"><strong>错误：</strong>' + escapeHtml(data.error) + '</p>';
+        html += '<p><strong>状态：</strong>' + escapeHtml(statusText) + '</p>';
+        if (errorText && errorText !== statusText) {
+            html += '<p style="color:#ef4444;"><strong>错误：</strong>' + escapeHtml(errorText) + '</p>';
         }
         html += '</div>';
         document.getElementById('statusContent').innerHTML = html;
@@ -2711,7 +3276,7 @@ function checkStatus(aid) {
     document.getElementById('statusContent').innerHTML = '<p style="color:#999;">⏳ 正在检测账号状态...</p>';
     document.getElementById('statusModal').style.display = 'flex';
 
-    fetch('/api/accounts/' + aid + '/status')
+    fetch('/api/accounts/' + aid + '/status?refresh=1')
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (!data.success && data.logged_in === undefined) {

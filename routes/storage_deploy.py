@@ -210,7 +210,7 @@ def deployer_add():
    display_name = request.form.get("display_name", "")
    if not deployer_name:
        flash("请选择部署器类型", "error")
-       return redirect(url_for("deployers_page"))
+       return redirect("/accounts#deploy")
 
    # 收集配置
    dl = list_deployers()
@@ -232,24 +232,22 @@ def deployer_add():
    conn.commit()
    conn.close()
    flash(f"部署配置「{display_name}」已添加", "success")
-   return redirect(url_for("deployers_page"))
+   return redirect("/accounts#deploy")
 
 @app.route("/deployers/delete/<int:cid>")
 @login_required
 def deployer_delete(cid):
-   """删除部署配置"""
    conn = get_db()
    conn.execute("DELETE FROM deployer_configs WHERE id=? AND user_id=?",
                 (cid, current_user.id))
    conn.commit()
    conn.close()
    flash("部署配置已删除", "success")
-   return redirect(url_for("deployers_page"))
+   return redirect("/accounts#deploy")
 
 @app.route("/deployers/deploy/<int:cid>")
 @login_required
 def deployer_run(cid):
-   """执行部署"""
    conn = get_db()
    row = conn.execute(
        "SELECT * FROM deployer_configs WHERE id=? AND user_id=?",
@@ -258,7 +256,7 @@ def deployer_run(cid):
    if not row:
        conn.close()
        flash("部署配置不存在", "error")
-       return redirect(url_for("deployers_page"))
+       return redirect("/accounts#deploy")
 
    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
    try:
@@ -277,14 +275,12 @@ def deployer_run(cid):
        if result.get("success"):
            msg = result.get("message", "部署成功")
            flash(f"✅ {msg}", "success")
-           # 更新所有 pending 的发布记录为 deployed
            conn.execute(
                "UPDATE publish_log SET deploy_status='deployed', updated_at=datetime('now') "
                "WHERE deploy_status='pending' OR deploy_status IS NULL"
            )
            conn.commit()
            conn.close()
-           # GitHub Pages 部署延迟提示
            if row["deployer_name"] == "github_pages":
                flash("⏳ GitHub Pages 需要 1-2 分钟刷新，请稍后访问站点确认", "info")
        else:
@@ -299,12 +295,11 @@ def deployer_run(cid):
        conn.close()
        flash(f"❌ 部署异常: {e}", "error")
 
-   return redirect(url_for("deployers_page"))
+   return redirect("/accounts#deploy")
 
 @app.route("/deployers/test/<int:cid>")
 @login_required
 def deployer_test(cid):
-   """测试部署配置连接"""
    conn = get_db()
    row = conn.execute(
        "SELECT * FROM deployer_configs WHERE id=? AND user_id=?",
@@ -313,7 +308,7 @@ def deployer_test(cid):
    conn.close()
    if not row:
        flash("部署配置不存在", "error")
-       return redirect(url_for("deployers_page"))
+       return redirect("/accounts#deploy")
 
    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
    try:
@@ -326,7 +321,7 @@ def deployer_test(cid):
    except Exception as e:
        flash(f"❌ 测试异常: {e}", "error")
 
-   return redirect(url_for("deployers_page"))
+   return redirect("/accounts#deploy")
 
 
 
@@ -503,3 +498,34 @@ def api_deploy_comments():
 def api_deploy_plugins():
     """获取插件列表"""
     return jsonify({"success": True, "plugins": PLUGINS})
+
+# ─── Unified Account Deploy API (aliases) ────────────────────
+@app.route("/api/accounts/deploy/site-config", methods=["GET"])
+@login_required
+def accounts_api_get_site_config():
+    """Unified API: get site config (alias for /api/deploy/site-config)"""
+    return api_get_site_config()
+
+@app.route("/api/accounts/deploy/site-config", methods=["POST"])
+@login_required
+def accounts_api_save_site_config():
+    """Unified API: save site config (alias for /api/deploy/site-config)"""
+    return api_save_site_config()
+
+@app.route("/api/accounts/deploy/platforms")
+@login_required
+def accounts_api_deploy_platforms():
+    """Unified API: list blog platforms"""
+    return api_deploy_platforms()
+
+@app.route("/api/accounts/deploy/comments")
+@login_required
+def accounts_api_deploy_comments():
+    """Unified API: list comment systems"""
+    return api_deploy_comments()
+
+@app.route("/api/accounts/deploy/plugins")
+@login_required
+def accounts_api_deploy_plugins():
+    """Unified API: list site plugins"""
+    return api_deploy_plugins()

@@ -6,7 +6,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-07T17:11:31.644793+00:00"
   },
   "bilibili": {
     "login_methods": [
@@ -17,7 +18,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-07T18:11:50.806584+00:00"
   },
   "csdn": {
     "login_methods": [
@@ -27,7 +29,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-06T23:12:55.781484+00:00"
   },
   "dewu": {
     "login_methods": [
@@ -38,7 +41,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-08T00:19:00"
   },
   "discuz": {
     "login_methods": [
@@ -46,8 +50,9 @@
       "password",
       "cookie"
     ],
-    "detail": "FULL",
-    "error": null
+    "detail": "BASIC",
+    "error": null,
+    "explored_at": "2026-07-07T17:11:31.646398+00:00"
   },
   "douban": {
     "login_methods": [
@@ -55,8 +60,9 @@
       "phone",
       "cookie"
     ],
-    "detail": "FULL",
-    "error": null
+    "detail": "BASIC",
+    "error": null,
+    "explored_at": "2026-07-07T17:11:31.646823+00:00"
   },
   "juejin": {
     "login_methods": [
@@ -66,7 +72,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-06T23:13:29.558987+00:00"
   },
   "mydigit": {
     "login_methods": [
@@ -74,8 +81,9 @@
       "password",
       "cookie"
     ],
-    "detail": "FULL",
-    "error": null
+    "detail": "BASIC",
+    "error": null,
+    "explored_at": "2026-07-07T17:11:31.647055+00:00"
   },
   "oshwhub": {
     "login_methods": [
@@ -84,12 +92,14 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-06T23:56:37.133983+00:00"
   },
   "rss": {
     "login_methods": [],
     "detail": "BASIC",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-07T00:00:00+00:00"
   },
   "smzdm": {
     "login_methods": [
@@ -99,15 +109,17 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-08T00:35:09"
   },
   "twitter": {
     "login_methods": [
       "oauth1",
       "bearer"
     ],
-    "detail": "FULL",
-    "error": null
+    "detail": "BASIC",
+    "error": null,
+    "explored_at": "2026-07-07T20:28:00+08:00"
   },
   "wechat_mp": {
     "login_methods": [
@@ -117,22 +129,25 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-06T23:13:40.657802+00:00"
   },
   "wordpress": {
     "login_methods": [
       "password",
       "cookie"
     ],
-    "detail": "FULL",
-    "error": null
+    "detail": "BASIC",
+    "error": null,
+    "explored_at": "2026-07-07T17:11:31.647430+00:00"
   },
   "xianyu_auto_reply": {
     "login_methods": [
       "cookie"
     ],
     "detail": "BASIC",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-07T00:00:00+00:00"
   },
   "xianyu": {
     "login_methods": [
@@ -141,7 +156,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-06T23:14:23.662492+00:00"
   },
   "xianyu_products": {
     "login_methods": [
@@ -149,8 +165,9 @@
       "qrcode",
       "cookie"
     ],
-    "detail": "FULL",
-    "error": null
+    "detail": "BASIC",
+    "error": null,
+    "explored_at": "2026-07-07T17:11:31.648083+00:00"
   },
   "xiaohongshu": {
     "login_methods": [
@@ -160,7 +177,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-07T23:41:43"
   },
   "zhihu": {
     "login_methods": [
@@ -169,7 +187,8 @@
       "cookie"
     ],
     "detail": "FULL",
-    "error": null
+    "error": null,
+    "explored_at": "2026-07-06T23:13:06.381047+00:00"
   },
-  "_last_checked_at": "2026-07-07T18:11:50.806584+00:00"
+  "_last_checked_at": "2026-07-07T19:22:53.477973+00:00"
 }

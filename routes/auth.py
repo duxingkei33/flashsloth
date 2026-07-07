@@ -140,6 +140,15 @@ def login():
             conn.execute("UPDATE users SET last_login=datetime('now') WHERE id=?", (user["id"],))
             conn.commit()
             conn.close()
+            # 自动启动 Playwright 浏览器引擎（如果配置了 auto_start）
+            try:
+                from flashsloth.core.browser_engine import BrowserEngine
+                _be = BrowserEngine.get_instance()
+                _be.load_config_from_db()
+                if _be.get_config().get("auto_start", True):
+                    threading.Thread(target=_be.start, daemon=True, name="pw-auto-start").start()
+            except Exception:
+                pass
             flash("登录成功", "success")
             return redirect(url_for("index"))
         flash("用户名或密码错误", "error")

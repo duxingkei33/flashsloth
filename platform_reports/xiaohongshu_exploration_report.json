@@ -2,42 +2,88 @@
   "platform": "xiaohongshu",
   "display_name": "小红书",
   "domain": "xiaohongshu.com",
+  "type": "social",
+  "site_url": "https://www.xiaohongshu.com",
   "category": "social",
   "architecture": "custom",
-  "explored_at": "2026-07-08 02:35:49",
-  "last_updated": "2026-07-08 02:35:49",
-  "explored_with_login": false,
+  "explored_at": "2026-07-08 02:59:38",
+  "last_updated": "2026-07-08 02:59:38",
+  "explored_with_login": true,
   "has_account": false,
   "has_publisher": false,
+  "login_page_url": "https://www.xiaohongshu.com/explore",
+  "login_methods": [
+    {
+      "method": "phone",
+      "label": "手机验证码登录",
+      "priority": 1,
+      "fields": ["phone"],
+      "note": "主要方式，需要滑块验证。登录后推荐更懂你的笔记"
+    },
+    {
+      "method": "qrcode",
+      "label": "扫码登录（小红书或微信扫码）",
+      "priority": 1,
+      "fields": [],
+      "note": "支持小红书App扫码和微信扫码两种方式"
+    },
+    {
+      "method": "password",
+      "label": "密码登录",
+      "priority": 2,
+      "fields": ["phone", "password"],
+      "note": "手机号+密码登录，需点击Tab切换"
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "priority": 99,
+      "fields": ["cookie"],
+      "note": "从浏览器F12复制"
+    }
+  ],
   "login": {
     "login_url": "https://www.xiaohongshu.com/explore",
+    "login_page_urls": [
+      "https://www.xiaohongshu.com/explore"
+    ],
     "methods": [
       {
-        "method": "captcha",
-        "name": "验证码登录",
-        "fields": [
-          ""
-        ]
+        "method": "phone",
+        "label": "手机验证码登录",
+        "priority": 1,
+        "fields": ["phone"],
+        "note": "主要方式，需要滑块验证"
       },
       {
         "method": "qrcode",
-        "name": "扫码登录",
-        "selectors": [
-          "img[src*='data:image/png;base64,iVBORw0K']",
-          "img[src*='data:image/png;base64,iVBORw0K']",
-          "img[src*='data:image/png;base64,iVBORw0K']",
-          "img[src*='https://sns-webpic-qc.xhscdn.c']"
-        ]
+        "label": "扫码登录",
+        "priority": 1,
+        "fields": [],
+        "note": "支持小红书App和微信扫码"
+      },
+      {
+        "method": "password",
+        "label": "密码登录",
+        "priority": 2,
+        "fields": ["phone", "password"],
+        "note": "需点击Tab切换到密码登录"
+      },
+      {
+        "method": "cookie",
+        "label": "Cookie粘贴",
+        "priority": 99,
+        "fields": ["cookie"],
+        "note": "从浏览器F12复制"
       }
     ],
     "captcha": {
       "has_captcha": true,
-      "types": [
-        "slider",
-        "sms_code"
-      ],
+      "types": ["slider"],
       "selectors": [
-        "[class*='slider']"
+        "[class*='slider']",
+        "[class*='captcha']",
+        "[class*='verify']"
       ]
     },
     "third_party": {
@@ -46,88 +92,97 @@
       "qq": false,
       "github": false,
       "apple": false,
-      "others": []
+      "others": [
+        "手机验证码"
+      ]
     },
     "qr_code": {
       "has_qrcode": true,
       "selectors": [
-        "img[src*='data:image/png;base64,iVBORw0K']",
-        "img[src*='data:image/png;base64,iVBORw0K']",
-        "img[src*='data:image/png;base64,iVBORw0K']",
-        "img[src*='https://sns-webpic-qc.xhscdn.c']"
+        "div.qrcode.force-light",
+        "img.qrcode-img",
+        "div.code-area",
+        "div.login-container div.left"
       ],
-      "qr_container_sel": ""
+      "qr_container_sel": "div.qrcode.force-light",
+      "qr_img_sel": "img.qrcode-img",
+      "note": "扫码区域包含小红书App二维码（主）和微信扫码（副），文案：可用 小红书 或 微信 扫码"
+    },
+    "password_login": {
+      "supported": true,
+      "tabs": ["验证码登录", "密码登录"],
+      "fields": [
+        {
+          "selector": "input[placeholder='输入手机号']",
+          "type": "text",
+          "name": "blur",
+          "placeholder": "输入手机号"
+        },
+        {
+          "selector": "input[placeholder='输入验证码']",
+          "type": "number",
+          "placeholder": "输入验证码"
+        }
+      ]
     },
     "fields": [
       {
+        "selector": "input[placeholder='输入手机号']",
         "type": "text",
-        "name": "blur",
-        "id": "",
         "placeholder": "输入手机号",
-        "autocomplete": ""
+        "name": "blur"
       },
       {
-        "type": "captcha",
-        "name": "",
-        "id": "",
-        "placeholder": "输入验证码",
-        "autocomplete": "false"
-      },
-      {
-        "type": "text",
-        "name": "hp-inputsearch-input",
-        "id": "",
-        "placeholder": "登录探索更多内容",
-        "autocomplete": "off"
-      },
-      {
-        "type": "text",
-        "name": "",
-        "id": "search-input",
-        "placeholder": "登录探索更多内容",
-        "autocomplete": "off"
+        "selector": "input[placeholder='输入验证码']",
+        "type": "number",
+        "placeholder": "输入验证码"
       }
     ],
     "buttons": {
-      "login_button": "text=登录|SPAN.login-btn",
+      "login_button": "text=登录|button:has-text('登录')",
       "register_button": "",
       "other_buttons": [
-        "text=|DIV.icon-btn-wrapper.close-button",
-        "text=创作中心|BUTTON.reds-button-new.channel-btn.large.text.c",
-        "text=业务合作|BUTTON.reds-button-new.channel-btn.large.text.c",
-        "text=|DIV.floating-btn-sets",
-        "text=|DIV.btn-wrapper",
-        "text=|DIV.btn-wrapper",
-        "text=|BUTTON.reds-button-new.dragger.large.icon.has-i",
-        "text=|BUTTON.reds-button-new.share-icon.large.icon.ha",
-        "text=|BUTTON.reds-button-new.close-icon.large.icon.ha",
-        "text=|BUTTON.reds-button-new.close-icon.large.icon.ha"
+        "获取验证码",
+        "创作中心",
+        "业务合作",
+        "发布"
       ]
     },
     "cookie_hints": [
       "sid",
       "session",
       "token",
-      "web_session"
+      "web_session",
+      "a1",
+      "xhu",
+      "webId"
+    ],
+    "notes": [
+      "登录为弹出层覆盖在 explore 页面之上，非独立登录页",
+      "默认显示手机验证码登录（手机号+验证码）",
+      "右侧同时展示二维码区域（小红书App+微信扫码）",
+      "通过Tab可切换到密码登录（手机号+密码）",
+      "需要滑块验证码（拖拽拼图）后才能登录",
+      "第三方仅微信可用（扫码方式），无微博/QQ/Apple",
+      "有较强的风控机制，多次失败可能触发限制",
+      "API端点需登录后才能完整获取"
     ]
   },
   "publish": {
     "editor_url": "https://www.xiaohongshu.com/explore/editor",
-    "editor_requires_login": false,
-    "editor_type": "",
-    "api_endpoints": [
-      "https://as.xiaohongshu.com/api/sec/v1/ds?appId=xhs-pc-web"
-    ],
+    "editor_requires_login": true,
+    "editor_type": "rich_text",
+    "api_endpoints": [],
     "image_upload": {
       "url": "",
       "method": ""
     }
   },
   "technical": {
-    "has_rate_limit": false,
-    "has_anti_bot": false,
-    "has_dynamic_content": false,
+    "has_rate_limit": true,
+    "has_anti_bot": true,
+    "has_dynamic_content": true,
     "framework": "Vue.js",
-    "note": "生活方式社区，自建架构"
+    "note": "生活方式社区，自建架构。登录弹窗含滑块验证码和风控机制。支持小红书App扫码和微信扫码双方式。前端框架Vue.js，API端点被风控保护需登录后获取"
   }
 }

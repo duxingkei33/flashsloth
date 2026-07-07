@@ -4,25 +4,57 @@
   "domain": "dewu.com",
   "category": "shopping",
   "architecture": "custom",
-  "explored_at": "2026-07-08 02:35:37",
-  "last_updated": "2026-07-08 02:35:37",
-  "explored_with_login": false,
+  "explored_at": "2026-07-08 02:52:45",
+  "last_updated": "2026-07-08 02:52:45",
+  "explored_with_login": true,
   "has_account": false,
   "has_publisher": false,
   "login": {
-    "login_url": "https://www.dewu.com/",
-    "methods": [],
+    "login_url": "https://open.dewu.com/login#/login",
+    "login_page_urls": [
+      "https://www.dewu.com/login",
+      "https://www.dewu.com/passport/login",
+      "https://open.dewu.com/login#/login"
+    ],
+    "methods": [
+      {
+        "method": "phone",
+        "label": "短信登录",
+        "priority": 1,
+        "fields": ["phone", "sms_code"],
+        "note": "主登录方式：手机号+短信验证码，需要滑块验证"
+      },
+      {
+        "method": "password",
+        "label": "密码登录",
+        "priority": 2,
+        "fields": ["phone", "password"],
+        "note": "手机号+密码，需要滑块验证"
+      },
+      {
+        "method": "cookie",
+        "label": "Cookie粘贴",
+        "priority": 99,
+        "fields": ["cookie"],
+        "note": "通用备选方式"
+      }
+    ],
     "captcha": {
-      "has_captcha": false,
-      "types": [],
-      "selectors": []
+      "has_captcha": true,
+      "types": ["slider"],
+      "selectors": [
+        "[class*='slider']",
+        "[class*='block']",
+        "[class*='drag']"
+      ]
     },
     "third_party": {
       "wechat": false,
       "weibo": false,
       "qq": false,
       "github": false,
-      "apple": false
+      "apple": false,
+      "others": []
     },
     "qr_code": {
       "has_qrcode": false,
@@ -35,42 +67,69 @@
         "type": "text",
         "placeholder": "请输入手机号码",
         "name": "",
-        "note": "开放平台(open.dewu.com) 登录页字段"
+        "id": "",
+        "note": "手机号输入框（短信/密码登录均使用）"
       },
       {
-        "selector": "input[type='password']",
+        "selector": "input[placeholder='请输入短信验证码']",
+        "type": "text",
+        "placeholder": "请输入短信验证码",
+        "name": "",
+        "id": "",
+        "note": "短信验证码输入框（短信登录Tab下显示）"
+      },
+      {
+        "selector": "input[placeholder='密码']",
         "type": "password",
         "placeholder": "密码",
         "name": "",
-        "note": "开放平台登录密码字段"
+        "id": "",
+        "note": "密码输入框（密码登录Tab下显示）"
       }
     ],
     "buttons": {
-      "login_button": "",
-      "register_button": ""
+      "login_button": "button:has-text('登录')|ant-btn ant-btn-text",
+      "register_button": "button:has-text('注册')|ant-btn ant-btn-text",
+      "other_buttons": [
+        "获取验证码",
+        "忘记密码",
+        "立即注册"
+      ]
     },
     "cookie_hints": [
       "token",
       "sid",
       "session",
-      "dewu_token"
+      "dewu_token",
+      "passport"
+    ],
+    "notes": [
+      "登录域名在 open.dewu.com (开放平台)，主站 dewu.com/login 有云图人机验证",
+      "主站 dewu.com 是 App 下载引导页/品牌展示页，无实际登录功能",
+      "短信登录和密码登录通过 Tab 切换 (element-ui el-tabs)",
+      "每次登录前必须先完成滑块验证（请按住滑块，拖动到最右边）",
+      "无第三方登录（微信/微博/QQ/Apple），无扫码登录",
+      "开放平台登录后进入开发者后台，非普通用户登录",
+      "普通用户登录功能主要在得物App内完成，非网页端"
     ]
   },
   "publish": {
-    "editor_url": "https://www.dewu.com/editor",
-    "editor_requires_login": false,
+    "editor_url": "",
+    "editor_requires_login": true,
     "editor_type": "",
-    "api_endpoints": [],
+    "api_endpoints": [
+      "https://prd-otel-h5-public.dewu.com/api/traces"
+    ],
     "image_upload": {
       "url": "",
       "method": ""
     }
   },
   "technical": {
-    "has_rate_limit": false,
-    "has_anti_bot": false,
-    "has_dynamic_content": false,
-    "framework": "",
-    "note": "潮流网购社区，自建架构"
+    "has_rate_limit": true,
+    "has_anti_bot": true,
+    "has_dynamic_content": true,
+    "framework": "Vue.js + Element UI",
+    "note": "潮流网购社区，自建架构，云图(Yuntu)人机验证。主站全App导向，无网页端完整功能。开放平台(open.dewu.com)为开发者门户"
   }
 }

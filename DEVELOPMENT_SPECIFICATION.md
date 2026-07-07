@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.05 | **最后更新**: 2026-07-08 (每小时自动更新)
+**版本**: v5.07 | **最后更新**: 2026-07-08 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -9,7 +9,7 @@
 **定位**: 个人数字资产全聚合平台
 **目标用户**: 个人站长/创作者/开发者，需要在多平台统一管理内容发布、账号、签到、评论
 **核心能力**:
-- 多平台内容统一发布（Discuz!/CSDN/知乎/掘金/B站/OSHWHub/GitHub Pages/Twitter/微信公众号/WordPress/闲鱼）
+|- 多平台内容统一发布（Discuz!/CSDN/知乎/掘金/B站/OSHWHub/GitHub Pages/Twitter/微信公众号/WordPress/闲鱼/RSS）
 - 定时自动签到（论坛/CSDN/OSHWHub）
 - 统一通知网关（22+ Provider，推送到飞书/企微/微信/Telegram/Discord/Slack/邮件/Webhook）
 - 账号三层登录状态检测（API轻量→Playwright快速→Playwright全量）
@@ -29,14 +29,14 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 39,296 行 Python | 13,098 行 HTML | 130 Python 文件 | 31 模板文件
+**代码规模**: 39,557 行 Python | 13,100 行 HTML | 132 Python 文件 | 31 模板文件
 | 模块目录 | 行数 |
 |---------|:----:|
-| core/ | 11,682 |
-| routes/ | 9,351 |
-| plugins/ | 12,668 |
+| core/ | 11,686 |
+|| routes/ | 9,327 |
+|| plugins/ | 12,680 |
 | sdk/ | 4,563 |
-| scripts/ | 1,032 |
+| scripts/ | 1,301 |
 | fs_mgr.py | 321 (全生命周期管理) |
 | admin.py | 81 (入口点) |
 
@@ -67,7 +67,7 @@
 │                   统一工作流引擎                                    │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  core/ 模块层 (33 文件, 11,377 行)                        │   │
+│  │  core/ 模块层 (33 文件, 11,686 行)                        │   │
 │  │  ├── gateway.py (1181行) 通知网关核心                      │   │
 │  │  ├── credential_provider.py (962行) 统一扫码登录引擎        │   │
 │  │  ├── status_detector.py (791行) 三层登录状态检测器          │   │
@@ -219,7 +219,7 @@
 
 | 发布器 | 类名 | 登录方式 | 特点 |
 |--------|------|----------|------|
-| `Discuz! 论坛` | `DiscuzPublisher` | 密码+验证码 / QR扫码(优先) / Cookie / 手机 | 多域名限制(amobbs/mydigit)，图片/附件限制 |
+| `Discuz! 论坛` | `DiscuzPublisher` | 密码+验证码 / QR扫码(优先) / Cookie / 手机 | 多域名限制(amobbs/mydigit)，图片/附件限制, v5.06 strict Cookie检测 |
 | `CSDN` | `CSDNPublisher` | 密码 / 手机 / QR(优先) | Playwright 浏览器自动化，Markdown 编辑器 |
 | `知乎` | `ZhihuPublisher` | Cookie / QR(优先) | Playwright 自动化，专栏编辑 |
 | `掘金` | `JuejinPublisher` | 密码/QR(优先)/Cookie | 模拟浏览器请求 (requests) |
@@ -1402,6 +1402,8 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.07** | 2026-07-08 | **forum_registry双轨验证完成 + P0巡检** — 探索报告数据更新(得物/值得买/小红书), PROJECT_STATUS同步, 架构文档同步。 |
+| **v5.06** | 2026-07-08 | **Cookie验证P0修复** — DiscuzPublisher._test_cookie()严格登录态检测(必须有exit/logout关键词)。test-connection路由Playwright子进程降级(新增`scripts/playwright_verify_raw.py`)。探索雷达数据完善(得物/值得买/小红书探索报告更新+截图)。 |
 | **v5.05** | 2026-07-08 | **新平台探索: 51CTO + 豆瓣** — blog子域名WAF防护(SMS-only登录), 暂不适配。死代码清理(api_platforms_list)。 |
 | **v5.04** | 2026-07-08 | **发布前Cookie过期检查** — Publisher基类新增`check_cookie()`方法，`publish_select`页面展示Cookie状态(v5.04)。 |
 | **v5.03** | 2026-07-08 | **账号弹窗规范化** — 移除遗留平台专属登录弹窗(amobbs/xianyu/oshwhub)，统一使用通用账号弹窗。accounts.html缩减405行。 |
@@ -1439,7 +1441,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 ## 附录：文件完整清单
 
-### core/ (35 个 Python 文件, 11,682 行)
+### core/ (35 个 Python 文件, 11,686 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1453,10 +1455,10 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `compiled_cache.py` | 编译产物数据库缓存 |
 | `compiler.py` | 文章编译器 (MD→IR→输出) |
 | `config.py` | 全局配置加载 |
-| `cookie_validator.py` | **统一 Cookie 验证器 (v5.02 修复 verify/save/get)** |
+| `cookie_validator.py` | **统一 Cookie 验证器 (v5.06 P0修复 — keyword假阳性消除)** |
 | `credential_crypto.py` | Fernet AES-128-CBC 凭证加密 |
 | `credential_guard.py` | **凭证守护脚本 (v4.92 新增)** |
-| `credential_provider.py` | **统一扫码登录引擎 + 凭证基础设施 (v5.02 大幅更新)** |
+| `credential_provider.py` | **统一扫码登录引擎 + 凭证基础设施 (v5.02 大幅更新, v5.06 P0修复)** |
 | `database.py` | 数据库初始化 + 连接 + 种子数据 |
 | `deployer.py` | 部署器基类 |
 | `explorer.py` | Playwright 论坛探索引擎 |
@@ -1470,7 +1472,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `provider.py` | Provider 统一内容来源基类 + 注册机制 |
 | `provider_registry.json` | AI 供应商注册表预设 |
 | `provider_registry.py` | 动态AI供应商注册表加载 |
-| `publisher.py` | **Publisher 基类 + check_cookie() (v5.04)** |
+| `publisher.py` | **Publisher 基类 + check_cookie() (v5.04, v5.06 _test_cookie严格登录态)** |
 | `renderers.py` | 各平台编译产物渲染器(预览HTML) |
 | `scheduler.py` | 签到调度器（守护线程定时签到） |
 | `signin.py` | SigninBase 签到基类 + 注册机制 |
@@ -1478,12 +1480,12 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `status_detector.py` | 三层登录状态检测器 (v5.02 修复) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,351 行)
+### routes/ (25 个 Python 文件, 9,327 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
 | `_app.py` | 86 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
-| `accounts.py` | 1649 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化) |
+| `accounts.py` | 1649 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化, v5.06 P0验证链接修复) |
 | `ai.py` | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | `api_v1.py` | 532 | 统一 REST API v1（API Key 鉴权） |
 | `api_v2.py` | 205 | Gateway REST API v2（系统/重启/重载） |
@@ -1500,14 +1502,14 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `logs.py` | 252 | **统一日志管理 — 发布/签到/部署/AI 四表统一管理 (v4.90 新增)** |
 | `notifications.py` | 67 | 通知中心/列表/标记已读 |
 | `platforms.py` | 19 | 平台预设配置 |
-| `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合) |
+| `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合, v5.06 P0修复) |
 | `price_monitor.py` | 122 | 价格监控管理/刷新 |
 | `signin.py` | 374 | 签到管理/手动签到/统计 |
 | `storage_deploy.py` | 505 | 存储后端配置/部署器管理 |
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 12,668 行)
+### plugins/ (48 个 Python 文件, 12,680 行)
 **发布器 (16个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1640,11 +1642,12 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (5 个 Python 脚本, 1,032 行)
+### scripts/ (7 个 Python 脚本, 1,301 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
 | `playwright_verify.py` | 子进程 Playwright 账号登录验证 (303行) |
+| `playwright_verify_raw.py` | **子进程 Playwright 验证脚本(原始参数模式) — 添加账号连接测试 (179行, v5.06 新增)** |
 | `sync_registry_keywords.py` | 同步 forum_registry 关键词到 DB |
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
@@ -1680,4 +1683,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.05 | Python 总行数: 39,296 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,098 行 (31 模板) | 新增: fs_mgr.py(321) + admin.py(81) | 最后更新: 2026-07-08*
+*版本: v5.07 | Python 总行数: 39,557 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,100 行 (31 模板) | 新增: playwright_verify_raw.py(179) | 最后更新: 2026-07-08*

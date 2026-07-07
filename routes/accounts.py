@@ -20,6 +20,7 @@ from flashsloth.core.status_cache import (
     get_status, set_status, invalidate, get_all_cached, get_cache_stats
 )
 from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
+from flashsloth.core.deployer import list_deployers
 
 # ─── Discuz 系平台集合（登录流程相同，仅 site_url 不同）───
 DISCUZ_PLATFORMS = {"amobbs", "discuz", "mydigit"}
@@ -33,6 +34,14 @@ def accounts():
        "SELECT * FROM platform_accounts WHERE user_id=? ORDER BY platform, created_at",
        (current_user.id,)
    ).fetchall()
+   # 加载部署配置和日志（内联到 #deploy 区块）
+   deploy_configs = conn.execute(
+       "SELECT * FROM deployer_configs WHERE user_id=? ORDER BY created_at DESC",
+       (current_user.id,)
+   ).fetchall()
+   deploy_logs = conn.execute(
+       "SELECT * FROM deploy_log ORDER BY created_at DESC LIMIT 20"
+   ).fetchall()
    conn.close()
    platforms = list_publishers()
    # 按平台分组
@@ -42,11 +51,15 @@ def accounts():
    
    # 加载缓存的登录状态
    cached_statuses = get_all_cached()
+   deployer_list = list_deployers()
    
    return render_template("accounts.html",
                         grouped=grouped,
                         platforms=platforms,
-                        cached_statuses=cached_statuses)
+                        cached_statuses=cached_statuses,
+                        deployers=deployer_list,
+                        configs=deploy_configs,
+                        logs=deploy_logs)
 
 @app.route("/api/accounts/config/<int:aid>")
 @login_required
@@ -1914,11 +1927,24 @@ def api_test_connection():
         # 尝试使用 publisher 的 test_connection
         from flashsloth.core.publisher import _registry as _publisher_registry
         cls = _publisher_registry.get(platform)
+        result_data = {}
         if cls and hasattr(cls, 'test_connection') and callable(cls.test_connection):
             try:
                 pub = cls(config)
-                result = pub.test_connection()
-                return jsonify({"success": True, "result": result})
+                test_result = pub.test_connection()
+                # ⚠️ 统一为 flat 格式（与 test_account() 返回格式一致）
+                # discuz publisher 返回 {"success": True, "status": "已登录 — ...", ...}
+                # 而前端 testConnectionAdd() 需要 data.logged_in / data.username / data.status
+                result_data = {
+                    "success": test_result.get("success", False),
+                    "logged_in": test_result.get("success", False)
+                        and ("已登录" in test_result.get("status", "") or test_result.get("status", "").startswith("✅")),
+                    "status": test_result.get("status", "⏳ 未知"),
+                    "username": test_result.get("username", "") or test_result.get("display_name", ""),
+                    "platform": platform,
+                    "error": test_result.get("error", ""),
+                }
+                return jsonify(result_data)
             except Exception as e:
                 return jsonify({"success": False, "error": f"连接测试失败: {str(e)[:200]}"})
         # 降级：Cookie + site_url 进行 Playwright 验证（使用独立子进程，避免WSGI线程问题）
@@ -1944,7 +1970,8 @@ def api_test_connection():
                     )
                     if _pw_proc.returncode == 0 and _pw_proc.stdout.strip():
                         pw_result = json.loads(_pw_proc.stdout)
-                        return jsonify({"success": True, "result": pw_result})
+                        # playwright_verify_raw.py 已经返回 flat 格式（含 logged_in / username / status）
+                        return jsonify(pw_result)
                 except Exception as e:
                     pass  # Playwright 降级失败，兜底返回
             return jsonify({"success": False, "error": "无有效凭证可测试（需要 Cookie 或 账号密码）"})
