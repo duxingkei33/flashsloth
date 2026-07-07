@@ -210,7 +210,7 @@ def deployer_add():
    display_name = request.form.get("display_name", "")
    if not deployer_name:
        flash("请选择部署器类型", "error")
-       return redirect(url_for("storage.deployers_page"))
+       return redirect(url_for("deployers_page"))
 
    # 收集配置
    dl = list_deployers()
@@ -232,7 +232,7 @@ def deployer_add():
    conn.commit()
    conn.close()
    flash(f"部署配置「{display_name}」已添加", "success")
-   return redirect(url_for("storage.deployers_page"))
+   return redirect(url_for("deployers_page"))
 
 @app.route("/deployers/delete/<int:cid>")
 @login_required
@@ -244,7 +244,7 @@ def deployer_delete(cid):
    conn.commit()
    conn.close()
    flash("部署配置已删除", "success")
-   return redirect(url_for("storage.deployers_page"))
+   return redirect(url_for("deployers_page"))
 
 @app.route("/deployers/deploy/<int:cid>")
 @login_required
@@ -258,7 +258,7 @@ def deployer_run(cid):
    if not row:
        conn.close()
        flash("部署配置不存在", "error")
-       return redirect(url_for("storage.deployers_page"))
+       return redirect(url_for("deployers_page"))
 
    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
    try:
@@ -299,7 +299,7 @@ def deployer_run(cid):
        conn.close()
        flash(f"❌ 部署异常: {e}", "error")
 
-   return redirect(url_for("storage.deployers_page"))
+   return redirect(url_for("deployers_page"))
 
 @app.route("/deployers/test/<int:cid>")
 @login_required
@@ -313,7 +313,7 @@ def deployer_test(cid):
    conn.close()
    if not row:
        flash("部署配置不存在", "error")
-       return redirect(url_for("storage.deployers_page"))
+       return redirect(url_for("deployers_page"))
 
    cfg = json.loads(row["config_json"]) if row["config_json"] else {}
    try:
@@ -326,7 +326,7 @@ def deployer_test(cid):
    except Exception as e:
        flash(f"❌ 测试异常: {e}", "error")
 
-   return redirect(url_for("storage.deployers_page"))
+   return redirect(url_for("deployers_page"))
 
 
 
