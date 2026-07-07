@@ -1,7 +1,8 @@
-"""FlashSloth 签到调度器 — 定期检查并执行签到
+"""FlashSloth 签到调度器 — 定期检查并执行签到 + 状态刷新
 
 从 admin.py 提取，保持 100% 兼容。
 在设定的签到时间（默认 08:00）起 1 小时窗口内随机执行。
+每5分钟后台刷新所有活跃账号的登录状态缓存。
 """
 import os, json, time, random, threading
 from datetime import datetime
@@ -51,7 +52,7 @@ def stop_scheduler():
 
 
 def _tick_scheduler():
-    """每分钟执行一次：检查每个启用的账号是否需要签到
+    """每分钟执行一次：检查每个启用的账号是否需要签到 + 每5分钟刷新状态缓存
 
     逻辑与 v3.2.1 一致：
       1. 检查全局自动签到是否启用
@@ -59,7 +60,18 @@ def _tick_scheduler():
       3. 只在 [签到时间, 签到时间+1小时) 窗口内执行
       4. 检查该账号今天是否已签过（从 signin_log 判断）
       5. 执行签到并记录日志
+      6. 每5分钟刷新所有活跃账号的登录状态缓存
     """
+    now = datetime.now()
+    minute_of_hour = now.minute  # 0-59，用于判断是否该刷新状态
+    
+    # ─── 每5分钟刷新状态缓存 ─────────────────────────
+    if minute_of_hour % 5 == 0:
+        try:
+            _refresh_status_cache()
+        except Exception as e:
+            print(f"[Scheduler] 状态缓存刷新异常: {e}")
+    
     try:
         from flashsloth.core.signin import get_signin_for_account
     except ImportError:
@@ -180,3 +192,44 @@ def _tick_scheduler():
 
         except Exception as e:
             print(f"[Scheduler] {acct.get('platform','?')}/{acct['id']} 签到失败: {e}")
+
+
+def _refresh_status_cache():
+    """后台刷新所有活跃账号的登录状态缓存（每5分钟执行）"""
+    try:
+        from flashsloth.core.database import get_db
+        from flashsloth.core.credential_crypto import decrypt_config
+        from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
+        from flashsloth.core.status_cache import set_status
+    except ImportError as e:
+        print(f"[Scheduler] 状态刷新模块不可用: {e}")
+        return
+    
+    db = get_db()
+    accounts = db.execute(
+        "SELECT * FROM platform_accounts WHERE is_active=1"
+    ).fetchall()
+    db.close()
+    
+    refreshed = 0
+    for acct in accounts:
+        try:
+            d = dict(acct)
+            cfg = json.loads(d.get("config_json") or "{}")
+            decrypt_config(cfg)
+            
+            platform = d["platform"]
+            site_url = cfg.get("site_url", "")
+            cookie = cfg.get("cookie", "")
+            username = cfg.get("username", "")
+            
+            if platform in PLATFORM_DETECTORS and cookie and site_url:
+                api_result = detect_platform(platform, site_url, cookie, username)
+                api_result["account_name"] = d["account_name"]
+                set_status(d["id"], api_result)
+                refreshed += 1
+        except Exception as e:
+            pass
+    
+    if refreshed:
+        print(f"[Scheduler] 状态缓存: 已刷新 {refreshed} 个账号")

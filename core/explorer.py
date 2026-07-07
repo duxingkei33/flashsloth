@@ -131,7 +131,12 @@ def get_explore_cooldown(domain: str) -> int:
 
     # 内存没有则查DB
     if last == 0:
+        _init_cooldown_table()
         last = _get_db_last_explore(domain)
+        # 同步到内存缓存，避免后续重复查DB
+        if last > 0:
+            with _EXPLORE_LOCK:
+                _EXPLORE_HISTORY[domain] = last
 
     remaining = int(_MIN_INTERVAL_SECONDS - (now - last))
     return max(0, remaining)

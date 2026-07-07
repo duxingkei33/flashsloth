@@ -413,6 +413,40 @@ def init_db():
         """)
         conn.commit()
 
+    # 迁移：playwright_config 表（浏览器引擎配置）
+    try:
+        conn.execute("SELECT COUNT(*) FROM playwright_config")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS playwright_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                config_json TEXT DEFAULT '{}',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        # 插入默认配置
+        default_cfg = json.dumps({
+            "browser_type": "chromium",
+            "headless": True,
+            "viewport_width": 1280,
+            "viewport_height": 800,
+            "user_agent": "",
+            "timeout": 30000,
+            "navigation_timeout": 30000,
+            "locale": "zh-CN",
+            "proxy": "",
+            "data_dir": "",
+            "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+            "auto_start": True,
+            "auto_close_minutes": 10,
+        })
+        conn.execute(
+            "INSERT OR IGNORE INTO playwright_config (id, config_json) VALUES (1, ?)",
+            (default_cfg,),
+        )
+        conn.commit()
+
     # ─── 首次运行：自动生成随机 admin 账号 ───
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if user_count == 0:

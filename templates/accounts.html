@@ -19,6 +19,7 @@
     <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
 
     <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="批量刷新所有活跃账号的状态（API轻量检测，不启动浏览器）">🔄 批量刷新</button>
         <select id="newPlatformSelect" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;min-width:180px;">
             <option value="">— 选择平台添加账号 —</option>
             {% for p in platforms %}
@@ -69,11 +70,35 @@
         <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;flex-shrink:0;" title="{{ site_url }}">🌐</a>
         {% endif %}
 
-        <!-- 状态徽章 -->
+        <!-- 状态徽章 → 显示深层用户信息（缓存优先） -->
         <span id="statusBadge_{{ a.id }}"
-              class="badge badge-{{ 'success' if a.is_active else 'warning' }}"
-              style="flex-shrink:0;min-width:40px;text-align:center;">
-            {{ '启用' if a.is_active else '停用' }}
+              style="flex-shrink:0;min-width:40px;text-align:center;font-size:12px;"
+              data-account-id="{{ a.id }}">
+            {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
+            {% if cached.get('logged_in') and cached.get('username') %}
+                ✅
+            {% elif cached.get('logged_in') %}
+                ✅
+            {% else %}
+                {{ '启用' if a.is_active else '停用' }}
+            {% endif %}
+        </span>
+
+        <!-- 用户信息深度展示（用户名/积分/等级） -->
+        <span id="userInfo_{{ a.id }}" style="font-size:12px;flex-shrink:0;min-width:120px;text-align:left;line-height:1.4;">
+            {% if cached.get('logged_in') and cached.get('username') %}
+                <span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>
+                {% if cached.get('points') %}
+                    <span style="color:#888;">{{ cached.get('points_label','积分') }}:{{ cached.get('points') }}</span>
+                {% endif %}
+                {% if cached.get('level') %}
+                    <span style="color:#888;font-size:10px;">{{ cached.get('level') }}</span>
+                {% endif %}
+            {% elif cached.get('logged_in') %}
+                <span style="color:#22c55e;">✅ 已登录</span>
+            {% else %}
+                <span style="color:#999;">—</span>
+            {% endif %}
         </span>
 
         <!-- Cookie 状态指示器 -->
@@ -81,14 +106,25 @@
             {% if cfg.get('cookie') %}🍪{% else %}—{% endif %}
         </span>
 
-        <!-- 在线状态内联显示 -->
-        <span id="onlineStatus_{{ a.id }}" style="font-size:12px;flex-shrink:0;min-width:70px;text-align:center;">
-            <span class="badge badge-secondary">⏳ 检测中...</span>
+        <!-- 在线状态内联显示（缓存时效） -->
+        <span id="onlineStatus_{{ a.id }}" style="font-size:11px;flex-shrink:0;min-width:80px;text-align:center;color:#999;">
+            {% if cached.get('_cache_source') %}
+                {% set age = cached.get('_cache_age_seconds', 999) %}
+                {% if age < 60 %}
+                    <span style="color:#22c55e;">⏳ {{ age }}秒前</span>
+                {% elif age < 300 %}
+                    <span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
+                {% else %}
+                    <span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>
+                {% endif %}
+            {% else %}
+                <span class="badge badge-secondary">⏳ 检测中...</span>
+            {% endif %}
         </span>
 
         <!-- 操作按钮组 -->
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
-            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright浏览器打开平台网站，注入Cookie，验证是否真正登录（查找用户名/个人中心等），返回真实结果">🔍 验证登录</button>
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用API轻量检测或Playwright验证登录状态，返回真实用户名/积分等信息">🔍 深度验证</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
 
             <!-- 🌐 统一浏览器登录（通过编辑弹窗的登录方式登录） -->
@@ -1123,25 +1159,103 @@ function toggleKeepAlive(aid, checkbox) {
     .catch(function() { checkbox.checked = !checkbox.checked; });
 }
 
-// ====== 页面加载时自动刷新状态 ======
-function refreshAllStatuses() {
+// ====== 批量刷新所有账号状态 ======
+function batchRefreshAccounts() {
+    var btn = event && event.target ? event.target : document.querySelector('button[onclick*="batchRefresh"]');
+    if (btn) { btn.disabled = true; btn.textContent = '🔄 刷新中...'; }
+    
+    fetch('/api/accounts/batch/refresh', {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            // 刷新完成后重新渲染所有状态的页面
+            refreshAllStatuses(false);
+            alert('批量刷新完成：' + data.refreshed + '/' + data.total + ' 个账号已刷新');
+        } else {
+            alert('批量刷新失败：' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) {
+        alert('请求失败: ' + e.message);
+    })
+    .finally(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 批量刷新'; }
+    });
+}
+
+// ====== 页面加载时自动刷新状态（缓存优先，仅首次强制刷新） ======
+function refreshAllStatuses(forceRefresh) {
     document.querySelectorAll('[id^="onlineStatus_"]').forEach(function(span) {
         var id = span.id.replace('onlineStatus_', '');
-        fetch('/api/accounts/' + id + '/status')
+        var url = '/api/accounts/' + id + '/status';
+        if (forceRefresh) { url += '?refresh=1'; }
+        fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (data.success) {
-                var statusText = data.status || '⏳ 未知';
-                var badgeClass = 'badge badge-secondary';
-                if (statusText.startsWith('✅')) { badgeClass = 'badge badge-success'; }
-                else if (statusText.startsWith('❌') || statusText.startsWith('⚠️')) { badgeClass = 'badge badge-danger'; }
-                span.innerHTML = '<span class="' + badgeClass + '">' + escapeHtml(statusText) + '</span>';
+            if (data.success || data.logged_in !== undefined) {
+                renderDeepStatus(id, data);
             }
         })
         .catch(function() {
             span.innerHTML = '<span class="badge badge-secondary">⏳ 未知</span>';
         });
     });
+}
+
+// ====== 渲染深层用户状态 ======
+function renderDeepStatus(aid, data) {
+    var statusSpan = document.getElementById('onlineStatus_' + aid);
+    var badgeSpan = document.getElementById('statusBadge_' + aid);
+    var userSpan = document.getElementById('userInfo_' + aid);
+    
+    if (!statusSpan) return;
+    
+    // 状态徽章
+    if (badgeSpan) {
+        if (data.logged_in) {
+            badgeSpan.innerHTML = '✅';
+        } else if (data.logged_in === false) {
+            badgeSpan.innerHTML = '❌';
+        }
+    }
+    
+    // 用户信息深度展示
+    if (userSpan) {
+        if (data.logged_in && data.username) {
+            var parts = ['<span style="color:#22c55e;font-weight:500;">' + escapeHtml(data.username) + '</span>'];
+            if (data.points) {
+                var pl = data.points_label || '积分';
+                parts.push('<span style="color:#888;">' + pl + ':' + data.points + '</span>');
+            }
+            if (data.level) {
+                parts.push('<span style="color:#888;font-size:10px;">' + escapeHtml(data.level) + '</span>');
+            }
+            userSpan.innerHTML = parts.join(' ');
+        } else if (data.logged_in) {
+            userSpan.innerHTML = '<span style="color:#22c55e;">✅ 已登录</span>';
+        } else if (data.logged_in === false) {
+            userSpan.innerHTML = '<span style="color:#ef4444;">❌ 未登录</span>';
+        } else {
+            userSpan.innerHTML = '<span style="color:#999;">—</span>';
+        }
+    }
+    
+    // 在线状态（时效）
+    var cacheAge = data._cache_age_seconds;
+    if (cacheAge !== undefined) {
+        var ageText = '';
+        if (cacheAge < 60) {
+            statusSpan.innerHTML = '<span style="color:#22c55e;">⏳ ' + cacheAge + '秒前</span>';
+        } else if (cacheAge < 300) {
+            statusSpan.innerHTML = '<span style="color:#f59e0b;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+        } else {
+            statusSpan.innerHTML = '<span style="color:#ef4444;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+        }
+    } else if (data.status) {
+        var statusText = data.status || '⏳ 未知';
+        var badgeClass = data.logged_in ? 'badge badge-success' : 'badge badge-danger';
+        statusSpan.innerHTML = '<span class="' + badgeClass + '">' + escapeHtml(statusText) + '</span>';
+    }
 }
 
 // ====== 状态检测 ======
@@ -1152,17 +1266,40 @@ function checkStatus(aid) {
     fetch('/api/accounts/' + aid + '/status')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (!data.success) {
+        if (!data.success && data.logged_in === undefined) {
             document.getElementById('statusContent').innerHTML =
                 '<div class="alert alert-error">❌ ' + (data.error || '检测失败') + '</div>';
             return;
         }
         var html = '<div style="margin-bottom:12px;">';
-        html += '<p><strong>平台：</strong>' + data.platform + '</p>';
-        html += '<p><strong>账号：</strong>' + escapeHtml(data.account_name) + '</p>';
-        html += '<p><strong>状态：</strong><span style="font-size:16px;">' + data.status + '</span></p>';
+        html += '<p><strong>平台：</strong>' + (data.platform || '—') + '</p>';
+        html += '<p><strong>账号：</strong>' + escapeHtml(data.account_name || '') + '</p>';
+        
+        // 深度用户信息
+        if (data.logged_in && data.username) {
+            html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;font-size:16px;">' + escapeHtml(data.username) + '</span></p>';
+            if (data.points) {
+                var pl = data.points_label || '积分';
+                html += '<p><strong>' + pl + '：</strong><span style="font-size:15px;color:#4361ee;">' + data.points + '</span></p>';
+            }
+            if (data.level) {
+                html += '<p><strong>等级：</strong>' + escapeHtml(data.level) + '</p>';
+            }
+        }
+        if (data.display_name && data.display_name !== data.username) {
+            html += '<p><strong>显示名：</strong>' + escapeHtml(data.display_name) + '</p>';
+        }
+        
+        html += '<p><strong>状态：</strong><span style="font-size:16px;">' + (data.status || '⏳ 未知') + '</span></p>';
+        html += '<p><strong>检测方法：</strong>' + (data.method || 'Playwright') + '</p>';
         html += '<p><strong>启用：</strong>' + (data.is_active ? '✅ 是' : '⛔ 否') + '</p>';
         html += '<p><strong>Cookie：</strong>' + (data.has_cookie ? '🍪 有' : '— 无') + '</p>';
+        if (data.verified_at) {
+            html += '<p><strong>检测时间：</strong>' + escapeHtml(data.verified_at) + '</p>';
+        }
+        if (data._cache_source) {
+            html += '<p><strong>缓存来源：</strong>' + data._cache_source + '</p>';
+        }
         if (data.page_title) { html += '<p><strong>页面标题：</strong>' + escapeHtml(data.page_title) + '</p>'; }
         html += '</div>';
         if (data.page_preview) {
@@ -1174,6 +1311,8 @@ function checkStatus(aid) {
             html += '<div class="alert alert-warning" style="margin-top:12px;">⚠️ Cookie 已失效，请重新使用"浏览器登录"获取新 Cookie</div>';
         }
         document.getElementById('statusContent').innerHTML = html;
+        // 刷新界面状态
+        renderDeepStatus(aid, data);
     })
     .catch(function(e) {
         document.getElementById('statusContent').innerHTML =

@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block title %}🖥️ Playwright 浏览器引擎{% endblock %}
+{% block content %}
+<style>
+    .pw-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .pw-controls .btn { min-width: 100px; }
+    .pw-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .pw-config-grid .field { display: flex; flex-direction: column; }
+    .pw-config-grid .field label { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #555; }
+    .pw-config-grid .field input, .pw-config-grid .field select { padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+    .pw-config-grid .field-full { grid-column: 1 / -1; }
+    .pw-config-grid .field-help { font-size: 11px; color: #999; margin-top: 2px; }
+    .pw-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .pw-info-item { background: #f8f9fa; border-radius: 8px; padding: 12px; text-align: center; }
+    .pw-info-item .value { font-size: 1.4em; font-weight: bold; color: #1a1a2e; }
+    .pw-info-item .label { font-size: 12px; color: #888; margin-top: 2px; }
+    .btn-test { background: #6366f1; color: #fff; }
+    @media (max-width: 768px) { .pw-config-grid { grid-template-columns: 1fr; } }
+    .pw-result { margin-top: 16px; padding: 12px; border-radius: 6px; display: none; }
+    .pw-result.success { display: block; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .pw-result.error { display: block; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+</style>
+
+<h2>🖥️ Playwright 浏览器引擎</h2>
+<p style="color:#666;margin-bottom:20px;">
+    管理常驻 Playwright 浏览器的生命周期和配置。所有平台操作（扫码登录、密码登录、探索、发布）共用同一浏览器实例。
+</p>
+
+<!-- 状态信息 -->
+<div class="card">
+    <h2>📊 当前状态</h2>
+    <div class="pw-info">
+        <div class="pw-info-item">
+            <div class="value" id="pwInfoStatus">{{ status.badge_text }}</div>
+            <div class="label">引擎状态</div>
+        </div>
+        <div class="pw-info-item">
+            <div class="value" id="pwInfoTabs">{{ status.tabs_count }}</div>
+            <div class="label">标签页数</div>
+        </div>
+        <div class="pw-info-item">
+            <div class="value" id="pwInfoUptime">{{ status.uptime_str }}</div>
+            <div class="label">运行时间</div>
+        </div>
+        <div class="pw-info-item">
+            <div class="value" id="pwInfoActivity">{{ status.last_activity_ago }}s</div>
+            <div class="label">距上次活动</div>
+        </div>
+        <div class="pw-info-item">
+            <div class="value">{{ config.browser_type }}</div>
+            <div class="label">浏览器类型</div>
+        </div>
+        <div class="pw-info-item">
+            <div class="value">{{ "🕵️ 隐身" if config.headless else "🖥️ 有头" }}</div>
+            <div class="label">运行模式</div>
+        </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="pw-controls">
+        <button class="btn btn-success" onclick="doBrowserAction('start')">▶️ 启动</button>
+        <button class="btn btn-danger" onclick="doBrowserAction('stop')">⏹️ 停止</button>
+        <button class="btn btn-warning" onclick="doBrowserAction('restart')">🔄 重启</button>
+        <button class="btn btn-test" onclick="doBrowserAction('status')">🔄 刷新状态</button>
+    </div>
+    <div id="pwActionResult" class="pw-result"></div>
+</div>
+
+<!-- 配置修改 -->
+<div class="card">
+    <h2>⚙️ 配置</h2>
+    <form id="pwConfigForm" onsubmit="return saveConfig(event)">
+        <div class="pw-config-grid">
+            <div class="field">
+                <label>浏览器类型</label>
+                <select name="browser_type">
+                    <option value="chromium" {{ 'selected' if config.browser_type == 'chromium' }}>Chromium（推荐）</option>
+                    <option value="firefox" {{ 'selected' if config.browser_type == 'firefox' }}>Firefox</option>
+                    <option value="webkit" {{ 'selected' if config.browser_type == 'webkit' }}>WebKit</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>无头模式</label>
+                <select name="headless">
+                    <option value="true" {{ 'selected' if config.headless }}>🕵️ 隐身（无界面）</option>
+                    <option value="false" {{ 'selected' if not config.headless }}>🖥️ 有头（显示窗口）</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>视口宽度</label>
+                <input type="number" name="viewport_width" value="{{ config.viewport_width }}" min="800" max="3840">
+            </div>
+            <div class="field">
+                <label>视口高度</label>
+                <input type="number" name="viewport_height" value="{{ config.viewport_height }}" min="600" max="2160">
+            </div>
+            <div class="field field-full">
+                <label>User-Agent</label>
+                <input type="text" name="user_agent" value="{{ config.user_agent }}" placeholder="留空使用默认 UA">
+                <span class="field-help">留空则自动使用真实浏览器 UA</span>
+            </div>
+            <div class="field">
+                <label>默认超时（毫秒）</label>
+                <input type="number" name="timeout" value="{{ config.timeout }}" min="5000" max="120000" step="1000">
+            </div>
+            <div class="field">
+                <label>导航超时（毫秒）</label>
+                <input type="number" name="navigation_timeout" value="{{ config.navigation_timeout }}" min="5000" max="120000" step="1000">
+            </div>
+            <div class="field">
+                <label>区域设置</label>
+                <input type="text" name="locale" value="{{ config.locale }}">
+                <span class="field-help">如 zh-CN, en-US</span>
+            </div>
+            <div class="field">
+                <label>自动关闭（分钟）</label>
+                <select name="auto_close_minutes">
+                    <option value="0" {{ 'selected' if config.auto_close_minutes == 0 }}>永不关闭</option>
+                    <option value="5" {{ 'selected' if config.auto_close_minutes == 5 }}>5分钟</option>
+                    <option value="10" {{ 'selected' if config.auto_close_minutes == 10 }}>10分钟</option>
+                    <option value="15" {{ 'selected' if config.auto_close_minutes == 15 }}>15分钟</option>
+                    <option value="30" {{ 'selected' if config.auto_close_minutes == 30 }}>30分钟</option>
+                    <option value="60" {{ 'selected' if config.auto_close_minutes == 60 }}>60分钟</option>
+                </select>
+            </div>
+            <div class="field field-full">
+                <label>代理地址</label>
+                <input type="text" name="proxy" value="{{ config.proxy }}" placeholder="如 http://127.0.0.1:7890">
+                <span class="field-help">留空表示不使用代理</span>
+            </div>
+            <div class="field field-full">
+                <label>数据目录（持久化）</label>
+                <input type="text" name="data_dir" value="{{ config.data_dir }}" placeholder="如 /tmp/playwright-data">
+                <span class="field-help">留空则不持久化，重启后 Cookie 丢失</span>
+            </div>
+            <div class="field field-full">
+                <label>启动参数</label>
+                <input type="text" name="args" value="{{ config.args | join(', ') }}" placeholder="--no-sandbox, --disable-setuid-sandbox">
+                <span class="field-help">逗号分隔。默认：--no-sandbox, --disable-setuid-sandbox, --disable-dev-shm-usage</span>
+            </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;">
+            <button type="submit" class="btn btn-primary">💾 保存配置</button>
+            <button type="button" class="btn btn-test" onclick="testBrowser()">🧪 测试启动</button>
+        </div>
+    </form>
+    <div id="pwConfigResult" class="pw-result"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ═══ 浏览器控制 ═══
+function doBrowserAction(action) {
+    var btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ ...'; }
+
+    var methods = {
+        start: { url: '/api/browser/start', method: 'POST' },
+        stop: { url: '/api/browser/stop', method: 'POST' },
+        restart: { url: '/api/browser/restart', method: 'POST' },
+        status: { url: '/api/browser/status', method: 'GET' },
+    };
+
+    var req = methods[action] || methods.status;
+    fetch(req.url, { method: req.method })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        var el = document.getElementById('pwActionResult');
+        if (d.success || action === 'status') {
+            el.className = 'pw-result success';
+            el.textContent = action === 'status'
+                ? '状态：' + (d.data ? d.data.badge_text : '-')
+                : (d.badge_text || '操作成功');
+            // 刷新状态卡片
+            refreshStatusCards();
+        } else {
+            el.className = 'pw-result error';
+            el.textContent = '操作失败：' + (d.error || '未知错误');
+        }
+    })
+    .catch(function(err) {
+        var el = document.getElementById('pwActionResult');
+        el.className = 'pw-result error';
+        el.textContent = '请求失败：' + err.message;
+    })
+    .finally(function() {
+        if (btn) { btn.disabled = false; btn.textContent = action === 'start' ? '▶️ 启动' : action === 'stop' ? '⏹️ 停止' : action === 'restart' ? '🔄 重启' : '🔄 刷新状态'; }
+    });
+}
+
+// ═══ 刷新状态卡片 ═══
+function refreshStatusCards() {
+    fetch('/api/browser/status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success && d.data) {
+            document.getElementById('pwInfoStatus').textContent = d.data.badge_text || '🖥️ 未知';
+            document.getElementById('pwInfoTabs').textContent = d.data.tabs_count || 0;
+            document.getElementById('pwInfoUptime').textContent = d.data.uptime_str || '0秒';
+            document.getElementById('pwInfoActivity').textContent = (d.data.last_activity_ago || 0) + 's';
+        }
+    })
+    .catch(function() {});
+}
+
+// ═══ 保存配置 ═══
+function saveConfig(event) {
+    event.preventDefault();
+    var form = document.getElementById('pwConfigForm');
+    var data = {};
+    var fields = ['browser_type', 'viewport_width', 'viewport_height', 'user_agent',
+                  'timeout', 'navigation_timeout', 'locale', 'proxy', 'data_dir', 'args',
+                  'auto_close_minutes'];
+    // 处理 headless（select → boolean）
+    data['headless'] = form.querySelector('[name=headless]').value === 'true';
+    
+    fields.forEach(function(name) {
+        var el = form.querySelector('[name=' + name + ']');
+        if (el) {
+            var val = el.value;
+            if (name === 'viewport_width' || name === 'viewport_height' ||
+                name === 'timeout' || name === 'navigation_timeout' ||
+                name === 'auto_close_minutes') {
+                val = parseInt(val) || 0;
+            }
+            data[name] = val;
+        }
+    });
+
+    var btn = form.querySelector('button[type=submit]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 保存中...'; }
+
+    fetch('/api/browser/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        var el = document.getElementById('pwConfigResult');
+        if (d.success) {
+            el.className = 'pw-result success';
+            el.textContent = '✅ 配置已保存（重启浏览器后生效）';
+        } else {
+            el.className = 'pw-result error';
+            el.textContent = '保存失败：' + (d.error || '未知错误');
+        }
+    })
+    .catch(function(err) {
+        var el = document.getElementById('pwConfigResult');
+        el.className = 'pw-result error';
+        el.textContent = '请求失败：' + err.message;
+    })
+    .finally(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 保存配置'; }
+    });
+
+    return false;
+}
+
+// ═══ 测试启动 ═══
+function testBrowser() {
+    var btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 启动中...'; }
+
+    fetch('/api/browser/start', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        var el = document.getElementById('pwConfigResult');
+        if (d.success) {
+            el.className = 'pw-result success';
+            el.textContent = '✅ 浏览器启动成功！';
+            refreshStatusCards();
+        } else {
+            el.className = 'pw-result error';
+            el.textContent = '❌ 启动失败：' + (d.error || '请检查配置');
+        }
+    })
+    .catch(function(err) {
+        var el = document.getElementById('pwConfigResult');
+        el.className = 'pw-result error';
+        el.textContent = '请求失败：' + err.message;
+    })
+    .finally(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '🧪 测试启动'; }
+    });
+}
+</script>
+{% endblock %}

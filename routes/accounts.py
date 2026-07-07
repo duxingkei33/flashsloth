@@ -5,6 +5,8 @@ from flashsloth.routes._app import app
 
 import json
 import os
+import time
+from datetime import datetime
 
 from flask import ( render_template, request, redirect, url_for,
                   flash, jsonify)
@@ -13,7 +15,10 @@ from flask_login import login_required, current_user
 from flashsloth.core.database import get_db, DB_PATH
 from flashsloth.core.publisher import get_publisher, list_publishers
 from flashsloth.core.credential_crypto import decrypt_config, encrypt_config
-import time
+from flashsloth.core.status_cache import (
+    get_status, set_status, invalidate, get_all_cached, get_cache_stats
+)
+from flashsloth.core.status_detector import detect_platform
 
 # ─── 平台账号管理 ──────────────────────────────
 @app.route("/accounts")
@@ -30,9 +35,14 @@ def accounts():
    grouped = {}
    for a in accounts:
        grouped.setdefault(a["platform"], []).append(dict(a))
+   
+   # 加载缓存的登录状态
+   cached_statuses = get_all_cached()
+   
    return render_template("accounts.html",
                         grouped=grouped,
-                        platforms=platforms)
+                        platforms=platforms,
+                        cached_statuses=cached_statuses)
 
 @app.route("/api/accounts/config/<int:aid>")
 @login_required
@@ -335,7 +345,7 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
 @app.route("/api/accounts/<int:aid>/status")
 @login_required
 def api_account_status(aid):
-    """检查账号登录状态 — 代理到 _do_playwright_verify 统一逻辑"""
+    """检查账号登录状态 — 三层检测: 缓存 > API轻量 > Playwright兜底"""
     conn = get_db()
     acct = conn.execute(
         "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
@@ -347,7 +357,54 @@ def api_account_status(aid):
     acct = dict(acct)
     cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
     decrypt_config(cfg)
+    
+    # 第一层：缓存命中且未过期
+    update_cache = request.args.get("refresh", "").lower() == "1"
+    if not update_cache:
+        cached = get_status(aid)
+        if cached:
+            cached["account_name"] = acct["account_name"]
+            cached["is_active"] = bool(acct["is_active"])
+            cached["success"] = True
+            return jsonify(cached)
+    
+    # 第二层：API轻量检测
+    platform = acct["platform"]
+    site_url = cfg.get("site_url", "")
+    cookie = cfg.get("cookie", "")
+    username = cfg.get("username", "")
+    
+    if cookie and site_url:
+        try:
+            api_result = detect_platform(platform, site_url, cookie, username)
+            if api_result.get("logged_in"):
+                api_result["account_name"] = acct["account_name"]
+                api_result["is_active"] = bool(acct["is_active"])
+                api_result["success"] = True
+                set_status(aid, api_result)
+                return jsonify(api_result)
+        except Exception as e:
+            pass  # 降级到 Playwright
+    
+    # 第三层：Playwright兜底
     result = _do_playwright_verify(acct, cfg)
+    
+    # 将 Playwright 结果也写入缓存
+    if result.get("success"):
+        pw_cache = {
+            "logged_in": result.get("logged_in", False),
+            "username": "",
+            "display_name": result.get("display_name", ""),
+            "points": 0,
+            "level": "",
+            "status": result.get("status", ""),
+            "method": "playwright_full",
+            "verified_at": datetime.now().isoformat(),
+            "page_title": result.get("page_title", ""),
+            "username_indicators": result.get("username_indicators", []),
+        }
+        set_status(aid, pw_cache)
+    
     return jsonify(result)
 
 @app.route("/api/accounts/test/<int:aid>", methods=["POST"])
@@ -1042,19 +1099,113 @@ def api_platform_login_close(platform):
 
 
 def _save_cookie_to_account(aid: int, cookie_str: str):
-	"""保存 Cookie 到账号配置（加密后存储）"""
-	conn = get_db()
-	acct = conn.execute(
-		"SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
-		(aid, current_user.id)
-	).fetchone()
-	if acct:
-		cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-		cfg["cookie"] = cookie_str
-		encrypt_config(cfg)  # 🔐 加密后再存储
-		conn.execute(
-			"UPDATE platform_accounts SET config_json=? WHERE id=?",
-			(json.dumps(cfg), aid)
-		)
-		conn.commit()
-	conn.close()
+    """保存 Cookie 到账号配置（加密后存储）"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    if acct:
+        cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+        cfg["cookie"] = cookie_str
+        encrypt_config(cfg)  # 🔐 加密后再存储
+        conn.execute(
+            "UPDATE platform_accounts SET config_json=? WHERE id=?",
+            (json.dumps(cfg), aid)
+        )
+        conn.commit()
+    conn.close()
+
+
+# ═══════════════════════════════════════════════════
+# 状态检测缓存 API
+# ═══════════════════════════════════════════════════
+
+@app.route("/api/accounts/cache/stats")
+@login_required
+def api_cache_stats():
+    """返回缓存统计信息"""
+    return jsonify({
+        "success": True,
+        "stats": get_cache_stats()
+    })
+
+
+@app.route("/api/accounts/cache/flush", methods=["POST"])
+@login_required
+def api_cache_flush():
+    """清除所有状态缓存"""
+    # 清除数据库中的 last_status_check
+    conn = get_db()
+    conn.execute("UPDATE platform_accounts SET status='', last_status_check='' WHERE user_id=?", (current_user.id,))
+    conn.commit()
+    conn.close()
+    # 清除缓存文件（重启进程会让内存缓存失效）
+    cache_db = os.path.join(os.path.dirname(os.path.dirname(__file__)), "status_cache.db")
+    try:
+        if os.path.exists(cache_db):
+            os.remove(cache_db)
+    except Exception:
+        pass
+    return jsonify({"success": True, "message": "所有缓存已清除"})
+
+
+@app.route("/api/accounts/batch/refresh", methods=["POST"])
+@login_required
+def api_accounts_batch_refresh():
+    """批量后台刷新所有活跃账号的状态（异步）"""
+    conn = get_db()
+    accounts = conn.execute(
+        "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
+        (current_user.id,)
+    ).fetchall()
+    conn.close()
+    
+    if not accounts:
+        return jsonify({"success": True, "message": "没有活跃账号", "refreshed": 0})
+    
+    from flashsloth.core.status_detector import PLATFORM_DETECTORS
+    
+    refreshed = 0
+    errors = []
+    for acct in accounts:
+        acct = dict(acct)
+        cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+        try:
+            from flashsloth.core.credential_crypto import decrypt_config
+            decrypt_config(cfg)
+        except Exception:
+            pass
+        
+        platform = acct["platform"]
+        site_url = cfg.get("site_url", "")
+        cookie = cfg.get("cookie", "")
+        username = cfg.get("username", "")
+        
+        # 只对支持API轻量检测的平台做批量刷新
+        if platform in PLATFORM_DETECTORS and cookie and site_url:
+            try:
+                api_result = detect_platform(platform, site_url, cookie, username)
+                if api_result.get("logged_in"):
+                    api_result["account_name"] = acct["account_name"]
+                    set_status(acct["id"], api_result)
+                    refreshed += 1
+                else:
+                    # 登录失败也缓存，避免频繁重试
+                    api_result["account_name"] = acct["account_name"]
+                    api_result["success"] = False
+                    set_status(acct["id"], api_result)
+                    refreshed += 1
+            except Exception as e:
+                errors.append(f"{acct['account_name']}: {str(e)[:80]}")
+        else:
+            # 不支持API轻量的平台，标记为未缓存
+            pass
+    
+    return jsonify({
+        "success": True,
+        "refreshed": refreshed,
+        "total": len(accounts),
+        "errors": errors[:5],
+        "message": f"已刷新 {refreshed}/{len(accounts)} 个账号"
+    })
