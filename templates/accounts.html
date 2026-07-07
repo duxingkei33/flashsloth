@@ -667,6 +667,8 @@
             <div id="loginScreenshotArea" style="display:none;margin-top:10px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:350px;">
                 <img id="loginScreenshotImg" src="" style="width:100%;display:block;">
             </div>
+            <!-- 扫码提示区域 -->
+            <div id="qrScanInfo" style="display:none;margin-top:8px;padding:8px 12px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:13px;color:#2e7d32;"></div>
             <div id="loginStatusMsg" style="margin-top:8px;padding:8px 12px;border-radius:6px;display:none;"></div>
 
             <!-- ====== 登录进度条 ====== -->
@@ -1337,51 +1339,54 @@ function onAddAccount() {
     _loginSession = null;
     _isLoginRunning = false;
 
+    // 先确保弹窗可见（防止上次关闭后的状态残留）
+    document.getElementById('addFormBox').style.display = 'flex';
     document.getElementById('addPlatInput').value = platform;
     document.getElementById('addPlatName').textContent = input.placeholder.replace('✅ ', '');
     document.getElementById('addAccountName').value = '';
     document.getElementById('debugCookieArea').style.display = 'none';
     document.getElementById('addFormTitle').innerHTML = '➕ 添加账号 — <span>' + escapeHtml(input.placeholder.replace('✅ ', '')) + '</span>';
 
-    // 从后端动态获取登录能力
+    // 从后端动态获取登录能力（异步渲染内容）
     fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        _loginGuide = data.guide || null;
-        if (!data.success) {
-            let methods = [];
-            try {
-                var plat = _loginPlatform;
-                for (var i = 0; i < _platformSearchData.length; i++) {
-                    if (_platformSearchData[i].name === plat) {
-                        methods = _platformSearchData[i].login_methods || [];
-                        break;
+        try {
+            _loginGuide = data.guide || null;
+            if (!data.success) {
+                let methods = [];
+                try {
+                    var plat = _loginPlatform;
+                    for (var i = 0; i < _platformSearchData.length; i++) {
+                        if (_platformSearchData[i].name === plat) {
+                            methods = _platformSearchData[i].login_methods || [];
+                            break;
+                        }
                     }
-                }
-            } catch(e) {}
-            renderFromLoginMethods(methods);
-            document.getElementById('addFormBox').style.display = 'flex';
-            return;
-        }
+                } catch(e) {}
+                renderFromLoginMethods(methods);
+                return;
+            }
 
-        var methods = data.login_methods || [];
-        if (methods.length === 0) {
+            var methods = data.login_methods || [];
+            if (methods.length === 0) {
+                renderFromLoginMethods([]);
+                return;
+            }
+
+            renderLoginCapabilityTabs(methods, data.note || '');
+            if (methods.length > 0) {
+                selectCapabilityLoginMethod(methods[0].method, methods);
+            }
+        } catch(e) {
+            console.error('渲染登录能力失败:', e);
             renderFromLoginMethods([]);
-            document.getElementById('addFormBox').style.display = 'flex';
-            return;
         }
-
-        renderLoginCapabilityTabs(methods, data.note || '');
-        if (methods.length > 0) {
-            selectCapabilityLoginMethod(methods[0].method, methods);
-        }
-        document.getElementById('addFormBox').style.display = 'flex';
     })
     .catch(function() {
         _loginGuide = null;
         let methods = [];
         try {
-            // 从缓存的搜索数据中获取登录方法
             var plat = _loginPlatform;
             for (var i = 0; i < _platformSearchData.length; i++) {
                 if (_platformSearchData[i].name === plat) {
@@ -1391,7 +1396,6 @@ function onAddAccount() {
             }
         } catch(e) {}
         renderFromLoginMethods(methods);
-        document.getElementById('addFormBox').style.display = 'flex';
     });
 }
 
@@ -3221,58 +3225,162 @@ function showLoginMethodDemo(method) {
 // ====== QR码登录 ======
 var _qrSessionId = null;
 var _qrPollTimer = null;
+var _selectedScanMethod = null;  // 用户选择的扫码方式 id
 
 function startQrCodeLogin() {
     var siteUrl = getFieldValue('cfg_site_url');
     var aid = document.getElementById('editAccountId').value;
-
-    showLoginStatus('info', '⏳ 正在打开平台登录页...');
     var btn = document.getElementById('btnStartLogin');
-    btn.disabled = true;
-    btn.textContent = '⏳ 打开中...';
 
-    fetch('/api/login/qrcode/' + _loginPlatform + '/start', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            account_id: parseInt(aid) || 0,
-            site_url: siteUrl
-        })
-    })
+    // 如果还没选择扫码方式，先获取可选方式
+    if (!_selectedScanMethod) {
+        _selectScanMethod(siteUrl, aid, btn);
+        return;
+    }
+
+    // Clear any old scan info
+    document.getElementById('qrScanInfo').style.display = 'none';
+
+    // Countdown 3, 2, 1 before actually calling the API
+    var countdown = 3;
+    btn.disabled = true;
+    btn.textContent = '📱 获取二维码中... 3';
+    showLoginStatus('info', '⏳ 准备获取二维码...');
+
+    var countdownTimer = setInterval(function() {
+        countdown--;
+        if (countdown > 0) {
+            btn.textContent = '📱 获取二维码中... ' + countdown;
+        } else {
+            clearInterval(countdownTimer);
+            btn.textContent = '⏳ 打开中...';
+            showLoginStatus('info', '⏳ 正在打开平台登录页...');
+
+            var reqBody = {
+                account_id: parseInt(aid) || 0,
+                site_url: siteUrl
+            };
+            if (_selectedScanMethod) {
+                reqBody.method = _selectedScanMethod;
+            }
+
+            fetch('/api/login/qrcode/' + _loginPlatform + '/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(reqBody)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    var errorMsg = data.error || '获取二维码失败';
+                    if (data.no_qrcode) {
+                        showLoginStatus('warning', '❌ 未检测到二维码，请尝试其他登录方式（账号密码/Cookie粘贴）');
+                    } else {
+                        showLoginStatus('error', '❌ ' + errorMsg + '，点击重试');
+                    }
+                    btn.disabled = false;
+                    btn.textContent = '📱 点击重试';
+                    _isLoginRunning = false;
+                    return;
+                }
+
+                _qrSessionId = data.session_id;
+                _loginSession = data.session_id;
+
+                // 显示扫码提示：📱 请使用 [scan_app] 扫码
+                var scanApp = data.scan_app || '';
+                var scanHint = data.scan_hint || '';
+                if (scanApp) {
+                    var infoDiv = document.getElementById('qrScanInfo');
+                    infoDiv.innerHTML = '📱 请使用 <strong>' + escapeHtml(scanApp) + '</strong> 扫码';
+                    if (scanHint) {
+                        infoDiv.innerHTML += '<br><span style="font-size:11px;color:#555;">' + escapeHtml(scanHint) + '</span>';
+                    }
+                    infoDiv.style.display = 'block';
+                }
+
+                if (data.image) {
+                    showLoginScreenshot(data.image);
+                }
+
+                showLoginStatus('info', '🔍 ' + (data.message || '请在截图页面中扫码/登录'));
+                document.getElementById('btnCaptchaLogin').style.display = 'none';
+                document.getElementById('btnRefreshScreenshot').style.display = 'inline-block';
+                btn.textContent = '📱 扫码中...';
+
+                startQrCodePolling();
+            })
+            .catch(function(e) {
+                showLoginStatus('error', '❌ 网络错误: ' + e.message + '，点击重试');
+                btn.disabled = false;
+                btn.textContent = '📱 点击重试';
+                _isLoginRunning = false;
+            });
+        }
+    }, 1000);
+}
+
+function _selectScanMethod(siteUrl, aid, btn) {
+    // 获取该平台支持的扫码方式
+    showLoginStatus('info', '⏳ 正在获取扫码方式...');
+    btn.disabled = true;
+    btn.textContent = '⏳ 查询中...';
+
+    fetch('/api/login/scan-methods/' + _loginPlatform)
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (!data.success) {
-            if (data.no_qrcode) {
-                showLoginStatus('warning', '❌ 未检测到二维码，请尝试其他登录方式（账号密码/Cookie粘贴）');
-            } else {
-                showLoginStatus('error', '❌ ' + (data.error || '启动失败'));
-            }
+        if (!data.success || !data.methods || data.methods.length === 0) {
+            // 没有多方式，直接使用默认方式继续
+            _selectedScanMethod = '';
             btn.disabled = false;
-            btn.textContent = '📱 重新打开';
-            _isLoginRunning = false;
+            btn.textContent = '📱 打开扫码登录页';
+            showLoginStatus('info', '');
+            startQrCodeLogin();
             return;
         }
 
-        _qrSessionId = data.session_id;
-        _loginSession = data.session_id;
+        var methods = data.methods;
+        var infoDiv = document.getElementById('qrScanInfo');
+        var html = '<div style="margin-bottom:6px;font-weight:600;font-size:13px;">📱 请选择扫码方式</div>';
 
-        if (data.image) {
-            showLoginScreenshot(data.image);
-        }
+        methods.forEach(function(m) {
+            html += '<button onclick="_doPickScanMethod(\'' + escapeHtml(m.id) + '\', this)" ' +
+                    'style="display:block;width:100%;padding:8px 10px;margin-bottom:4px;border:1px solid #a5d6a7;border-radius:6px;background:#e8f5e9;cursor:pointer;text-align:left;font-size:13px;">' +
+                    '<strong>' + escapeHtml(m.name) + '</strong>' +
+                    (m.hint ? '<br><span style="font-size:11px;color:#555;">' + escapeHtml(m.hint) + '</span>' : '') +
+                    '</button>';
+        });
 
-        showLoginStatus('info', '🔍 ' + (data.message || '请在截图页面中扫码/登录'));
-        document.getElementById('btnCaptchaLogin').style.display = 'none';
-        document.getElementById('btnRefreshScreenshot').style.display = 'inline-block';
-        btn.textContent = '📱 扫码中...';
-
-        startQrCodePolling();
+        infoDiv.innerHTML = html;
+        infoDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '📱 请在上方选择方式';
+        showLoginStatus('info', '');
     })
     .catch(function(e) {
-        showLoginStatus('error', '❌ 网络错误: ' + e.message);
+        // 失败时降级：直接使用默认方式
+        _selectedScanMethod = '';
         btn.disabled = false;
-        btn.textContent = '📱 重试';
-        _isLoginRunning = false;
+        btn.textContent = '📱 打开扫码登录页';
+        showLoginStatus('info', '');
+        startQrCodeLogin();
     });
+}
+
+function _doPickScanMethod(methodId, btnEl) {
+    _selectedScanMethod = methodId;
+    // 高亮选中的按钮
+    var parent = btnEl.parentNode;
+    if (parent) {
+        var btns = parent.querySelectorAll('button');
+        btns.forEach(function(b) { b.style.borderColor = '#a5d6a7'; b.style.background = '#e8f5e9'; });
+    }
+    btnEl.style.borderColor = '#2e7d32';
+    btnEl.style.background = '#c8e6c9';
+    // 重置开始按钮并启动
+    document.getElementById('btnStartLogin').textContent = '📱 打开扫码登录页';
+    document.getElementById('qrScanInfo').style.display = 'none';
+    startQrCodeLogin();
 }
 
 function startQrCodePolling() {

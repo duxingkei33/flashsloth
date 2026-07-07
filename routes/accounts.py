@@ -872,6 +872,33 @@ def api_platform_login_capabilities_refresh(platform):
 
 
 # ═══════════════════════════════════════════════════
+# 扫码登录方式查询 API
+# ═══════════════════════════════════════════════════
+@app.route("/api/login/scan-methods/<platform>")
+@login_required
+def api_login_scan_methods(platform):
+    """返回指定平台支持的扫码登录方式列表
+    
+    数据来源：core/credential_provider.PLATFORM_SCAN_INFO
+    每个平台可有多重扫码方式（如闲鱼：闲鱼App扫码 / 淘宝App扫码）
+    """
+    from flashsloth.core.credential_provider import PLATFORM_SCAN_INFO
+    info = PLATFORM_SCAN_INFO.get(platform)
+    if not info:
+        return jsonify({
+            "success": False,
+            "error": f"平台 {platform} 无扫码登录信息",
+        })
+    methods = info.get("scan_methods", [])
+    return jsonify({
+        "success": True,
+        "platform": platform,
+        "login_url": info.get("login_url", ""),
+        "methods": methods,
+    })
+
+
+# ═══════════════════════════════════════════════════
 # 统一登录 API — 根据平台和方法分发
 # ═══════════════════════════════════════════════════
 import threading
@@ -1258,6 +1285,20 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 	"""QR 码登录工作线程 — 拥有独立的 Playwright 浏览器实例"""
 	_pw = None; _browser = None; _ctx = None; _page = None
 	_worker_started = time.time()
+	# 从 playwright_config 读取超时（兜底 10 分钟 = 600 秒）
+	_qr_timeout_seconds = 600
+	try:
+		from flashsloth.core.database import get_db as _get_db
+		_conn = _get_db()
+		_row = _conn.execute(
+			"SELECT config_json FROM playwright_config WHERE id=1"
+		).fetchone()
+		_conn.close()
+		if _row and _row["config_json"]:
+			_cfg = json.loads(_row["config_json"])
+			_qr_timeout_seconds = _cfg.get("qr_login_timeout_minutes", 10) * 60
+	except Exception:
+		pass
 	try:
 		from playwright.sync_api import sync_playwright
 		import base64
@@ -1314,7 +1355,7 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 		# 5 分钟超时自动清理：防止前端未调 /close 导致资源泄漏
 		while True:
 			# 超时检查：启动后超过 5 分钟自动退出
-			if time.time() - _worker_started > 300:
+			if time.time() - _worker_started > _qr_timeout_seconds:
 				break
 			sess = _qr_login_sessions.get(sess_id)
 			if not sess or sess.get("_stop", False):
@@ -1366,6 +1407,7 @@ def api_qrcode_login_start(platform):
 	data = request.get_json() or {}
 	aid = data.get("account_id", 0)
 	site_url = data.get("site_url", "")
+	method = data.get("method", "")  # scan_methods[].id — 可选
 
 	# 确定登录 URL
 	login_url = data.get("login_url", site_url or "")
@@ -1387,6 +1429,19 @@ def api_qrcode_login_start(platform):
 	if not login_url:
 		return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
 
+	# 若前台传了 method，查找到对应 method 的 scan_info 作为返回值
+	extra_scan_info = {}
+	if method:
+		from flashsloth.core.credential_provider import PLATFORM_SCAN_INFO as _PSI
+		_platform_info = _PSI.get(platform, {})
+		for _m in _platform_info.get("scan_methods", []):
+			if _m.get("id") == method:
+				extra_scan_info = {
+					"scan_app": _m.get("scan_app", ""),
+					"scan_hint": _m.get("hint", ""),
+				}
+				break
+
 	# 委托统一扫码登录引擎
 	from flashsloth.core.credential_provider import ScanLoginEngine
 	result = ScanLoginEngine.start_scan_login(
@@ -1398,6 +1453,9 @@ def api_qrcode_login_start(platform):
 	)
 
 	if result.get("success"):
+		# 如果前台传了 method，优先使用 method 对应的 scan_app/scan_hint
+		_scan_app = extra_scan_info.get("scan_app") or result.get("scan_app", "")
+		_scan_hint = extra_scan_info.get("scan_hint") or result.get("scan_hint", "")
 		# 将旧的 session_id 映射到新引擎 session，以便旧 poll/close 能工作
 		_qr_login_sessions[result["session_id"]] = {
 			"platform": platform,
@@ -1412,6 +1470,9 @@ def api_qrcode_login_start(platform):
 			"session_id": result["session_id"],
 			"image": result["image"],
 			"page_title": result.get("page_title", ""),
+			"scan_info": result.get("scan_info", {}),
+			"scan_app": _scan_app,
+			"scan_hint": _scan_hint,
 			"message": "请扫码完成登录，系统将自动捕获 Cookie",
 		})
 	else:
@@ -1426,6 +1487,7 @@ def api_scan_login_start(platform):
 	aid = data.get("account_id", 0)
 	site_url = data.get("site_url", "")
 	scan_type = data.get("scan_type", "auto")
+	method = data.get("method", "")  # scan_methods[].id — 可选，用于前端选择
 
 	# 确定登录 URL
 	login_url = data.get("login_url", site_url or "")
@@ -1447,6 +1509,19 @@ def api_scan_login_start(platform):
 	if not login_url:
 		return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
 
+	# 若前台传了 method，查找到对应 method 的 scan_info 作为返回值
+	extra_scan_info = {}
+	if method:
+		from flashsloth.core.credential_provider import PLATFORM_SCAN_INFO as _PSI
+		_platform_info = _PSI.get(platform, {})
+		for _m in _platform_info.get("scan_methods", []):
+			if _m.get("id") == method:
+				extra_scan_info = {
+					"scan_app": _m.get("scan_app", ""),
+					"scan_hint": _m.get("hint", ""),
+				}
+				break
+
 	# 委托统一扫码登录引擎
 	from flashsloth.core.credential_provider import ScanLoginEngine
 	result = ScanLoginEngine.start_scan_login(
@@ -1458,12 +1533,18 @@ def api_scan_login_start(platform):
 	)
 
 	if result.get("success"):
+		# 如果前台传了 method，优先使用 method 对应的 scan_app/scan_hint
+		_scan_app = extra_scan_info.get("scan_app") or result.get("scan_app", "")
+		_scan_hint = extra_scan_info.get("scan_hint") or result.get("scan_hint", "")
 		return jsonify({
 			"success": True,
 			"session_id": result["session_id"],
 			"image": result["image"],
 			"scan_type": result.get("scan_type", scan_type),
 			"page_title": result.get("page_title", ""),
+			"scan_info": result.get("scan_info", {}),
+			"scan_app": _scan_app,
+			"scan_hint": _scan_hint,
 			"message": "请扫码完成登录，系统将自动捕获 Cookie",
 		})
 	else:

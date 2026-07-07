@@ -466,6 +466,7 @@ def init_db():
             "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
             "auto_start": True,
             "auto_close_minutes": 10,
+            "qr_login_timeout_minutes": 10,
         })
         conn.execute(
             "INSERT OR IGNORE INTO playwright_config (id, config_json) VALUES (1, ?)",

@@ -131,6 +131,16 @@
                     <option value="60" {{ 'selected' if config.auto_close_minutes == 60 }}>60分钟</option>
                 </select>
             </div>
+            <div class="field">
+                <label>扫码登录超时（分钟）</label>
+                <select name="qr_login_timeout_minutes">
+                    <option value="5" {{ 'selected' if config.qr_login_timeout_minutes == 5 }}>5分钟</option>
+                    <option value="10" {{ 'selected' if config.qr_login_timeout_minutes == 10 }}>10分钟</option>
+                    <option value="15" {{ 'selected' if config.qr_login_timeout_minutes == 15 }}>15分钟</option>
+                    <option value="30" {{ 'selected' if config.qr_login_timeout_minutes == 30 }}>30分钟</option>
+                </select>
+                <span class="field-help">扫码登录超时后自动释放浏览器资源</span>
+            </div>
             <div class="field field-full">
                 <label>代理地址</label>
                 <input type="text" name="proxy" value="{{ config.proxy }}" placeholder="如 http://127.0.0.1:7890">
@@ -219,7 +229,7 @@ function saveConfig(event) {
     var data = {};
     var fields = ['browser_type', 'viewport_width', 'viewport_height', 'user_agent',
                   'timeout', 'navigation_timeout', 'locale', 'proxy', 'data_dir', 'args',
-                  'auto_close_minutes'];
+                  'auto_close_minutes', 'qr_login_timeout_minutes'];
     // 处理 headless（select → boolean）
     data['headless'] = form.querySelector('[name=headless]').value === 'true';
     
@@ -229,7 +239,7 @@ function saveConfig(event) {
             var val = el.value;
             if (name === 'viewport_width' || name === 'viewport_height' ||
                 name === 'timeout' || name === 'navigation_timeout' ||
-                name === 'auto_close_minutes') {
+                name === 'auto_close_minutes' || name === 'qr_login_timeout_minutes') {
                 val = parseInt(val) || 0;
             }
             data[name] = val;

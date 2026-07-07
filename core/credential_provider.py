@@ -88,6 +88,65 @@ def _detect_scan_type(page) -> str:
     return "qrcode"  # 默认
 
 
+# ─── 二维码截图校验 ────────────────────────────────────
+
+def _validate_qr_screenshot(base64_img: str) -> dict:
+    """校验截图是否为有效的二维码图像
+    
+    使用 Pillow 做图像级检测（无需系统 zbar 库）：
+    1. 大小检测：base64 解码后 ≥ 5KB
+    2. 尺寸检测：二维码至少 100x100 像素
+    3. 对比度检测：二维码黑白分明，对比度 > 100
+    
+    Returns:
+        dict: {"valid": bool, "reason": str, "image_info": dict}
+    """
+    import base64
+    from PIL import Image
+    import io
+
+    info = {}
+    if not base64_img:
+        return {"valid": False, "reason": "截图数据为空", "image_info": info}
+
+    try:
+        raw = base64.b64decode(base64_img)
+    except Exception as e:
+        return {"valid": False, "reason": f"base64 解码失败: {str(e)[:60]}", "image_info": info}
+
+    info["raw_size_bytes"] = len(raw)
+
+    # 1. 文件大小检测：PNG 数据 ≥ 5KB
+    if len(raw) < 5 * 1024:
+        return {"valid": False, "reason": f"截图数据过小 ({len(raw)}B < 5KB)", "image_info": info}
+
+    try:
+        img = Image.open(io.BytesIO(raw))
+    except Exception as e:
+        return {"valid": False, "reason": f"图像格式解析失败: {str(e)[:60]}", "image_info": info}
+
+    w, h = img.size
+    info["width"] = w
+    info["height"] = h
+
+    # 2. 尺寸检测：≥ 100x100
+    if w < 100 or h < 100:
+        return {"valid": False, "reason": f"二维码截图尺寸不足 ({w}x{h} < 100x100)", "image_info": info}
+
+    # 3. 对比度检测：灰度化后 max-min > 100
+    try:
+        gray = img.convert("L")
+        pixels = list(gray.getdata())
+        contrast = max(pixels) - min(pixels)
+        info["contrast"] = contrast
+        if contrast < 100:
+            return {"valid": False, "reason": f"二维码截图对比度不足 ({contrast} < 100)", "image_info": info}
+    except Exception as e:
+        return {"valid": False, "reason": f"对比度分析失败: {str(e)[:60]}", "image_info": info}
+
+    return {"valid": True, "reason": "ok", "image_info": info}
+
+
 # ─── 截图扫码元素 ──────────────────────────────────────
 
 def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
@@ -105,6 +164,37 @@ def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
     """
     import base64
 
+    def _make_qr_result(img_b64: str) -> dict:
+        """截图后校验二维码有效性，返回带验证结果的 dict
+        
+        自动缩放到 400px 以内（保持宽高比）以优化前端显示。
+        """
+        # 图片尺寸优化：缩放到 400px 以内
+        try:
+            import base64 as _b64
+            from PIL import Image as _Image
+            import io as _io
+            raw = _b64.b64decode(img_b64)
+            img = _Image.open(_io.BytesIO(raw))
+            w, h = img.size
+            max_dim = 400
+            if w > max_dim or h > max_dim:
+                img.thumbnail((max_dim, max_dim), 1)  # LANCZOS = 1
+                buf = _io.BytesIO()
+                img.save(buf, format='PNG')
+                img_b64 = _b64.b64encode(buf.getvalue()).decode()
+        except Exception:
+            pass
+
+        v = _validate_qr_screenshot(img_b64)
+        if v["valid"]:
+            return {"image": img_b64, "found_qrcode": True}
+        return {
+            "image": img_b64,
+            "found_qrcode": False,
+            "validation_error": v["reason"],
+        }
+
     if scan_type == "auto":
         scan_type = _detect_scan_type(page)
 
@@ -113,6 +203,12 @@ def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
         "canvas",
         "img[src*='qrcode' i]",
         "img[src*='qr' i]",
+        # DIV 容器类型二维码（B站等使用 DIV 渲染二维码）
+        "div.login-scan-box",
+        "div[class*='login-scan']",
+        "div[class*='qrcode-box']",
+        "div[class*='qr-code']",
+        "div[class*='qrcode']",
     ]
     # 小程序码选择器
     mp_selectors = [
@@ -153,10 +249,8 @@ def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
                     continue
                 box = el.bounding_box()
                 if box and box["width"] >= 60 and box["height"] >= 60:
-                    return {
-                        "image": base64.b64encode(el.screenshot(type="png")).decode(),
-                        "found_qrcode": True,
-                    }
+                    img_b64 = base64.b64encode(el.screenshot(type="png")).decode()
+                    return _make_qr_result(img_b64)
         except Exception:
             continue
 
@@ -170,10 +264,8 @@ def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
                         continue
                     box = el.bounding_box()
                     if box and box["width"] >= 60 and box["height"] >= 60:
-                        return {
-                            "image": base64.b64encode(el.screenshot(type="png")).decode(),
-                            "found_qrcode": True,
-                        }
+                        img_b64 = base64.b64encode(el.screenshot(type="png")).decode()
+                        return _make_qr_result(img_b64)
             except Exception:
                 continue
 
@@ -188,16 +280,12 @@ def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
                 if inner:
                     box = inner.bounding_box()
                     if box and box["width"] >= 60 and box["height"] >= 60:
-                        return {
-                            "image": base64.b64encode(inner.screenshot(type="png")).decode(),
-                            "found_qrcode": True,
-                        }
+                        img_b64 = base64.b64encode(inner.screenshot(type="png")).decode()
+                        return _make_qr_result(img_b64)
                 box = container.bounding_box()
                 if box and box["width"] >= 80 and box["height"] >= 80:
-                    return {
-                        "image": base64.b64encode(container.screenshot(type="png")).decode(),
-                        "found_qrcode": True,
-                    }
+                    img_b64 = base64.b64encode(container.screenshot(type="png")).decode()
+                    return _make_qr_result(img_b64)
     except Exception:
         pass
 
@@ -290,11 +378,22 @@ def _platform_scan_actions(page, platform: str):
     """
     if platform == "bilibili":
         try:
-            # B站需要先点登录按钮弹出二维码面板
+            # B站需要先点登录按钮弹出登录面板
             login_btn = page.query_selector(".header-login-entry")
             if login_btn and login_btn.is_visible():
                 login_btn.click()
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(500)
+                # 再点击"扫码登录" Tab，因为默认弹出的是密码登录面板
+                scan_tab = page.query_selector(
+                    "[data-login-type='qrcode'], .qr-login, "
+                    "[class*='qrcode-tab'], [class*='scan-login'], "
+                    "text=扫码登录, .bili-mini-login, "
+                    ".login-tab:has-text('扫码'), "
+                    ".login-type:has-text('扫码')"
+                )
+                if scan_tab:
+                    scan_tab.click()
+                    page.wait_for_timeout(2000)
         except Exception:
             pass
     
@@ -309,14 +408,158 @@ def _platform_scan_actions(page, platform: str):
             pass
 
 
+# ─── 平台扫码类型标注（多方式选择版）─────────────────────
+# 每个平台可定义多种扫码方式，前端提供选择。
+# 为向后兼容，保留顶层 scan_app/hint/type（来自第一个 method）。
+
+PLATFORM_SCAN_INFO = {
+    "bilibili": {
+        "login_url": "https://www.bilibili.com/",
+        "scan_app": "B站官方App",
+        "hint": "请打开B站App，使用扫一扫功能扫描此二维码",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "bilibili_app",
+                "name": "B站官方App扫码",
+                "scan_app": "B站官方App",
+                "hint": "请打开B站App，使用扫一扫功能扫描此二维码",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "wechat": {
+        "login_url": "https://mp.weixin.qq.com/",
+        "scan_app": "微信",
+        "hint": "请打开微信扫一扫扫描此二维码",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "wechat_scan",
+                "name": "微信扫码",
+                "scan_app": "微信",
+                "hint": "请打开微信扫一扫扫描此二维码",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "discuz": {
+        "login_url": "",
+        "scan_app": "微信/手机浏览器",
+        "hint": "部分Discuz论坛支持扫码登录，请用微信或手机浏览器扫描",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "discuz_scan",
+                "name": "微信/浏览器扫码",
+                "scan_app": "微信/手机浏览器",
+                "hint": "部分Discuz论坛支持扫码登录，请用微信或手机浏览器扫描",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "amobbs": {
+        "login_url": "",
+        "scan_app": "微信/手机浏览器",
+        "hint": "请用微信或手机浏览器扫描此二维码登录阿莫论坛",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "amobbs_scan",
+                "name": "微信/浏览器扫码",
+                "scan_app": "微信/手机浏览器",
+                "hint": "请用微信或手机浏览器扫描此二维码登录阿莫论坛",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "juejin": {
+        "login_url": "https://juejin.cn/",
+        "scan_app": "掘金App/微信",
+        "hint": "请打开掘金App扫一扫，或使用微信扫描",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "juejin_app",
+                "name": "掘金App扫码",
+                "scan_app": "掘金App",
+                "hint": "请打开掘金App扫一扫，或使用微信扫描",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "zhihu": {
+        "login_url": "https://www.zhihu.com/signin",
+        "scan_app": "知乎App",
+        "hint": "请打开知乎App，使用扫一扫功能扫描此二维码",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "zhihu_app",
+                "name": "知乎App扫码",
+                "scan_app": "知乎App",
+                "hint": "请打开知乎App，使用扫一扫功能扫描此二维码",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "oshwhub": {
+        "login_url": "https://passport.jlc.com/login",
+        "scan_app": "微信/手机浏览器",
+        "hint": "请用微信或手机浏览器扫描此二维码登录立创开源硬件平台",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "oshwhub_scan",
+                "name": "微信/浏览器扫码",
+                "scan_app": "微信/手机浏览器",
+                "hint": "请用微信或手机浏览器扫描此二维码登录立创开源硬件平台",
+                "type": "qrcode",
+            },
+        ],
+    },
+    "xianyu": {
+        "login_url": "https://www.goofish.com/",
+        "scan_app": "闲鱼App/淘宝App",
+        "hint": "请打开闲鱼或淘宝App扫描此二维码",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "xianyu_app",
+                "name": "闲鱼App扫码",
+                "scan_app": "闲鱼App",
+                "hint": "请打开闲鱼App扫描此二维码",
+                "type": "qrcode",
+            },
+            {
+                "id": "taobao_app",
+                "name": "淘宝App扫码",
+                "scan_app": "淘宝App",
+                "hint": "请打开淘宝App扫描此二维码",
+                "type": "qrcode",
+            },
+        ],
+    },
+}
+
+
 # ─── Worker 线程 ───────────────────────────────────────
 
 def _scan_login_worker(platform: str, login_url: str, scan_type: str,
-                       sess_id: str, result_queue: queue.Queue):
+                       sess_id: str, result_queue: queue.Queue,
+                       timeout_minutes: int = 10):
     """扫码登录后台工作线程 — 拥有独立的 Playwright 浏览器实例
     
     从 routes/accounts.py _qr_worker 适配而来，增加了 scan_type 支持、
     小程序码检测和平台特定操作。
+    
+    Args:
+        platform: 平台名
+        login_url: 登录 URL
+        scan_type: "qrcode" | "miniprogram" | "auto"
+        sess_id: 会话 ID
+        result_queue: 结果队列
+        timeout_minutes: 超时分钟数，超时后自动释放资源（默认 10 分钟）
     """
     _pw = None
     _browser = None
@@ -408,9 +651,10 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
             sess["_scan_type"] = actual_scan_type
 
         # 轮询循环 — 每 3 秒检查一次是否退出或需要检查登录态
-        # 5 分钟超时自动清理：防止前端未调 close 导致资源泄漏（铁律 R7）
+        # timeout_minutes 分钟超时自动清理：防止前端未调 close 导致资源泄漏（铁律 R7）
+        _timeout_seconds = timeout_minutes * 60
         while True:
-            if time.time() - _worker_started > 300:
+            if time.time() - _worker_started > _timeout_seconds:
                 break
             sess = _scan_login_sessions.get(sess_id)
             if not sess or sess.get("_stop", False):
@@ -494,7 +738,8 @@ class ScanLoginEngine:
     def start_scan_login(platform: str, login_url: str,
                          scan_type: str = "auto",
                          account_id: int = 0,
-                         user_id: int = 0) -> dict:
+                         user_id: int = 0,
+                         timeout_minutes: int = 10) -> dict:
         """统一扫码登录入口
         
         Args:
@@ -503,6 +748,7 @@ class ScanLoginEngine:
             scan_type: "qrcode" | "miniprogram" | "auto" (自动检测)
             account_id: 关联的账号 ID（可选）
             user_id: 用户 ID
+            timeout_minutes: 超时分钟数（默认 10 分钟）
         
         Returns:
             dict: {
@@ -514,6 +760,24 @@ class ScanLoginEngine:
                 "error": str,       # 失败时返回
             }
         """
+        # 从 playwright_config 读取超时配置（兜底 10 分钟）
+        # 显式传入的 timeout_minutes 优先于配置
+        _pw_timeout = timeout_minutes
+        try:
+            from flashsloth.core.database import get_db
+            conn = get_db()
+            row = conn.execute(
+                "SELECT config_json FROM playwright_config WHERE id=1"
+            ).fetchone()
+            conn.close()
+            if row and row["config_json"]:
+                cfg = json.loads(row["config_json"])
+                _cfg_timeout = cfg.get("qr_login_timeout_minutes", None)
+                if _cfg_timeout is not None:
+                    _pw_timeout = _cfg_timeout
+        except Exception:
+            pass
+
         sess_id = f"scan_{user_id}_{platform}_{int(time.time())}"
         lock = _get_scan_lock(sess_id)
         
@@ -538,7 +802,7 @@ class ScanLoginEngine:
                 # 启动后台工作线程
                 worker = threading.Thread(
                     target=_scan_login_worker,
-                    args=(platform, login_url, scan_type, sess_id, result_queue),
+                    args=(platform, login_url, scan_type, sess_id, result_queue, _pw_timeout),
                     daemon=True,
                 )
                 worker.start()
@@ -551,13 +815,26 @@ class ScanLoginEngine:
                     result = {"success": False, "error": "浏览器启动超时"}
 
                 if result.get("success"):
+                    # 校验二维码截图质量
+                    if not result.get("found_qrcode", False):
+                        _scan_login_sessions.pop(sess_id, None)
+                        _scan_login_locks.pop(sess_id, None)
+                        return {
+                            "success": False,
+                            "error": result.get("validation_error", "获取二维码失败，请重试"),
+                        }
+
                     _scan_login_sessions[sess_id]["status"] = "waiting"
+                    scan_info = PLATFORM_SCAN_INFO.get(platform, {})
                     return {
                         "success": True,
                         "session_id": sess_id,
                         "image": result["image"],
                         "scan_type": result.get("scan_type", scan_type),
                         "page_title": result.get("page_title", ""),
+                        "scan_info": scan_info,
+                        "scan_app": scan_info.get("scan_app", ""),
+                        "scan_hint": scan_info.get("hint", ""),
                         "message": "请扫码完成登录",
                     }
                 else:
@@ -683,201 +960,3 @@ class ScanLoginEngine:
             "user_id": sess.get("user_id"),
             "ready": sess.get("_ready", False),
         }
-
-
-# ═══════════════════════════════════════════════════════
-# 凭证存储 — save_credential / get_credential / verify_credential
-# ═══════════════════════════════════════════════════════
-
-def save_credential(platform: str, account_id: int,
-                    cookies_dict: dict,
-                    credential_type: str = "qrcode",
-                    user_id: int = 0) -> bool:
-    """将 Cookie 凭证加密后存入 platform_accounts.config_json
-    
-    Args:
-        platform: 平台名
-        account_id: 账号 ID（platform_accounts.id）
-        cookies_dict: Cookie 字典（键值对）或 Cookie 字符串
-        credential_type: "qrcode" | "miniprogram" | "password"
-        user_id: 用户 ID
-    
-    Returns:
-        bool: 是否成功保存
-    """
-    try:
-        from flashsloth.core.database import get_db
-
-        conn = get_db()
-        acct = conn.execute(
-            "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
-            (account_id, user_id),
-        ).fetchone()
-        if not acct:
-            conn.close()
-            return False
-
-        cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-
-        # 统一 Cookie 格式
-        if isinstance(cookies_dict, dict):
-            cookie_str = "; ".join(
-                [f"{k}={v}" for k, v in cookies_dict.items()]
-            )
-        elif isinstance(cookies_dict, str):
-            cookie_str = cookies_dict
-        else:
-            cookie_str = str(cookies_dict) if cookies_dict else ""
-
-        # 计算过期时间（默认 30 天后）
-        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
-
-        # 加密后存入标准字段
-        cfg["cookie"] = cookie_str
-        cfg["credential_type"] = credential_type
-        cfg["captured_at"] = now.isoformat()
-        cfg["expires_at"] = expires_at
-        cfg["cookies_encrypted"] = True
-
-        encrypt_config(cfg)
-        conn.execute(
-            "UPDATE platform_accounts SET config_json=? WHERE id=?",
-            (json.dumps(cfg), account_id),
-        )
-        conn.commit()
-        conn.close()
-        return True
-
-    except Exception:
-        return False
-
-
-def get_credential(platform: str, account_id: int,
-                   user_id: int = 0) -> Optional[dict]:
-    """获取已保存的凭证
-    
-    Args:
-        platform: 平台名
-        account_id: 账号 ID
-        user_id: 用户 ID
-    
-    Returns:
-        dict: {
-            "cookie": str,           # 解密后的 Cookie 字符串
-            "credential_type": str,  # 凭证类型
-            "captured_at": str,      # 捕获时间
-            "expires_at": str,       # 过期时间
-            "platform": str,
-            "account_name": str,
-        } 或 None（不存在/失败时）
-    """
-    try:
-        from flashsloth.core.database import get_db
-
-        conn = get_db()
-        acct = conn.execute(
-            "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
-            (account_id, user_id),
-        ).fetchone()
-        conn.close()
-
-        if not acct:
-            return None
-
-        cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-        decrypt_config(cfg)
-
-        cookie = cfg.get("cookie", "")
-        if not cookie:
-            return None
-
-        return {
-            "cookie": cookie,
-            "credential_type": cfg.get("credential_type", "unknown"),
-            "captured_at": cfg.get("captured_at", ""),
-            "expires_at": cfg.get("expires_at", ""),
-            "platform": acct["platform"],
-            "account_name": acct["account_name"],
-        }
-
-    except Exception:
-        return None
-
-
-def verify_credential(platform: str, account_id: int,
-                      user_id: int = 0) -> dict:
-    """验证凭证是否仍有效
-    
-    使用 status_detector 的轻量 API 检测方式验证 Cookie 是否有效。
-    如果平台不支持轻量检测，则返回 uncertain。
-    
-    Args:
-        platform: 平台名
-        account_id: 账号 ID
-        user_id: 用户 ID
-    
-    Returns:
-        dict: {
-            "valid": bool,        # True/False/None (uncertain)
-            "message": str,       # 结果说明
-            "detail": dict,       # 验证详情
-        }
-    """
-    from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
-
-    cred = get_credential(platform, account_id, user_id)
-    if not cred:
-        return {"valid": None, "message": "未找到凭证", "detail": {}}
-
-    cookie = cred.get("cookie", "")
-    if not cookie:
-        return {"valid": None, "message": "Cookie 为空", "detail": {}}
-
-    # 检查过期时间
-    expires_at = cred.get("expires_at", "")
-    if expires_at:
-        try:
-            exp = datetime.fromisoformat(expires_at)
-            if datetime.now() > exp:
-                return {
-                    "valid": False,
-                    "message": "凭证已过期",
-                    "detail": {"expires_at": expires_at},
-                }
-        except Exception:
-            pass
-
-    # 使用平台特定的状态检测
-    if platform in PLATFORM_DETECTORS:
-        try:
-            result = detect_platform(platform, cookie=cookie)
-            logged_in = result.get("logged_in", False)
-            return {
-                "valid": logged_in,
-                "message": "有效" if logged_in else "Cookie 已失效",
-                "detail": result,
-            }
-        except Exception as e:
-            return {"valid": None, "message": f"验证异常: {str(e)[:80]}", "detail": {}}
-
-    # 通用验证：尝试用 Cookie 访问平台首页
-    try:
-        import requests
-        headers = {"Cookie": cookie, "User-Agent": "Mozilla/5.0"}
-        resp = requests.get(
-            f"https://{platform}.com" if "." not in platform else f"https://{platform}",
-            headers=headers,
-            timeout=10,
-        )
-        # 简单判断：如果响应中不包含登录页面关键字，可能已登录
-        login_kw = ["login", "signin", "登录", "注册"]
-        has_login_page = any(kw in resp.text[:2000].lower() for kw in login_kw)
-        return {
-            "valid": not has_login_page,
-            "message": "有效（通用验证）" if not has_login_page else "可能已过期（页面含登录关键字）",
-            "detail": {"status_code": resp.status_code, "has_login_page": has_login_page},
-        }
-    except Exception:
-        pass
-
-    return {"valid": None, "message": "无法验证（平台不支持自动检测）", "detail": {}}
