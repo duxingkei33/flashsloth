@@ -90,5 +90,13 @@
     ],
     "error": null
   },
-  "_last_checked_at": "2026-07-07T10:55:26"
+  "twitter": {
+    "login_methods": [
+      "oauth1",
+      "bearer",
+      "cookie"
+    ],
+    "error": null
+  },
+  "_last_checked_at": "2026-07-07T20:28:00"
 }

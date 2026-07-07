@@ -141,6 +141,7 @@ class TwitterPublisher(Publisher):
         """测试 Twitter API 连接 — 获取当前用户信息（零 token 消耗）"""
         try:
             client = self._get_client()
+            # 带超时 — 防止假凭据导致无限等待
             me = client.get_me(user_auth=bool(self.access_token))
             if me.data:
                 return {

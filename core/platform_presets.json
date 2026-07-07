@@ -96,6 +96,14 @@
       "sites": [
         {"name": "立创开源硬件平台", "url": "https://oshwhub.com", "desc": "嘉立创 EDA 开源硬件"}
       ]
+    },
+    "twitter": {
+      "display": "Twitter / X",
+      "icon": "🐦",
+      "sites": [
+        {"name": "Twitter / X", "url": "https://twitter.com", "desc": "社交媒体平台（通过 API 发布）"},
+        {"name": "X.com", "url": "https://x.com", "desc": "Twitter X 域名"}
+      ]
     }
   }
 }
