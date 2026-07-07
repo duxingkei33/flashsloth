@@ -98,7 +98,9 @@
 - [x] Unified content management workspace — Provider selection + pipeline + content logs
 - [x] Provider abstraction framework — base→workspace, 3 Providers (Markdown/Notion/Taobao), config management
 - [x] AI call log system — auto-recording + visual log page + pagination/filtering
+- [x] 📋 Unified log management — publish/sign-in/AI/deploy logs in one page + pagination + real-time filtering
 - [x] 🖥️ Playwright browser engine settings page
+- [x] 🖥️ BrowserEngine auto-cleanup — 60s monitoring thread, auto-recycle idle browser instances
 - [x] External service registry — unified management for xianyu-auto-reply etc.
 - [x] Deployment config enhancement — deploy block embedded in account page + deployers enhanced
 
@@ -248,6 +250,8 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v4.91 | 2026-07-07 | QR code login priority #1 across all publishers + site_url propagation fix + BrowserEngine auto-cleanup + Unified log mgmt page |
+| v4.90 | 2026-07-07 | Unified log management (publish/sign-in/AI/deploy) + adapter architecture fix + composite search dropdown |
 | v4.80 | 2026-07-07 | Mobile layout optimization — full-page responsive (375px zero overflow, touch-friendly buttons/modals/nav/card grid) |
 | v4.79 | 2026-07-07 | Login status deep verification — real username/points/level extraction + frontend display |
 | v4.78 | 2026-07-07 | Account page UI enhancement (search/platform colors/quick-add/time labels/batch progress) + article multi-select batch ops + Zhihu/Juejin API lightweight status + Xianyu Sidecar adapter |
