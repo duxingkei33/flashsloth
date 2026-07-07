@@ -116,6 +116,37 @@ class Publisher(ABC):
                 missing.append(key)
         return missing
 
+    def check_cookie(self) -> dict:
+        """
+        检查当前 Publisher 配置中的 Cookie 是否有效。
+
+        使用统一 Cookie 验证器 (core/cookie_validator) 的两阶段验证。
+        返回: {"valid": bool, "method": str, "message": str, "platform": str}
+        """
+        try:
+            from flashsloth.core.cookie_validator import verify_cookie_for_adapter
+            from flashsloth.core.credential_crypto import decrypt_config as _decrypt
+        except ImportError:
+            from core.cookie_validator import verify_cookie_for_adapter
+            from core.credential_crypto import decrypt_config as _decrypt
+
+        cfg = dict(self.config) if self.config else {}
+        try:
+            _decrypt(cfg)
+        except Exception:
+            pass  # 没有需要解密的数据也没关系
+
+        cookie_str = cfg.get("cookie", "")
+        if not cookie_str:
+            # 无 Cookie → 可能是非 Cookie 认证方式（如 API Key / OAuth）
+            return {
+                "valid": True,
+                "method": "skip",
+                "message": "无 Cookie 凭证，跳过验证",
+                "platform": self.name,
+            }
+        return verify_cookie_for_adapter(self.name, cfg)
+
     @classmethod
     def get_login_methods(cls) -> list[dict]:
         """获取该平台的登录方法列表（按优先级排序）"""

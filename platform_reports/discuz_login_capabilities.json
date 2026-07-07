@@ -1,19 +1,28 @@
 {
   "platform": "discuz",
-  "explored_at": "2026-07-07T00:00:00+00:00",
+  "explored_at": "2026-07-07T17:11:31.646398+00:00",
   "login_url": "/member.php?mod=logging&action=login",
   "login_methods": [
     {
       "method": "qrcode",
       "label": "扫码/截屏登录",
       "detected": true,
-      "description": "系统打开论坛登录页面截图，查看后手动在浏览器中登录，系统自动捕获 Cookie。"
+      "description": "系统打开论坛登录页面截图，查看后手动在浏览器中登录，系统自动捕获 Cookie。",
+      "sub_types": [
+        {
+          "id": "default",
+          "label": "浏览器截图扫码",
+          "detected": true,
+          "selector": "canvas.qrcode"
+        }
+      ]
     },
     {
       "method": "password",
       "label": "账号密码登录",
       "detected": true,
-      "description": "输入论坛用户名和密码，系统会自动通过 Playwright 浏览器填写并提交登录。如需验证码，请查看截图后手动点击。"
+      "description": "输入论坛用户名和密码，系统会自动通过 Playwright 浏览器填写并提交登录。如需验证码，请查看截图后手动点击。",
+      "selector": "input[type='password']"
     },
     {
       "method": "cookie",
@@ -22,5 +31,14 @@
       "description": "从浏览器 F12 复制 Cookie 字符串直接粘贴。仅限调试/迁移场景使用。"
     }
   ],
-  "note": "Discuz! 论坛：支持浏览器截图扫码 + 密码登录/Cookie调试。依赖于 site_url 配置的论坛地址。"
+  "note": "Discuz! 论坛：支持浏览器截图扫码 + 密码登录/Cookie调试。依赖于 site_url 配置的论坛地址。",
+  "raw_detection": {
+    "has_password_input": true,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": true,
+    "has_wechat": false,
+    "has_app_qr": false,
+    "third_party_providers": []
+  }
 }

@@ -19,6 +19,17 @@
 **状态**: ⏸ 框架就绪
 **需要**: 掘金 Cookie / 账号密码
 
+## 🟡 豆瓣 — 登录凭据（最新探索）
+**文件**: `platform_reports/douban_exploration_report.json` ✅
+**状态**: 🔍 预探索完成 (2026-07-08)
+**需要**: 豆瓣账号（手机号 + 短信验证码 / 豆瓣App扫码）
+- **推荐登录**: QR码扫码登录（无验证码）
+- **备选**: 手机验证码登录
+- **无密码登录** — 只有手机号+验证码方式
+- **编辑器**: 日记/小组/豆列可发布
+- **探索报告**: `platform_reports/douban_com.md` ✅
+- **平台能力已入库**: `platform_config` ✅
+
 ## 🟡 WordPress — 站点配置
 **文件**: `plugins/publisher_wordpress.py`
 **状态**: ⏸ 框架就绪

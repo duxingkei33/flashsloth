@@ -1,13 +1,14 @@
 {
   "platform": "wordpress",
-  "explored_at": "2026-07-07T00:00:00+00:00",
+  "explored_at": "2026-07-07T17:11:31.647430+00:00",
   "login_url": "/wp-login.php",
   "login_methods": [
     {
       "method": "password",
       "label": "账号密码登录",
       "detected": true,
-      "description": "输入 WordPress 管理后台的用户名和密码，系统通过 Playwright 浏览器自动填写并提交登录。"
+      "description": "输入 WordPress 管理后台的用户名和密码，系统通过 Playwright 浏览器自动填写并提交登录。",
+      "selector": "input[type='password']"
     },
     {
       "method": "cookie",
@@ -16,5 +17,14 @@
       "description": "从浏览器 F12 复制 Cookie 字符串直接粘贴。仅限调试/迁移场景使用。"
     }
   ],
-  "note": "WordPress 博客：支持密码登录 / Cookie调试。需提供 site_url（博客地址）。"
+  "note": "WordPress 博客：支持密码登录 / Cookie调试。需提供 site_url（博客地址）。",
+  "raw_detection": {
+    "has_password_input": true,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": false,
+    "has_wechat": false,
+    "has_app_qr": false,
+    "third_party_providers": []
+  }
 }

@@ -5,6 +5,7 @@
       "password",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "bilibili": {
@@ -14,6 +15,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "csdn": {
@@ -23,6 +25,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "dewu": {
@@ -33,6 +36,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "discuz": {
@@ -41,6 +45,16 @@
       "password",
       "cookie"
     ],
+    "detail": "FULL",
+    "error": null
+  },
+  "douban": {
+    "login_methods": [
+      "qrcode",
+      "phone",
+      "cookie"
+    ],
+    "detail": "FULL",
     "error": null
   },
   "juejin": {
@@ -50,6 +64,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "mydigit": {
@@ -58,6 +73,7 @@
       "password",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "oshwhub": {
@@ -66,10 +82,12 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "rss": {
     "login_methods": [],
+    "detail": "BASIC",
     "error": null
   },
   "smzdm": {
@@ -79,6 +97,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "twitter": {
@@ -86,6 +105,7 @@
       "oauth1",
       "bearer"
     ],
+    "detail": "FULL",
     "error": null
   },
   "wechat_mp": {
@@ -95,6 +115,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "wordpress": {
@@ -102,12 +123,14 @@
       "password",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "xianyu_auto_reply": {
     "login_methods": [
       "cookie"
     ],
+    "detail": "BASIC",
     "error": null
   },
   "xianyu": {
@@ -116,6 +139,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "xianyu_products": {
@@ -124,6 +148,7 @@
       "qrcode",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "xiaohongshu": {
@@ -133,6 +158,7 @@
       "oauth",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
   "zhihu": {
@@ -141,7 +167,8 @@
       "phone",
       "cookie"
     ],
+    "detail": "FULL",
     "error": null
   },
-  "_last_checked_at": "2026-07-07T16:27:09"
+  "_last_checked_at": "2026-07-08T01:11:54"
 }

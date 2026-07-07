@@ -560,18 +560,38 @@ def publish_select(pid):
    ).fetchall()
    # 获取各平台是否支持存草稿
    platform_draft = {}
+   cookie_status = {}  # account_id → cookie 有效性
    for a in accounts:
        plat = a["platform"]
-       if plat not in platform_draft:
+       aid = a["id"]
+       try:
+           from flashsloth.core.publisher import get_publisher
+           from flashsloth.core.credential_crypto import decrypt_config
+           cfg = json.loads(a["config_json"]) if a["config_json"] else {}
+           # ── 检查 Cookie 有效性 ──
            try:
-               from flashsloth.core.publisher import get_publisher
-               cfg = json.loads(a["config_json"]) if a["config_json"] else {}
+               decrypt_config(cfg)
+               pub = get_publisher(plat, cfg)
+               if hasattr(pub, "check_cookie"):
+                   ck = pub.check_cookie()
+                   cookie_status[aid] = {
+                       "valid": ck.get("valid", False),
+                       "method": ck.get("method", "none"),
+                       "message": ck.get("message", ""),
+                   }
+               else:
+                   cookie_status[aid] = {"valid": True, "method": "skip", "message": ""}
+           except Exception as e:
+               cookie_status[aid] = {"valid": True, "method": "error", "message": str(e)[:60]}
+
+           # ── 存草稿支持 ──
+           if plat not in platform_draft:
                pub = get_publisher(plat, cfg)
                if hasattr(pub, "supports_draft"):
                    platform_draft[plat] = pub.supports_draft
                elif hasattr(pub, "PLATFORM_LIMITS"):
                    domain = pub._get_domain()
-                   sd = True  # 默认支持
+                   sd = True
                    for site_key, limits in pub.PLATFORM_LIMITS.items():
                        if site_key in domain:
                            sd = limits.get("supports_draft", True)
@@ -579,8 +599,9 @@ def publish_select(pid):
                    platform_draft[plat] = sd
                else:
                    platform_draft[plat] = True
-           except Exception:
-               platform_draft[plat] = True
+       except Exception:
+           platform_draft.setdefault(plat, True)
+           cookie_status.setdefault(aid, {"valid": True, "method": "error", "message": ""})
    conn.close()
 
    if not post:
@@ -590,7 +611,8 @@ def publish_select(pid):
    return render_template("publish_select.html",
                         post=post, accounts=accounts,
                         published=[dict(p) for p in published],
-                        platform_draft=platform_draft)
+                        platform_draft=platform_draft,
+                        cookie_status=cookie_status)
 
 # ─── 撤回 / 重新发布 ──────────────────────────
 @app.route("/publish/retract/<int:log_id>")

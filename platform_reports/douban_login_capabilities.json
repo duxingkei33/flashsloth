@@ -1,0 +1,129 @@
+{
+  "platform": "douban",
+  "display_name": "豆瓣",
+  "description": "豆瓣社交平台 — 日记/豆列/小组发布",
+  "login_url": "https://accounts.douban.com/passport/login",
+  "login_methods": [
+    {
+      "method": "qrcode",
+      "label": "豆瓣App扫码登录",
+      "priority": 1,
+      "hint": "📱 请使用豆瓣App扫码",
+      "detected": true,
+      "sub_types": [
+        {
+          "id": "default",
+          "label": "二维码登录",
+          "detected": true
+        }
+      ]
+    },
+    {
+      "method": "phone",
+      "label": "手机验证码登录",
+      "detected": true,
+      "priority": 2,
+      "phone_field": "input[type='phone']",
+      "code_field": "input[name='code']"
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie 粘贴（从浏览器F12复制）",
+      "detected": true,
+      "priority": 99,
+      "fields": [
+        "cookie"
+      ]
+    }
+  ],
+  "cookie_hint": {
+    "required_cookies": [
+      "bid",
+      "ck",
+      "dbcl2"
+    ],
+    "source": "浏览器F12 → Application → Cookies → douban.com"
+  },
+  "publisher": {
+    "exists": false,
+    "architecture": "Playwright"
+  },
+  "editor_info": {
+    "note": "https://www.douban.com/note/create",
+    "group": "https://www.douban.com/group/create",
+    "doulist": "https://www.douban.com/doulist/create"
+  },
+  "api_endpoints": {
+    "auth": "https://accounts.douban.com",
+    "tracking": "https://frodo.douban.com",
+    "mobile_api": "https://m.douban.com/rexxar/api/v2"
+  },
+  "notes": [
+    "豆瓣无密码登录，仅支持手机验证码 + QR码",
+    "日记/广播发布需要有效登录 Cookie",
+    "无签到机制",
+    "豆瓣的反爬主要通过 Cookie 和 IP 频率控制"
+  ],
+  "capabilities": {
+    "login_types": {
+      "phone": {
+        "supported": true,
+        "description": "手机号+短信验证码"
+      },
+      "qrcode": {
+        "supported": true,
+        "description": "豆瓣App扫码"
+      },
+      "password": {
+        "supported": false,
+        "description": "无密码登录"
+      },
+      "wechat": {
+        "supported": false
+      },
+      "weibo": {
+        "supported": false
+      }
+    },
+    "publish_types": {
+      "note": {
+        "supported": true,
+        "requires_login": true,
+        "description": "写日记"
+      },
+      "group_post": {
+        "supported": true,
+        "requires_login": true,
+        "description": "小组发帖"
+      },
+      "doulist": {
+        "supported": true,
+        "requires_login": false,
+        "description": "创建豆列"
+      },
+      "broadcast": {
+        "supported": true,
+        "requires_login": true,
+        "description": "广播/动态"
+      }
+    },
+    "image_upload": {
+      "supported": true,
+      "requires_login": true
+    },
+    "signin": {
+      "supported": false
+    }
+  },
+  "note": "豆瓣登录页支持二维码扫码/手机短信验证码/Cookie粘贴",
+  "raw_detection": {
+    "has_password_input": false,
+    "has_phone_input": true,
+    "has_code_button": true,
+    "has_qrcode_img": true,
+    "has_wechat": false,
+    "has_app_qr": false,
+    "third_party_providers": []
+  },
+  "explored_at": "2026-07-07T17:11:31.646823+00:00"
+}

@@ -121,6 +121,12 @@
                            {% if already_published and skip_reason in ('✅ 已发布', '⏳ 待审核') %}checked disabled{% endif %}>
                     <span class="badge badge-info">{{ a.platform }}</span>
                     <span>{{ a.account_name }}</span>
+                    {% set ck = cookie_status.get(a.id, {'valid': True, 'method': 'skip'}) %}
+                    {% if ck['valid'] and ck['method'] != 'skip' %}
+                    <span style="font-size:11px;color:#166534;margin-left:auto;">✅ Cookie有效</span>
+                    {% elif not ck['valid'] %}
+                    <span style="font-size:11px;color:#dc2626;margin-left:auto;" title="{{ ck.get('message','') }}">❌ Cookie失效</span>
+                    {% endif %}
                     {% if already_published %}
                     <span style="font-size:11px;color:#166534;margin-left:auto;">{{ skip_reason }}</span>
                     {% endif %}

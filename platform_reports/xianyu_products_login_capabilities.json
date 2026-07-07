@@ -1,6 +1,6 @@
 {
   "platform": "xianyu_products",
-  "explored_at": "2026-07-07T00:00:00+00:00",
+  "explored_at": "2026-07-07T17:11:31.648083+00:00",
   "login_url": "https://www.goofish.com/",
   "login_methods": [
     {
@@ -9,8 +9,13 @@
       "icon": "🔑",
       "priority": 1,
       "detected": true,
-      "fields": ["site_url", "username", "password"],
-      "description": "输入淘宝账号密码，Playwright 处理扫码/验证码完成登录"
+      "fields": [
+        "site_url",
+        "username",
+        "password"
+      ],
+      "description": "输入淘宝账号密码，Playwright 处理扫码/验证码完成登录",
+      "selector": "input[type='password']"
     },
     {
       "method": "qrcode",
@@ -18,8 +23,22 @@
       "icon": "📱",
       "priority": 2,
       "detected": true,
-      "fields": ["site_url"],
-      "description": "打开闲鱼登录页截图，用手机淘宝扫码后自动捕获 Cookie"
+      "fields": [
+        "site_url"
+      ],
+      "description": "打开闲鱼登录页截图，用手机淘宝扫码后自动捕获 Cookie",
+      "sub_types": [
+        {
+          "id": "xianyu_app",
+          "label": "闲鱼APP扫码",
+          "detected": true
+        },
+        {
+          "id": "taobao_app",
+          "label": "淘宝APP扫码",
+          "detected": true
+        }
+      ]
     },
     {
       "method": "cookie",
@@ -27,7 +46,10 @@
       "icon": "🍪",
       "priority": 99,
       "detected": true,
-      "fields": ["site_url", "cookie"],
+      "fields": [
+        "site_url",
+        "cookie"
+      ],
       "description": "从浏览器 F12 → Application → Cookies → goofish.com 复制"
     }
   ],
@@ -37,5 +59,18 @@
     "requires_login": true,
     "under_development": true
   },
-  "error": null
+  "error": null,
+  "raw_detection": {
+    "has_password_input": true,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": true,
+    "has_wechat": false,
+    "has_app_qr": true,
+    "third_party_providers": [
+      "qq",
+      "alipay",
+      "taobao"
+    ]
+  }
 }

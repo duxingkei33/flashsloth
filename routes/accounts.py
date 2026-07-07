@@ -1810,7 +1810,13 @@ def api_cache_flush():
 @app.route("/api/accounts/batch/refresh", methods=["POST"])
 @login_required
 def api_accounts_batch_refresh():
-    """批量后台刷新所有活跃账号的状态（异步）"""
+    """批量后台刷新所有活跃账号的状态（异步）
+    
+    ⚠️ 铁律：API轻量检测只能用于快速判定"未登录"（重定向到登录页等明确信号）。
+    API轻量检测的"已登录"结果不可信任——它对假Cookie/过期Cookie可能误报为已登录。
+    批量刷新仅做"状态预检"，不会用Playwright验证。
+    如需真实登录态确认，请使用"状态检测"按钮（Playwright全量验证）。
+    """
     conn = get_db()
     accounts = conn.execute(
         "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
@@ -1824,6 +1830,9 @@ def api_accounts_batch_refresh():
     from flashsloth.core.status_detector import PLATFORM_DETECTORS
     
     refreshed = 0
+    api_passed = 0
+    api_failed = 0
+    skipped = 0
     errors = []
     for acct in accounts:
         acct = dict(acct)
@@ -1843,28 +1852,56 @@ def api_accounts_batch_refresh():
         if platform in PLATFORM_DETECTORS and cookie and site_url:
             try:
                 api_result = detect_platform(platform, site_url, cookie, username)
-                if api_result.get("logged_in"):
-                    api_result["account_name"] = acct["account_name"]
-                    set_status(acct["id"], api_result)
-                    refreshed += 1
+                # ⚠️ 铁律：API轻量检测只能信任"未登录"结果
+                # "已登录"结果必须经过Playwright才能确认
+                # 这里只缓存API检测结果，不标记为已登录
+                if api_result.get("logged_in") == False:
+                    # API明确检测到未登录（重定向到登录页等）→ 可信任
+                    cache_data = {
+                        "logged_in": False,
+                        "username": "",
+                        "display_name": "",
+                        "points": 0,
+                        "level": "",
+                        "status": "❌ Cookie已失效（API轻量检测）",
+                        "method": "api_lightweight",
+                        "verified_at": datetime.now().isoformat(),
+                        "error": api_result.get("error", "Cookie失效"),
+                    }
+                    set_status(acct["id"], cache_data)
+                    api_failed += 1
                 else:
-                    # 登录失败也缓存，避免频繁重试
-                    api_result["account_name"] = acct["account_name"]
-                    api_result["success"] = False
-                    set_status(acct["id"], api_result)
-                    refreshed += 1
+                    # API检测通过 或 无明确判定
+                    # → 缓存为"待确认"状态，提示用户点击"状态检测"按钮做Playwright验证
+                    cache_data = {
+                        "logged_in": None,  # null = 未确认
+                        "username": api_result.get("username", ""),
+                        "display_name": api_result.get("display_name", ""),
+                        "points": api_result.get("points", 0),
+                        "level": api_result.get("level", ""),
+                        "status": "⏳ 待确认（API轻量检测通过，需要Playwright确认）",
+                        "method": "api_lightweight",
+                        "verified_at": datetime.now().isoformat(),
+                    }
+                    set_status(acct["id"], cache_data)
+                    api_passed += 1
+                refreshed += 1
             except Exception as e:
                 errors.append(f"{acct['account_name']}: {str(e)[:80]}")
+                skipped += 1
         else:
-            # 不支持API轻量的平台，标记为未缓存
-            pass
+            # 不支持API轻量的平台，跳过
+            skipped += 1
     
     return jsonify({
         "success": True,
         "refreshed": refreshed,
         "total": len(accounts),
+        "api_passed": api_passed,
+        "api_failed": api_failed,
+        "skipped": skipped,
         "errors": errors[:5],
-        "message": f"已刷新 {refreshed}/{len(accounts)} 个账号"
+        "message": f"已刷新 {refreshed}/{len(accounts)} 个账号（API通过:{api_passed} API失效:{api_failed} 跳过:{skipped}）"
     })
 
 
@@ -1894,6 +1931,13 @@ def api_test_connection():
         if cookie and site_url:
             from flashsloth.core.status_detector import detect_platform
             detect_result = detect_platform(platform, site_url, cookie, config.get("username", ""))
+            # ⚠️ 铁律：API轻量检测只能信任"未登录"结果
+            # 如果API说"已登录"，标记为"待确认"而非直接信任
+            if detect_result.get("logged_in") == False:
+                detect_result["status"] = "❌ Cookie已失效（API轻量检测）"
+            elif detect_result.get("logged_in"):
+                detect_result["logged_in"] = None  # 改为待确认
+                detect_result["status"] = "⏳ API轻量检测通过，保存后使用「状态检测」做Playwright确认"
             return jsonify({"success": True, "result": detect_result})
         return jsonify({"success": False, "error": "无有效凭证可测试（需要 Cookie 或 API 密钥）"})
     except Exception as e:
