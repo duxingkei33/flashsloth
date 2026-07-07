@@ -1,6 +1,6 @@
 # 🦥 FlashSloth 开发说明书
 
-**版本**: v4.50 | **最后更新**: 2026-07-07
+**版本**: v4.54 | **最后更新**: 2026-07-07
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -331,6 +331,31 @@
 - **数据表**: `notifications`
 
 ### 3.13 SDK 平台适配器层 (`sdk/`)
+### 3.14 部署管理模块 (`routes/storage_deploy.py` + `core/deployer.py`)
+
+部署管理负责将静态站点发布到托管平台（GitHub Pages 等）。支持插件化注册机制：
+- `core/deployer.py` — Deployer 抽象基类 + `@register` 注册器
+- `plugins/deployer_github_pages.py` — GitHub Pages 部署实现
+- `routes/storage_deploy.py` — 部署配置管理页面 + API
+- 数据库 `deployer_configs` 表保存用户部署配置
+
+### 3.15 工作台模块 (`routes/workspace_ui.py` + `core/provider.py`)
+
+工作台整合 Provider 选择 + 流水线 + 内容日志：
+- `core/provider.py` — Provider 抽象基类（Markdown/Notion 等数据源）
+- `plugins/provider_markdown.py` — 扫描 posts/ 目录的 Markdown 文件
+- `plugins/provider_notion.py` — 通过 Notion API 读取数据库
+- `routes/workspace_ui.py` — 工作台页面 + API 端点
+- 向后兼容：`/pipeline` 自动重定向到 `/workspace`
+
+### 3.16 AI 调用日志模块 (`core/ai_provider.py` 日志函数 + `routes/ai.py` 日志页面)
+
+自动记录每一次 AI 调用的元数据（模型、token数、费用、成功/失败）：
+- `ai_call_log` 表：id/capability/provider/model/prompt_tokens/response_tokens/cost/success/error/response_summary/prompt_preview/created_at
+- `log_ai_call()` — 导出日志函数，在 `AIRouter.call()` 的双路径（自动路由 + 指定Provider）中自动调用
+- `/ai/logs` — 日志查看页面（分页、按能力筛选、按状态筛选）
+- `/api/ai/logs` — 分页查询 API
+- `/api/ai/logs/clear` — 清空日志 API
 
 | 文件 | 功能 |
 |------|------|
@@ -527,6 +552,8 @@ playwright 访问论坛 → 解析版块 HTML →
 |------|------|------|
 | `/api/xianyu/search` | POST | 闲鱼商品搜索 |
 | `/api/platforms/presets` | GET | 平台预设配置 |
+| `/api/ai/logs` | GET | AI调用日志分页查询 |
+| `/api/ai/logs/clear` | POST | 清空AI调用日志 |
 
 ---
 
@@ -675,16 +702,43 @@ playwright 访问论坛 → 解析版块 HTML →
 | responded_at | TEXT | 回复时间 |
 
 ### 7.12 `notifications`
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER PK | 通知 ID |
-| user_id | INTEGER FK | 用户 |
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| id | INTEGER PK | |
+| user_id | INTEGER | 用户ID |
 | title | TEXT | 标题 |
 | message | TEXT | 内容 |
-| level | TEXT | info/success/warn/error |
-| source | TEXT | 来源模块 |
-| link | TEXT | 跳转链接 |
-| read | INTEGER | 是否已读 |
+| level | TEXT | 级别 (info/warning/error) |
+| source | TEXT | 来源 |
+| read | INTEGER | 是否已读 0/1 |
+| created_at | TEXT | 创建时间 |
+
+### 7.13 `ai_call_log`
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| id | INTEGER PK | 自增主键 |
+| capability | TEXT | 能力类型 (writing/translate/image_gen等) |
+| provider | TEXT | AI Provider 名称 (deepseek/openai等) |
+| model | TEXT | 使用的模型名 |
+| prompt_tokens | INTEGER | 输入token数 |
+| response_tokens | INTEGER | 输出token数 |
+| cost | REAL | 费用（元） |
+| success | INTEGER | 是否成功 0/1 |
+| error | TEXT | 错误信息 |
+| response_summary | TEXT | 响应摘要（前200字） |
+| prompt_preview | TEXT | 提示词预览（前200字） |
+| created_at | TEXT | 创建时间 |
+
+### 7.14 `deployer_configs`
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| id | INTEGER PK | |
+| user_id | INTEGER | 用户ID |
+| deployer_name | TEXT | 部署器类型 (github_pages等) |
+| display_name | TEXT | 显示名称 |
+| config_json | TEXT | JSON配置 |
+| is_active | INTEGER | 是否启用 0/1 |
+| created_at | TEXT | 创建时间 |
 | created_at | TEXT | 时间 |
 
 ### 其他表
@@ -769,7 +823,11 @@ playwright 访问论坛 → 解析版块 HTML →
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
-| v4.50 | 2026-07-07 | 当前版本。完善闲鱼 V2 MTOP 发布器，审批系统正式上线，通知网关 Provider 扩展 |
+| v4.54 | 2026-07-07 | AI调用日志系统(ai_call_log表+自动记录+/ai/logs页面)，全站移动端CSS增强(768px+480px双断点)，publish_log updated_at列修复 |
+| v4.53 | 2026-07-07 | 手机验证码登录(phone_login+SMS验证码+前端支持)，OSHWHub登录修复(passport.jlc.com) |
+| v4.52 | 2026-07-07 | 统一登录能力探索+动态渲染(7平台登录方式JSON+API+前端动态Tab) |
+| v4.51 | 2026-07-07 | 签到asyncio修复+探索数据DB持久化，编辑页密码掩码覆盖bug修复 |
+| v4.50 | 2026-07-07 | 闲鱼V2 MTOP发布器，审批系统上线，通知网关扩展至22Provider |
 | v4.39 | — | 通知网关 22 Provider、反检测中央模块、闲鱼 V2 MTOP 发布器、闲鱼客户端 SDK |
 | v4.0  | — | Gateway API 网关、统一流水线调度器、AI 路由框架 |
 | v3.x  | — | Discuz/CSDN/知乎/掘金/B站/OSHWHub 发布器、签到系统 |
