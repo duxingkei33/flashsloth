@@ -24,10 +24,17 @@
 **状态**: ⏸ 框架就绪
 **需要**: WordPress 站点 URL + Application Password
 
-## 🟡 B站 — 登录凭据
-**文件**: `plugins/publisher_bilibili.py`
-**状态**: ⏸ 框架就绪
-**需要**: B站 Cookie / 账号密码
+## 🟡 B站 — 登录凭据（优先队列 #1）
+**文件**: `plugins/publisher_bilibili.py` + `sdk/adapters/bilibili.py`
+**状态**: ⏸ Publisher + SDK 完整就绪 (v4.55)
+**需要**: B站 Cookie（推荐）或 账号密码
+- **推荐方式**: QR 码扫码登录（无需验证码）
+  - B站 passport 提供 `/qrcode/generate` + `/qrcode/poll` API
+  - 可通过统一弹窗 QR 码流程完成
+- **备选方式**: 密码登录（需处理极验 Geetest 验证码）
+- **Cookie 关键字段**: `SESSDATA` + `bili_jct` + `DedeUserID`
+- **探索报告**: `platform_reports/bilibili.md` ✅
+- **平台能力已入库**: `platform_config` ✅
 
 ## 🟡 微信公众号 — API 配置
 **文件**: `plugins/publisher_wechat.py`
