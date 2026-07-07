@@ -53,7 +53,7 @@ class BilibiliPlaywrightLogin:
         self.close()
 
     def close(self):
-        """释放浏览器资源"""
+        """释放所有 Playwright 浏览器资源（浏览器、上下文、页面、驱动）。幂等安全——可多次调用。"""
         try:
             if self.page:
                 self.page.close()
@@ -386,7 +386,7 @@ class BilibiliPlaywrightLogin:
         return {"logged_in": False, "cookies": "", "error": f"未知登录模式: {mode}"}
 
     def take_screenshot(self) -> str:
-        """获取当前页面的 base64 截图"""
+        """获取当前浏览器页面的截图，返回 base64 PNG 字符串。无页面时返回空字符串。"""
         if not self.page:
             return ""
         try:
