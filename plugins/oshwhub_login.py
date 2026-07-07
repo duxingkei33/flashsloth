@@ -430,7 +430,7 @@ class OshwhubPlaywrightLogin:
         return None
 
     def _check_cookies_logged_in(self) -> bool:
-        """检查 Cookie 中是否有登录凭证"""
+        """检查 Cookie 中是否有登录凭证（铁律：必须找真实登录凭证，禁止 cookie 数量判据）"""
         try:
             cookies_list = self.context.cookies() if self.context else []
             auth_keywords = ["auth", "token", "sid", "session", "jwt",
@@ -440,11 +440,6 @@ class OshwhubPlaywrightLogin:
                 for kw in auth_keywords:
                     if kw in name_lower:
                         return True
-            # 如果有多于 3 个 cookie 且不在登录页，很可能已登录
-            if len(cookies_list) > 3:
-                current_url = (self.page.url if self.page else "").lower()
-                if "login" not in current_url:
-                    return True
             return False
         except:
             return False
