@@ -133,6 +133,96 @@
     /* 部署区块 */
     #deploy .stat-card { min-width:100% !important; flex:1 1 100% !important; }
 }
+
+/* ═══ 添加账号弹窗：引导卡片 ═══ */
+.guide-banner {
+    background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 100%);
+    border: 1px solid #b8d4f8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.guide-banner .guide-header {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1a3a6b;
+    margin-bottom: 8px;
+}
+.guide-banner .guide-steps ol {
+    margin: 4px 0 8px 0;
+    padding-left: 20px;
+    color: #2c3e50;
+}
+.guide-banner .guide-steps li {
+    margin-bottom: 3px;
+}
+.guide-banner .guide-btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #1d4ed8;
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    margin: 4px 0 10px 0;
+    transition: background 0.15s;
+}
+.guide-banner .guide-btn:hover {
+    background: #1e40af;
+}
+.guide-banner .guide-fields-map {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 6px;
+}
+.guide-banner .guide-fields-map th {
+    background: #d0e2fc;
+    color: #1a3a6b;
+    text-align: left;
+    padding: 5px 8px;
+    font-weight: 600;
+    border: 1px solid #b8d4f8;
+}
+.guide-banner .guide-fields-map td {
+    padding: 4px 8px;
+    border: 1px solid #c9dffa;
+    background: rgba(255,255,255,0.5);
+    color: #2c3e50;
+}
+.guide-banner .guide-fields-map td code {
+    background: #e8f0fe;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #1d4ed8;
+}
+/* ═══ 暗色模式引导卡片 ═══ */
+@media (prefers-color-scheme: dark) {
+    .guide-banner {
+        background: linear-gradient(135deg, #1a2744 0%, #1e3a5f 100%);
+        border-color: #2d4a7a;
+    }
+    .guide-banner .guide-header { color: #8ab4f8; }
+    .guide-banner .guide-steps ol { color: #e0e0e0; }
+    .guide-banner .guide-fields-map th {
+        background: #2d4a7a;
+        color: #8ab4f8;
+        border-color: #3a5a8a;
+    }
+    .guide-banner .guide-fields-map td {
+        border-color: #3a5a8a;
+        background: rgba(0,0,0,0.2);
+        color: #e0e0e0;
+    }
+    .guide-banner .guide-fields-map td code {
+        background: #1a2744;
+        color: #8ab4f8;
+    }
+}
 </style>
 
 <!-- ====== 顶部：标题 + 添加账号 ====== -->
@@ -455,13 +545,96 @@
 </div>
 {% endif %}
 
+<!-- ====== 部署配置区块 (锚点 #deploy) ====== -->
+<div id="deploy" class="card" style="margin-top:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+        <h2 style="margin:0;font-size:18px;">🚀 站点部署配置</h2>
+        <a href="/deployers" class="btn btn-sm btn-primary">🔧 进入完整部署管理页</a>
+    </div>
+    <p style="font-size:13px;color:#888;margin:-4px 0 12px;">
+        配置博客平台、评论系统和功能插件。所有配置持久化到数据库。
+    </p>
+    <div id="deploySummary">
+        <p style="color:#999;font-size:13px;">⏳ 加载中...</p>
+    </div>
+    <script>
+    // 加载部署摘要（仅 #deploy 锚点可见时加载）
+    function loadDeploySummary() {
+        var el = document.getElementById('deploySummary');
+        if (!el) return;
+        fetch('/api/deploy/site-config')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.config) {
+                    el.innerHTML = '<p style="color:#999;font-size:13px;">暂无配置，请前往<a href="/deployers">部署管理页</a>配置</p>';
+                    return;
+                }
+                var cfg = data.config;
+                var platformName = cfg.platform || '未设置';
+                var commentName = cfg.comment_system || '未启用';
+                var pluginCount = 0;
+                try {
+                    var pc = JSON.parse(cfg.plugins_config || '{}');
+                    pluginCount = Object.keys(pc).length;
+                } catch(e) {}
+
+                // 获取平台显示名
+                var platformIcon = '🌐';
+                fetch('/api/deploy/platforms')
+                    .then(function(r) { return r.json(); })
+                    .then(function(pdata) {
+                        if (pdata.success) {
+                            var p = pdata.platforms.find(function(x) { return x.id === cfg.platform; });
+                            if (p) { platformIcon = p.icon; platformName = p.name; }
+                        }
+                    })
+                    .catch(function() {})
+                    .finally(function() {
+                        el.innerHTML = '<div style="display:flex;gap:16px;flex-wrap:wrap;">'
+                            + '<div class="stat-card" style="flex:1;min-width:140px;padding:14px;text-align:center;background:#f8f9fa;border-radius:8px;">'
+                            + '<div style="font-size:24px;">' + platformIcon + '</div>'
+                            + '<div style="font-weight:600;font-size:15px;margin-top:4px;">' + platformName + '</div>'
+                            + '<div style="font-size:11px;color:#888;">博客平台</div>'
+                            + '</div>'
+                            + '<div class="stat-card" style="flex:1;min-width:140px;padding:14px;text-align:center;background:#f8f9fa;border-radius:8px;">'
+                            + '<div style="font-size:24px;">💬</div>'
+                            + '<div style="font-weight:600;font-size:15px;margin-top:4px;">' + commentName + '</div>'
+                            + '<div style="font-size:11px;color:#888;">评论系统</div>'
+                            + '</div>'
+                            + '<div class="stat-card" style="flex:1;min-width:140px;padding:14px;text-align:center;background:#f8f9fa;border-radius:8px;">'
+                            + '<div style="font-size:24px;">🔌</div>'
+                            + '<div style="font-weight:600;font-size:15px;margin-top:4px;">' + pluginCount + ' 个</div>'
+                            + '<div style="font-size:11px;color:#888;">已启用插件</div>'
+                            + '</div>'
+                            + '</div>';
+                    });
+            })
+            .catch(function() {
+                el.innerHTML = '<p style="color:#999;font-size:13px;">加载失败</p>';
+            });
+    }
+    // 页面加载或锚点跳转时触发
+    if (window.location.hash === '#deploy') {
+        loadDeploySummary();
+    }
+    // 监听 hash 变化
+    window.addEventListener('hashchange', function() {
+        if (window.location.hash === '#deploy') loadDeploySummary();
+    });
+    // 页面加载时也尝试加载（如果是直接访问）
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.location.hash === '#deploy') loadDeploySummary();
+    });
+    </script>
+</div>
+
 <!-- ====== 添加账号弹窗 ====== -->
 <div id="addFormBox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;padding:28px;max-width:550px;width:90%;max-height:85vh;overflow-y:auto;">
         <h2 id="addFormTitle" style="margin-bottom:16px;font-size:18px;">➕ 添加账号 — <span id="addPlatName"></span></h2>
 
-        <form method="post" action="/accounts/add" id="accountForm">
+        <form method="post" action="/accounts/add" id="accountForm" onsubmit="return validateAccountForm()">
             <input type="hidden" name="platform" id="addPlatInput">
             <input type="hidden" name="edit_id" id="editAccountId" value="">
             <div class="form-group">
@@ -540,6 +713,9 @@
 
             <!-- 操作按钮 -->
             <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                <button id="btnTestConnectionAdd" type="button" onclick="testConnectionAdd()" class="btn btn-sm btn-secondary" style="display:none;">
+                    🔌 测试连接
+                </button>
                 <button id="btnStartLogin" type="button" onclick="unifiedLoginStart()" class="btn btn-primary" style="display:none;">
                     🚀 开始浏览器登录
                 </button>
@@ -884,6 +1060,7 @@ let _loginPlatform = '';      // 当前添加账号弹窗选择的平台
 let _loginMethod = 'cookie';  // 当前选择的登录方法
 let _loginSession = null;     // 浏览器登录会话状态
 let _isLoginRunning = false;
+let _loginGuide = null;           // 当前平台的引导卡片数据（如 Twitter API 指南）
 
 // ====== 页面加载：获取预置站点 + 状态刷新 ======
 document.addEventListener('DOMContentLoaded', function() {
@@ -934,7 +1111,7 @@ function onPlatformSearchInput() {
 
     _platformSearchTimer = setTimeout(function() {
         _doPlatformSearch(q);
-    }, 200);
+    }, 300);
 }
 
 function onPlatformSearchFocus() {
@@ -947,19 +1124,50 @@ function _loadAllPlatformsForDropdown() {
     dd.innerHTML = '<div class="plat-loading">⏳ 加载平台列表...</div>';
     dd.style.display = 'block';
 
-    fetch('/api/platforms/search?q=')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (!data.success || !data.results) {
-            dd.innerHTML = '<div class="plat-empty">加载失败</div>';
-            return;
-        }
-        _platformSearchData = data.results;
-        _renderPlatformDropdown(data.results);
-    })
-    .catch(function() {
-        dd.innerHTML = '<div class="plat-empty">网络错误，请重试</div>';
-    });
+    // 跟踪是否已经重试过
+    var hasRetried = false;
+    var timedOut = false;
+    var timeoutTimer = null;
+
+    function showTimeout() {
+        timedOut = true;
+        dd.innerHTML = '<div class="plat-empty">'
+            + '⏰ 加载超时，<a href="javascript:_loadAllPlatformsForDropdown()" style="text-decoration:underline;cursor:pointer;color:var(--accent)">点击重试</a>'
+            + '</div>';
+    }
+
+    // 5 秒超时检测
+    timeoutTimer = setTimeout(showTimeout, 5000);
+
+    function doFetch() {
+        fetch('/api/platforms/search?q=')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            clearTimeout(timeoutTimer);
+            if (data.success && data.results) {
+                _platformSearchData = data.results;
+                _renderPlatformDropdown(data.results);
+            } else {
+                dd.innerHTML = '<div class="plat-empty">加载失败</div>';
+            }
+        })
+        .catch(function() {
+            if (!hasRetried) {
+                // 第 1 次失败 → 等待 1 秒后自动重试
+                hasRetried = true;
+                dd.innerHTML = '<div class="plat-loading">⏳ 重试中...</div>';
+                setTimeout(doFetch, 1000);
+            } else {
+                clearTimeout(timeoutTimer);
+                if (!timedOut) {
+                    dd.innerHTML = '<div class="plat-empty">网络错误，<a href="javascript:_loadAllPlatformsForDropdown()" style="text-decoration:underline;cursor:pointer;color:var(--accent)">点击重试</a></div>';
+                }
+                // 如果已经显示超时消息，则保留超时消息
+            }
+        });
+    }
+
+    doFetch();
 }
 
 // ====== 切換下拉面板显示/隐藏（全量列表） ======
@@ -1139,9 +1347,18 @@ function onAddAccount() {
     fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
     .then(function(r) { return r.json(); })
     .then(function(data) {
+        _loginGuide = data.guide || null;
         if (!data.success) {
             let methods = [];
-            try { methods = JSON.parse(opt.dataset.methods || '[]'); } catch(e) {}
+            try {
+                var plat = _loginPlatform;
+                for (var i = 0; i < _platformSearchData.length; i++) {
+                    if (_platformSearchData[i].name === plat) {
+                        methods = _platformSearchData[i].login_methods || [];
+                        break;
+                    }
+                }
+            } catch(e) {}
             renderFromLoginMethods(methods);
             document.getElementById('addFormBox').style.display = 'flex';
             return;
@@ -1161,6 +1378,7 @@ function onAddAccount() {
         document.getElementById('addFormBox').style.display = 'flex';
     })
     .catch(function() {
+        _loginGuide = null;
         let methods = [];
         try {
             // 从缓存的搜索数据中获取登录方法
@@ -1267,6 +1485,7 @@ function selectCapabilityLoginMethod(method, methods) {
         fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            _loginGuide = data.guide || null;
             if (data.success) {
                 renderCapabilityFields(method, data.login_methods || []);
             }
@@ -1293,6 +1512,30 @@ function renderCapabilityFields(method, allMethods) {
     var html = '';
 
     showLoginMethodDemo(method);
+
+    // 渲染引导卡片（如 Twitter API 凭证申请指南）
+    if (_loginGuide) {
+        var g = _loginGuide;
+        html += '<div class="guide-banner">';
+        html += '<div class="guide-header">📖 ' + escapeHtml(g.title) + '</div>';
+        html += '<div class="guide-steps"><ol>';
+        g.steps.forEach(function(s) {
+            html += '<li>' + escapeHtml(s) + '</li>';
+        });
+        html += '</ol></div>';
+        var btnLabel = g.btn_label || '前往 ' + g.title + ' →';
+        if (g.url) {
+            html += '<a href="' + escapeHtml(g.url) + '" target="_blank" class="guide-btn">' + btnLabel + '</a>';
+        }
+        if (g.fields_map) {
+            html += '<table class="guide-fields-map"><thead><tr><th>凭证字段</th><th>对应位置</th></tr></thead><tbody>';
+            for (var key in g.fields_map) {
+                html += '<tr><td><code>' + escapeHtml(key) + '</code></td><td>' + escapeHtml(g.fields_map[key]) + '</td></tr>';
+            }
+            html += '</tbody></table>';
+        }
+        html += '</div>';
+    }
 
     if (methodDef && methodDef.description) {
         html += '<div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">💡 ' +
@@ -1413,6 +1656,14 @@ function renderCapabilityFields(method, allMethods) {
     }
     document.getElementById('loginStatusMsg').style.display = 'none';
     _isLoginRunning = false;
+
+    // 测试连接按钮：对 password、oauth1、bearer、cookie 方法可见
+    var btnTestConn = document.getElementById('btnTestConnectionAdd');
+    if (method === 'cookie' || method === 'oauth1' || method === 'bearer' || method === 'password') {
+        btnTestConn.style.display = 'inline-block';
+    } else {
+        btnTestConn.style.display = 'none';
+    }
 }
 
 function getFieldsForMethod(platform, method, methodDef) {
@@ -1591,6 +1842,14 @@ function renderMethodFields(method, fields, methodDef) {
     }
     document.getElementById('loginStatusMsg').style.display = 'none';
     _isLoginRunning = false;
+
+    // 测试连接按钮
+    var btnTestConn = document.getElementById('btnTestConnectionAdd');
+    if (method === 'cookie' || method === 'oauth1' || method === 'bearer' || method === 'password') {
+        btnTestConn.style.display = 'inline-block';
+    } else {
+        btnTestConn.style.display = 'none';
+    }
 }
 
 // ====== 填充预置站点 ======
@@ -1637,6 +1896,7 @@ function renderConfigFields(fields) {
     document.getElementById('btnStartLogin').style.display = 'none';
     document.getElementById('btnCaptchaLogin').style.display = 'none';
     document.getElementById('btnRefreshScreenshot').style.display = 'none';
+    document.getElementById('btnTestConnectionAdd').style.display = 'none';
     var sa = document.getElementById('loginScreenshotArea');
     if (sa) sa.style.display = 'none';
 }
@@ -2134,6 +2394,106 @@ function showCaptchaFeedback(text, isError) {
     fb.style.display = 'block';
     fb.style.color = isError ? '#ef4444' : '#22c55e';
     fb.textContent = isError ? '❌ ' + text : '✅ ' + text;
+}
+
+// ====== 添加弹窗中的测试连接 ======
+function testConnectionAdd() {
+    var platform = _loginPlatform;
+    if (!platform) { alert('请先选择平台'); return; }
+
+    // 收集所有字段
+    var fields = {};
+    var form = document.getElementById('accountForm');
+    var inputs = form.querySelectorAll('input[name^="cfg_"], textarea[name^="cfg_"]');
+    inputs.forEach(function(input) {
+        fields[input.name.replace('cfg_', '')] = input.value.trim();
+    });
+
+    // 显示状态遮罩
+    document.getElementById('statusContent').innerHTML = '<p style="color:#999;">⏳ 正在测试连接...</p>';
+    document.getElementById('statusModal').style.display = 'flex';
+
+    fetch('/api/accounts/test-connection', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({platform: platform, config: fields})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var html = '<div style="margin-bottom:12px;">';
+        html += '<p><strong>平台：</strong>' + escapeHtml(data.platform || platform) + '</p>';
+
+        if (data.success && data.logged_in) {
+            html += '<div style="padding:12px;background:#f0fdf4;border:1px solid #22c55e;border-radius:8px;margin:8px 0;">';
+            html += '<p style="font-size:20px;color:#22c55e;font-weight:600;">✅ 连接成功！</p>';
+            if (data.username) {
+                html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;">' + escapeHtml(data.username) + '</span></p>';
+            }
+            html += '</div>';
+        } else {
+            html += '<div style="padding:12px;background:#fef2f2;border:1px solid #ef4444;border-radius:8px;margin:8px 0;">';
+            html += '<p style="font-size:20px;color:#ef4444;font-weight:600;">❌ ' + (data.logged_in === false ? '连接失败' : '无法验证') + '</p>';
+            html += '</div>';
+        }
+        html += '<p><strong>状态：</strong>' + escapeHtml(data.status || '⏳ 未知') + '</p>';
+        if (data.error) {
+            html += '<p style="color:#ef4444;"><strong>错误：</strong>' + escapeHtml(data.error) + '</p>';
+        }
+        html += '</div>';
+        document.getElementById('statusContent').innerHTML = html;
+    })
+    .catch(function(e) {
+        document.getElementById('statusContent').innerHTML =
+            '<div class="alert alert-error">❌ 请求失败: ' + escapeHtml(e.message) + '</div>';
+    });
+}
+
+// ====== 表单字段校验 ======
+function validateAccountForm() {
+    var platform = document.getElementById('addPlatInput').value;
+    if (!platform) {
+        alert('请先选择平台');
+        return false;
+    }
+    // 检查必填字段
+    var requiredLabels = {
+        'cfg_site_url': '平台地址',
+        'cfg_username': '用户名',
+        'cfg_password': '密码',
+        'cfg_app_password': '应用密码',
+        'cfg_app_id': 'AppID',
+        'cfg_app_secret': 'AppSecret',
+        'cfg_api_key': 'API Key',
+        'cfg_api_secret': 'API Secret',
+        'cfg_access_token': 'Access Token',
+        'cfg_access_token_secret': 'Access Token Secret',
+    };
+    var missing = [];
+    for (var key in requiredLabels) {
+        var el = document.querySelector('input[name="' + key + '"]');
+        if (el && el.hasAttribute('required')) {
+            if (!el.value.trim()) {
+                missing.push(requiredLabels[key]);
+            }
+        }
+    }
+    // 二次校验：检查表单中所有标记了 required 属性的字段
+    var form = document.getElementById('accountForm');
+    var reqFields = form.querySelectorAll('[required]');
+    reqFields.forEach(function(el) {
+        if (!el.value.trim()) {
+            var label = el.closest('.form-group');
+            var labelText = label ? (label.querySelector('label') ? label.querySelector('label').textContent.trim() : el.name) : el.name;
+            if (missing.indexOf(labelText) === -1) {
+                missing.push(labelText);
+            }
+        }
+    });
+    if (missing.length > 0) {
+        alert('请填写以下必填字段：\n• ' + missing.join('\n• '));
+        return false;
+    }
+    return true;
 }
 
 // ====== 辅助函数 ======
@@ -2882,7 +3242,11 @@ function startQrCodeLogin() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (!data.success) {
-            showLoginStatus('error', '❌ ' + (data.error || '启动失败'));
+            if (data.no_qrcode) {
+                showLoginStatus('warning', '❌ 未检测到二维码，请尝试其他登录方式（账号密码/Cookie粘贴）');
+            } else {
+                showLoginStatus('error', '❌ ' + (data.error || '启动失败'));
+            }
             btn.disabled = false;
             btn.textContent = '📱 重新打开';
             _isLoginRunning = false;
@@ -3031,7 +3395,15 @@ function onEditAccount(aid) {
                 selectCapabilityLoginMethod(defaultMethod, methods);
             } else {
                 let methods = [];
-                try { methods = JSON.parse(opt ? opt.dataset.methods : '[]'); } catch(e) {}
+                try {
+                    var plat = platform;
+                    for (var i = 0; i < _platformSearchData.length; i++) {
+                        if (_platformSearchData[i].name === plat) {
+                            methods = _platformSearchData[i].login_methods || [];
+                            break;
+                        }
+                    }
+                } catch(e) {}
                 renderFromLoginMethods(methods);
             }
 
