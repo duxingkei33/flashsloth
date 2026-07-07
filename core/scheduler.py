@@ -137,8 +137,16 @@ def _tick_scheduler():
                 continue  # 不在时间窗口内
 
             # 每个账号在窗口内的随机偏移（避免同时触发）
-            # 基于 account_id 生成确定性偏移，确保同一账号在同一 tick 内不重复跑
-            acct_rand_offset = (d["id"] * 7 + 13) % 45  # 0~44 分钟偏移
+            # 优先使用用户配置的 random_offset_minutes（±30min），其次使用基于 account_id 的确定性偏移
+            rand_offset_cfg = cfg.get("random_offset_minutes")
+            if rand_offset_cfg is not None:
+                try:
+                    acct_rand_offset = int(rand_offset_cfg)
+                    acct_rand_offset = max(-30, min(30, acct_rand_offset))
+                except (ValueError, TypeError):
+                    acct_rand_offset = (d["id"] * 7 + 13) % 45  # 0~44
+            else:
+                acct_rand_offset = (d["id"] * 7 + 13) % 45  # 0~44 分钟确定性偏移
             # 只在当前分钟接近该账号的随机目标时间时才执行
             target_minute = window_start + acct_rand_offset
             # 允许 ±1 分钟的误差（scheduler 每分钟 tick 一次）

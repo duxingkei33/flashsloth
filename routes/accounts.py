@@ -470,10 +470,11 @@ def test_account(aid):
 @app.route("/api/accounts/<int:aid>/signin_settings", methods=["POST"])
 @login_required
 def api_account_signin_settings(aid):
-   """保存账号的签到设置（启用/禁用、签到时间）"""
+   """保存账号的签到设置（启用/禁用、签到时间、随机偏移）"""
    data = request.get_json() or {}
    signin_enabled = data.get("signin_enabled")
    signin_time = data.get("signin_time")
+   random_offset = data.get("random_offset_minutes")
    conn = get_db()
    acct = conn.execute(
        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
@@ -487,6 +488,9 @@ def api_account_signin_settings(aid):
        cfg["signin_enabled"] = bool(signin_enabled)
    if signin_time is not None:
        cfg["signin_time"] = str(signin_time)
+   if random_offset is not None:
+       # 限制 ±30 分钟
+       cfg["random_offset_minutes"] = max(-30, min(30, int(random_offset)))
    conn.execute(
        "UPDATE platform_accounts SET config_json=? WHERE id=?",
        (json.dumps(cfg), aid)

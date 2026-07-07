@@ -21,6 +21,7 @@
 .signin-site-link:hover { text-decoration:underline; }
 .signin-status-badge { flex-shrink:0; min-width:60px; text-align:center; font-size:13px; }
 .signin-time-input { padding:4px 8px; border:1px solid #ddd; border-radius:4px; font-size:12px; width:70px; flex-shrink:0; }
+.signin-offset-input { padding:4px 6px; border:1px solid #ddd; border-radius:4px; font-size:12px; width:52px; flex-shrink:0; text-align:center; }
 .signin-btn { flex-shrink:0; }
 .signin-plugin-hint { font-size:11px; color:#999; flex-shrink:0; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
@@ -58,6 +59,36 @@
         </label>
         <button onclick="runAllSignins()" class="btn btn-success btn-sm" id="runAllBtn">🔄 签到所有已启用</button>
     </div>
+</div>
+
+<!-- ====== 批量设置（可折叠） ====== -->
+<div class="card" style="padding:12px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-weight:600;font-size:13px;color:#555;">⚙️ 批量设置</span>
+
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+            统一时间
+            <select id="batchTime" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;">
+                {% for h in range(0,24) %}{% for m in ['00','30'] %}
+                <option value="{{ '%02d'|format(h) }}:{{ m }}">{{ '%02d'|format(h) }}:{{ m }}</option>
+                {% endfor %}{% endfor %}
+            </select>
+        </label>
+        <button onclick="batchSetTime()" class="btn btn-sm btn-outline-primary">📋 应用到所有</button>
+
+        <span style="color:#ddd;">|</span>
+
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+            随机偏移
+            <input type="number" id="batchOffset" min="-30" max="30" value="0"
+                   style="padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;width:55px;text-align:center;">
+            <span style="font-size:10px;color:#999;">min (±30)</span>
+        </label>
+        <button onclick="batchSetOffset()" class="btn btn-sm btn-outline-secondary">📊 应用到所有</button>
+        <button onclick="batchResetOffset()" class="btn btn-sm btn-outline-danger"
+                title="清除自定义偏移，恢复为默认确定性偏移">🔄 重置偏移</button>
+    </div>
+    <div id="batchResult" style="display:none;margin-top:8px;padding:6px 10px;border-radius:4px;font-size:12px;"></div>
 </div>
 
 <!-- ====== 统计数据（两行布局） ====== -->
@@ -171,10 +202,17 @@
         {% if has_signin %}
         <input type="time" class="signin-time-input" value="{{ a.signin_time }}"
                onchange="saveSigninTime({{ a.id }}, this)"
-               title="设为此时间后，将在该时间起随机1小时内执行签到">
+               title="设为此时间后，将在该时间起1小时窗口内执行签到">
         <span style="font-size:11px;color:#999;flex-shrink:0;">
-            → {{ a.signin_time[:2] }}:{{ a.signin_time[3:] }}~{{ '%02d'|format((a.signin_time[:2]|int + 1) % 24) }}:00 随机
+            → {{ a.signin_time[:2] }}:{{ a.signin_time[3:] }}~{{ '%02d'|format((a.signin_time[:2]|int + 1) % 24) }}:00
         </span>
+        <!-- 随机偏移设置 -->
+        <input type="number" class="signin-offset-input" min="-30" max="30"
+               value="{{ cfg.get('random_offset_minutes', '') }}"
+               placeholder="±0"
+               onchange="saveSigninOffset({{ a.id }}, this)"
+               title="随机偏移分钟数（-30~+30，空=默认确定性偏移）">
+        <span style="font-size:10px;color:#999;flex-shrink:0;">min</span>
         {% endif %}
 
         <!-- 签到插件名 -->
@@ -369,6 +407,100 @@ function saveGlobalConfig() {
         }
     })
     .catch(() => {});
+}
+
+// ====== 保存单账号随机偏移 ======
+function saveSigninOffset(aid, input) {
+    const val = input.value.trim();
+    const body = val === '' ? {random_offset_minutes: null} : {random_offset_minutes: parseInt(val)};
+    fetch('/api/accounts/' + aid + '/signin_settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .catch(() => {});
+}
+
+// ====== 批量设置统一时间 ======
+function batchSetTime() {
+    const time = document.getElementById('batchTime').value;
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 设置中...';
+    fetch('/api/signin/batch_set_times', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({all_time: time})
+    })
+    .then(r => r.json())
+    .then(data => {
+        showBatchResult('✅ 已更新 ' + data.updated + ' 个账号的签到时间为 ' + time, 'success');
+        setTimeout(() => location.reload(), 1200);
+    })
+    .catch(e => {
+        showBatchResult('❌ 设置失败: ' + e.message, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '📋 应用到所有';
+    });
+}
+
+// ====== 批量设置随机偏移 ======
+function batchSetOffset() {
+    const offset = parseInt(document.getElementById('batchOffset').value) || 0;
+    const clamped = Math.max(-30, Math.min(30, offset));
+    document.getElementById('batchOffset').value = clamped;
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 设置中...';
+    fetch('/api/signin/batch_set_times', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({random_offset: clamped})
+    })
+    .then(r => r.json())
+    .then(data => {
+        showBatchResult('✅ 已更新 ' + data.updated + ' 个账号的偏移为 ' + clamped + ' min', 'success');
+        setTimeout(() => location.reload(), 1200);
+    })
+    .catch(e => {
+        showBatchResult('❌ 设置失败: ' + e.message, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '📊 应用到所有';
+    });
+}
+
+// ====== 批量重置随机偏移（清除自定义，恢复确定性偏移） ======
+function batchResetOffset() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 重置中...';
+    fetch('/api/signin/batch_set_times', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({reset_offset: true})
+    })
+    .then(r => r.json())
+    .then(data => {
+        showBatchResult('✅ 已重置 ' + data.updated + ' 个账号的偏移为默认', 'success');
+        setTimeout(() => location.reload(), 1200);
+    })
+    .catch(e => {
+        showBatchResult('❌ 重置失败: ' + e.message, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '🔄 重置偏移';
+    });
+}
+
+// ====== 显示批量设置结果消息 ======
+function showBatchResult(msg, type) {
+    const el = document.getElementById('batchResult');
+    el.style.display = 'block';
+    el.textContent = msg;
+    el.className = 'alert alert-' + type + ' py-2 px-3 mb-0';
+    el.style.fontSize = '12px';
+    // 自动隐藏
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
 // ====== 刷新顶部统计卡片 ======

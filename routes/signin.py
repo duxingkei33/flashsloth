@@ -279,6 +279,68 @@ def api_signin_run_all():
    return jsonify({"success": True, "results": results})
 
 
+@app.route("/api/signin/batch_set_times", methods=["POST"])
+@login_required
+def api_signin_batch_set_times():
+    """批量设置签到时间 + 随机偏移"""
+    data = request.get_json() or {}
+    conn = get_db()
+
+    # 获取所有有签到功能的活跃账号
+    from flashsloth.core.signin import list_signins
+    signin_plugins = list_signins()
+    plugin_platforms = {p["platform"] for p in signin_plugins}
+
+    accounts = conn.execute(
+        "SELECT * FROM platform_accounts WHERE user_id=?",
+        (current_user.id,)
+    ).fetchall()
+
+    updated = 0
+    all_time = data.get("all_time")
+    per_account = data.get("per_account") or {}
+    random_offset = data.get("random_offset")  # ±30min
+    reset_offset = data.get("reset_offset", False)  # 重置为确定性偏移
+
+    for a in accounts:
+        d = dict(a)
+        # 跳过无签到插件的平台
+        if d["platform"] not in plugin_platforms:
+            continue
+        cfg = json.loads(d.get("config_json") or "{}")
+        changed = False
+
+        # 批量设置统一时间
+        if all_time:
+            cfg["signin_time"] = str(all_time)
+            changed = True
+
+        # 按账号 ID 单独设置时间
+        aid_str = str(d["id"])
+        if aid_str in per_account:
+            cfg["signin_time"] = str(per_account[aid_str])
+            changed = True
+
+        # 批量设置随机偏移
+        if reset_offset:
+            cfg.pop("random_offset_minutes", None)
+            changed = True
+        elif random_offset is not None:
+            cfg["random_offset_minutes"] = max(-30, min(30, int(random_offset)))
+            changed = True
+
+        if changed:
+            conn.execute(
+                "UPDATE platform_accounts SET config_json=? WHERE id=?",
+                (json.dumps(cfg), d["id"])
+            )
+            updated += 1
+
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "updated": updated})
+
+
 @app.route("/api/signin/stats")
 @login_required
 def api_signin_stats():
