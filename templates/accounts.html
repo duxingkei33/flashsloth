@@ -1579,6 +1579,8 @@ let _loginMethod = 'cookie';  // 当前选择的登录方法
 let _loginSession = null;     // 浏览器登录会话状态
 let _isLoginRunning = false;
 let _loginGuide = null;           // 当前平台的引导卡片数据（如 Twitter API 指南）
+let _loginCapData = null;         // 当前平台的完整登录能力数据
+let _loginOAuthProvider = null;   // 当前选择的 OAuth provider ID
 
 // ====== 页面加载：获取预置站点 + 状态刷新 ======
 document.addEventListener('DOMContentLoaded', function() {
@@ -1869,6 +1871,7 @@ function onAddAccount() {
     .then(function(data) {
         try {
             _loginGuide = data.guide || null;
+            _loginCapData = data;
             if (!data.success) {
                 let methods = [];
                 try {
@@ -1893,6 +1896,11 @@ function onAddAccount() {
             renderLoginCapabilityTabs(methods, data.note || '');
             if (methods.length > 0) {
                 selectCapabilityLoginMethod(methods[0].method, methods);
+            }
+
+            // Auto-fill site_url from API response (input is rendered by selectCapabilityLoginMethod)
+            if (data.site_url_default) {
+                autoFillSiteUrl(data.site_url_default);
             }
         } catch(e) {
             console.error('渲染登录能力失败:', e);
@@ -1987,6 +1995,98 @@ function getMethodIcon(method) {
     return icons[method] || '🔑';
 }
 
+// ====== Site URL auto-fill ======
+function autoFillSiteUrl(url) {
+    var input = document.querySelector('input[name="cfg_site_url"]');
+    if (input && url && !input.value) {
+        input.value = url;
+    }
+}
+
+// ====== OAuth Provider 按钮渲染 ======
+function renderOAuthProviders(providers) {
+    var html = '<div style="margin-bottom:10px;">';
+    html += '<label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">🔗 第三方登录方式</label>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    providers.forEach(function(prov) {
+        var pid = typeof prov === 'string' ? prov : (prov.id || '');
+        var label = typeof prov === 'string' ? prov : (prov.label || pid);
+        var icon = typeof prov === 'string' ? getOAuthIcon(prov) : (prov.icon || '🔗');
+        html += '<div class="oauth-provider-btn" data-provider="' + escapeHtml(pid) + '" onclick="onSelectOAuthProvider(\'' + escapeHtml(pid) + '\')" style="padding:6px 14px;background:#f0f4ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;user-select:none;" onmouseover="this.style.background=\'#e0e7ff\'" onmouseout="this.style.background=\'#f0f4ff\'">';
+        html += '<span style="font-size:18px;">' + icon + '</span>';
+        html += '<span>' + escapeHtml(label) + '</span>';
+        html += '</div>';
+    });
+    html += '</div></div>';
+    return html;
+}
+
+function getOAuthIcon(providerId) {
+    var icons = {
+        'qq': '🐧', 'weibo': '📣', 'wechat_oauth': '💬',
+        'github': '🐙', 'google': '🔵', 'apple': '🍎',
+        'alipay': '🔶', 'taobao': '🛒',
+    };
+    return icons[providerId] || '🔗';
+}
+
+function onSelectOAuthProvider(providerId) {
+    _loginOAuthProvider = providerId;
+    document.querySelectorAll('.oauth-provider-btn').forEach(function(btn) {
+        if (btn.dataset.provider === providerId) {
+            btn.style.background = '#4361ee';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#4361ee';
+        } else {
+            btn.style.background = '#f0f4ff';
+            btn.style.color = '#333';
+            btn.style.borderColor = '#d0d5f0';
+        }
+    });
+}
+
+// ====== 验证码区域渲染 ======
+function renderCaptchaSection(captchaInfo) {
+    if (!captchaInfo || !captchaInfo.has_captcha) {
+        return '';
+    }
+    var note = captchaInfo.note || '';
+    var types = captchaInfo.types || [];
+    var typeHtml = '';
+    if (types.length > 0) {
+        typeHtml = '<div style="font-size:11px;color:#888;margin-bottom:6px;">验证码类型: ' + escapeHtml(types.join(', ')) + '</div>';
+    }
+    var noteHtml = '';
+    if (note) {
+        noteHtml = '<div style="font-size:11px;color:#996600;margin-bottom:8px;padding:4px 8px;background:#fff8e1;border-radius:4px;">💡 ' + escapeHtml(note) + '</div>';
+    }
+    var html = '<div style="margin-top:10px;padding:12px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;">';
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;">🔐 验证码验证</div>';
+    html += typeHtml;
+    html += noteHtml;
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    html += '<button type="button" class="btn btn-sm btn-primary" onclick="loadCaptchaScreenshot()">📸 加载验证码截图</button>';
+    html += '</div></div>';
+    return html;
+}
+
+function loadCaptchaScreenshot() {
+    var platform = _loginPlatform;
+    var img = document.getElementById('loginScreenshotImg');
+    var area = document.getElementById('loginScreenshotArea');
+    if (img) img.src = '';
+    if (area) area.style.display = 'none';
+    fetch('/api/captcha/' + platform + '/screenshot')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.image) {
+            if (area) area.style.display = 'block';
+            if (img) img.src = 'data:image/png;base64,' + data.image;
+        }
+    })
+    .catch(function() {});
+}
+
 function selectCapabilityLoginMethod(method, methods) {
     _loginMethod = method;
     document.querySelectorAll('.login-method-tab').forEach(function(tab) {
@@ -2006,8 +2106,13 @@ function selectCapabilityLoginMethod(method, methods) {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             _loginGuide = data.guide || null;
+            _loginCapData = data;
             if (data.success) {
                 renderCapabilityFields(method, data.login_methods || []);
+                // Auto-fill site_url when switching tabs
+                if (data.site_url_default) {
+                    autoFillSiteUrl(data.site_url_default);
+                }
             }
         })
         .catch(function() {});
@@ -2062,20 +2167,8 @@ function renderCapabilityFields(method, allMethods) {
             escapeHtml(methodDef.description) + '</div>';
     }
 
-    if (method === 'oauth' && methodDef && methodDef.providers) {
-        html += '<div style="margin-bottom:10px;">';
-        html += '<label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">🔗 第三方登录方式</label>';
-        html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
-        methodDef.providers.forEach(function(prov) {
-            var providerNames = {
-                'qq': 'QQ登录', 'weibo': '微博登录', 'github': 'GitHub登录',
-                'google': 'Google登录', 'wechat_oauth': '微信登录',
-                'alipay': '支付宝登录', 'taobao': '淘宝登录',
-            };
-            var label = providerNames[prov] || prov;
-            html += '<span style="padding:4px 10px;background:#f0f4ff;border:1px solid #d0d5f0;border-radius:6px;font-size:12px;">' + escapeHtml(label) + '</span>';
-        });
-        html += '</div></div>';
+    if (method === 'oauth' && methodDef && methodDef.providers && methodDef.providers.length > 0) {
+        html += renderOAuthProviders(methodDef.providers);
     }
 
     if (method === 'qrcode' && methodDef && methodDef.sub_types && methodDef.sub_types.length > 0) {
@@ -2109,7 +2202,9 @@ function renderCapabilityFields(method, allMethods) {
     fieldsToRender.forEach(function(fkey) {
         if (fkey === 'site_url') {
             var val = '';
-            if (preset && preset.sites && preset.sites.length > 0) {
+            if (_loginCapData && _loginCapData.site_url_default) {
+                val = _loginCapData.site_url_default;
+            } else if (preset && preset.sites && preset.sites.length > 0) {
                 val = preset.sites[0].url || '';
             }
             html += '<div class="form-group"><label>平台地址</label>' +
@@ -2140,6 +2235,22 @@ function renderCapabilityFields(method, allMethods) {
     });
 
     descDiv.innerHTML = html;
+
+    // Show captcha info banner if platform has captcha (before login starts)
+    if (_loginCapData && _loginCapData.captcha_info && _loginCapData.captcha_info.has_captcha) {
+        var existingBanner = document.getElementById('captchaInfoBanner');
+        if (!existingBanner) {
+            var banner = document.createElement('div');
+            banner.id = 'captchaInfoBanner';
+            banner.style.cssText = 'margin-top:10px;padding:10px 12px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;font-size:12px;';
+            var noteText = _loginCapData.captcha_info.note || '该平台有验证码保护，登录时需手动处理验证码';
+            banner.innerHTML = '🔐 <strong>验证码提示：</strong>' + escapeHtml(noteText);
+            descDiv.parentNode.appendChild(banner);
+        }
+    } else {
+        var oldBanner = document.getElementById('captchaInfoBanner');
+        if (oldBanner) oldBanner.remove();
+    }
 
     var btnStart = document.getElementById('btnStartLogin');
     var btnCaptcha = document.getElementById('btnCaptchaLogin');
@@ -2283,7 +2394,9 @@ function renderMethodFields(method, fields, methodDef) {
     fields.forEach(function(fkey) {
         if (fkey === 'site_url') {
             var val = '';
-            if (preset && preset.sites && preset.sites.length > 0) {
+            if (_loginCapData && _loginCapData.site_url_default) {
+                val = _loginCapData.site_url_default;
+            } else if (preset && preset.sites && preset.sites.length > 0) {
                 val = preset.sites[0].url || '';
             }
             html += '<div class="form-group"><label>平台地址</label>' +

@@ -1,13 +1,16 @@
 {
   "platform": "rss",
-  "explored_at": "2026-07-07T00:00:00+00:00",
+  "explored_at": "2026-07-07T23:24:00+00:00",
   "login_url": null,
-  "login_methods": [],
-  "note": "RSS 订阅是本地文件生成器，无需登录。直接在服务器上生成 RSS/Atom XML 文件。",
-  "capabilities": {
-    "publish": true,
-    "requires_login": false,
-    "local_generation": true
-  },
-  "error": null
+  "login_methods": [
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "detected": true
+    }
+  ],
+  "note": "RSS订阅无需登录，通过URL订阅即可",
+  "raw_detection": {},
+  "error": null,
+  "screenshot": ""
 }

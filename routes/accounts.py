@@ -682,29 +682,118 @@ def _load_login_capabilities(platform: str) -> dict | None:
     return None
 
 
+# OAuth provider 图标映射
+_OAUTH_ICON_MAP = {
+    "qq": "🐧",
+    "weibo": "📣",
+    "wechat_oauth": "💬",
+    "github": "🐙",
+    "google": "🔵",
+    "apple": "🍎",
+}
+
+# OAuth provider 标签映射
+_OAUTH_LABEL_MAP = {
+    "qq": "QQ登录",
+    "weibo": "微博登录",
+    "wechat_oauth": "微信登录",
+    "github": "GitHub登录",
+    "google": "Google登录",
+    "apple": "Apple登录",
+}
+
+
+def _extract_captcha_info(raw_detection: dict | None) -> dict:
+    """从 raw_detection 中提取验证码信息"""
+    if not raw_detection:
+        return {"has_captcha": False, "types": [], "note": ""}
+    has_captcha = raw_detection.get("has_captcha", False)
+    captcha_type = raw_detection.get("captcha_type")
+    captcha_note = raw_detection.get("captcha_description") or raw_detection.get("captcha_note") or ""
+    return {
+        "has_captcha": bool(has_captcha),
+        "types": [captcha_type] if captcha_type else [],
+        "note": captcha_note,
+    }
+
+
+def _enhance_login_methods(methods: list, raw_detection: dict | None) -> list:
+    """增强登录方法列表：添加 fields、展开 providers、添加 captcha 信息"""
+    enhanced = []
+    captcha_info = _extract_captcha_info(raw_detection)
+    for m in methods:
+        if not m.get("detected"):
+            continue
+        method = m["method"]
+        entry = dict(m)  # shallow copy to preserve original fields
+        if method == "password":
+            entry["fields"] = ["username", "password"]
+            entry["captcha"] = {
+                "has_captcha": captcha_info["has_captcha"],
+                "type": captcha_info["types"][0] if captcha_info["types"] else None,
+                "description": captcha_info["note"] or None,
+            }
+        elif method == "phone":
+            entry["fields"] = ["phone"]
+        elif method == "qrcode":
+            # 保留原有的 sub_types 数组
+            pass
+        elif method == "oauth":
+            providers = m.get("providers", [])
+            entry["providers"] = [
+                {
+                    "id": pid,
+                    "label": _OAUTH_LABEL_MAP.get(pid, f"{pid}登录"),
+                    "icon": _OAUTH_ICON_MAP.get(pid, "🔗"),
+                }
+                for pid in providers
+            ]
+        elif method == "cookie":
+            entry["fields"] = ["cookie"]
+        enhanced.append(entry)
+    return enhanced
+
+
 @app.route("/api/platform/<platform>/login-capabilities")
 @login_required
 def api_platform_login_capabilities(platform):
-	"""返回指定平台的登录能力"""
-	cap = _load_login_capabilities(platform)
-	if cap:
-		# 也尝试从 publisher 加载 guide
-		from flashsloth.core.publisher import _registry as _publisher_registry
-		cls = _publisher_registry.get(platform)
-		guide = getattr(cls, 'guide', None) if cls else None
-		return jsonify({"success": True, "platform": platform, "source": "json", **cap, "guide": guide})
-	from flashsloth.core.publisher import _registry as _publisher_registry, list_login_methods
-	methods = list_login_methods(platform)
-	cls = _publisher_registry.get(platform)
-	guide = getattr(cls, 'guide', None) if cls else None
-	if methods:
-		return jsonify({
-			"success": True, "platform": platform, "source": "publisher",
-			"login_methods": methods,
-			"guide": guide,
-			"note": f"来自 {platform} publisher 的预设登录方式",
-		})
-	return jsonify({"success": False, "error": f"平台 {platform} 无登录能力数据"})
+    """返回指定平台的登录能力（增强版：含 site_url_default、OAuth providers、验证码信息）"""
+    cap = _load_login_capabilities(platform)
+    if cap:
+        from flashsloth.core.publisher import _registry as _publisher_registry
+        cls = _publisher_registry.get(platform)
+        guide = getattr(cls, 'guide', None) if cls else None
+
+        login_url = cap.get("login_url", "")
+        raw_detection = cap.get("raw_detection")
+        methods = cap.get("login_methods", [])
+
+        enhanced_methods = _enhance_login_methods(methods, raw_detection)
+        captcha_info = _extract_captcha_info(raw_detection)
+
+        return jsonify({
+            "success": True,
+            "platform": platform,
+            "login_url": login_url,
+            "site_url_default": login_url,
+            "login_methods": enhanced_methods,
+            "captcha_info": captcha_info,
+            "source": "json",
+            "guide": guide,
+        })
+
+    from flashsloth.core.publisher import _registry as _publisher_registry, list_login_methods
+    methods = list_login_methods(platform)
+    cls = _publisher_registry.get(platform)
+    guide = getattr(cls, 'guide', None) if cls else None
+    if methods:
+        return jsonify({
+            "success": True, "platform": platform, "source": "publisher",
+            "login_methods": methods,
+            "guide": guide,
+            "note": f"来自 {platform} publisher 的预设登录方式",
+        })
+    return jsonify({"success": False, "error": f"平台 {platform} 无登录能力数据"})
 
 
 @app.route("/api/platform/<platform>/login-capabilities/refresh", methods=["POST"])
