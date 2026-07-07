@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.10+P2 | **最后更新**: 2026-07-08 07:00 (每小时自动更新)
+**版本**: v5.13+P2 | **最后更新**: 2026-07-08 09:00 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -29,12 +29,8 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 40,582 行 Python | 13,613 行 HTML | 135 Python 文件 | 31 模板文件
-|| 模块目录 | 行数 |
-||---------|:----:|
-|| core/ | 11,717 |
-|| routes/ | 9,370 |
-|| plugins/ | 12,867 |
+**代码规模**: 40,837 行 Python | 13,613 行 HTML | 135 Python 文件 | 31 模板文件
+|| 模块目录 | 行数 |\n||---------|:----:|\n|| core/ | 11,723 |\n|| routes/ | 9,459 |\n|| plugins/ | 12,877 |
 || sdk/ | 4,563 |
 || scripts/ | 1,665 |
 || fs_mgr.py | 321 (全生命周期管理) |
@@ -1405,6 +1401,9 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| `v5.13+P2` | 2026-07-08 09:00 | **P0: 账号连接状态/Cookie验证修复批量2** — `core/status_detector.py` 所有6个检测器异常处理增加 `_detection_error=True` 标志；`routes/accounts.py` Layer2 改用 `_detection_error` 替代字符串匹配；前端 `templates/accounts.html` 合并「状态检测」和「验证凭证」按钮。E2E 验证通过（真Cookie→logged_in=true，假Cookie→logged_in=false）。 |
+| `v5.12+P2` | 2026-07-08 | **部署归一化审计** — `/deployers` 到 `/accounts#deploy` 重定向完成确认。 |
+| `v5.11+P2` | 2026-07-08 | **Provider 抽象框架 E2E验证通过 + signin BrowserEngine 复用** — `core/provider.py` (107行) + `plugins/provider_markdown/notion/taobao.py` + `routes/workspace_ui.py` + `templates/workspace.html` 全部E2E通过。签到模块改从全局 BrowserEngine 获取实例，避免每次独立 `sync_playwright()`。账号页验证凭证按钮+deploy重定向归一化完成。`scripts/refresh_login_capabilities.py` 每15分钟自动探索过时(>12h)平台登录能力。 |
 | `v5.10+P2` | 2026-07-08 07:00 | **v5.10 test_connection 强化** — CSDN/OSHWHub/知乎发布器 test_connection 提取真实用户名+严格退出关键词检测+详细失败原因。README 同步更新。 |
 | **v5.09+P2** | 2026-07-08 | **P2: forum_registry DB双轨读取增强** — 加载extra_info+tags_of_interest字段，新增 `_parse_json_field()` 辅助函数。**deploy路由重定向** — `/deployers` 页面重定向到 `/accounts#deploy` (deploy归一化完成)。**新增 `scripts/refresh_login_capabilities.py`** (293行) — P0任务每15分钟自动探索过时平台登录能力，更新 login_capabilities JSON。仪表盘"管理部署"按钮链接同步到 `/accounts#deploy`。探索报告数据刷新(得物/值买/小红书/CSDN/掘金/知乎等)。 |
 | **v5.09** | 2026-07-08 | **Provider 配置字段动态化** — Provider 基类新增 `config_fields` 属性（各 Provider 声明自己的配置字段），前端 workspace.html 移除硬编码 `wsConfigFieldDefs`，改为从 `/api/workspace/providers` 动态读取并渲染配置面板。平台探索报告数据刷新（得物/值得买/小红书/51CTO/豆瓣）。 |
@@ -1448,7 +1447,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 ## 附录：文件完整清单
 
-### core/ (35 个 Python 文件, 11,701 行)
+### core/ (35 个 Python 文件, 11,723 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1484,15 +1483,15 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `scheduler.py` | 签到调度器（守护线程定时签到） |
 | `signin.py` | SigninBase 签到基类 + 注册机制 |
 | `status_cache.py` | 账号状态缓存系统(内存+SQLite) |
-| `status_detector.py` | 三层登录状态检测器 (v5.02 修复) |
+| `status_detector.py` | 三层登录状态检测器 (v5.02 修复, v5.13 _detection_error标志) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,371 行)
+### routes/ (25 个 Python 文件, 9,459 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
 | `_app.py` | 86 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
-| `accounts.py` | 1980 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化, v5.06 P0验证链接修复, v5.08 deploy归一化内联UI) |
+| `accounts.py` | 1980 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化, v5.06 P0验证链接修复, v5.08 deploy归一化内联UI, v5.13 前端按钮合并+_detection_error修复) |
 | `ai.py` | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | `api_v1.py` | 532 | 统一 REST API v1（API Key 鉴权） |
 | `api_v2.py` | 205 | Gateway REST API v2（系统/重启/重载） |
@@ -1516,7 +1515,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 12,690 行)
+### plugins/ (48 个 Python 文件, 12,877 行)
 **发布器 (16个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1649,7 +1648,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (9 个 Python 脚本, 1,661 行)
+### scripts/ (9 个 Python 脚本, 1,665 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
@@ -1692,4 +1691,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.10+P2 | Python 总行数: 40,582 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,613 行 (31 模板) | 新增: test_connection 强化(CSDN/OSHWHub/知乎真实用户名提取+严格退出检测) | 最后更新: 2026-07-08 07:00*
+*版本: v5.13+P2 | Python 总行数: 40,837 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,613 行 (31 模板) | 新增: Provider框架 E2E + signin BrowserEngine复用 + _detection_error修复 | 最后更新: 2026-07-08 09:00*

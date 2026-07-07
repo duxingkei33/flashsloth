@@ -540,6 +540,28 @@ PLATFORM_SCAN_INFO = {
             },
         ],
     },
+    "csdn": {
+        "login_url": "https://passport.csdn.net/login",
+        "scan_app": "CSDN官方App/微信",
+        "hint": "请打开CSDN App扫一扫，或使用微信扫描此二维码",
+        "type": "qrcode",
+        "scan_methods": [
+            {
+                "id": "csdn_app",
+                "name": "CSDN App扫码",
+                "scan_app": "CSDN官方App",
+                "hint": "请打开CSDN App使用扫一扫功能",
+                "type": "qrcode",
+            },
+            {
+                "id": "wechat",
+                "name": "微信扫码",
+                "scan_app": "微信",
+                "hint": "请打开微信扫一扫扫描此二维码",
+                "type": "qrcode",
+            },
+        ],
+    },
 }
 
 

@@ -1578,6 +1578,7 @@ let _loginPlatform = '';      // 当前添加账号弹窗选择的平台
 let _loginMethod = 'cookie';  // 当前选择的登录方法
 let _loginSession = null;     // 浏览器登录会话状态
 let _isLoginRunning = false;
+var _scanMethodRetryCount = 0;
 let _loginGuide = null;           // 当前平台的引导卡片数据（如 Twitter API 指南）
 let _loginCapData = null;         // 当前平台的完整登录能力数据
 let _loginOAuthProvider = null;   // 当前选择的 OAuth provider ID
@@ -3564,6 +3565,7 @@ var _qrPollTimer = null;
 var _selectedScanMethod = null;  // 用户选择的扫码方式 id
 
 function startQrCodeLogin() {
+    _scanMethodRetryCount = 0;
     var siteUrl = getFieldValue('cfg_site_url');
     var aid = document.getElementById('editAccountId').value;
     var btn = document.getElementById('btnStartLogin');
@@ -3657,6 +3659,15 @@ function startQrCodeLogin() {
 }
 
 function _selectScanMethod(siteUrl, aid, btn) {
+    // 防重入：最多重试2次
+    _scanMethodRetryCount++;
+    if (_scanMethodRetryCount > 2) {
+        showLoginStatus('error', '❌ 获取扫码方式失败，请尝试其他登录方式');
+        btn.disabled = false;
+        btn.textContent = '📱 打开扫码登录页';
+        _isLoginRunning = false;
+        return;
+    }
     // 获取该平台支持的扫码方式
     showLoginStatus('info', '⏳ 正在获取扫码方式...');
     btn.disabled = true;
@@ -3666,15 +3677,30 @@ function _selectScanMethod(siteUrl, aid, btn) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (!data.success || !data.methods || data.methods.length === 0) {
-            // 没有多方式，直接使用默认方式继续
-            _selectedScanMethod = '';
+            // 没有多方式或平台无扫码能力，直接显示错误
+            var msg = data.error || '该平台暂不支持扫码登录';
+            // 检查探索数据是否显示有扫码
+            if (_loginCapData) {
+                var hasQr = false;
+                var methods = _loginCapData.login_methods || [];
+                for (var i = 0; i < methods.length; i++) {
+                    if (methods[i].method === 'qrcode' && methods[i].detected) {
+                        hasQr = true;
+                        break;
+                    }
+                }
+                if (hasQr) {
+                    msg = '扫码方式获取失败，请重试或切换到其他登录方式';
+                } else {
+                    msg = '该平台不支持扫码登录，请选择其他方式';
+                }
+            }
+            showLoginStatus('error', '❌ ' + msg);
             btn.disabled = false;
             btn.textContent = '📱 打开扫码登录页';
-            showLoginStatus('info', '');
-            startQrCodeLogin();
+            _isLoginRunning = false;
             return;
         }
-
         var methods = data.methods;
         var infoDiv = document.getElementById('qrScanInfo');
         var html = '<div style="margin-bottom:6px;font-weight:600;font-size:13px;">📱 请选择扫码方式</div>';
@@ -3694,12 +3720,11 @@ function _selectScanMethod(siteUrl, aid, btn) {
         showLoginStatus('info', '');
     })
     .catch(function(e) {
-        // 失败时降级：直接使用默认方式
-        _selectedScanMethod = '';
+        // API请求失败，不再重试，直接报错
+        showLoginStatus('error', '❌ 获取扫码方式失败: ' + e.message + '，请尝试其他登录方式');
         btn.disabled = false;
         btn.textContent = '📱 打开扫码登录页';
-        showLoginStatus('info', '');
-        startQrCodeLogin();
+        _isLoginRunning = false;
     });
 }
 
