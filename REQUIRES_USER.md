@@ -63,3 +63,11 @@
 
 ## 🟢 Discuz/Amobbs/Mydigit — 已有 Cookie ✅
 **状态**: E2E 验证通过 (v4.24-4.28)
+
+## ⚪ 探索但暂不适配
+| 平台 | 原因 | 文件 |
+|------|------|------|
+| 51CTO (51cto.com) | blog子域名有WAF防护，仅手机短信验证码登录，核心业务是IT培训课程非UGC发布 | `platform_reports/51cto_com.md` ✅ |
+| 得物 (dewu.com) | App-only，PC无发布能力 | `platform_reports/dewu_com.md` ✅ |
+| 什么值得买 (smzdm.com) | 腾讯云WAF阻隔，需Cookie注入绕过 | `platform_reports/smzdm_com.md` ✅ |
+|
