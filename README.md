@@ -29,6 +29,7 @@
 - [x] 🪟 账号弹窗归一化深化 — 补齐 amobbs/discuz/mydigit/wordpress + 验证码输入+5步进度条+Amobbs边框核验
 - [x] 🔍 登录状态深度验证 — 真实提取用户名/积分/等级 + 前端展示增强
 - [x] 🎨 账号页UI增强 — 搜索优化/平台颜色标签/快捷添加/时间标签/批量进度条
+- [x] 🛡️ Cookie验证严格模式 — DiscuzPublisher严格登录态检测(退出按钮+2指示器) + test-connection Playwright子进程降级消除假阳性
 
 ### 📝 多平台发布
 - [x] Discuz! 论坛（amobbs/mydigit 等）— 发帖+存草稿+签到
@@ -156,14 +157,14 @@
 │  signin_*.py   — 3 个签到插件                                    │
 │  provider_*.py — 3 个 Provider 插件 (Markdown/Notion/淘宝)       │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
-│  sdk/adapters/ (15+ 平台适配器)                                   │
+│  sdk/adapters/ (14 平台适配器)                                   │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                   公共基础设施层                                    │
 │  SQLite (flashsloth.db + status_cache.db)                        │
 │  .fs_key 加密密钥 · config/ · templates/ · static/               │
-│  platform_reports/ (7+ 登录能力报告)                              │
+│  platform_reports/ (51+ 登录能力/探索报告)                         │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md       │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -256,6 +257,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| v5.07 | 2026-07-08 | Cookie验证严格模式 — Discuz login假阳性修复 + test-connection Playwright子进程降级 + 版块注册表双轨验证 + 探索报告更新 |
 | v5.05 | 2026-07-08 | 51CTO平台探索 — WAF+SMS-only评估 + 探索雷达v2（得物/什么值得买/小红书）+ category分类字段 |
 | v5.04 | 2026-07-08 | 发布前Cookie过期预检 — Publisher基类check_cookie() + publish_select前端状态展示 |
 | v5.03 | 2026-07-08 | 账号弹窗归一化收尾 — 移除旧版平台专属登录弹窗(amobbs/xianyu/oshwhub) |

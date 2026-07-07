@@ -29,6 +29,7 @@
 - [x] 🪟 Account modal deepening — amobbs/discuz/mydigit/wordpress + captcha input + 5-step progress bar + Amobbs border verification
 - [x] 🔍 Login status deep verification — real extraction of username/points/level + frontend display enhancement
 - [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
+- [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
@@ -156,14 +157,14 @@
 │  signin_*.py   — 3 sign-in plugins                                │
 │  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
-│  sdk/adapters/ (15+ platform adapters)                            │
+│  sdk/adapters/ (14 platform adapters)                            │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Public Infrastructure                            │
 │  SQLite (flashsloth.db + status_cache.db)                         │
 │  .fs_key encryption key · config/ · templates/ · static/          │
-│  platform_reports/ (7+ login capability reports)                  │
+│  platform_reports/ (51+ login/exploration reports)                  │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md        │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -256,6 +257,7 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |
 | v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
 | v5.04 | 2026-07-08 | Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend status display |
 | v5.03 | 2026-07-08 | Account modal normalization — removed legacy platform-specific login modals (amobbs/xianyu/oshwhub) |
