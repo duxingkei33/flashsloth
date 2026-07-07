@@ -359,7 +359,10 @@ def api_account_status(aid):
             cached["success"] = True
             return jsonify(cached)
     
-    # 第二层：API轻量检测（最快路径，零浏览器开销）
+    # 第二层：API轻量检测（仅用于快速检测 Cookie 过期，不作为登录态判定依据）
+    # ⚠️ 铁律：API轻量检测不可作为登录态判定依据 — 它对假Cookie可能误报"已登录"
+    # 只有当 API 明确检测到"未登录"（重定向到登录页等）时才信任它
+    # 任何"已登录"判断必须经过 Playwright 真实浏览器验证
     platform = acct["platform"]
     site_url = cfg.get("site_url", "")
     cookie = cfg.get("cookie", "")
@@ -369,28 +372,8 @@ def api_account_status(aid):
         try:
             api_result = detect_platform(platform, site_url, cookie, username_hint)
             
-            if api_result.get("logged_in"):
-                # API轻量检测成功 → 缓存并立即返回（毫秒级）
-                api_cache = {
-                    "logged_in": True,
-                    "username": api_result.get("username", ""),
-                    "display_name": api_result.get("display_name", ""),
-                    "points": api_result.get("points", 0),
-                    "points_label": api_result.get("points_label", "积分"),
-                    "level": api_result.get("level", ""),
-                    "avatar_url": api_result.get("avatar_url", ""),
-                    "status": api_result.get("status", "✅ 已登录（API轻量检测）"),
-                    "method": "api_lightweight",
-                    "verified_at": api_result.get("verified_at", datetime.now().isoformat()),
-                }
-                set_status(aid, api_cache)
-                api_cache["account_name"] = acct["account_name"]
-                api_cache["is_active"] = bool(acct["is_active"])
-                api_cache["success"] = True
-                return jsonify(api_cache)
-            
             if api_result.get("logged_in") == False and "异常" not in api_result.get("error", ""):
-                # API明确检测到未登录 → 缓存并返回（避免启动浏览器）
+                # API明确检测到未登录 → 缓存并返回（避免启动浏览器，毫秒级）
                 fail_cache = {
                     "logged_in": False,
                     "username": "",
@@ -399,7 +382,7 @@ def api_account_status(aid):
                     "level": "",
                     "status": api_result.get("status", "❌ Cookie已失效"),
                     "method": "api_lightweight",
-                    "verified_at": datetime.now().isoformat(),
+                    "verified_at": api_result.get("verified_at", datetime.now().isoformat()),
                     "error": api_result.get("error", "Cookie失效"),
                 }
                 set_status(aid, fail_cache)
@@ -553,27 +536,28 @@ def api_platforms_list():
 @app.route("/api/platforms/search")
 @login_required
 def api_platforms_search():
-	"""模糊搜索平台 — 匹配 name / display_name，动态加载架构类型"""
+	"""模糊搜索平台 — 匹配 name / display_name，动态加载架构类型
+
+	数据来源（覆盖所有已配置平台）：
+	1. list_publishers() — 已注册发布器
+	2. platform_reports/*_login_capabilities.json — 有登录能力的平台
+	3. forum_registry.FORUM_DATA — Discuz! 论坛域名
+	"""
 	from flashsloth.core.publisher import list_publishers
 	q = request.args.get("q", "").strip().lower()
-	platforms = list_publishers()
 	results = []
+	seen = set()  # 去重
 
-	# 统一架构推断：从已有数据动态推导，不硬编码
-	for p in platforms:
+	# ─── 1. list_publishers() ───
+	publishers = list_publishers()
+	for p in publishers:
 		name = p["name"]
 		display_name = p["display_name"]
 		name_lower = name.lower()
 		display_lower = display_name.lower()
-
-		# 模糊匹配
-		if q:
-			if q not in name_lower and q not in display_lower:
-				continue
-
-		# 架构类型推断（数据来源：forum_registry + platform_reports）
+		if q and q not in name_lower and q not in display_lower:
+			continue
 		arch = _infer_platform_architecture(name, display_name)
-
 		results.append({
 			"name": name,
 			"display_name": display_name,
@@ -581,6 +565,56 @@ def api_platforms_search():
 			"config_fields": p.get("config_fields", []),
 			"login_methods": p.get("login_methods", []),
 		})
+		seen.add(name)
+
+	# ─── 2. platform_reports/*_login_capabilities.json ───
+	import glob as _glob
+	reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+	pattern = os.path.join(reports_dir, "*_login_capabilities.json")
+	for cap_path in _glob.glob(pattern):
+		fname = os.path.basename(cap_path)  # e.g. amobbs_login_capabilities.json
+		pname = fname.replace("_login_capabilities.json", "")  # e.g. amobbs
+		if pname in seen:
+			continue
+		if q and q not in pname.lower():
+			continue
+		# 读取 display_name + note
+		try:
+			with open(cap_path, "r", encoding="utf-8") as f:
+				cap = json.load(f)
+		except Exception:
+			cap = {}
+		display_name = cap.get("platform_name") or cap.get("display_name") or pname.replace("_", " ").title()
+		arch = _infer_platform_architecture(pname, display_name)
+		note = cap.get("note", "")
+		if note:
+			display_name = f"{display_name} ({note})"
+		results.append({
+			"name": pname,
+			"display_name": display_name,
+			"architecture": arch,
+			"config_fields": [],
+			"login_methods": cap.get("login_methods", []),
+		})
+		seen.add(pname)
+
+	# ─── 3. forum_registry — 域名级 Discuz 补充 ───
+	from flashsloth.core.forum_registry import FORUM_DATA
+	for domain in FORUM_DATA:
+		base = domain.split(".")[0]  # amobbs.com → amobbs
+		if base in seen:
+			continue
+		if q and q not in base.lower():
+			continue
+		display_name = f"{base.title()} 论坛 ({domain})"
+		results.append({
+			"name": base,
+			"display_name": display_name,
+			"architecture": "基于 Discuz! 架构",
+			"config_fields": [],
+			"login_methods": [],
+		})
+		seen.add(base)
 
 	# 按 display_name 排序
 	results.sort(key=lambda x: x["display_name"])
