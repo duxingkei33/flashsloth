@@ -15,10 +15,12 @@
 - [x] Unified multi-platform account management (add/edit/delete/enable/disable)
 - [x] 🔑 Password + captcha login — Playwright browser automation
 - [x] 📱 QR code scan login — Remote browser screenshot + 10s polling cookie capture
+- [x] 📱 Phone SMS login — phone_login + SMS verification code flow + frontend support
+- [x] 🪪 Unified login capability exploration — 7-platform Playwright real detection (password/QR/SMS) + JSON report + dynamic tab rendering
 - [x] 🍪 Cookie paste (debug mode)
 - [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
 - [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
-- [x] 📊 Real-time account status detection (Playwright cookie verification)
+- [x] 📊 Three-layer account status detection — persistent BrowserEngine + API lightweight check + Playwright real verification + 3-tier cache (memory/SQLite/real-time) + batch refresh + deep user info
 - [x] 🧩 Unified browser login button — shared edit dialog for all platforms
 
 ### 📝 Multi-Platform Publishing
@@ -29,7 +31,7 @@
 - [x] Zhihu — Full Playwright rewrite (password/QR/Cookie)
 - [x] OSHWHub (JLCPCB Open Source) — Playwright publish + sign-in
 - [x] Juejin — Cookie-based publish (password/QR/Cookie)
-- [x] Bilibili Articles — Playwright publish + draft save + image upload (password/QR/Cookie)
+- [x] Bilibili Articles — Playwright publish + draft save + image upload + login plugin + exploration reports (password/QR/Cookie)
 - [x] Twitter/X — tweepy API v2 OAuth1.0a
 - [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category + SDK
 - [x] Gallery Product Listing (Reserved)
@@ -37,25 +39,27 @@
 - [x] GitHub Pages — git push deployment
 
 ### 🔔 Notification Gateway
-- [x] 23 notification channels (Feishu/DingTalk/WeCom/WeChat/Telegram/Discord/Slack etc.)
+- [x] 22 notification channels (Telegram/Discord/Slack/WhatsApp/DingTalk/WeCom/Feishu/WeChat/Email/Matrix/Teams/LINE etc.)
 - [x] QR code auto-configuration via /callback endpoint
 - [x] Message queue + Provider registry
 - [x] Batch test / single channel test
 
 ### 🔍 Platform Exploration
 - [x] Discuz forum auto-exploration (Playwright)
+- [x] Login capability exploration — 7-platform auto-detection (password/QR/SMS) + JSON reports
 - [x] Hourly incremental polling
 - [x] Anti-detection rate limiting (1/domain/hour, dual-cache memory+DB for cross-process)
 - [x] Forum section keyword matching
 - [x] Exploration data management page
 - [x] Platform publish capability display + tag section management
+- [x] Bilibili full exploration report + login plugin + platform capability import
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
 - [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
 - [x] CSDN sign-in
 - [x] amobbs / Discuz! sign-in
 - [x] Sign-in statistics (success/failure breakdown)
-- [x] Random execution window (within 1 hour of configured time)
+- [x] Randomized execution window (within 1 hour of configured time, account_id offset to avoid concurrent sign-ins)
 
 ### 🛒 Xianyu Integration
 - [x] Product search (keyword/price range/sort/pagination)
@@ -78,6 +82,15 @@
 - [x] Visual pipeline flow chart
 - [x] Run history list
 
+### 🧰 Workspace & AI Logs
+- [x] Unified content management workspace — Provider selection + pipeline + content logs
+- [x] Notion/Markdown Provider plugins
+- [x] AI call log system — auto-recording + visual log page + pagination/filtering
+- [x] 🖥️ Playwright browser engine settings page
+
+### 📱 Mobile Support
+- [x] Mobile CSS enhancements — responsive layout for phones/tablets
+
 ---
 
 ## 🏗️ Architecture
@@ -87,6 +100,7 @@
 │                  User Interface Layer (Flask Web UI)               │
 │  Dashboard · Articles · Sign-In · Xianyu Search · Accounts        │
 │  Config · Exploration Data · Gateway · Approval · AI Settings     │
+│  Workspace · AI Logs · Playwright Settings                        │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -94,6 +108,7 @@
 │  routes/accounts.py · gateway.py · ai.py · signin.py              │
 │  exploration.py · posts.py · api_v2.py · browser_login.py         │
 │  approval.py · notifications.py · price_monitor.py                │
+│  workspace_ui.py · browser_engine.py                              │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -102,20 +117,23 @@
 │  anti_detect · explorer · price_monitor · approval · notifier      │
 │  ai_provider · article · deployer · compiler · pipeline            │
 │  pipeline · signin · image_pipeline · captcha_handler              │
+│  browser_engine · status_detector · status_cache                  │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                Plugin + Adapter Layer (plugins/ + sdk/)            │
 │  publisher_*.py — 14 platform publishers                          │
 │  signin_*.py   — 3 sign-in plugins                                │
-│  generic_login.py · xianyu_client/ · sdk/adapters/                │
+│  generic_login.py · bilibili_login.py · xianyu_client/            │
+│  sdk/adapters/ (15+ platform adapters)                            │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Public Infrastructure                            │
-│  SQLite (flashsloth.db) · .fs_key encryption key · config/        │
-│  templates/ · static/ · platform_reports/ · scripts/               │
-│  DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md                    │
+│  SQLite (flashsloth.db + status_cache.db)                         │
+│  .fs_key encryption key · config/ · templates/ · static/          │
+│  platform_reports/ (7+ login capability reports)                  │
+│  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md        │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -197,7 +215,7 @@ frpc -c frpc.toml
 
 | Task | Interval | Description |
 |------|----------|-------------|
-| Auto Sign-In | Every minute | Daemon thread executes within configured time window (default 08:00-09:00) |
+| Auto Sign-In | Every minute | Daemon thread executes within configured time window (default 08:00-09:00), account_id offset to avoid concurrent sign-ins |
 | Forum Exploration | Hourly | `scripts/hourly_forum_check.py` — incremental Discuz section check |
 | Price Refresh | Per config | LCSC component price refresh |
 
@@ -207,6 +225,12 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v4.57 | 2026-07-07 | 3-layer status detection — persistent BrowserEngine + API lightweight + Playwright real verify + cache (memory/SQLite) + deep user info |
+| v4.56 | 2026-07-07 | Bilibili full exploration report + login plugin + platform capability import |
+| v4.55 | 2026-07-07 | AI call log system + Workspace + Phone SMS login + unified login capability exploration + Playwright settings + mobile CSS |
+| v4.54 | 2026-07-07 | Dev spec update + sign-in randomization + OSHWHub login fix |
+| v4.53 | 2026-07-07 | P0 captcha fix + fake logged-in status removal |
+| v4.52 | 2026-07-07 | xianyu_v2 unified login normalization + credential encryption fix |
 | v4.51 | 2026-07-07 | Bilibili Publisher enhancements (save_as_draft+upload_image) + dev spec + exploration report |
 | v4.50 | 2026-07-07 | Demo diagrams + generic login adapters (CSDN/wechat/zhihu) |
 | v4.49 | 2026-07-07 | Account dialog overhaul — QR login + demo cards + captcha UX |
@@ -216,7 +240,7 @@ frpc -c frpc.toml
 | v4.45 | 2026-07-06 | Gateway QR auto-config — /callback endpoint |
 | v4.42 | 2026-07-06 | OSHWHub auto re-login on cookie expiry + E2E draft save |
 | v4.41 | 2026-07-06 | Fix OSHWHub login status detection — Playwright cookie verify |
-| v4.39 | 2026-07-06 | 23-channel gateway + anti-detect module + Xianyu V2 MTOP + Explorer overhaul |
+| v4.39 | 2026-07-06 | 22-channel gateway + anti-detect module + Xianyu V2 MTOP + Explorer overhaul |
 | v4.36 | 2026-07-06 | Notification system + Gateway + unified pipeline + Xianyu search UI + exploration |
 | v4.35 | 2026-07-06 | Twitter/X Publisher + dynamic exploration sort |
 | v4.33 | 2026-07-06 | Zhihu publisher overhaul + exploration UI + sign-in stats fix |
