@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-08 05:00 | PM: duxingkei | 铁律: fs-iron-rules
+> 最后更新：2026-07-08 07:35 | PM: duxingkei | 铁律: fs-iron-rules
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -7,7 +7,7 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**v5.08** — deploy归一化内联到账号页 + test_connection统一格式 + 登录auto-start浏览器
+**v5.11** — signin BrowserEngine复用 + 验证凭证按钮 + deploy页面重定向
 
 ---
 
@@ -56,6 +56,7 @@
 - [x] **QR码全平台优先级#1** — ✅ 已修复
 - [x] **Cookie验证修复** — ✅ 已完成 (v5.06)
 - [x] **清理api_platforms_list死代码** — ✅ 已完成
+- [x] **Provider抽象框架+工作台集成** — ✅ 已完成 (v5.11)
 
 **P1 — 重要（需你在场）**
 - [ ] CSDN签到实测验证
