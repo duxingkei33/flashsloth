@@ -43,7 +43,7 @@
 .status-badge.online { background:#d4edda;color:#155724; }
 .status-badge.offline { background:#f8d7da;color:#721c24; }
 .status-badge.unknown { background:#e2e3e5;color:#383d41; }
-.status-badge.stale { background:#fff3cd;color:#856404; }
+.status-badge.pending { background:#fff3cd;color:#856404; }
 .status-badge.cached { background:#d1ecf1;color:#0c5460; }
 .time-tag { font-size:10px;color:#aaa;white-space:nowrap; }
 
@@ -230,7 +230,7 @@
     <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
 
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="批量刷新所有活跃账号的状态（API轻量检测，不启动浏览器）">🔄 批量刷新</button>
+        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="⚠️ 仅API轻量检测（不启动浏览器）。只能检测Cookie明显过期的情况，对假Cookie可能误报。如需真实登录态确认，请对每个账号使用「状态检测」按钮（Playwright全量验证）。">🔄 批量预检（API轻量）</button>
         <div class="platform-search-wrap" style="position:relative;display:inline-flex;align-items:stretch;">
             <input type="text" id="platformSearchInput" placeholder="🔍 搜索平台..."
                    autocomplete="off" oninput="onPlatformSearchInput()"
@@ -261,6 +261,7 @@
         <option value="">所有状态</option>
         <option value="online">✅ 已登录</option>
         <option value="offline">❌ 未登录</option>
+        <option value="pending">⏳ 待确认</option>
         <option value="unknown">⏳ 未知</option>
         <option value="enabled">启用</option>
         <option value="disabled">禁用</option>
@@ -355,7 +356,7 @@
     {% set last_check_ts = cached.get('_cache_timestamp', 0) if cached else 0 %}
     {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
     <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
-         data-platform="{{ p.name }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else 'unknown') }}"
+         data-platform="{{ p.name }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none else 'unknown')) }}"
          data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}"
          data-site-url="{{ cfg.get('site_url', '')|lower }}" data-last-check="{{ last_check_ts }}">
         <!-- 批量选择框 (优化3) -->
@@ -391,13 +392,15 @@
                 <!-- 状态徽章带最后检测时间 (优化1/2) -->
                 <span class="status-group">
                     <!-- 登录状态徽章 -->
-                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else 'unknown') }}">
+                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none and cached.get('_cache_source') else 'unknown')) }}">
                         {% if is_online and cached.get('username') %}
                             ✅ {{ cached.get('username') }}{% if cached.get('points') %} {{ cached.get('points_label','积分') }}:{{ cached.get('points') }}{% endif %}
                         {% elif is_online %}
                             ✅ 已登录
                         {% elif is_online == False %}
-                            ❌ 未登录
+                            ❌ {{ cached.get('status', '未登录') }}
+                        {% elif cached.get('_cache_source') and is_online is none %}
+                            ⏳ 待确认（API检测通过）
                         {% else %}
                             {{ '⏳ 启用' if a.is_active else '⛔ 停用' }}
                         {% endif %}
@@ -746,50 +749,6 @@
 </div>
 
 
-<!-- ====== 浏览器登录弹窗（向后兼容） ====== -->
-<div id="amobbsLoginModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
-     background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:24px;max-width:650px;width:92%;max-height:90vh;overflow-y:auto;">
-        <h2 style="margin-bottom:16px;font-size:18px;">
-            🌐 <span id="amobbsLoginTitle">阿莫论坛浏览器登录</span>
-        </h2>
-        <div id="amobbsLoginStep1">
-            <div class="form-group">
-                <label>用户名</label>
-                <input type="text" id="amobbsUser" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
-            </div>
-            <div class="form-group">
-                <label>密码</label>
-                <input type="password" id="amobbsPass" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
-            </div>
-            <div style="display:flex;gap:8px;margin-top:4px;">
-                <button onclick="startAmobbsLogin()" class="btn btn-primary" id="amobbsStartBtn">
-                    🚀 开始浏览器登录
-                </button>
-                <button onclick="closeAmobbsLogin()" class="btn" style="background:#eee;">取消</button>
-            </div>
-        </div>
-        <div id="amobbsLoginStep2" style="display:none;">
-            <p id="amobbsLoginStatus" style="color:#666;margin-bottom:10px;">⏳ 正在启动浏览器...</p>
-            <div id="amobbsScreenshot" style="margin-bottom:10px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:400px;">
-                <img id="amobbsScreenshotImg" src="" style="width:100%;display:block;">
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button onclick="clickAmobbsCaptcha()" class="btn btn-warning" id="amobbsCaptchaBtn">
-                    ✅ 点验证码并登录
-                </button>
-                <button onclick="autoSolveAmobbsCaptcha()" class="btn btn-info" id="amobbsAutoBtn" style="display:none;">
-                    🤖 自动识别
-                </button>
-                <button onclick="refreshAmobbsScreenshot()" class="btn btn-sm btn-info">🔄 刷新截图</button>
-                <button onclick="closeAmobbsLogin()" class="btn btn-sm" style="background:#eee;">✖ 关闭</button>
-            </div>
-            <div id="amobbsLoginResult" style="margin-top:10px;padding:12px;border-radius:6px;display:none;"></div>
-        </div>
-    </div>
-</div>
-
-
 <!-- ====== 状态检测弹窗 ====== -->
 <div id="statusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;">
@@ -850,6 +809,7 @@ function _doFilterAccounts() {
         if (match && s) {
             if (s === 'enabled') match = isEnabled;
             else if (s === 'disabled') match = !isEnabled;
+            else if (s === 'pending') match = status === 'pending' || status === 'unknown';
             else match = status === s;
         }
 
@@ -903,7 +863,7 @@ function sortAccounts(field) {
             cardsA.sort(function(x, y) { return _sortAsc ? x.dataset.name.localeCompare(y.dataset.name) : y.dataset.name.localeCompare(x.dataset.name); });
             cardsB.sort(function(x, y) { return _sortAsc ? x.dataset.name.localeCompare(y.dataset.name) : y.dataset.name.localeCompare(x.dataset.name); });
         } else if (field === 'status') {
-            var order = {online: 0, unknown: 1, offline: 2};
+            var order = {online: 0, pending: 1, unknown: 2, offline: 3};
             cardsA.sort(function(x, y) {
                 var xo = order[x.dataset.status] || 99;
                 var yo = order[y.dataset.status] || 99;
@@ -2616,7 +2576,7 @@ function showBatchRefreshProgress(state, msg) {
             + '<style>@keyframes refreshProgress { 0% {width:20%;} 50% {width:80%;} 100% {width:20%;} }</style>';
     } else if (state === 'done') {
         el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:13px;color:#065f46;">'
-            + '✅ 批量刷新完成：已刷新 ' + msg + ' 个账号</div>';
+            + '📊 批量预检完成：' + msg + ' 个账号（API通过/失效/跳过详情见响应）</div>';
     } else if (state === 'error') {
         el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#991b1b;">'
             + '❌ 批量刷新失败：' + (msg || '未知错误') + '</div>';
@@ -2668,8 +2628,17 @@ function renderDeepStatus(aid, data) {
             }
             badgeSpan.className = 'status-badge online';
         } else if (data.logged_in === false) {
-            badgeSpan.innerHTML = '❌ 未登录';
+            var statusText = data.status || '未登录';
+            badgeSpan.innerHTML = '❌ ' + escapeHtml(statusText);
             badgeSpan.className = 'status-badge offline';
+        } else if (data.logged_in === null && data._cache_source) {
+            // API轻量检测通过，待Playwright确认
+            var pendingText = data.status || '⏳ 待确认';
+            badgeSpan.innerHTML = escapeHtml(pendingText);
+            badgeSpan.className = 'status-badge pending';
+        } else {
+            badgeSpan.innerHTML = '⏳ 未知';
+            badgeSpan.className = 'status-badge unknown';
         }
     }
 
@@ -2678,7 +2647,7 @@ function renderDeepStatus(aid, data) {
     if (card) {
         if (data.logged_in) card.dataset.status = 'online';
         else if (data.logged_in === false) card.dataset.status = 'offline';
-        else card.dataset.status = 'unknown';
+        else card.dataset.status = 'pending';
     }
 
     // 用户信息
@@ -2697,6 +2666,8 @@ function renderDeepStatus(aid, data) {
             userSpan.innerHTML = '<span style="color:#22c55e;">✅ 已登录</span>';
         } else if (data.logged_in === false) {
             userSpan.innerHTML = '<span style="color:#ef4444;">❌ 未登录</span>';
+        } else if (data.logged_in === null) {
+            userSpan.innerHTML = '<span style="color:#f59e0b;">⏳ API检测通过，待Playwright确认</span>';
         } else {
             userSpan.innerHTML = '<span style="color:#999;">—</span>';
         }
@@ -2846,324 +2817,6 @@ function testConnection(aid) {
 }
 
 
-// ====== 旧版兼容函数 ======
-function amobbsLogin(accountId) {
-    currentAccountId = accountId;
-    fetch('/api/accounts/config/' + accountId)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (!data.success) { alert('获取账号信息失败: ' + (data.error || '')); return; }
-        var cfg = data.config || {};
-        document.getElementById('amobbsUser').value = cfg.username || '';
-        document.getElementById('amobbsPass').value = cfg.password || '';
-        document.getElementById('amobbsLoginTitle').textContent = cfg.username ?
-            '🌐 阿莫论坛浏览器登录 — ' + cfg.username : '🌐 阿莫论坛浏览器登录';
-        document.getElementById('amobbsLoginStep1').style.display = 'block';
-        document.getElementById('amobbsLoginStep2').style.display = 'none';
-        document.getElementById('amobbsLoginResult').style.display = 'none';
-        document.getElementById('amobbsStartBtn').disabled = false;
-        document.getElementById('amobbsStartBtn').textContent = '🚀 开始浏览器登录';
-        document.getElementById('amobbsLoginModal').style.display = 'flex';
-    })
-    .catch(function(e) { alert('请求失败: ' + e.message); });
-}
-
-function startAmobbsLogin() {
-    var username = document.getElementById('amobbsUser').value.trim();
-    var password = document.getElementById('amobbsPass').value.trim();
-    if (!username || !password) { alert('请输入用户名和密码'); return; }
-
-    document.getElementById('amobbsLoginStep1').style.display = 'none';
-    document.getElementById('amobbsLoginStep2').style.display = 'block';
-    document.getElementById('amobbsLoginStatus').textContent = '⏳ 正在启动浏览器登录...';
-    document.getElementById('amobbsCaptchaBtn').disabled = false;
-    document.getElementById('amobbsCaptchaBtn').textContent = '✅ 点验证码并登录';
-
-    fetch('/api/amobbs/login/start', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({account_id: currentAccountId, username: username, password: password})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success && data.needs_captcha) {
-            document.getElementById('amobbsLoginStatus').textContent = '🔒 需要验证码，请查看截图后点击下方按钮';
-            if (data.image) { document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image; }
-            checkAutoSolveCapability();
-        } else if (data.success && data.logged_in) {
-            showAmobbsResult('success', '✅ 登录成功！Cookie 已保存到账号配置');
-            document.getElementById('amobbsLoginStatus').textContent = '✅ 登录成功';
-            document.getElementById('amobbsCaptchaBtn').disabled = true;
-        } else {
-            showAmobbsResult('error', '❌ ' + (data.error || '登录失败'));
-            document.getElementById('amobbsLoginStatus').textContent = '❌ 登录失败';
-        }
-    })
-    .catch(function(e) {
-        showAmobbsResult('error', '❌ 网络错误: ' + e.message);
-        document.getElementById('amobbsLoginStatus').textContent = '❌ 网络错误';
-    });
-}
-
-function checkAutoSolveCapability() {
-    fetch('/api/accounts/config/' + currentAccountId)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success) {
-            var prov = data.config.captcha_provider || '';
-            document.getElementById('amobbsAutoBtn').style.display =
-                (prov === 'ttshitu' || prov === '2captcha') ? 'inline-block' : 'none';
-        }
-    })
-    .catch(function() {});
-}
-
-function clickAmobbsCaptcha() {
-    var btn = document.getElementById('amobbsCaptchaBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ 处理中...';
-    document.getElementById('amobbsLoginStatus').textContent = '⏳ 正在点击验证码并提交登录...';
-
-    fetch('/api/amobbs/login/captcha/click', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({account_id: currentAccountId})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success && data.logged_in) {
-            showAmobbsResult('success', '✅ 登录成功！Cookie 已保存到账号配置');
-            document.getElementById('amobbsLoginStatus').textContent = '✅ 登录成功';
-            btn.disabled = true;
-        } else if (data.success && data.needs_captcha) {
-            if (data.image) { document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image; }
-            document.getElementById('amobbsLoginStatus').textContent = data.message || '🔒 请查看截图后重试';
-            btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
-        } else {
-            showAmobbsResult('error', '❌ ' + (data.error || '验证码处理失败'));
-            btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
-        }
-    })
-    .catch(function(e) {
-        showAmobbsResult('error', '❌ 网络错误: ' + e.message);
-        btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
-    });
-}
-
-function refreshAmobbsScreenshot() {
-    fetch('/api/amobbs/login/screenshot')
-    .then(function(r) { return r.json(); })
-    .then(function(data) { if (data.success && data.image) { document.getElementById('amobbsScreenshotImg').src = 'data:image/png;base64,' + data.image; } })
-    .catch(function(e) { console.error('截图刷新失败:', e); });
-}
-
-function showAmobbsResult(type, msg) {
-    var div = document.getElementById('amobbsLoginResult');
-    div.style.display = 'block'; div.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
-    div.style.color = type === 'success' ? '#155724' : '#721c24'; div.textContent = msg;
-}
-
-function closeAmobbsLogin() {
-    fetch('/api/amobbs/login/close', {method: 'POST'}).catch(function() {});
-    document.getElementById('amobbsLoginModal').style.display = 'none';
-}
-
-// ====== 闲鱼浏览器登录 (向后兼容) ======
-function xianyuLogin(accountId) {
-    fetch('/api/accounts/config/' + accountId)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (!data.success) { alert('获取账号信息失败'); return; }
-        var cfg = data.config || {};
-        var username = prompt('请输入淘宝账号（用于闲鱼登录）：', cfg.username || '');
-        if (!username) return;
-        var password = prompt('请输入淘宝密码：');
-        if (!password) return;
-
-        var modalId = 'xianyuLoginModal';
-        var modal = document.getElementById(modalId);
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = modalId;
-            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
-            modal.innerHTML = '<div style="background:#fff;border-radius:12px;padding:24px;max-width:650px;width:92%;max-height:90vh;overflow-y:auto;">' +
-                '<h2 style="margin-bottom:16px;">🌐 闲鱼登录</h2>' +
-                '<p id="xyStatus" style="color:#666;margin-bottom:10px;">⏳ 正在启动浏览器登录...</p>' +
-                '<div style="border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:400px;margin-bottom:10px;">' +
-                '<img id="xyImg" src="" style="width:100%;display:block;"></div>' +
-                '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-                '<button onclick="xySolve()" class="btn btn-warning">✅ 已处理验证码/扫码</button>' +
-                '<button onclick="xyRefresh()" class="btn btn-sm btn-info">🔄 刷新截图</button>' +
-                '<button onclick="xyClose()" class="btn btn-sm" style="background:#eee;">✖ 关闭</button></div>' +
-                '<div id="xyResult" style="margin-top:10px;padding:12px;border-radius:6px;display:none;"></div></div>';
-            document.body.appendChild(modal);
-        }
-        modal.style.display = 'flex';
-        document.getElementById('xyStatus').textContent = '⏳ 正在启动浏览器登录...';
-        document.getElementById('xyResult').style.display = 'none';
-
-        window._xyAccountId = accountId;
-        fetch('/api/xianyu/login/start', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({account_id: accountId, username: username, password: password})
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success && data.image) {
-                document.getElementById('xyImg').src = 'data:image/png;base64,' + data.image;
-                document.getElementById('xyStatus').textContent = '🔒 请处理验证码/扫码，完成后点击"已处理"';
-            } else if (data.success && data.logged_in) {
-                document.getElementById('xyStatus').textContent = '✅ 登录成功！';
-                showXyResult('success', '✅ 登录成功！Cookie 已保存');
-            } else {
-                document.getElementById('xyStatus').textContent = '❌ ' + (data.error || '登录失败');
-            }
-        })
-        .catch(function(e) {
-            document.getElementById('xyStatus').textContent = '❌ 网络错误';
-            showXyResult('error', '网络错误: ' + e.message);
-        });
-    })
-    .catch(function(e) { alert('请求失败: ' + e.message); });
-}
-
-function xySolve() {
-    document.getElementById('xyStatus').textContent = '⏳ 处理中...';
-    fetch('/api/xianyu/login/solve', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({account_id: window._xyAccountId})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success && data.logged_in) {
-            document.getElementById('xyStatus').textContent = '✅ 登录成功！';
-            showXyResult('success', '✅ 登录成功！Cookie 已保存');
-        } else if (data.image) {
-            document.getElementById('xyImg').src = 'data:image/png;base64,' + data.image;
-            document.getElementById('xyStatus').textContent = data.message || '🔒 请重试';
-        } else {
-            showXyResult('error', '❌ ' + (data.error || '处理失败'));
-        }
-    })
-    .catch(function(e) { showXyResult('error', '网络错误: ' + e.message); });
-}
-function xyRefresh() {
-    fetch('/api/xianyu/login/screenshot')
-    .then(function(r) { return r.json(); })
-    .then(function(data) { if (data.image) document.getElementById('xyImg').src = 'data:image/png;base64,' + data.image; })
-    .catch(function() {});
-}
-function xyClose() {
-    fetch('/api/xianyu/login/close', {method: 'POST'}).catch(function() {});
-    document.getElementById('xianyuLoginModal').style.display = 'none';
-}
-function showXyResult(type, msg) {
-    var div = document.getElementById('xyResult');
-    div.style.display = 'block'; div.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
-    div.style.color = type === 'success' ? '#155724' : '#721c24'; div.textContent = msg;
-}
-
-// ====== OSHWHub 浏览器登录 ======
-function oshwhubLogin(accountId) {
-    fetch('/api/accounts/config/' + accountId)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (!data.success) { alert('获取账号信息失败'); return; }
-        var cfg = data.config || {};
-        var username = prompt('请输入 OSHWHub 用户名/邮箱：', cfg.username || '');
-        if (!username) return;
-        var password = prompt('请输入 OSHWHub 密码：');
-        if (!password) return;
-
-        var modalId = 'oshwhubLoginModal_' + accountId;
-        var existing = document.getElementById(modalId);
-        if (existing) existing.remove();
-
-        var html = '<div id="' + modalId + '" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center;">' +
-            '<div style="background:#fff;border-radius:12px;padding:24px;max-width:650px;width:92%;max-height:90vh;overflow-y:auto;">' +
-            '<h2 style="margin-bottom:16px;">🌐 OSHWHub 浏览器登录</h2>' +
-            '<p id="oshStatus_' + accountId + '" style="color:#666;margin-bottom:10px;">⏳ 正在启动浏览器...</p>' +
-            '<div style="border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:400px;margin-bottom:10px;">' +
-            '<img id="oshImg_' + accountId + '" src="" style="width:100%;display:block;"></div>' +
-            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button onclick="oshCaptchaClick(' + accountId + ')" class="btn btn-warning" id="oshBtn_' + accountId + '">✅ 点验证码并登录</button>' +
-            '<button onclick="oshRefresh(' + accountId + ')" class="btn btn-sm btn-info">🔄 刷新截图</button>' +
-            '<button onclick="oshClose(' + accountId + ')" class="btn btn-sm" style="background:#eee;">✖ 关闭</button></div>' +
-            '<div id="oshResult_' + accountId + '" style="margin-top:10px;padding:12px;border-radius:6px;display:none;"></div></div></div>';
-        document.body.insertAdjacentHTML('beforeend', html);
-
-        window['_oshAccountId_' + accountId] = accountId;
-        fetch('/api/oshwhub/login/start', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({account_id: accountId, username: username, password: password})
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success && data.needs_captcha && data.image) {
-                document.getElementById('oshImg_' + accountId).src = 'data:image/png;base64,' + data.image;
-                document.getElementById('oshStatus_' + accountId).textContent = '🔒 需要验证码，请查看截图';
-            } else if (data.success && data.logged_in) {
-                document.getElementById('oshStatus_' + accountId).textContent = '✅ 登录成功！';
-                showOshResult(accountId, 'success', '✅ 登录成功！Cookie 已保存');
-                document.getElementById('oshBtn_' + accountId).disabled = true;
-            } else {
-                document.getElementById('oshStatus_' + accountId).textContent = '❌ ' + (data.error || '登录失败');
-                showOshResult(accountId, 'error', data.error || '登录失败');
-            }
-        })
-        .catch(function(e) {
-            document.getElementById('oshStatus_' + accountId).textContent = '❌ 网络错误';
-            showOshResult(accountId, 'error', e.message);
-        });
-    })
-    .catch(function(e) { alert('请求失败: ' + e.message); });
-}
-
-function oshCaptchaClick(accountId) {
-    var btn = document.getElementById('oshBtn_' + accountId);
-    btn.disabled = true; btn.textContent = '⏳ 处理中...';
-    fetch('/api/oshwhub/login/captcha/click', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({account_id: accountId})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.success && data.logged_in) {
-            document.getElementById('oshStatus_' + accountId).textContent = '✅ 登录成功！';
-            showOshResult(accountId, 'success', '✅ 登录成功！Cookie 已保存');
-            btn.disabled = true;
-        } else if (data.image) {
-            document.getElementById('oshImg_' + accountId).src = 'data:image/png;base64,' + data.image;
-            document.getElementById('oshStatus_' + accountId).textContent = data.message || '🔒 请重试';
-            btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
-        } else {
-            showOshResult(accountId, 'error', '❌ ' + (data.error || '失败'));
-            btn.disabled = false; btn.textContent = '✅ 点验证码并登录';
-        }
-    })
-    .catch(function(e) { showOshResult(accountId, 'error', '网络错误: ' + e.message); btn.disabled = false; btn.textContent = '✅ 点验证码并登录'; });
-}
-function oshRefresh(accountId) {
-    fetch('/api/oshwhub/login/screenshot')
-    .then(function(r) { return r.json(); })
-    .then(function(data) { if (data.image) document.getElementById('oshImg_' + accountId).src = 'data:image/png;base64,' + data.image; })
-    .catch(function() {});
-}
-function oshClose(accountId) {
-    fetch('/api/oshwhub/login/close', {method: 'POST'}).catch(function() {});
-    var el = document.getElementById('oshwhubLoginModal_' + accountId);
-    if (el) el.remove();
-}
-function showOshResult(accountId, type, msg) {
-    var div = document.getElementById('oshResult_' + accountId);
-    if (!div) return;
-    div.style.display = 'block'; div.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
-    div.style.color = type === 'success' ? '#155724' : '#721c24'; div.textContent = msg;
-}
 
 function escapeHtml(text) {
     var d = document.createElement('div');
