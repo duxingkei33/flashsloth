@@ -505,8 +505,7 @@
 
         <!-- 操作按钮组 -->
         <div class="acct-actions">
-            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开目标平台 → 注入Cookie → 验证是否真正登录 → 返回真实用户名/积分/等级信息。这是最可靠的登录态检测方式。">🔍 状态检测</button>
-            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-secondary" title="用Playwright打开目标平台 → 注入保存的Cookie → 检查是否被重定向到登录页 → 确认Cookie是否真的有效。【和状态检测的区别：只专注Cookie验证，不提取积分/等级细节】">🔌 验证Cookie</button>
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开目标平台 → 注入Cookie → 验证登录态 → 提取真实用户名/积分/等级/页面标题。集成了完整的Cookie有效性检测与状态验证，无需再单独验证Cookie。">🔍 状态检测</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
             {% if p.name in ('xianyu', 'xianyu_v2') %}
@@ -3334,52 +3333,7 @@ function closeStatusModal() {
     document.getElementById('statusModal').style.display = 'none';
 }
 
-// ====== 测试连接 ======
-function testConnection(aid) {
-    document.getElementById('statusContent').innerHTML = '<p style="color:#999;">⏳ 正在测试连接，使用 Playwright 直接验证 Cookie...</p>';
-    document.getElementById('statusModal').style.display = 'flex';
 
-    fetch('/api/accounts/test/' + aid, {method: 'POST'})
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        var html = '<div style="margin-bottom:12px;">';
-        html += '<p><strong>平台：</strong>' + (data.platform || '—') + '</p>';
-        html += '<p><strong>账号：</strong>' + escapeHtml(data.account_name || '') + '</p>';
-
-        if (data.logged_in) {
-            html += '<div style="padding:12px;background:#f0fdf4;border:1px solid #22c55e;border-radius:8px;margin:8px 0;">';
-            html += '<p style="font-size:20px;color:#22c55e;font-weight:600;">✅ 连接成功！</p>';
-            if (data.username) {
-                html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;font-size:16px;">' + escapeHtml(data.username) + '</span></p>';
-            }
-            html += '</div>';
-        } else if (data.logged_in === false) {
-            html += '<div style="padding:12px;background:#fef2f2;border:1px solid #ef4444;border-radius:8px;margin:8px 0;">';
-            html += '<p style="font-size:20px;color:#ef4444;font-weight:600;">❌ 连接失败</p>';
-            html += '</div>';
-        }
-        html += '<p><strong>状态：</strong><span style="font-size:16px;">' + (data.status || '⏳ 未知') + '</span></p>';
-        html += '<p><strong>检测方法：</strong>Playwright 直接验证</p>';
-        html += '<p><strong>Cookie：</strong>' + (data.has_cookie ? '🍪 有' : '— 无') + '</p>';
-        if (data.page_title) { html += '<p><strong>页面标题：</strong>' + escapeHtml(data.page_title) + '</p>'; }
-        html += '</div>';
-
-        if (data.page_preview) {
-            html += '<div style="background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:12px;max-height:300px;overflow-y:auto;font-size:13px;line-height:1.6;">' +
-                '<div style="font-weight:600;margin-bottom:6px;color:#666;">📄 页面内容预览（前600字）</div>' +
-                '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;">' + escapeHtml(data.page_preview) + '</pre></div>';
-        }
-        if (data.logged_in === false && data.has_cookie) {
-            html += '<div class="alert alert-warning" style="margin-top:12px;">⚠️ Cookie 已失效，请重新使用"浏览器登录"获取新 Cookie</div>';
-        }
-        document.getElementById('statusContent').innerHTML = html;
-        renderDeepStatus(aid, data);
-    })
-    .catch(function(e) {
-        document.getElementById('statusContent').innerHTML =
-            '<div class="alert alert-error">❌ 请求失败: ' + escapeHtml(e.message) + '</div>';
-    });
-}
 
 
 

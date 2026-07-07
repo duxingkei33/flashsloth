@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.07 | **最后更新**: 2026-07-08 (每小时自动更新)
+**版本**: v5.08 | **最后更新**: 2026-07-08 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -29,14 +29,14 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 39,557 行 Python | 13,100 行 HTML | 132 Python 文件 | 31 模板文件
+**代码规模**: 39,675 行 Python | 13,663 行 HTML | 132 Python 文件 | 31 模板文件
 | 模块目录 | 行数 |
 |---------|:----:|
 | core/ | 11,686 |
-|| routes/ | 9,327 |
-|| plugins/ | 12,680 |
+|| routes/ | 9,388 |
+|| plugins/ | 12,679 |
 | sdk/ | 4,563 |
-| scripts/ | 1,301 |
+| scripts/ | 1,359 |
 | fs_mgr.py | 321 (全生命周期管理) |
 | admin.py | 81 (入口点) |
 
@@ -183,7 +183,7 @@
 
 ### 2.3 数据层
 
-- **主数据库**: `flashsloth.db` (SQLite WAL 模式) — 749KB
+- **主数据库**: `flashsloth.db` (SQLite WAL 模式) — 749KB (含 site_configs 持久化)
 - **缓存数据库**: `status_cache.db` (账号登录状态缓存) — 20KB
 - **凭证加密**: Fernet AES-128-CBC（密钥：`~/.hermes/flashsloth/.fs_key` 或环境变量 `FS_ENCRYPTION_KEY`）
 
@@ -1370,6 +1370,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | AI趋势日报 | Hermes cron | 早8/晚8 | AI趋势日报生成+推送 |
 | FS每日备份 | 脚本 `fs_daily_backup.py` | 每天4:30 | 三位一体备份(tar.gz+TAG.txt+git tag) |
 | **凭证守护** | `core/credential_guard.py` | **每30分钟** | **清理过期扫码session + 凭证健康检查 (v4.92 新增)** |
+| **部署归一化E2E检查** | `scripts/e2e_deploy_check.py` | **按需/CI** | **P0部署归一化E2E校验 (v5.08 新增)** |
 
 **注意**: 签到调度器为守护线程（`fs-scheduler`），随 Flask 应用启动。探索任务通过外部 cron 触发。评论监控检查在应用内按配置时间段定时运行。
 
@@ -1402,6 +1403,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.08** | 2026-07-08 | **deploy归一化增强+auto-start** — deploy配置内联到accounts页面, test_connection统一返回格式, 新增`scripts/e2e_deploy_check.py` (90行) E2E验证脚本, playwright_verify_raw.py扩展至237行, 探索报告更新(得物/值得买/小红书数据刷新), 账号页accounts.html大规模重构(729行变更/新增), forum_registry双轨验证P2 TODO关闭. |
 | **v5.07** | 2026-07-08 | **forum_registry双轨验证完成 + P0巡检** — 探索报告数据更新(得物/值得买/小红书), PROJECT_STATUS同步, 架构文档同步。 |
 | **v5.06** | 2026-07-08 | **Cookie验证P0修复** — DiscuzPublisher._test_cookie()严格登录态检测(必须有exit/logout关键词)。test-connection路由Playwright子进程降级(新增`scripts/playwright_verify_raw.py`)。探索雷达数据完善(得物/值得买/小红书探索报告更新+截图)。 |
 | **v5.05** | 2026-07-08 | **新平台探索: 51CTO + 豆瓣** — blog子域名WAF防护(SMS-only登录), 暂不适配。死代码清理(api_platforms_list)。 |
@@ -1480,12 +1482,12 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `status_detector.py` | 三层登录状态检测器 (v5.02 修复) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,327 行)
+### routes/ (25 个 Python 文件, 9,388 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
 | `_app.py` | 86 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
-| `accounts.py` | 1649 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化, v5.06 P0验证链接修复) |
+| `accounts.py` | 1980 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化, v5.06 P0验证链接修复, v5.08 deploy归一化内联UI) |
 | `ai.py` | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | `api_v1.py` | 532 | 统一 REST API v1（API Key 鉴权） |
 | `api_v2.py` | 205 | Gateway REST API v2（系统/重启/重载） |
@@ -1505,11 +1507,11 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合, v5.06 P0修复) |
 | `price_monitor.py` | 122 | 价格监控管理/刷新 |
 | `signin.py` | 374 | 签到管理/手动签到/统计 |
-| `storage_deploy.py` | 505 | 存储后端配置/部署器管理 |
+| `storage_deploy.py` | 531 | 存储后端配置/部署器管理 (v5.08 deploy归一化+test_connection统一格式) |
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 12,680 行)
+### plugins/ (48 个 Python 文件, 12,679 行)
 **发布器 (16个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1642,12 +1644,13 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (7 个 Python 脚本, 1,301 行)
+### scripts/ (8 个 Python 脚本, 1,359 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
 | `playwright_verify.py` | 子进程 Playwright 账号登录验证 (303行) |
-| `playwright_verify_raw.py` | **子进程 Playwright 验证脚本(原始参数模式) — 添加账号连接测试 (179行, v5.06 新增)** |
+| `playwright_verify_raw.py` | **子进程 Playwright 验证脚本(原始参数模式) — 添加账号连接测试 (237行, v5.06 新增, v5.08 扩展)** |
+| `e2e_deploy_check.py` | **部署归一化E2E验证脚本 (90行, v5.08 新增)** |
 | `sync_registry_keywords.py` | 同步 forum_registry 关键词到 DB |
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
@@ -1683,4 +1686,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.07 | Python 总行数: 39,557 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,100 行 (31 模板) | 新增: playwright_verify_raw.py(179) | 最后更新: 2026-07-08*
+*版本: v5.08 | Python 总行数: 39,675 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,663 行 (31 模板) | 新增: e2e_deploy_check.py(90) + playwright_verify_raw.py(237→扩展) | 最后更新: 2026-07-08*

@@ -167,25 +167,26 @@ def verify_account(aid: int) -> dict:
 
             # ── 提取用户名、积分、等级（深度验证） ──
             extracted_username = ""
-            # 从页面文本提取用户名（优先找用户名本身，不仅是 login indicator）
-            username_patterns = [
-                r'欢迎您回来[：:]\s*([\u4e00-\u9fff\w]+)',
-                r'欢迎\s*([\u4e00-\u9fff\w]+)',
-                r'<title>[^<]*?([\u4e00-\u9fff\w]+)[^<]*?的个人资料',
-                r'"nickname"\s*[:=]\s*"([^"]+)"',
-                r'"username"\s*[:=]\s*"([^"]+)"',
-                r'"display_name"\s*[:=]\s*"([^"]+)"',
-            ]
-            for pat in username_patterns:
-                m = re.search(pat, body_text)
-                if m and m.group(1) and len(m.group(1).strip()) >= 2:
-                    extracted_username = m.group(1).strip()
-                    break
 
-            # 如果 config 中的用户名出现在页面中，用它
-            if not extracted_username and platform_username:
-                if re.search(re.escape(platform_username), body_text):
-                    extracted_username = platform_username
+            # 优先使用 config 中的 username（只要在页面中出现）
+            # 避免被 "欢迎 新会员" 等模糊模式误匹配
+            if platform_username and re.search(re.escape(platform_username), body_text):
+                extracted_username = platform_username
+
+            # 从页面文本提取用户名（仅当 config 用户名未提取到时）
+            if not extracted_username:
+                username_patterns = [
+                    r'欢迎您回来[：:]\s*([\u4e00-\u9fff\w]+)',
+                    r'<title>[^<]*?([\u4e00-\u9fff\w]+)[^<]*?的个人资料',
+                    r'"nickname"\s*[:=]\s*"([^"]+)"',
+                    r'"username"\s*[:=]\s*"([^"]+)"',
+                    r'"display_name"\s*[:=]\s*"([^"]+)"',
+                ]
+                for pat in username_patterns:
+                    m = re.search(pat, body_text)
+                    if m and m.group(1) and len(m.group(1).strip()) >= 2:
+                        extracted_username = m.group(1).strip()
+                        break
 
             # 提取积分
             extracted_points = 0
@@ -217,7 +218,7 @@ def verify_account(aid: int) -> dict:
             for pat in level_patterns:
                 m = re.search(pat, body_text, re.IGNORECASE)
                 if m:
-                    level_val = m.group(1).strip()
+                    level_val = m.group(1).strip().split('\n')[0].strip()
                     if level_val and len(level_val) >= 2:
                         extracted_level = level_val
                         break
@@ -244,8 +245,13 @@ def verify_account(aid: int) -> dict:
             # Status 消息 —— 包含用户名/积分/等级
             if is_logged_in:
                 parts = []
-                if extracted_username:
-                    parts.append(extracted_username)
+                # 安全兜底：如果提取到的 username 与 config 不同但 config 用户名在页面中出现，优先使用 config 用户名
+                status_username = extracted_username
+                if platform_username and extracted_username != platform_username:
+                    if re.search(re.escape(platform_username), body_text):
+                        status_username = platform_username
+                if status_username:
+                    parts.append(status_username)
                 if extracted_points:
                     parts.append(f"{points_label}:{extracted_points}")
                 if extracted_level:

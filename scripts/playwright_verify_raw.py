@@ -132,27 +132,30 @@ def verify_raw(cookie: str, site_url: str, platform_username: str = "",
 
             # ── 提取用户名 ──
             extracted_username = ""
-            username_patterns = [
-                r'欢迎您回来[：:]\s*([\u4e00-\u9fff\w]+)',
-                r'欢迎\s*([\u4e00-\u9fff\w]+)',
-                r'<title>[^<]*?([\u4e00-\u9fff\w]+)[^<]*?的个人资料',
-                r'"nickname"\s*[:=]\s*"([^"]+)"',
-                r'"username"\s*[:=]\s*"([^"]+)"',
-                r'"display_name"\s*[:=]\s*"([^"]+)"',
-                r'"nick"\s*:\s*"([^"]+)"',
-                r'"nickName"\s*:\s*"([^"]+)"',
-                r'"userName"\s*:\s*"([^"]+)"',
-            ]
-            for pat in username_patterns:
-                m = re.search(pat, body_text)
-                if m and m.group(1) and len(m.group(1).strip()) >= 2:
-                    extracted_username = m.group(1).strip()
-                    break
 
-            # 如果配置的用户名出现在页面中但没提取到，用它
-            if not extracted_username and platform_username:
-                if re.search(re.escape(platform_username.strip()), body_text):
+            # 优先级1: 如果传入的用户名出现在页面中，优先用它
+            if platform_username and len(platform_username.strip()) >= 2:
+                escaped = re.escape(platform_username.strip())
+                if re.search(escaped, body_text):
                     extracted_username = platform_username.strip()
+
+            # 优先级2: 通过正则模式提取（不包含「欢迎 新会员」等误导模式）
+            if not extracted_username:
+                username_patterns = [
+                    r'欢迎您回来[：:]\s*([一-鿿\w]+)',
+                    r'<title>[^<]*?([一-鿿\w]+)[^<]*?的个人资料',
+                    r'"nickname"\s*[:=]\s*"([^"]+)"',
+                    r'"username"\s*[:=]\s*"([^"]+)"',
+                    r'"display_name"\s*[:=]\s*"([^"]+)"',
+                    r'"nick"\s*:\s*"([^"]+)"',
+                    r'"nickName"\s*:\s*"([^"]+)"',
+                    r'"userName"\s*:\s*"([^"]+)"',
+                ]
+                for pat in username_patterns:
+                    m = re.search(pat, body_text)
+                    if m and m.group(1) and len(m.group(1).strip()) >= 2:
+                        extracted_username = m.group(1).strip()
+                        break
 
             # ── 判断登录态 ──
             has_strong_exit = any(kw in str(indicators) for kw in ["退出", "注销"])
