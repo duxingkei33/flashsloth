@@ -63,7 +63,7 @@
 - [ ] 验证flashsloth-exploration脚本是否完全修复
 
 **P2 — 优化**
-- [ ] forum_registry读DB（JSON/DB双轨）
+- [x] forum_registry读DB（JSON/DB双轨）
 - [ ] 监控flashsloth-pm-daily-progress首次运行
 
 ---
@@ -127,7 +127,7 @@
 
 ## 🛑 暂停/遗留事项
 - 网关其他平台测试（等用户有需要时）
-- 论坛探索DB/JSON双轨（精度问题，低优先级）
+- 论坛探索DB/JSON双轨（✅ 已完成于v5.02，今晨验证通过）
 - 发布器E2E全面验收（缺真实账号）
 
 ## 📊 资源现状
