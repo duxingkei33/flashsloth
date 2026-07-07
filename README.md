@@ -46,6 +46,7 @@
 - [x] Gallery 抽按商品发布（预留）
 - [x] RSS订阅 — 纯Python生成
 - [x] GitHub Pages — git push 部署
+- [x] 🕐 发布前Cookie过期预检 — Publisher基类check_cookie() + publish_select前端Cookie状态展示（✅/❌指标）
 - [x] 📋 文章列表多选批量删除/发布
 
 ### 🔔 通知网关
@@ -65,6 +66,9 @@
 - [x] 微信公众号探索 — 图片上传/封面/摘要能力
 - [x] WeChat 公众号完整探索 + 发布器增强
 - [x] 🤖 知乎/掘金 API轻量登录状态检测器
+- [x] 📡 探索雷达 v2 — 得物/什么值得买/小红书完整探索报告 + category分类字段
+- [x] 🆕 新平台探索: 51CTO（WAF检测+SMS-only登录评估）+ 豆瓣探索报告
+- [x] 📚 论坛注册表双轨读取 — JSON+DB双轨支撑，FORUM_REGISTRY_MODE=auto/db/json三模式
 
 ### 👨‍👩‍👧‍👦 自动签到
 - [x] OSHWHub 签到（含Cookie过期自动重登+asyncio隔离修复）
@@ -143,7 +147,7 @@
 │  ai_provider · article · deployer · compiler · pipeline           │
 │  signin · image_pipeline · captcha_handler                        │
 │  browser_engine · status_detector · status_cache · provider       │
-│  provider_registry · storage                                       │
+│  provider_registry · storage · cookie_validator · forum_registry   │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -252,6 +256,9 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| v5.05 | 2026-07-08 | 51CTO平台探索 — WAF+SMS-only评估 + 探索雷达v2（得物/什么值得买/小红书）+ category分类字段 |
+| v5.04 | 2026-07-08 | 发布前Cookie过期预检 — Publisher基类check_cookie() + publish_select前端状态展示 |
+| v5.03 | 2026-07-08 | 账号弹窗归一化收尾 — 移除旧版平台专属登录弹窗(amobbs/xianyu/oshwhub) |
 | v5.02 | 2026-07-08 | Cookie验证器统一 — verify_credential/get/save三合一 + OSHWHub迁移 + 关键词假阳性修复 |
 | v4.93 | 2026-07-08 | 扫码登录全流程优化 — 多方式选择+超时机制+账号弹窗QR优化 |
 | v4.92 | 2026-07-08 | 统一凭证体系 — ScanLoginEngine + save/get/verify_credential + QR引擎重构 |

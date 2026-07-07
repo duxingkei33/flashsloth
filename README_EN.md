@@ -46,6 +46,7 @@
 - [x] Gallery Product Listing (Reserved)
 - [x] RSS Feed — Pure Python generation
 - [x] GitHub Pages — git push deployment
+- [x] 🕐 Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend cookie status (✅/❌ indicator)
 - [x] 📋 Article list multi-select batch delete/publish
 
 ### 🔔 Notification Gateway
@@ -65,6 +66,9 @@
 - [x] WeChat Official Account exploration — image upload/cover/summary capability
 - [x] WeChat full exploration + publisher enhancement
 - [x] 🤖 Zhihu/Juejin API lightweight login status detector
+- [x] 📡 Exploration radar v2 — Dewu/SMZDM/Xiaohongshu full exploration reports + category classification field
+- [x] 🆕 New platform exploration: 51CTO (WAF detection + SMS-only login assessment) + Douban exploration report
+- [x] 📚 Forum registry dual-track — JSON+DB dual support, FORUM_REGISTRY_MODE=auto/db/json three modes
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
 - [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
@@ -143,7 +147,7 @@
 │  ai_provider · article · deployer · compiler · pipeline           │
 │  signin · image_pipeline · captcha_handler                        │
 │  browser_engine · status_detector · status_cache · provider       │
-│  provider_registry · storage                                       │
+│  provider_registry · storage · cookie_validator · forum_registry   │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -252,6 +256,9 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
+| v5.04 | 2026-07-08 | Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend status display |
+| v5.03 | 2026-07-08 | Account modal normalization — removed legacy platform-specific login modals (amobbs/xianyu/oshwhub) |
 | v5.02 | 2026-07-08 | Unified cookie validator — verify_credential/get/save tri-function + OSHWHub migration + keyword false-positive fix |
 | v4.93 | 2026-07-08 | QR code login full optimization — multi-method selection + timeout + account modal QR optimization |
 | v4.92 | 2026-07-08 | Unified credential system — ScanLoginEngine + save/get/verify_credential + QR engine refactor |
