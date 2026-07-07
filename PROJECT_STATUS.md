@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-07 21:50 | PM: duxingkei | 铁律: fs-iron-rules
+> 最后更新：2026-07-07 22:55 | PM: duxingkei | 铁律: fs-iron-rules
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -7,7 +7,7 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**维护期 v4.67** — 核心功能全部完成，聚焦清理、稳定、项目管理。
+**维护期 v4.91** — QR码优先级优化 + site_url传透修复
 
 ---
 
@@ -48,7 +48,8 @@
 
 **P0 — 紧急**
 - [ ] **AI趋势日报飞书推送修复** — Claude正在修
-- [ ] **login-capabilities refresh site_url传透** — 代码改动已做一半
+- [x] **login-capabilities refresh site_url传透** — ✅ 已完成（自动补 https:// 前缀）
+- [x] **QR码全平台优先级#1** — ✅ 已修复（登录方式首选项改为扫码登录）
 - [ ] 监控flashsloth-pm-daily-progress首次运行（明早9点）
 
 **P1 — 重要**

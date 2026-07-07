@@ -682,7 +682,10 @@ def api_platform_login_capabilities_refresh(platform):
 	
 	# 🔥 铁律#12：先接受 post body 中动态 site_url
 	data = request.get_json(silent=True) or {}
-	site_url_from_body = str(data.get("site_url", "") or "")
+	site_url_from_body = str(data.get("site_url", "") or "").strip()
+	# 如果 site_url 是纯域名，自动补上 https://
+	if site_url_from_body and not site_url_from_body.startswith(("http://", "https://")):
+		site_url_from_body = "https://" + site_url_from_body
 	
 	# 硬编码兜底（仅当无动态 site_url 时）
 	login_url_map = {
