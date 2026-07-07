@@ -795,7 +795,7 @@ def api_platform_login_start(platform):
 			return jsonify(result)
 
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import get_generic_login, close_generic_login
+		from flashsloth.plugins.generic_login import get_generic_login, close_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"generic_{current_user.id}"
@@ -854,7 +854,7 @@ def api_platform_login_captcha(platform):
 			return jsonify(result)
 
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import get_generic_login
+		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"generic_{current_user.id}"
@@ -893,7 +893,7 @@ def api_platform_login_screenshot(platform):
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import get_generic_login
+		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = get_generic_login(f"generic_{current_user.id}")
@@ -940,7 +940,7 @@ def api_platform_login_submit_captcha(platform):
 			return jsonify(result)
 
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import get_generic_login
+		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"generic_{current_user.id}"
@@ -996,7 +996,7 @@ def api_platform_login_poll(platform):
 			return jsonify({"running": True, "message": "登录进行中..."})
 
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import get_generic_login
+		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"generic_{current_user.id}"
@@ -1021,7 +1021,7 @@ def api_platform_login_refresh_captcha(platform):
 			screenshot = inst.take_screenshot()
 			return jsonify({"success": True, "image": screenshot})
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import get_generic_login
+		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = get_generic_login(f"generic_{current_user.id}")
@@ -1044,7 +1044,7 @@ def api_platform_login_auto_captcha(platform):
 				inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
 				screenshot = inst.take_screenshot()
 		else:
-			from plugins.generic_login import get_generic_login
+			from flashsloth.plugins.generic_login import get_generic_login
 			with _get_login_lock(platform):
 				inst = get_generic_login(f"generic_{current_user.id}")
 				screenshot = inst.take_screenshot()
@@ -1351,7 +1351,7 @@ def api_platform_login_close(platform):
 			return jsonify({"success": True})
 
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
-		from plugins.generic_login import close_generic_login
+		from flashsloth.plugins.generic_login import close_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"generic_{current_user.id}"
