@@ -71,5 +71,6 @@
     "  API: https://edith.xiaohongshu.com/api/sns/web/global/config",
     "Saving exploration results..."
   ],
-  "homepage_title": "小红书 - 你的生活兴趣社区"
+  "homepage_title": "小红书 - 你的生活兴趣社区",
+  "category": "social"
 }

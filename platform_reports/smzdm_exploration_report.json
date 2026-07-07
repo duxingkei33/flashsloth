@@ -1,0 +1,25 @@
+{
+  "platform": "smzdm",
+  "domain": "smzdm.com",
+  "explored_at": "2026-07-08 00:06:37",
+  "explored_with_login": false,
+  "has_account": false,
+  "has_publisher": false,
+  "category": "shopping",
+  "login_methods": {
+    "has_password": false,
+    "has_phone": false,
+    "has_qrcode": false,
+    "has_wechat": false,
+    "has_weibo": false,
+    "has_qq": false,
+    "has_captcha": false,
+    "has_geetest": false,
+    "has_netease": false,
+    "login_url": "https://www.smzdm.com/"
+  },
+  "editor_url": "https://www.smzdm.com/publish",
+  "editor_requires_login": false,
+  "api_endpoints": [],
+  "note": "首次探索: "
+}

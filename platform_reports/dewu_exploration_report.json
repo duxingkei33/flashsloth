@@ -1,0 +1,25 @@
+{
+  "platform": "dewu",
+  "domain": "dewu.com",
+  "explored_at": "2026-07-08 00:06:32",
+  "explored_with_login": false,
+  "has_account": false,
+  "has_publisher": false,
+  "category": "shopping",
+  "login_methods": {
+    "has_password": false,
+    "has_phone": false,
+    "has_qrcode": false,
+    "has_wechat": false,
+    "has_weibo": false,
+    "has_qq": false,
+    "has_captcha": false,
+    "has_geetest": false,
+    "has_netease": false,
+    "login_url": "https://www.dewu.com/"
+  },
+  "editor_url": "https://www.dewu.com/editor",
+  "editor_requires_login": false,
+  "api_endpoints": [],
+  "note": "首次探索: 得物App-新一代潮流网购社区"
+}
