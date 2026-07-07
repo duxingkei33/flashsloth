@@ -261,7 +261,9 @@
                 <span class="status-group">
                     <!-- 登录状态徽章 -->
                     <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else 'unknown') }}">
-                        {% if is_online %}
+                        {% if is_online and cached.get('username') %}
+                            ✅ {{ cached.get('username') }}{% if cached.get('points') %} {{ cached.get('points_label','积分') }}:{{ cached.get('points') }}{% endif %}
+                        {% elif is_online %}
                             ✅ 已登录
                         {% elif is_online == False %}
                             ❌ 未登录
@@ -1785,10 +1787,19 @@ function renderDeepStatus(aid, data) {
 
     if (!statusSpan) return;
 
-    // 状态徽章
+    // 状态徽章 —— 显示用户名/积分等深度信息
     if (badgeSpan) {
         if (data.logged_in) {
-            badgeSpan.innerHTML = '✅ 已登录';
+            if (data.username) {
+                var badgeText = '✅ ' + escapeHtml(data.username);
+                if (data.points) {
+                    var pl = data.points_label || '积分';
+                    badgeText += ' ' + pl + ':' + data.points;
+                }
+                badgeSpan.innerHTML = badgeText;
+            } else {
+                badgeSpan.innerHTML = '✅ 已登录';
+            }
             badgeSpan.className = 'status-badge online';
         } else if (data.logged_in === false) {
             badgeSpan.innerHTML = '❌ 未登录';

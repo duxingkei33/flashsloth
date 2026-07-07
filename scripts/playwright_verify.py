@@ -164,6 +164,66 @@ def verify_account(aid: int) -> dict:
                         indicators.append(f"欢迎/用户信息")
                         break
 
+            # ── 提取用户名、积分、等级（深度验证） ──
+            extracted_username = ""
+            # 从页面文本提取用户名（优先找用户名本身，不仅是 login indicator）
+            username_patterns = [
+                r'欢迎您回来[：:]\s*([\u4e00-\u9fff\w]+)',
+                r'欢迎\s*([\u4e00-\u9fff\w]+)',
+                r'<title>[^<]*?([\u4e00-\u9fff\w]+)[^<]*?的个人资料',
+                r'<em>([\u4e00-\u9fff\w]+)</em>',
+                r'"nickname"\s*[:=]\s*"([^"]+)"',
+                r'"username"\s*[:=]\s*"([^"]+)"',
+                r'"display_name"\s*[:=]\s*"([^"]+)"',
+                r'<span[^>]*class="[^"]*user[^"]*"[^>]*>([\u4e00-\u9fff\w]+)',
+                r'<a[^>]*class="[^"]*user[^"]*"[^>]*>([\u4e00-\u9fff\w]+)',
+            ]
+            for pat in username_patterns:
+                m = re.search(pat, body_text)
+                if m and m.group(1) and len(m.group(1).strip()) >= 2:
+                    extracted_username = m.group(1).strip()
+                    break
+
+            # 如果 config 中的用户名出现在页面中，用它
+            if not extracted_username and platform_username:
+                if re.search(re.escape(platform_username), body_text):
+                    extracted_username = platform_username
+
+            # 提取积分
+            extracted_points = 0
+            points_label = "积分"
+            point_patterns = [
+                r'积分[：:>\s]*(\d[\d,.]*)',
+                r'积分.*?(\d[\d,.]*)',
+                r'(经验|积分|等级|粉丝)[：:>\s]*(\d[\d,.]*)',
+                r'class="[^"]*credit[^"]*"[^>]*>(\d[\d,.]*)',
+                r'points[\">\s]*(\d+)',
+            ]
+            for pat in point_patterns:
+                m = re.search(pat, body_text)
+                if m:
+                    try:
+                        val = m.group(2).replace(",", "").replace(".", "") if m.lastindex and m.lastindex >= 2 else m.group(1).replace(",", "").replace(".", "")
+                        extracted_points = int(val)
+                    except (ValueError, IndexError):
+                        pass
+                    break
+
+            # 提取等级
+            extracted_level = ""
+            level_patterns = [
+                r'用户组[：:>\s]+([^<]{2,20})',
+                r'等级[：:>\s]+([^<]{2,20})',
+                r'(Lv\.?\s*\d+|V\d+)',
+            ]
+            for pat in level_patterns:
+                m = re.search(pat, body_text, re.IGNORECASE)
+                if m:
+                    level_val = m.group(1).strip()
+                    if level_val and len(level_val) >= 2:
+                        extracted_level = level_val
+                        break
+
             # 判断登录状态
             has_exit_or_logout = any(kw in str(indicators) for kw in ["退出", "注销"])
             is_logged_in = (
@@ -171,16 +231,29 @@ def verify_account(aid: int) -> dict:
                 and (
                     len(indicators) >= 2
                     or (username_found_in_body and has_exit_or_logout)
+                    or bool(extracted_username)
                 )
             )
 
             result["logged_in"] = is_logged_in
             result["username_indicators"] = indicators[:5]
+            result["username"] = extracted_username
+            result["display_name"] = extracted_username
+            result["points"] = extracted_points
+            result["points_label"] = points_label
+            result["level"] = extracted_level
 
-            # Status 消息
+            # Status 消息 —— 包含用户名/积分/等级
             if is_logged_in:
-                if indicators:
-                    result["status"] = f"✅ 已登录 — 检测到: {' | '.join(indicators[:3])}"
+                parts = []
+                if extracted_username:
+                    parts.append(extracted_username)
+                if extracted_points:
+                    parts.append(f"{points_label}:{extracted_points}")
+                if extracted_level:
+                    parts.append(extracted_level)
+                if parts:
+                    result["status"] = f"✅ {' | '.join(parts)}"
                 else:
                     result["status"] = "✅ 已登录（Cookie 有效）"
             else:
