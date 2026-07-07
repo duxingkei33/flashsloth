@@ -1,25 +1,61 @@
 {
   "platform": "dewu",
+  "display_name": "得物",
   "domain": "dewu.com",
-  "explored_at": "2026-07-08 00:06:32",
+  "category": "shopping",
+  "architecture": "custom",
+  "explored_at": "2026-07-08 00:10:04",
+  "last_updated": "2026-07-08 00:10:04",
   "explored_with_login": false,
   "has_account": false,
   "has_publisher": false,
-  "category": "shopping",
-  "login_methods": {
-    "has_password": false,
-    "has_phone": false,
-    "has_qrcode": false,
-    "has_wechat": false,
-    "has_weibo": false,
-    "has_qq": false,
-    "has_captcha": false,
-    "has_geetest": false,
-    "has_netease": false,
-    "login_url": "https://www.dewu.com/"
+  "login": {
+    "login_url": "https://www.dewu.com/",
+    "methods": [],
+    "captcha": {
+      "has_captcha": false,
+      "types": [],
+      "selectors": []
+    },
+    "third_party": {
+      "wechat": false,
+      "weibo": false,
+      "qq": false,
+      "github": false,
+      "apple": false
+    },
+    "qr_code": {
+      "has_qrcode": false,
+      "selectors": [],
+      "qr_container_sel": ""
+    },
+    "fields": [],
+    "buttons": {
+      "login_button": "",
+      "register_button": ""
+    },
+    "cookie_hints": [
+      "token",
+      "sid",
+      "session",
+      "dewu_token"
+    ]
   },
-  "editor_url": "https://www.dewu.com/editor",
-  "editor_requires_login": false,
-  "api_endpoints": [],
-  "note": "首次探索: 得物App-新一代潮流网购社区"
+  "publish": {
+    "editor_url": "https://www.dewu.com/editor",
+    "editor_requires_login": false,
+    "editor_type": "",
+    "api_endpoints": [],
+    "image_upload": {
+      "url": "",
+      "method": ""
+    }
+  },
+  "technical": {
+    "has_rate_limit": false,
+    "has_anti_bot": false,
+    "has_dynamic_content": false,
+    "framework": "",
+    "note": "潮流网购社区，自建架构"
+  }
 }
