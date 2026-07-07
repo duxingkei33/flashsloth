@@ -899,6 +899,163 @@ def api_platform_login_screenshot(platform):
 	return jsonify({"success": False, "error": f"平台 {platform} 不支持截图"})
 
 
+@app.route("/api/platform/<platform>/login/submit_captcha", methods=["POST"])
+@login_required
+def api_platform_login_submit_captcha(platform):
+	"""统一登录：提交手动输入的验证码"""
+	data = request.get_json() or {}
+	aid = data.get("account_id", 0)
+	captcha_code = data.get("captcha_code", "")
+
+	if not captcha_code:
+		return jsonify({"success": False, "error": "请输入验证码"})
+
+	if platform in ("amobbs", "discuz"):
+		from flashsloth.routes.browser_login import _get_amobbs_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"user_{current_user.id}"
+			inst = _get_amobbs_login(sess_id)
+			# 提交文本验证码 — 填入代码，点击边框核验，再提交登录
+			result = inst.submit_text_captcha(captcha_code)
+			if result.get("logged_in") and result.get("cookies") and aid:
+				_save_cookie_to_account(aid, result["cookies"])
+			return jsonify(result)
+
+	elif platform in ("xianyu", "xianyu_v2"):
+		return jsonify({"success": False, "error": "闲鱼不支持手动验证码输入，请使用扫码登录"})
+
+	elif platform == "oshwhub":
+		from flashsloth.routes.browser_login import _get_oshwhub_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"user_{current_user.id}"
+			inst = _get_oshwhub_login(sess_id)
+			result = inst.submit_text_captcha(captcha_code)
+			if result.get("logged_in") and result.get("cookies") and aid:
+				_save_cookie_to_account(aid, result["cookies"])
+			return jsonify(result)
+
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+		from plugins.generic_login import get_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"generic_{current_user.id}"
+			inst = get_generic_login(sess_id)
+			result = inst.submit_text_captcha(captcha_code, platform)
+			if result.get("logged_in") and result.get("cookies") and aid:
+				_save_cookie_to_account(aid, result["cookies"])
+			return jsonify(result)
+
+	return jsonify({"success": False, "error": f"平台 {platform} 不支持验证码提交"})
+
+
+@app.route("/api/platform/<platform>/login/poll_result", methods=["POST"])
+@login_required
+def api_platform_login_poll(platform):
+	"""轮询登录结果（验证码提交后的异步登录流程）"""
+	data = request.get_json() or {}
+	aid = data.get("account_id", 0)
+
+	if platform in ("amobbs", "discuz"):
+		from flashsloth.routes.browser_login import _get_amobbs_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"user_{current_user.id}"
+			inst = _get_amobbs_login(sess_id)
+			# 检查当前登录状态
+			cookies = inst.get_cookies()
+			if cookies:
+				try:
+					page_url = inst.page.url if inst.page else ""
+					is_still_login = "login" not in page_url.lower()
+				except:
+					is_still_login = False
+
+				if is_still_login:
+					if aid:
+						_save_cookie_to_account(aid, cookies)
+					return jsonify({"logged_in": True, "cookies": cookies})
+
+			# 检查是否需要新验证码
+			try:
+				screenshot = inst.take_screenshot()
+				page_content = inst.page.content() if inst.page else ""
+				if "验证码" in page_content or "seccode" in page_content:
+					return jsonify({
+						"needs_captcha": True,
+						"image": screenshot,
+						"error": "需要新验证码",
+					})
+			except:
+				pass
+
+			return jsonify({"running": True, "message": "登录进行中..."})
+
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+		from plugins.generic_login import get_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			sess_id = f"generic_{current_user.id}"
+			inst = get_generic_login(sess_id)
+			result = inst.poll_login_result()
+			if result.get("logged_in") and result.get("cookies") and aid:
+				_save_cookie_to_account(aid, result["cookies"])
+			return jsonify(result)
+
+	return jsonify({"success": False, "error": f"平台 {platform} 不支持轮询"})
+
+
+@app.route("/api/platform/<platform>/login/refresh_captcha", methods=["POST"])
+@login_required
+def api_platform_login_refresh_captcha(platform):
+	"""刷新验证码图片"""
+	if platform in ("amobbs", "discuz"):
+		from flashsloth.routes.browser_login import _get_amobbs_login
+		lock = _get_login_lock(platform)
+		with lock:
+			inst = _get_amobbs_login(f"user_{current_user.id}")
+			screenshot = inst.take_screenshot()
+			return jsonify({"success": True, "image": screenshot})
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+		from plugins.generic_login import get_generic_login
+		lock = _get_login_lock(platform)
+		with lock:
+			inst = get_generic_login(f"generic_{current_user.id}")
+			screenshot = inst.take_screenshot()
+			return jsonify({"success": True, "image": screenshot})
+	return jsonify({"success": False, "error": "不支持的平台"})
+
+
+@app.route("/api/platform/<platform>/login/auto_captcha", methods=["POST"])
+@login_required
+def api_platform_login_auto_captcha(platform):
+	"""自动识别验证码（预留：ttshitu/2captcha）"""
+	from flashsloth.core.captcha_handler import get_handler
+	handler = get_handler()
+	# 先尝试截图
+	try:
+		if platform in ("amobbs", "discuz"):
+			from flashsloth.routes.browser_login import _get_amobbs_login
+			with _get_login_lock(platform):
+				inst = _get_amobbs_login(f"user_{current_user.id}")
+				screenshot = inst.take_screenshot()
+		else:
+			from plugins.generic_login import get_generic_login
+			with _get_login_lock(platform):
+				inst = get_generic_login(f"generic_{current_user.id}")
+				screenshot = inst.take_screenshot()
+
+		if screenshot:
+			# 尝试自动识别
+			code = handler.auto_solve(screenshot, handler.CaptchaProvider.AUTO_TTSHITU)
+			if code:
+				return jsonify({"success": True, "code": code})
+	except:
+		pass
+	return jsonify({"success": False, "error": "自动识别暂未配置，请手动输入验证码"})
+
+
 # ═══════════════════════════════════════════════════
 # 统一 QR 码扫码登录 API
 # ═══════════════════════════════════════════════════

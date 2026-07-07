@@ -5,6 +5,7 @@
 import base64
 import json
 import threading
+import time
 import traceback
 from datetime import datetime
 
@@ -489,3 +490,130 @@ class GenericPlaywrightLogin:
         self.context = None
         self.browser = None
         self.is_running = False
+
+    def submit_text_captcha(self, captcha_code: str, platform: str = "") -> dict:
+        """提交文本验证码 — 填入验证码输入框，点击提交按钮"""
+        try:
+            if not self.page:
+                return {"success": False, "error": "浏览器未启动", "logged_in": False}
+
+            page = self.page
+            base_poll = self.platform_config if self.platform_config else LOGIN_PAGE_MAP.get(platform, {})
+
+            # 1. 查找验证码输入框并填入代码
+            captcha_selectors = [
+                "input[name*='captcha']", "input[id*='captcha']",
+                "input[placeholder*='验证码']", "input[placeholder*='captcha']",
+                "input[type='text']:not([name*='user']):not([name*='login'])",
+            ]
+            filled = False
+            for sel in captcha_selectors:
+                try:
+                    inp = page.wait_for_selector(sel, timeout=2000)
+                    if inp and inp.is_visible():
+                        inp.fill("")
+                        time.sleep(0.3)
+                        inp.type(captcha_code, delay=60)
+                        filled = True
+                        time.sleep(0.5)
+                        break
+                except:
+                    continue
+
+            if not filled:
+                return {
+                    "success": False,
+                    "error": "未找到验证码输入框，请检查页面",
+                    "logged_in": False,
+                }
+
+            # 2. 点击提交按钮
+            sub_sel = base_poll.get("submit_selector", "button[type='submit']")
+            try:
+                submit_btn = page.wait_for_selector(sub_sel, timeout=5000)
+                if submit_btn and submit_btn.is_visible():
+                    submit_btn.click()
+                else:
+                    page.evaluate("document.querySelector('form')?.submit()")
+            except:
+                page.evaluate("document.querySelector('form')?.submit()")
+
+            page.wait_for_timeout(5000)
+            screenshot_b64 = self.take_screenshot()
+
+            # 3. 检查登录结果
+            logged_in = self._check_logged_in()
+            if logged_in:
+                cookies = self._get_cookie_string()
+                return {
+                    "success": True,
+                    "logged_in": True,
+                    "cookies": cookies,
+                    "image": screenshot_b64,
+                    "message": "✅ 登录成功！Cookie 已自动获取",
+                }
+
+            # 检查是否又出现验证码
+            needs_captcha = self._detect_captcha()
+            if needs_captcha:
+                return {
+                    "success": True,
+                    "logged_in": False,
+                    "needs_captcha": True,
+                    "image": screenshot_b64,
+                    "message": "验证码错误或需要新验证码",
+                    "error": "验证码错误",
+                }
+
+            return {
+                "success": True,
+                "logged_in": False,
+                "needs_captcha": False,
+                "image": screenshot_b64,
+                "message": "登录结果不确定，请查看截图",
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"验证码提交异常: {str(e)[:100]}",
+                "logged_in": False,
+            }
+
+    def poll_login_result(self) -> dict:
+        """轮询当前登录状态（验证码提交后的异步流程）"""
+        try:
+            if not self.page:
+                return {"success": False, "error": "浏览器未启动", "logged_in": False}
+
+            page = self.page
+            screenshot_b64 = self.take_screenshot()
+
+            # 检查登录状态
+            logged_in = self._check_logged_in()
+            if logged_in:
+                cookies = self._get_cookie_string()
+                return {
+                    "logged_in": True,
+                    "cookies": cookies,
+                    "image": screenshot_b64,
+                }
+
+            # 检查是否需要新验证码
+            needs_captcha = self._detect_captcha()
+            if needs_captcha:
+                return {
+                    "needs_captcha": True,
+                    "image": screenshot_b64,
+                    "error": "需要新验证码",
+                }
+
+            # 仍在进行中
+            return {
+                "running": True,
+                "image": screenshot_b64,
+                "message": "登录进行中...",
+            }
+
+        except Exception as e:
+            return {"running": False, "error": str(e)[:100]}

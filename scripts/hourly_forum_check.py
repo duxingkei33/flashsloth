@@ -202,6 +202,21 @@ def explore_discuz(account):
     print(f"\n  🔍 探索 {domain} ({account['account_name']})")
     print(f"  URL: {site_url}")
     
+    # 空URL跳过，不卡死
+    if not site_url:
+        print(f"  ⏭️ 跳过（site_url 为空）")
+        return {
+            'domain': domain,
+            'account': account['account_name'],
+            'sections_found': 0,
+            'can_post_count': 0,
+            'changed': False,
+            'banned': False,
+            'error': 'site_url empty',
+            'forums': {},
+            'skipped': True,
+        }
+
     result = {
         'domain': domain,
         'account': account['account_name'],

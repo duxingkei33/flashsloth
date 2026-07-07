@@ -430,3 +430,152 @@ class AmobbsPlaywrightLogin:
             )
         except Exception as e:
             return ""
+
+    def submit_text_captcha(self, captcha_code: str) -> dict:
+        """提交文本验证码 — 填入验证码，点击边框区域触发核验 ✓，核验通过后提交登录
+
+        Amobbs 特殊行为：
+        1. 在验证码输入框填入代码
+        2. 点击边框附近区域触发 ✓ 核验
+        3. ✓ → 提交登录 → 返回 cookie
+        4. ✗ → 返回重试
+        """
+        try:
+            self._ensure_browser()
+            page = self.page
+
+            # 1. 查找验证码输入框并填入代码
+            captcha_input_selectors = [
+                "input[name='seccodeverify']",
+                "input#seccodeverify",
+                "input[name*='seccode']",
+                "input[id*='seccode']",
+                "input[placeholder*='验证码']",
+                "input[name*='captcha']",
+                "input[id*='captcha']",
+            ]
+
+            filled = False
+            for sel in captcha_input_selectors:
+                try:
+                    inp = page.wait_for_selector(sel, timeout=2000)
+                    if inp and inp.is_visible():
+                        inp.fill("")
+                        time.sleep(0.3)
+                        inp.type(captcha_code, delay=80)
+                        filled = True
+                        time.sleep(0.5)
+                        break
+                except:
+                    continue
+
+            if not filled:
+                # 没有找到验证码输入框，尝试直接提交
+                return self.click_captcha_and_submit()
+
+            # 2. 点击输入框附近区域触发 ✓ 核验
+            # 点击验证码图片或验证码输入框边框区域
+            try:
+                captcha_img = page.query_selector("img[src*='seccode'], #seccode_image")
+                if captcha_img:
+                    box = captcha_img.bounding_box()
+                    if box:
+                        # 点击图片右侧空白区域（触发 √ 核验）
+                        page.mouse.click(box['x'] + box['width'] + 10, box['y'] + box['height'] / 2)
+                        time.sleep(2)
+            except:
+                # 点击输入框下面的空白区域
+                try:
+                    inp = page.query_selector("input[name='seccodeverify']") or \
+                          page.query_selector("input[id*='captcha']")
+                    if inp:
+                        box = inp.bounding_box()
+                        if box:
+                            page.mouse.click(box['x'] + box['width'] + 5, box['y'] + box['height'] / 2)
+                            time.sleep(2)
+                except:
+                    pass
+
+            # 3. 检查 ✓ / ✗
+            time.sleep(1)
+            page_content = page.content()
+
+            # 检查 ✓ (核验通过)
+            checkmark_signals = ["✓", "√", "check", "pass", "success", "已验证", "验证通过"]
+            cross_signals = ["✗", "×", "fail", "error", "验证失败", "请重新验证"]
+
+            has_checkmark = any(s in page_content for s in checkmark_signals)
+            has_cross = any(s in page_content for s in cross_signals)
+
+            screenshot_b64 = self.take_screenshot()
+
+            if has_checkmark:
+                # ✓ 核验通过 — 提交登录
+                try:
+                    submit_btn = page.wait_for_selector(
+                        "button[name='loginsubmit'], input[name='loginsubmit'], "
+                        "em:has-text('登录'), button:has-text('登录')",
+                        timeout=5000
+                    )
+                    if submit_btn:
+                        submit_btn.click()
+                except:
+                    page.evaluate("document.forms[0]?.submit()")
+
+                time.sleep(3)
+
+                # 检查登录结果
+                cookies_list = self.context.cookies() if self.context else []
+                auth_cookies = [c for c in cookies_list
+                               if "auth" in c.get("name", "").lower()
+                               or "sid" in c.get("name", "").lower()]
+
+                if auth_cookies:
+                    cookie_str = "; ".join(
+                        f"{c['name']}={c['value']}" for c in cookies_list
+                        if c.get('name') and c.get('value')
+                    )
+                    return {
+                        "success": True,
+                        "logged_in": True,
+                        "needs_captcha": False,
+                        "cookies": cookie_str,
+                        "captcha_verified": True,
+                        "error": "",
+                    }
+
+                # 登录中但还未完成
+                return {
+                    "success": True,
+                    "logged_in": False,
+                    "captcha_verified": True,
+                    "needs_captcha": False,
+                    "image": screenshot_b64,
+                    "message": "验证码核验通过 ✓，正在登录...",
+                }
+
+            elif has_cross:
+                # ✗ 核验失败
+                return {
+                    "success": True,
+                    "needs_captcha": True,
+                    "captcha_type": "text",
+                    "image": screenshot_b64,
+                    "message": "验证码错误 ✗，请重新输入",
+                    "error": "验证码错误",
+                    "logged_in": False,
+                }
+
+            # 不确定状态 — 截图给用户看
+            return {
+                "success": True,
+                "needs_captcha": True,
+                "captcha_type": "unknown",
+                "image": screenshot_b64,
+                "message": "无法确定验证码状态，请查看截图",
+                "logged_in": False,
+            }
+
+        except Exception as e:
+            return {"success": False, "logged_in": False,
+                    "error": f"验证码提交异常: {e}"}
