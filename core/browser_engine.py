@@ -81,12 +81,24 @@ class BrowserEngine:
 
     @classmethod
     def get_instance(cls) -> "BrowserEngine":
-        """获取或创建单例"""
-        if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = cls()
-        return cls._instance
+        """获取或创建单例（超时0.5秒，避免请求线程卡死）"""
+        if cls._instance is not None:
+            return cls._instance
+        
+        locked = cls._instance_lock.acquire(timeout=0.5)
+        if not locked:
+            logger.warning("BrowserEngine.get_instance: lock timeout, waiting...")
+            # 阻塞等待另一个线程创建完成
+            cls._instance_lock.acquire()
+            locked = True
+        
+        try:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+        finally:
+            if locked:
+                cls._instance_lock.release()
 
     def __init__(self):
         self._config = dict(PLAYWRIGHT_DEFAULT_CONFIG)
@@ -357,8 +369,25 @@ class BrowserEngine:
     # ── 状态查询 ──────────────────────────────
 
     def get_status(self) -> dict:
-        """返回状态信息"""
-        with self._lock:
+        """返回状态信息（非阻塞，超时0.5秒返回stopped）"""
+        # 非阻塞尝试获取锁，避免请求线程卡死
+        locked = self._lock.acquire(timeout=0.5)
+        if not locked:
+            logger.warning("BrowserEngine.get_status: lock timeout (held by another thread)")
+            return {
+                "status": STATUS_STOPPED,
+                "badge_class": "badge-secondary",
+                "badge_text": "🖥️ 已停止",
+                "tabs_count": 0,
+                "uptime": 0.0,
+                "uptime_str": "0秒",
+                "error": "lock timeout",
+                "pid": None,
+                "memory_mb": None,
+                "last_activity_ago": 0.0,
+                "config": dict(self._config),
+            }
+        try:
             status = self._status
             tabs_count = 0
             pid = None
@@ -390,6 +419,8 @@ class BrowserEngine:
                     if self._last_activity > 0 else 0,
                 "config": self.get_config(),
             }
+        finally:
+            self._lock.release()
 
     @staticmethod
     def _format_uptime(seconds: float) -> str:

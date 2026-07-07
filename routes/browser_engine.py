@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from flask import jsonify, render_template, request
 from flask_login import login_required, current_user
@@ -30,9 +31,9 @@ logger = logging.getLogger(__name__)
 
 @app.context_processor
 def inject_browser_engine_status():
-    """注入浏览器引擎状态到所有模板"""
+    """注入浏览器引擎状态到所有模板（带超时保护，不阻塞请求线程）"""
+    t0 = time.time()
     try:
-        # 仅在已登录时检查引擎状态（避免未登录页面卡住）
         from flask_login import current_user
         if not current_user.is_authenticated:
             return {
@@ -41,15 +42,20 @@ def inject_browser_engine_status():
                 "pw_badge_text": "🖥️ 已停止",
                 "pw_tabs_count": 0,
             }
+        # get_status() 内部使用超时锁，不会永久阻塞
         engine = get_engine()
+        t1 = time.time()
         status = engine.get_status()
+        t2 = time.time()
+        logger.info(f"CP_ENGINE: get_engine={t1-t0:.3f}s get_status={t2-t1:.3f}s total={t2-t0:.3f}s status={status['status']}")
         return {
             "pw_status": status["status"],
             "pw_badge_class": status["badge_class"],
             "pw_badge_text": status["badge_text"],
             "pw_tabs_count": status["tabs_count"],
         }
-    except Exception:
+    except Exception as e:
+        logger.error(f"CP_ENGINE error at t={time.time()-t0:.3f}s: {e}")
         return {
             "pw_status": "stopped",
             "pw_badge_class": "badge-secondary",

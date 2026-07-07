@@ -13,7 +13,7 @@ app = Flask(__name__,
            static_url_path="/static")
 app.secret_key = os.environ.get("FLASHSLOTH_SECRET") or os.urandom(64).hex()
 app.config["DEBUG"] = False
-app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["TEMPLATES_AUTO_RELOAD"] = False  # 生产环境关闭模板热重载，减少磁盘I/O
 
 # 登录管理器
 login_manager = LoginManager()
@@ -50,23 +50,35 @@ def from_json_filter(val):
         return []
 
 
-# ─── 全局模板上下文 ───
+# ─── 全局模板上下文（含请求级缓存，减少重复DB查询） ───
+_HAS_XIANYU_CACHE: dict[int, bool] = {}
+_HAS_XIANYU_TTL: dict[int, float] = {}
+
 @app.context_processor
 def inject_global_context():
-    """注入所有模板通用的变量"""
+    """注入所有模板通用的变量（含缓存，避免每页面查询DB）"""
     import json
+    import time
     ctx = {}
     try:
         from flask_login import current_user
         if current_user.is_authenticated:
-            from flashsloth.core.database import get_db
-            conn = get_db()
-            row = conn.execute(
-                "SELECT COUNT(*) as c FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%'",
-                (current_user.id,)
-            ).fetchone()
-            ctx["has_xianyu"] = (row and row["c"] > 0) if row else False
-            conn.close()
+            uid = current_user.id
+            now = time.time()
+            if uid in _HAS_XIANYU_CACHE and uid in _HAS_XIANYU_TTL and now - _HAS_XIANYU_TTL[uid] < 30:
+                ctx["has_xianyu"] = _HAS_XIANYU_CACHE[uid]
+            else:
+                from flashsloth.core.database import get_db
+                conn = get_db()
+                row = conn.execute(
+                    "SELECT COUNT(*) as c FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%'",
+                    (uid,)
+                ).fetchone()
+                val = (row and row["c"] > 0) if row else False
+                conn.close()
+                _HAS_XIANYU_CACHE[uid] = val
+                _HAS_XIANYU_TTL[uid] = now
+                ctx["has_xianyu"] = val
         else:
             ctx["has_xianyu"] = False
     except Exception:
