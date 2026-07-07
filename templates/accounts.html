@@ -2,23 +2,109 @@
 {% block title %}平台账号管理{% endblock %}
 {% block content %}
 <style>
-/* 手机响应式 - 账号管理页 */
+/* ═══ 账号管理页核心样式 ═══ */
+
+/* 平台图标映射 */
+.plat-icon { display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;font-size:16px;flex-shrink:0; }
+
+/* 搜索/过滤栏 */
+.filter-bar { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.filter-bar input { padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:180px; }
+.filter-bar select { padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer; }
+.filter-bar .sort-btn { padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;cursor:pointer;font-size:12px;color:#666;transition:all .15s; }
+.filter-bar .sort-btn:hover { background:#4361ee;color:#fff;border-color:#4361ee; }
+.filter-bar .sort-btn.active { background:#4361ee;color:#fff;border-color:#4361ee; }
+.filter-count { font-size:12px;color:#999;white-space:nowrap; }
+
+/* 批量操作工具栏 */
+.batch-toolbar { display:none;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px; }
+.batch-toolbar.show { display:flex; }
+.batch-toolbar .batch-count { font-weight:600;color:#4361ee; }
+.batch-toolbar .btn-sm { font-size:12px;padding:4px 10px; }
+
+/* 账号卡片（增强版） */
+.acct-card { display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;transition:all .15s;position:relative; }
+.acct-card:hover { border-color:#d0d5f0;box-shadow:0 2px 8px rgba(67,97,238,.08); }
+.acct-card.selected { border-color:#4361ee;background:#f8f9ff; }
+.acct-card.disabled { opacity:.7; }
+.acct-card .check-wrap { flex-shrink:0;width:20px; }
+.acct-card .check-wrap input { width:16px;height:16px;cursor:pointer; }
+
+/* 账号信息区 */
+.acct-info { flex:1;min-width:0;display:flex;flex-direction:column;gap:2px; }
+.acct-info .name-row { display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.acct-info .name-row .acct-name { font-weight:600;font-size:14px;color:#1a1a2e; }
+.acct-info .plat-tag { font-size:10px;background:#f0f4ff;color:#4361ee;padding:1px 6px;border-radius:4px;white-space:nowrap; }
+.acct-info .detail-row { display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px; }
+
+/* 状态徽章组 */
+.status-group { display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.status-badge { display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500; }
+.status-badge.online { background:#d4edda;color:#155724; }
+.status-badge.offline { background:#f8d7da;color:#721c24; }
+.status-badge.unknown { background:#e2e3e5;color:#383d41; }
+.status-badge.stale { background:#fff3cd;color:#856404; }
+.status-badge.cached { background:#d1ecf1;color:#0c5460; }
+.time-tag { font-size:10px;color:#aaa;white-space:nowrap; }
+
+/* 操作按钮组 */
+.acct-actions { display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0; }
+.acct-actions .btn { font-size:11px;padding:4px 8px; }
+
+/* 视图切换 */
+.view-toggle { display:flex;gap:2px;margin-left:auto; }
+.view-toggle button { padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;cursor:pointer;font-size:13px;color:#666;transition:all .15s; }
+.view-toggle button.active { background:#4361ee;color:#fff;border-color:#4361ee; }
+
+/* 空状态增强 */
+.empty-state-enhanced { text-align:center;padding:60px 24px; }
+.empty-state-enhanced .big-icon { font-size:64px;margin-bottom:16px; }
+.empty-state-enhanced h2 { font-size:20px;color:#333;margin-bottom:8px; }
+.empty-state-enhanced p { color:#888;margin-bottom:24px;font-size:14px;line-height:1.6; }
+.empty-state-enhanced .steps { display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:0 auto 24px;max-width:600px; }
+.empty-state-enhanced .step-card { background:#f8f9fa;border:1px solid #eee;border-radius:10px;padding:20px 16px;text-align:center;flex:1;min-width:120px;max-width:180px; }
+.empty-state-enhanced .step-card .step-num { font-size:28px;margin-bottom:8px; }
+.empty-state-enhanced .step-card .step-label { font-size:13px;color:#555;line-height:1.4; }
+.empty-state-enhanced .step-card:hover { border-color:#4361ee; }
+
+/* 紧凑视图（列表模式） */
+.compact-view .acct-card { padding:8px 12px;border-radius:6px;margin-bottom:4px;gap:8px; }
+.compact-view .acct-card .plat-icon { width:24px;height:24px;font-size:13px; }
+.compact-view .acct-info .name-row .acct-name { font-size:13px; }
+.compact-view .acct-info .detail-row { font-size:11px; }
+.compact-view .acct-actions .btn { font-size:10px;padding:2px 6px; }
+
+/* 平台卡片分类 */
+.plat-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px; }
+.plat-header h2 { margin:0;font-size:16px;display:flex;align-items:center;gap:8px; }
+.plat-header .plat-count { font-size:12px;color:#999;font-weight:normal; }
+
+/* 手机响应式 */
 @media (max-width: 768px) {
-    .acct-header { flex-direction: column !important; align-items: stretch !important; }
-    .acct-header select, .acct-header button { width: 100% !important; min-width: unset !important; }
-    .acct-header h1 { font-size: 18px !important; }
-    .acct-row { flex-wrap: wrap !important; gap: 6px !important; padding: 8px !important; }
-    .acct-row > * { flex-shrink: unset !important; min-width: unset !important; }
-    .acct-actions { width: 100% !important; margin-top: 4px !important; display: flex !important; gap: 4px !important; flex-wrap: wrap !important; }
-    .acct-actions .btn { flex: 1 !important; text-align: center !important; font-size: 11px !important; padding: 6px 4px !important; }
+    .filter-bar { flex-direction:column;align-items:stretch !important; }
+    .filter-bar input { min-width:unset; }
+    .filter-bar select { width:100%; }
+    .acct-card { flex-wrap:wrap;padding:10px; }
+    .acct-card .check-wrap { order:-1; }
+    .acct-info { width:calc(100% - 36px); }
+    .acct-actions { width:100%;margin-top:4px;justify-content:flex-start; }
+    .empty-state-enhanced .steps { flex-direction:column;align-items:center; }
+    .empty-state-enhanced .step-card { max-width:100%;width:100%; }
+    .view-toggle { margin-left:0;width:100%;justify-content:flex-end; }
+}
+@media (max-width: 480px) {
+    .filter-bar { padding:8px 10px; }
+    .acct-card { padding:8px;gap:6px; }
+    .acct-info .name-row .acct-name { font-size:13px; }
+    .plat-icon { width:26px;height:26px;font-size:14px; }
 }
 </style>
 
 <!-- ====== 顶部：标题 + 添加账号 ====== -->
-<div class="acct-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+<div class="acct-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
     <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
 
-    <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="批量刷新所有活跃账号的状态（API轻量检测，不启动浏览器）">🔄 批量刷新</button>
         <select id="newPlatformSelect" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;min-width:180px;">
             <option value="">— 选择平台添加账号 —</option>
@@ -31,119 +117,193 @@
     </div>
 </div>
 
-<!-- ====== 有账号的平台卡片 ====== -->
+<!-- ====== 搜索/过滤/排序栏 (优化1/6) ====== -->
+<div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="🔍 搜索账号名称、平台、站点..." oninput="filterAccounts()">
+    <select id="filterPlatform" onchange="filterAccounts()">
+        <option value="">所有平台</option>
+        {% for p in platforms %}
+        <option value="{{ p.name }}">{{ p.display_name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterStatus" onchange="filterAccounts()">
+        <option value="">所有状态</option>
+        <option value="online">✅ 已登录</option>
+        <option value="offline">❌ 未登录</option>
+        <option value="unknown">⏳ 未知</option>
+        <option value="enabled">启用</option>
+        <option value="disabled">禁用</option>
+    </select>
+
+    <!-- 排序 (优化6) -->
+    <button class="sort-btn active" data-sort="platform" onclick="sortAccounts('platform')">📋 平台</button>
+    <button class="sort-btn" data-sort="name" onclick="sortAccounts('name')">📛 名称</button>
+    <button class="sort-btn" data-sort="status" onclick="sortAccounts('status')">✅ 状态</button>
+
+    <span class="filter-count" id="filterCount"></span>
+
+    <!-- 视图切换 (优化5) -->
+    <div class="view-toggle">
+        <button class="active" title="卡片视图" onclick="setViewMode('card')">🃏 卡片</button>
+        <button title="紧凑视图" onclick="setViewMode('compact')">📋 列表</button>
+    </div>
+</div>
+
+<!-- ====== 批量操作工具栏 (优化3) ====== -->
+<div class="batch-toolbar" id="batchToolbar">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
+        <input type="checkbox" id="selectAllAccounts" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;">全选</span>
+    </label>
+    <span class="batch-count" id="batchCount">已选 0 个</span>
+    <button onclick="batchToggle(true)" class="btn btn-sm btn-success">✅ 批量启用</button>
+    <button onclick="batchToggle(false)" class="btn btn-sm btn-warning">⛔ 批量禁用</button>
+    <button onclick="batchDelete()" class="btn btn-sm btn-danger">🗑 批量删除</button>
+    <button onclick="clearSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
+</div>
+
+<!-- ====== 平台图标映射 (优化4) ====== -->
+{% set platform_icons = {
+    'discuz': '💬', 'amobbs': '💬', 'mydigit': '💬',
+    'oshwhub': '🔧', 'oshwhub_eda': '⚡',
+    'csdn': '📝', 'cnblogs': '📖',
+    'zhihu': '❓', 'bilibili': '📺', 'juejin': '🥇',
+    'wechat': '💬', 'wechat_mp': '📢',
+    'xianyu': '🐟', 'xianyu_v2': '🐟', 'taobao': '🛒',
+    'wordpress': '🔗', 'github_pages': '📄', 'github_pages_blog': '📄',
+    'static_site': '🌐', 'github': '🐙',
+    'default': '🔑'
+} %}
+
+<!-- ====== 有账号的平台卡片 (优化5: 卡片模式) ====== -->
 {% set platform_accounts = grouped %}
 {% set has_any = namespace(value=false) %}
+{% set acct_total = namespace(value=0) %}
 
+<div id="accountsContainer" class="card-view">
 {% for p in platforms %}
 {% set accounts = platform_accounts.get(p.name, []) %}
 {% if accounts %}
 {% set has_any.value = true %}
+{% set acct_total.value = acct_total.value + accounts|length %}
 
-<div class="card" style="margin-bottom:16px;overflow:visible;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-        <h2 style="margin:0;font-size:16px;display:flex;align-items:center;gap:6px;">
+<div class="card" style="margin-bottom:16px;overflow:visible;" data-platform="{{ p.name }}">
+    <div class="plat-header">
+        <h2>
+            <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(p.name, platform_icons['default']) }}</span>
             {{ p.display_name }}
-            <span style="font-size:12px;color:#999;font-weight:normal;">({{ accounts|length }} 个账号)</span>
+            <span class="plat-count">({{ accounts|length }} 个账号)</span>
         </h2>
     </div>
 
     {% for a in accounts %}
     {% set cfg = a.config_json|from_json if a.config_json else {} %}
-    <div class="acct-row" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;
-                background:{{ '#f0fdf4' if a.is_active else '#fafafa' }};">
-        <!-- 启用/禁用 开关 -->
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;font-size:13px;min-width:40px;"
-               title="{{ '点击禁用' if a.is_active else '点击启用' }}">
-            <input type="checkbox" {{ 'checked' if a.is_active else '' }}
-                   onchange="toggleAccount({{ a.id }}, this)"
-                   style="width:16px;height:16px;cursor:pointer;">
-            <span style="color:{{ '#22c55e' if a.is_active else '#999' }};">{{ '启用' if a.is_active else '禁用' }}</span>
-        </label>
+    {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
+    {% set is_online = cached.get('logged_in', None) if cached else None %}
+    {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
+    <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
+         data-platform="{{ p.name }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else 'unknown') }}"
+         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}">
+        <!-- 批量选择框 (优化3) -->
+        <div class="check-wrap">
+            <input type="checkbox" class="acct-checkbox" value="{{ a.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;cursor:pointer;">
+        </div>
 
-        <!-- 账号名 -->
-        <span style="font-weight:500;flex-shrink:0;min-width:80px;">{{ a.account_name }}</span>
-
-        <!-- 站点链接 -->
-        {% set site_url = cfg.get('site_url', '') %}
-        {% if site_url %}
-        <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;flex-shrink:0;" title="{{ site_url }}">🌐</a>
-        {% endif %}
-
-        <!-- 状态徽章 → 显示深层用户信息（缓存优先） -->
-        <span id="statusBadge_{{ a.id }}"
-              style="flex-shrink:0;min-width:40px;text-align:center;font-size:12px;"
-              data-account-id="{{ a.id }}">
-            {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
-            {% if cached.get('logged_in') and cached.get('username') %}
-                ✅
-            {% elif cached.get('logged_in') %}
-                ✅
-            {% else %}
-                {{ '启用' if a.is_active else '停用' }}
-            {% endif %}
+        <!-- 平台图标 (优化4) -->
+        <span class="plat-icon" style="background:{{ '#ecfdf3' if is_online else ('#fef2f2' if is_online == False else '#f5f5f5') }};">
+            {{ platform_icons.get(p.name, platform_icons['default']) }}
         </span>
 
-        <!-- 用户信息深度展示（用户名/积分/等级） -->
-        <span id="userInfo_{{ a.id }}" style="font-size:12px;flex-shrink:0;min-width:120px;text-align:left;line-height:1.4;">
-            {% if cached.get('logged_in') and cached.get('username') %}
-                <span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>
-                {% if cached.get('points') %}
-                    <span style="color:#888;">{{ cached.get('points_label','积分') }}:{{ cached.get('points') }}</span>
+        <!-- 账号信息 -->
+        <div class="acct-info">
+            <div class="name-row">
+                <span class="acct-name">{{ a.account_name }}</span>
+                <span class="plat-tag">{{ p.display_name }}</span>
+                {% set site_url = cfg.get('site_url', '') %}
+                {% if site_url %}
+                <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;" title="{{ site_url }}">🌐</a>
                 {% endif %}
-                {% if cached.get('level') %}
-                    <span style="color:#888;font-size:10px;">{{ cached.get('level') }}</span>
-                {% endif %}
-            {% elif cached.get('logged_in') %}
-                <span style="color:#22c55e;">✅ 已登录</span>
-            {% else %}
-                <span style="color:#999;">—</span>
-            {% endif %}
-        </span>
+            </div>
+            <div class="detail-row">
+                <!-- 启用/禁用 开关 (优化3) -->
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;flex-shrink:0;"
+                       title="{{ '点击禁用' if a.is_active else '点击启用' }}">
+                    <input type="checkbox" {{ 'checked' if a.is_active else '' }}
+                           onchange="toggleAccount({{ a.id }}, this)"
+                           style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if a.is_active else '#999' }};">{{ '启用' if a.is_active else '禁用' }}</span>
+                </label>
 
-        <!-- Cookie 状态指示器 -->
-        <span id="cookieInd_{{ a.id }}" style="font-size:13px;color:#999;flex-shrink:0;">
-            {% if cfg.get('cookie') %}🍪{% else %}—{% endif %}
-        </span>
+                <!-- 状态徽章带最后检测时间 (优化1/2) -->
+                <span class="status-group">
+                    <!-- 登录状态徽章 -->
+                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else 'unknown') }}">
+                        {% if is_online %}
+                            ✅ 已登录
+                        {% elif is_online == False %}
+                            ❌ 未登录
+                        {% else %}
+                            {{ '⏳ 启用' if a.is_active else '⛔ 停用' }}
+                        {% endif %}
+                    </span>
 
-        <!-- 在线状态内联显示（缓存时效） -->
-        <span id="onlineStatus_{{ a.id }}" style="font-size:11px;flex-shrink:0;min-width:80px;text-align:center;color:#999;">
-            {% if cached.get('_cache_source') %}
-                {% set age = cached.get('_cache_age_seconds', 999) %}
-                {% if age < 60 %}
-                    <span style="color:#22c55e;">⏳ {{ age }}秒前</span>
-                {% elif age < 300 %}
-                    <span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
-                {% else %}
-                    <span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>
-                {% endif %}
-            {% else %}
-                <span class="badge badge-secondary">⏳ 检测中...</span>
-            {% endif %}
-        </span>
+                    <!-- 最后检测时间 (优化2) -->
+                    <span id="lastCheck_{{ a.id }}" class="time-tag">
+                        {% if cached.get('_cache_source') %}
+                            {% set age = cached.get('_cache_age_seconds', 999) %}
+                            {% if age < 60 %}
+                                <span style="color:#22c55e;">⏳ {{ age }}秒前</span>
+                            {% elif age < 300 %}
+                                <span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
+                            {% else %}
+                                <span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>
+                            {% endif %}
+                        {% elif cached.get('verified_at') %}
+                            <span style="color:#888;">🕐 {{ cached.get('verified_at')[:16] }}</span>
+                        {% else %}
+                            <span style="color:#ccc;">未检测</span>
+                        {% endif %}
+                    </span>
+                </span>
+
+                <!-- 用户信息深度展示 -->
+                <span id="userInfo_{{ a.id }}" style="font-size:11px;color:#666;display:flex;align-items:center;gap:4px;">
+                    {% if cached.get('logged_in') and cached.get('username') %}
+                        <span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>
+                        {% if cached.get('points') %}
+                            <span style="color:#888;">{{ cached.get('points_label','积分') }}:{{ cached.get('points') }}</span>
+                        {% endif %}
+                        {% if cached.get('level') %}
+                            <span style="color:#888;">{{ cached.get('level') }}</span>
+                        {% endif %}
+                    {% elif cached.get('logged_in') %}
+                        <span style="color:#22c55e;">✅ 已登录</span>
+                    {% endif %}
+                </span>
+
+                <!-- Cookie 指示器 -->
+                <span style="font-size:12px;color:#999;" title="{{ '有Cookie' if has_cookie else '无Cookie' }}">
+                    {% if has_cookie %}🍪{% else %}—{% endif %}
+                </span>
+
+                <!-- 保持在线开关 -->
+                {% set keep_alive = cfg.get('keep_alive', '0') %}
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:11px;"
+                       title="{{ '点击关闭保持在线' if keep_alive == '1' else '点击开启保持在线' }}">
+                    <input type="checkbox" {{ 'checked' if keep_alive == '1' else '' }}
+                           onchange="toggleKeepAlive({{ a.id }}, this)"
+                           style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if keep_alive == '1' else '#999' }};">🔗</span>
+                </label>
+            </div>
+        </div>
 
         <!-- 操作按钮组 -->
-        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
-            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright直接验证登录状态，返回真实用户名/积分等信息">🔍 深度验证</button>
-
-            <!-- 🔌 测试连接 — 直接调用 Playwright 验证 Cookie 是否有效 -->
-            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-secondary" title="直接用Playwright打开目标站点验证Cookie有效性">🔌 测试连接</button>
-
+        <div class="acct-actions">
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright直接验证登录状态，返回真实用户名/积分等信息">🔍 检测</button>
+            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-secondary" title="直接用Playwright打开目标站点验证Cookie有效性">🔌 测试</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
-
-            <!-- 🌐 统一浏览器登录（通过编辑弹窗的登录方式登录） -->
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
-
-            <!-- 保持在线开关 -->
-            {% set keep_alive = cfg.get('keep_alive', '0') %}
-            <label style="display:flex;align-items:center;gap:2px;cursor:pointer;flex-shrink:0;font-size:11px;"
-                   title="{{ '点击关闭保持在线' if keep_alive == '1' else '点击开启保持在线' }}">
-                <input type="checkbox" {{ 'checked' if keep_alive == '1' else '' }}
-                       onchange="toggleKeepAlive({{ a.id }}, this)"
-                       style="width:14px;height:14px;cursor:pointer;">
-                <span style="color:{{ '#22c55e' if keep_alive == '1' else '#999' }};">🔗</span>
-            </label>
-
             <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
                onclick="return confirm('确定删除「{{ a.account_name }}」？此操作不可恢复。')">🗑 删除</a>
         </div>
@@ -152,24 +312,47 @@
 </div>
 {% endif %}
 {% endfor %}
+</div>
 
 {% if not has_any.value %}
-<!-- 还没有任何账号 -->
-<div class="card" style="text-align:center;padding:48px 24px;">
-    <div style="font-size:48px;margin-bottom:16px;">📭</div>
-    <h2 style="font-size:18px;color:#666;margin-bottom:8px;">还没有配置任何平台账号</h2>
-    <p style="color:#999;margin-bottom:20px;">在上方选择平台并点击「添加」，开始配置您的第一个账号</p>
-    <ol style="text-align:left;max-width:400px;margin:0 auto;color:#666;line-height:1.8;">
-        <li>选择平台（如 阿莫论坛 / 立创开源硬件）</li>
-        <li>从知名站点列表快速选择或填写配置信息</li>
-        <li>点击「浏览器登录」自动登录</li>
-        <li>登录成功后 Cookie 自动保存</li>
-    </ol>
+<!-- ====== 空状态优化 (优化7) ====== -->
+<div class="empty-state-enhanced">
+    <div class="big-icon">📭</div>
+    <h2>还没有配置任何平台账号</h2>
+    <p>FlashSloth 需要一个平台的账号才能发布文章、签到、采集内容。<br>按以下步骤开始：</p>
+    <div class="steps">
+        <div class="step-card">
+            <div class="step-num">1️⃣</div>
+            <div class="step-label">选择平台<br>（如 阿莫论坛 / CSDN / 立创开源）</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">2️⃣</div>
+            <div class="step-label">填写账号密码<br>或粘贴 Cookie</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">3️⃣</div>
+            <div class="step-label">自动登录<br>系统通过浏览器自动登录</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">4️⃣</div>
+            <div class="step-label">发布内容<br>支持多平台同步发布</div>
+        </div>
+    </div>
+    <button onclick="document.getElementById('newPlatformSelect').focus()" class="btn btn-primary" style="font-size:15px;padding:10px 24px;">🚀 选择平台开始添加</button>
+    <p style="margin-top:12px;font-size:12px;color:#aaa;">已有账号？在上方下拉框中选择平台，点击「添加」即可</p>
+</div>
+{% endif %}
+
+{% if has_any.value %}
+<!-- ====== 页脚统计 ====== -->
+<div style="text-align:center;padding:16px;color:#999;font-size:12px;">
+    共 <span style="font-weight:600;color:#666;">{{ acct_total.value }}</span> 个账号，
+    分布在 <span style="font-weight:600;color:#666;">{{ platforms|selectattr('name', 'in', grouped.keys())|list|length }}</span> 个平台
 </div>
 {% endif %}
 
 
-<!-- ====== 添加账号弹窗（统一：登录方法选择 + 内嵌浏览器登录）===== -->
+<!-- ====== 添加账号弹窗 ====== -->
 <div id="addFormBox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;padding:28px;max-width:550px;width:90%;max-height:85vh;overflow-y:auto;">
@@ -185,10 +368,10 @@
             </div>
             <div id="addPresetHints" style="margin-bottom:10px;"></div>
 
-            <!-- ===== 登录方法选择 Tab ===== -->
+            <!-- 登录方法选择 Tab -->
             <div id="loginMethodTabs" style="display:flex;gap:4px;margin-bottom:8px;border-bottom:2px solid #eee;padding-bottom:8px;flex-wrap:wrap;"></div>
 
-            <!-- 登录方式说明演示卡（小程序风格，含示意图） -->
+            <!-- 登录方式说明演示卡 -->
             <div id="loginMethodDemo" style="display:none;margin-bottom:12px;padding:12px;background:linear-gradient(135deg,#f8f9ff,#eef1ff);border:1px solid #d0d5f0;border-radius:10px;font-size:13px;">
                 <div style="display:flex;gap:12px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:200px;">
@@ -204,7 +387,7 @@
 
             <div id="loginMethodContent"></div>
 
-            <!-- 预览截图区域（密码模式） -->
+            <!-- 预览截图区域 -->
             <div id="loginScreenshotArea" style="display:none;margin-top:10px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:350px;">
                 <img id="loginScreenshotImg" src="" style="width:100%;display:block;">
             </div>
@@ -227,7 +410,7 @@
                 <span id="debugCookieToggle" style="font-size:10px;color:#ccc;cursor:pointer;align-self:flex-end;"
                       onclick="toggleDebugCookie()" title="仅用于调试/迁移：直接粘贴Cookie">🔧 调试</span>
             </div>
-            <!-- Cookie 调试区（默认隐藏） -->
+            <!-- Cookie 调试区 -->
             <div id="debugCookieArea" style="display:none;margin-top:8px;padding:8px;background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;">
                 <label style="font-size:11px;color:#996600;font-weight:600;">🍪 Cookie 调试模式</label>
                 <textarea id="debugCookieInput" name="cfg_cookie" rows="3" placeholder="从浏览器 F12 → Application → Cookies 复制完整 Cookie 字符串"
@@ -240,7 +423,7 @@
 </div>
 
 
-<!-- ====== 浏览器登录弹窗（分平台，向后兼容） ====== -->
+<!-- ====== 浏览器登录弹窗（向后兼容） ====== -->
 <div id="amobbsLoginModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;padding:24px;max-width:650px;width:92%;max-height:90vh;overflow-y:auto;">
@@ -300,6 +483,202 @@
 
 
 <script>
+// ====== 增强：搜索/过滤/排序/批量/视图切换 (优化1/3/5/6) ======
+
+// ─── 搜索与过滤 (优化1) ───
+function filterAccounts() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const p = document.getElementById('filterPlatform').value;
+    const s = document.getElementById('filterStatus').value;
+    const cards = document.querySelectorAll('.acct-card');
+    let visible = 0;
+
+    cards.forEach(function(card) {
+        const name = (card.dataset.name || '').toLowerCase();
+        const platform = card.dataset.platform || '';
+        const status = card.dataset.status || 'unknown';
+        const isEnabled = !card.classList.contains('disabled');
+
+        // Search
+        let match = true;
+        if (q) {
+            match = name.includes(q) || platform.includes(q);
+        }
+        if (match && p) {
+            match = platform === p;
+        }
+        if (match && s) {
+            if (s === 'enabled') match = isEnabled;
+            else if (s === 'disabled') match = !isEnabled;
+            else match = status === s;
+        }
+
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+
+    // 隐藏/显示空的分组
+    document.querySelectorAll('.card[data-platform]').forEach(function(group) {
+        const visibleCards = group.querySelectorAll('.acct-card[style*="display: none"]');
+        const totalCards = group.querySelectorAll('.acct-card').length;
+        if (visibleCards.length === totalCards) {
+            group.style.display = 'none';
+        } else {
+            group.style.display = '';
+        }
+    });
+
+    document.getElementById('filterCount').textContent = '显示 ' + visible + ' / ' + cards.length + ' 个账号';
+}
+
+// ─── 排序 (优化6) ───
+let _currentSort = 'platform';
+let _sortAsc = true;
+
+function sortAccounts(field) {
+    // 切换排序方向
+    if (_currentSort === field) {
+        _sortAsc = !_sortAsc;
+    } else {
+        _currentSort = field;
+        _sortAsc = true;
+    }
+
+    // 更新按钮样式
+    document.querySelectorAll('.sort-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.sort === field);
+    });
+
+    // 获取所有分组卡片
+    const container = document.getElementById('accountsContainer');
+    const groups = Array.from(container.querySelectorAll('.card[data-platform]'));
+
+    groups.sort(function(a, b) {
+        const nameA = a.querySelector('.plat-header h2').textContent.trim();
+        const nameB = b.querySelector('.plat-header h2').textContent.trim();
+        // 内部卡片排序
+        var cardsA = Array.from(a.querySelectorAll('.acct-card'));
+        var cardsB = Array.from(b.querySelectorAll('.acct-card'));
+
+        if (field === 'name') {
+            cardsA.sort(function(x, y) { return _sortAsc ? x.dataset.name.localeCompare(y.dataset.name) : y.dataset.name.localeCompare(x.dataset.name); });
+            cardsB.sort(function(x, y) { return _sortAsc ? x.dataset.name.localeCompare(y.dataset.name) : y.dataset.name.localeCompare(x.dataset.name); });
+        } else if (field === 'status') {
+            var order = {online: 0, unknown: 1, offline: 2};
+            cardsA.sort(function(x, y) {
+                var xo = order[x.dataset.status] || 99;
+                var yo = order[y.dataset.status] || 99;
+                return _sortAsc ? xo - yo : yo - xo;
+            });
+            cardsB.sort(function(x, y) {
+                var xo = order[x.dataset.status] || 99;
+                var yo = order[y.dataset.status] || 99;
+                return _sortAsc ? xo - yo : yo - xo;
+            });
+        } else {
+            // 按平台分组排序
+            return _sortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+        }
+
+        // 重新附加排序后的卡片
+        cardsA.forEach(function(c) { a.appendChild(c); });
+        cardsB.forEach(function(c) { b.appendChild(c); });
+        return 0;
+    });
+
+    groups.forEach(function(g) { container.appendChild(g); });
+}
+
+// ─── 视图切换 (优化5) ───
+function setViewMode(mode) {
+    document.querySelectorAll('.view-toggle button').forEach(function(btn) {
+        btn.classList.toggle('active', btn.textContent.includes(mode === 'card' ? '卡片' : '列表'));
+    });
+    document.getElementById('accountsContainer').className = mode === 'card' ? 'card-view' : 'compact-view';
+}
+
+// ─── 批量操作 (优化3) ───
+function toggleSelectAll(cb) {
+    document.querySelectorAll('.acct-checkbox').forEach(function(c) { c.checked = cb.checked; });
+    updateBatchBar();
+}
+
+function updateBatchBar() {
+    var checked = document.querySelectorAll('.acct-checkbox:checked');
+    var bar = document.getElementById('batchToolbar');
+    var count = checked.length;
+    document.getElementById('batchCount').textContent = '已选 ' + count + ' 个';
+
+    if (count > 0) {
+        bar.classList.add('show');
+    } else {
+        bar.classList.remove('show');
+        document.getElementById('selectAllAccounts').checked = false;
+    }
+}
+
+function clearSelection() {
+    document.querySelectorAll('.acct-checkbox').forEach(function(c) { c.checked = false; });
+    updateBatchBar();
+}
+
+function getSelectedIds() {
+    var ids = [];
+    document.querySelectorAll('.acct-checkbox:checked').forEach(function(c) {
+        ids.push(parseInt(c.value));
+    });
+    return ids;
+}
+
+function batchToggle(enable) {
+    var ids = getSelectedIds();
+    if (ids.length === 0) { alert('请先选择账号'); return; }
+    var action = enable ? '启用' : '禁用';
+    if (!confirm('确定' + action + '选中的 ' + ids.length + ' 个账号？')) return;
+
+    fetch('/api/accounts/batch/toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids, enable: enable})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('操作失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) { alert('网络错误: ' + e.message); });
+}
+
+function batchDelete() {
+    var ids = getSelectedIds();
+    if (ids.length === 0) { alert('请先选择账号'); return; }
+    if (!confirm('⚠️ 确定删除选中的 ' + ids.length + ' 个账号？此操作不可恢复！')) return;
+
+    fetch('/api/accounts/batch/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) { alert('网络错误: ' + e.message); });
+}
+
+
+
+// ====== 以下为原有JS函数（全部保留） ======
+
 // ====== 页面状态变量 ======
 let currentAccountId = 0;
 let _presetsData = {};
@@ -318,6 +697,8 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(() => {});
     setTimeout(refreshAllStatuses, 2000);
     setInterval(refreshAllStatuses, 120000);
+    // 初始化过滤统计
+    setTimeout(filterAccounts, 100);
 });
 
 // ====== 启用/禁用切换 ======
@@ -331,7 +712,7 @@ function toggleAccount(aid, checkbox) {
     .catch(e => { checkbox.checked = !checkbox.checked; alert('网络错误: ' + e.message); });
 }
 
-// ====== 添加账号弹窗（新版本：从后端动态获取登录能力） ======
+// ====== 添加账号弹窗 ======
 function onAddAccount() {
     const sel = document.getElementById('newPlatformSelect');
     const opt = sel.options[sel.selectedIndex];
@@ -353,7 +734,6 @@ function onAddAccount() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (!data.success) {
-            // 回退：使用 publisher 的预设方法
             let methods = [];
             try { methods = JSON.parse(opt.dataset.methods || '[]'); } catch(e) {}
             renderFromLoginMethods(methods);
@@ -368,7 +748,6 @@ function onAddAccount() {
             return;
         }
 
-        // 渲染 Tab 和字段
         renderLoginCapabilityTabs(methods, data.note || '');
         if (methods.length > 0) {
             selectCapabilityLoginMethod(methods[0].method, methods);
@@ -376,7 +755,6 @@ function onAddAccount() {
         document.getElementById('addFormBox').style.display = 'flex';
     })
     .catch(function() {
-        // 网络错误回退
         let methods = [];
         try { methods = JSON.parse(opt.dataset.methods || '[]'); } catch(e) {}
         renderFromLoginMethods(methods);
@@ -384,7 +762,7 @@ function onAddAccount() {
     });
 }
 
-// ====== 回退渲染：使用 publisher 预设的方法 ======
+// ====== 回退渲染 ======
 function renderFromLoginMethods(methods) {
     const mainMethods = methods.filter(function(m) { return m.method !== 'cookie'; });
     if (!mainMethods || mainMethods.length === 0) {
@@ -402,12 +780,11 @@ function renderFromLoginMethods(methods) {
     }
 }
 
-// ====== 根据登录能力数据渲染 Tab ======
+// ====== 渲染 Tab ======
 function renderLoginCapabilityTabs(methods, note) {
     const tabsDiv = document.getElementById('loginMethodTabs');
     const contentDiv = document.getElementById('loginMethodContent');
-    
-    // 过滤掉 cookie（隐藏到调试模式）
+
     const mainMethods = methods.filter(function(m) { return m.method !== 'cookie'; });
 
     if (mainMethods.length === 0) {
@@ -420,7 +797,6 @@ function renderLoginCapabilityTabs(methods, note) {
         return;
     }
 
-    // 渲染 Tab
     var html = '';
     mainMethods.forEach(function(m, idx) {
         var icon = getMethodIcon(m.method);
@@ -431,7 +807,6 @@ function renderLoginCapabilityTabs(methods, note) {
     });
     tabsDiv.innerHTML = html;
 
-    // 如果有 note，显示
     if (note) {
         var noteDiv = document.createElement('div');
         noteDiv.style.cssText = 'font-size:11px;color:#888;margin-bottom:6px;padding:6px 10px;background:#f0f4ff;border-radius:6px;';
@@ -453,11 +828,8 @@ function getMethodIcon(method) {
     return icons[method] || '🔑';
 }
 
-// ====== 选择登录方法（从能力数据） ======
 function selectCapabilityLoginMethod(method, methods) {
     _loginMethod = method;
-
-    // 高亮 Tab
     document.querySelectorAll('.login-method-tab').forEach(function(tab) {
         if (tab.dataset.method === method) {
             tab.style.background = '#4361ee';
@@ -471,7 +843,6 @@ function selectCapabilityLoginMethod(method, methods) {
     });
 
     if (!methods) {
-        // 重新获取
         fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -486,7 +857,6 @@ function selectCapabilityLoginMethod(method, methods) {
     renderCapabilityFields(method, methods);
 }
 
-// ====== 根据能力数据渲染字段 ======
 function renderCapabilityFields(method, allMethods) {
     var methodDef = null;
     for (var i = 0; i < allMethods.length; i++) {
@@ -501,29 +871,22 @@ function renderCapabilityFields(method, allMethods) {
     var preset = _presetsData[platform];
     var html = '';
 
-    // 显示登录方式演示
     showLoginMethodDemo(method);
 
-    // 描述
     if (methodDef && methodDef.description) {
         html += '<div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">💡 ' +
             escapeHtml(methodDef.description) + '</div>';
     }
 
-    // 如果是 oauth 且有 providers，展示
     if (method === 'oauth' && methodDef && methodDef.providers) {
         html += '<div style="margin-bottom:10px;">';
         html += '<label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">🔗 第三方登录方式</label>';
         html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
         methodDef.providers.forEach(function(prov) {
             var providerNames = {
-                'qq': 'QQ登录',
-                'weibo': '微博登录',
-                'github': 'GitHub登录',
-                'google': 'Google登录',
-                'wechat_oauth': '微信登录',
-                'alipay': '支付宝登录',
-                'taobao': '淘宝登录',
+                'qq': 'QQ登录', 'weibo': '微博登录', 'github': 'GitHub登录',
+                'google': 'Google登录', 'wechat_oauth': '微信登录',
+                'alipay': '支付宝登录', 'taobao': '淘宝登录',
             };
             var label = providerNames[prov] || prov;
             html += '<span style="padding:4px 10px;background:#f0f4ff;border:1px solid #d0d5f0;border-radius:6px;font-size:12px;">' + escapeHtml(label) + '</span>';
@@ -531,7 +894,6 @@ function renderCapabilityFields(method, allMethods) {
         html += '</div></div>';
     }
 
-    // 如果是 qrcode 且有 sub_types，展示扫码子类型
     if (method === 'qrcode' && methodDef && methodDef.sub_types && methodDef.sub_types.length > 0) {
         html += '<div style="margin-bottom:10px;">';
         html += '<label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">📱 扫码方式</label>';
@@ -545,10 +907,8 @@ function renderCapabilityFields(method, allMethods) {
         html += '</div></div>';
     }
 
-    // 渲染字段（基于 method 推测需要的字段）
     var fieldsToRender = getFieldsForMethod(platform, method, methodDef);
 
-    // 预置站点
     var hasSiteUrlField = fieldsToRender.indexOf('site_url') >= 0;
     if (preset && preset.sites && preset.sites.length > 0 && hasSiteUrlField) {
         html += '<label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">📌 知名站点（点击自动填充）</label>' +
@@ -562,7 +922,6 @@ function renderCapabilityFields(method, allMethods) {
         html += '</div>';
     }
 
-    // 渲染输入字段
     fieldsToRender.forEach(function(fkey) {
         if (fkey === 'site_url') {
             var val = '';
@@ -598,7 +957,6 @@ function renderCapabilityFields(method, allMethods) {
 
     descDiv.innerHTML = html;
 
-    // 显示/隐藏按钮
     var btnStart = document.getElementById('btnStartLogin');
     var btnCaptcha = document.getElementById('btnCaptchaLogin');
     var btnRefresh = document.getElementById('btnRefreshScreenshot');
@@ -636,17 +994,12 @@ function renderCapabilityFields(method, allMethods) {
     _isLoginRunning = false;
 }
 
-// ====== 根据登录方法推测需要的配置字段 ======
 function getFieldsForMethod(platform, method, methodDef) {
-    // 优先使用 methodDef 中定义的 fields
     if (methodDef && methodDef.fields && methodDef.fields.length > 0) {
         return methodDef.fields;
     }
-
-    // 根据 method 类型推断
     var platformSiteUrl = ['discuz', 'amobbs', 'wordpress', 'oshwhub'];
     var needsSiteUrl = platformSiteUrl.indexOf(platform) >= 0;
-
     var fields = [];
     if (needsSiteUrl) fields.push('site_url');
     if (method === 'password') {
@@ -655,9 +1008,7 @@ function getFieldsForMethod(platform, method, methodDef) {
     } else if (method === 'phone') {
         fields.push('phone');
     } else if (method === 'qrcode') {
-        // 扫码只需要 site_url（如果适用）
     } else if (method === 'oauth') {
-        // oauth 不需要额外字段
     } else if (method === 'cookie') {
         fields.push('cookie');
     }
@@ -679,7 +1030,6 @@ function renderLoginTabs(methods) {
 
 function selectLoginMethod(method, methods) {
     _loginMethod = method;
-    // 高亮 Tab
     document.querySelectorAll('.login-method-tab').forEach(function(tab) {
         if (tab.dataset.method === method) {
             tab.style.background = '#4361ee';
@@ -702,7 +1052,6 @@ function selectLoginMethod(method, methods) {
     const methodDef = methods.find(function(m) { return m.method === method; });
     const fields = methodDef ? (methodDef.fields || []) : [];
 
-    // 渲染该方法的字段 + 预置站点
     renderMethodFields(method, fields, methodDef);
 }
 
@@ -712,16 +1061,13 @@ function renderMethodFields(method, fields, methodDef) {
     const preset = _presetsData[platform];
     let html = '';
 
-    // 显示登录方式演示/说明卡（小程序风格）
     showLoginMethodDemo(method);
 
-    // 描述文字
     if (methodDef && methodDef.description) {
         html += '<div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">💡 ' +
             escapeHtml(methodDef.description) + '</div>';
     }
 
-    // 预置站点
     let hasSiteUrlField = fields.indexOf('site_url') >= 0;
     if (preset && preset.sites && preset.sites.length > 0) {
         html += '<label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">📌 知名站点（点击自动填充）</label>' +
@@ -735,7 +1081,6 @@ function renderMethodFields(method, fields, methodDef) {
         html += '</div>';
     }
 
-    // 渲染字段
     fields.forEach(function(fkey) {
         if (fkey === 'site_url') {
             var val = '';
@@ -775,7 +1120,6 @@ function renderMethodFields(method, fields, methodDef) {
                 '<textarea name="cfg_cookie" rows="3" placeholder="粘贴完整的 Cookie 字符串"' +
                 ' style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-family:monospace;font-size:11px;"></textarea></div>';
         } else {
-            // 未知字段，也渲染
             html += '<div class="form-group"><label>' + escapeHtml(fkey) + '</label>' +
                 '<input type="text" name="cfg_' + fkey + '"' +
                 ' style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;"></div>';
@@ -784,7 +1128,6 @@ function renderMethodFields(method, fields, methodDef) {
 
     descDiv.innerHTML = html;
 
-    // 根据方法显示/隐藏按钮
     const btnStart = document.getElementById('btnStartLogin');
     const btnCaptcha = document.getElementById('btnCaptchaLogin');
     const btnRefresh = document.getElementById('btnRefreshScreenshot');
@@ -792,7 +1135,6 @@ function renderMethodFields(method, fields, methodDef) {
     const btnSaveOnly = document.getElementById('btnSaveOnly');
 
     if (method === 'password') {
-        // 密码模式：显示"开始浏览器登录"按钮
         btnStart.style.display = 'inline-block';
         btnStart.textContent = '🚀 开始浏览器登录';
         btnStart.disabled = false;
@@ -800,7 +1142,6 @@ function renderMethodFields(method, fields, methodDef) {
         btnRefresh.style.display = 'none';
         screenshotArea.style.display = 'none';
     } else if (method === 'qrcode') {
-        // QR码扫码登录：显示"生成二维码"按钮
         btnStart.style.display = 'inline-block';
         btnStart.textContent = '📱 打开扫码登录页';
         btnStart.disabled = false;
@@ -808,7 +1149,6 @@ function renderMethodFields(method, fields, methodDef) {
         btnRefresh.style.display = 'none';
         screenshotArea.style.display = 'none';
     } else if (method === 'phone') {
-        // 手机验证码登录：显示"发送验证码"按钮
         btnStart.style.display = 'inline-block';
         btnStart.textContent = '📱 发送验证码';
         btnStart.disabled = false;
@@ -833,9 +1173,8 @@ function fillPreset(name, url, desc) {
     if (nameInput && !nameInput.value) nameInput.value = name;
 }
 
-// ====== 回退旧式渲染（当平台没有 login_methods 时） ======
+// ====== 回退旧式渲染 ======
 function renderConfigFields(fields) {
-    // 隐藏 Tab
     document.getElementById('loginMethodTabs').innerHTML = '';
 
     var platform = _loginPlatform;
@@ -874,19 +1213,17 @@ function renderConfigFields(fields) {
     if (sa) sa.style.display = 'none';
 }
 
-// ====== 统一浏览器登录：启动 ======
+// ====== 统一浏览器登录 ======
 function unifiedLoginStart() {
     if (_isLoginRunning) return;
     _isLoginRunning = true;
 
     if (_loginMethod === 'qrcode') {
-        // QR 码扫码登录
         startQrCodeLogin();
         return;
     }
 
     if (_loginMethod === 'phone') {
-        // 手机验证码登录
         var aid = parseInt(document.getElementById('editAccountId').value) || 0;
         var phone = getFieldValue('cfg_phone');
         var siteUrl = getFieldValue('cfg_site_url');
@@ -970,13 +1307,10 @@ function unifiedLoginStart() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.logged_in && data.cookies) {
-            // 登录成功 — 自动填入 cookie
             setFieldValue('cfg_cookie', data.cookies);
             showLoginStatus('success', '✅ 登录成功！Cookie 已自动获取');
-            // 自动保存
             setTimeout(unifiedSaveOnly, 500);
         } else if (data.needs_captcha && data.image) {
-            // 需要验证码 — 显示截图
             showLoginScreenshot(data.image);
             showLoginStatus('warning', '🔒 需要验证码，请查看截图');
             document.getElementById('btnCaptchaLogin').style.display = 'inline-block';
@@ -999,7 +1333,7 @@ function unifiedLoginStart() {
     });
 }
 
-// ====== 统一浏览器登录：提交验证码 ======
+// ====== 统一浏览器登录：验证码 ======
 function unifiedLoginCaptcha() {
     var btn = document.getElementById('btnCaptchaLogin');
     btn.disabled = true;
@@ -1042,11 +1376,10 @@ function unifiedLoginCaptcha() {
     });
 }
 
-// ====== 统一浏览器登录：刷新截图 ======
+// ====== 统一刷新截图 ======
 function unifiedRefreshScreenshot() {
     var platform = _loginPlatform;
     if (_loginMethod === 'qrcode' && _qrSessionId) {
-        // QR 码刷新 — 重新轮询
         fetch('/api/login/qrcode/' + platform + '/poll/' + _qrSessionId)
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -1075,16 +1408,14 @@ function unifiedRefreshScreenshot() {
     .catch(function() {});
 }
 
-// ====== 统一：仅保存（提交表单） ======
+// ====== 统一保存 ======
 function unifiedSaveOnly() {
-    // 关闭 QR 码登录会话
     if (_qrSessionId) {
         fetch('/api/login/qrcode/' + _loginPlatform + '/close/' + _qrSessionId, {method: 'POST'}).catch(function() {});
         if (_qrPollTimer) clearInterval(_qrPollTimer);
         _qrPollTimer = null;
         _qrSessionId = null;
     }
-    // 关闭浏览器会话（如果有）
     if (_isLoginRunning || _loginSession) {
         fetch('/api/platform/' + _loginPlatform + '/login/close', {method: 'POST'}).catch(function() {});
     }
@@ -1094,9 +1425,8 @@ function unifiedSaveOnly() {
     if (form) form.submit();
 }
 
-// ====== 统一：关闭 ======
+// ====== 统一关闭 ======
 function unifiedClose() {
-    // 关闭 QR 码登录会话
     if (_qrSessionId) {
         fetch('/api/login/qrcode/' + _loginPlatform + '/close/' + _qrSessionId, {method: 'POST'}).catch(function() {});
         if (_qrPollTimer) clearInterval(_qrPollTimer);
@@ -1145,11 +1475,9 @@ function showLoginScreenshot(b64) {
     document.getElementById('loginScreenshotImg').src = 'data:image/png;base64,' + b64;
 }
 
-function hideAddForm() {
-    unifiedClose();
-}
+function hideAddForm() { unifiedClose(); }
 
-// 保留旧版函数名兼容性
+// 旧版兼容
 function addAccountFormSubmit() {
     var form = document.querySelector('#addFormBox form');
     if (form) form.submit();
@@ -1169,16 +1497,15 @@ function toggleKeepAlive(aid, checkbox) {
     .catch(function() { checkbox.checked = !checkbox.checked; });
 }
 
-// ====== 批量刷新所有账号状态 ======
+// ====== 批量刷新 ======
 function batchRefreshAccounts() {
     var btn = event && event.target ? event.target : document.querySelector('button[onclick*="batchRefresh"]');
     if (btn) { btn.disabled = true; btn.textContent = '🔄 刷新中...'; }
-    
+
     fetch('/api/accounts/batch/refresh', {method: 'POST'})
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
-            // 刷新完成后重新渲染所有状态的页面
             refreshAllStatuses(false);
             alert('批量刷新完成：' + data.refreshed + '/' + data.total + ' 个账号已刷新');
         } else {
@@ -1193,7 +1520,7 @@ function batchRefreshAccounts() {
     });
 }
 
-// ====== 页面加载时自动刷新状态（缓存优先，仅首次强制刷新） ======
+// ====== 自动刷新状态 ======
 function refreshAllStatuses(forceRefresh) {
     document.querySelectorAll('[id^="onlineStatus_"]').forEach(function(span) {
         var id = span.id.replace('onlineStatus_', '');
@@ -1217,19 +1544,30 @@ function renderDeepStatus(aid, data) {
     var statusSpan = document.getElementById('onlineStatus_' + aid);
     var badgeSpan = document.getElementById('statusBadge_' + aid);
     var userSpan = document.getElementById('userInfo_' + aid);
-    
+    var lastCheckSpan = document.getElementById('lastCheck_' + aid);
+
     if (!statusSpan) return;
-    
+
     // 状态徽章
     if (badgeSpan) {
         if (data.logged_in) {
-            badgeSpan.innerHTML = '✅';
+            badgeSpan.innerHTML = '✅ 已登录';
+            badgeSpan.className = 'status-badge online';
         } else if (data.logged_in === false) {
-            badgeSpan.innerHTML = '❌';
+            badgeSpan.innerHTML = '❌ 未登录';
+            badgeSpan.className = 'status-badge offline';
         }
     }
-    
-    // 用户信息深度展示
+
+    // 更新卡片 data-status
+    var card = badgeSpan ? badgeSpan.closest('.acct-card') : null;
+    if (card) {
+        if (data.logged_in) card.dataset.status = 'online';
+        else if (data.logged_in === false) card.dataset.status = 'offline';
+        else card.dataset.status = 'unknown';
+    }
+
+    // 用户信息
     if (userSpan) {
         if (data.logged_in && data.username) {
             var parts = ['<span style="color:#22c55e;font-weight:500;">' + escapeHtml(data.username) + '</span>'];
@@ -1249,22 +1587,37 @@ function renderDeepStatus(aid, data) {
             userSpan.innerHTML = '<span style="color:#999;">—</span>';
         }
     }
-    
-    // 在线状态（时效）
-    var cacheAge = data._cache_age_seconds;
-    if (cacheAge !== undefined) {
-        var ageText = '';
-        if (cacheAge < 60) {
-            statusSpan.innerHTML = '<span style="color:#22c55e;">⏳ ' + cacheAge + '秒前</span>';
-        } else if (cacheAge < 300) {
-            statusSpan.innerHTML = '<span style="color:#f59e0b;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
-        } else {
-            statusSpan.innerHTML = '<span style="color:#ef4444;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+
+    // 最后检测时间 (优化2)
+    if (lastCheckSpan) {
+        var cacheAge = data._cache_age_seconds;
+        if (cacheAge !== undefined) {
+            if (cacheAge < 60) {
+                lastCheckSpan.innerHTML = '<span style="color:#22c55e;">⏳ ' + cacheAge + '秒前</span>';
+            } else if (cacheAge < 300) {
+                lastCheckSpan.innerHTML = '<span style="color:#f59e0b;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+            } else {
+                lastCheckSpan.innerHTML = '<span style="color:#ef4444;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+            }
+        } else if (data.verified_at) {
+            lastCheckSpan.innerHTML = '<span style="color:#888;">🕐 ' + (data.verified_at.slice(0, 16) || data.verified_at) + '</span>';
         }
-    } else if (data.status) {
-        var statusText = data.status || '⏳ 未知';
-        var badgeClass = data.logged_in ? 'badge badge-success' : 'badge badge-danger';
-        statusSpan.innerHTML = '<span class="' + badgeClass + '">' + escapeHtml(statusText) + '</span>';
+    }
+
+    // 在线状态内联
+    if (statusSpan) {
+        var cacheAge = data._cache_age_seconds;
+        if (cacheAge !== undefined) {
+            if (cacheAge < 60) {
+                statusSpan.innerHTML = '<span style="color:#22c55e;">⏳ ' + cacheAge + '秒前</span>';
+            } else if (cacheAge < 300) {
+                statusSpan.innerHTML = '<span style="color:#f59e0b;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+            } else {
+                statusSpan.innerHTML = '<span style="color:#ef4444;">⏳ ' + Math.floor(cacheAge/60) + '分前</span>';
+            }
+        } else {
+            statusSpan.innerHTML = '<span class="badge badge-secondary">⏳ 检测中...</span>';
+        }
     }
 }
 
@@ -1284,8 +1637,7 @@ function checkStatus(aid) {
         var html = '<div style="margin-bottom:12px;">';
         html += '<p><strong>平台：</strong>' + (data.platform || '—') + '</p>';
         html += '<p><strong>账号：</strong>' + escapeHtml(data.account_name || '') + '</p>';
-        
-        // 深度用户信息
+
         if (data.logged_in && data.username) {
             html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;font-size:16px;">' + escapeHtml(data.username) + '</span></p>';
             if (data.points) {
@@ -1299,7 +1651,7 @@ function checkStatus(aid) {
         if (data.display_name && data.display_name !== data.username) {
             html += '<p><strong>显示名：</strong>' + escapeHtml(data.display_name) + '</p>';
         }
-        
+
         html += '<p><strong>状态：</strong><span style="font-size:16px;">' + (data.status || '⏳ 未知') + '</span></p>';
         html += '<p><strong>检测方法：</strong>' + (data.method || 'Playwright') + '</p>';
         html += '<p><strong>启用：</strong>' + (data.is_active ? '✅ 是' : '⛔ 否') + '</p>';
@@ -1321,7 +1673,6 @@ function checkStatus(aid) {
             html += '<div class="alert alert-warning" style="margin-top:12px;">⚠️ Cookie 已失效，请重新使用"浏览器登录"获取新 Cookie</div>';
         }
         document.getElementById('statusContent').innerHTML = html;
-        // 刷新界面状态
         renderDeepStatus(aid, data);
     })
     .catch(function(e) {
@@ -1333,7 +1684,7 @@ function closeStatusModal() {
     document.getElementById('statusModal').style.display = 'none';
 }
 
-// ====== 测试连接按钮 — 直接调用 Playwright 验证 Cookie 有效性 ======
+// ====== 测试连接 ======
 function testConnection(aid) {
     document.getElementById('statusContent').innerHTML = '<p style="color:#999;">⏳ 正在测试连接，使用 Playwright 直接验证 Cookie...</p>';
     document.getElementById('statusModal').style.display = 'flex';
@@ -1372,7 +1723,6 @@ function testConnection(aid) {
             html += '<div class="alert alert-warning" style="margin-top:12px;">⚠️ Cookie 已失效，请重新使用"浏览器登录"获取新 Cookie</div>';
         }
         document.getElementById('statusContent').innerHTML = html;
-        // 刷新界面状态
         renderDeepStatus(aid, data);
     })
     .catch(function(e) {
@@ -1382,7 +1732,7 @@ function testConnection(aid) {
 }
 
 
-// ====== 浏览器登录（旧版 — 保持向后兼容）=====
+// ====== 旧版兼容函数 ======
 function amobbsLogin(accountId) {
     currentAccountId = accountId;
     fetch('/api/accounts/config/' + accountId)
@@ -1504,7 +1854,7 @@ function closeAmobbsLogin() {
     document.getElementById('amobbsLoginModal').style.display = 'none';
 }
 
-// ====== 闲鱼浏览器登录 ======
+// ====== 闲鱼浏览器登录 (向后兼容) ======
 function xianyuLogin(accountId) {
     fetch('/api/accounts/config/' + accountId)
     .then(function(r) { return r.json(); })
@@ -1707,12 +2057,11 @@ function escapeHtml(text) {
     return d.innerHTML;
 }
 
-// ====== 登录方式演示/说明卡（小程序风格，含示意图） ======
+// ====== 登录方式演示 ======
 function showLoginMethodDemo(method) {
     var demoDiv = document.getElementById('loginMethodDemo');
     if (!demoDiv) return;
 
-    // 根据登录方法名显示对应的演示示意图
     var imageMap = {
         'password': '/static/images/demo/password-login.svg',
         'qrcode': '/static/images/demo/qrcode-login.svg',
@@ -1759,7 +2108,7 @@ function showLoginMethodDemo(method) {
     });
 }
 
-// ====== QR 码扫码登录 ======
+// ====== QR码登录 ======
 var _qrSessionId = null;
 var _qrPollTimer = null;
 
@@ -1793,7 +2142,6 @@ function startQrCodeLogin() {
         _qrSessionId = data.session_id;
         _loginSession = data.session_id;
 
-        // 显示截图
         if (data.image) {
             showLoginScreenshot(data.image);
         }
@@ -1803,7 +2151,6 @@ function startQrCodeLogin() {
         document.getElementById('btnRefreshScreenshot').style.display = 'inline-block';
         btn.textContent = '📱 扫码中...';
 
-        // 开始轮询登录状态
         startQrCodePolling();
     })
     .catch(function(e) {
@@ -1820,7 +2167,6 @@ function startQrCodePolling() {
 
     _qrPollTimer = setInterval(function() {
         pollCount++;
-        // 最长轮询5分钟（30次 * 10秒）
         if (pollCount > 30 || !_qrSessionId) {
             clearInterval(_qrPollTimer);
             _qrPollTimer = null;
@@ -1842,13 +2188,11 @@ function startQrCodePolling() {
                 return;
             }
 
-            // 更新截图
             if (data.image) {
                 document.getElementById('loginScreenshotImg').src = 'data:image/png;base64,' + data.image;
             }
 
             if (data.status === 'logged_in') {
-                // 登录成功！
                 clearInterval(_qrPollTimer);
                 _qrPollTimer = null;
                 _isLoginRunning = false;
@@ -1858,19 +2202,15 @@ function startQrCodePolling() {
                 showLoginStatus('success', '✅ ' + (data.message || '登录成功！Cookie 已自动获取'));
                 document.getElementById('btnStartLogin').textContent = '✅ 已登录';
                 document.getElementById('btnStartLogin').disabled = true;
-                // 自动关闭截图区域
                 setTimeout(function() {
                     document.getElementById('loginScreenshotArea').style.display = 'none';
                 }, 2000);
             } else {
-                // 还在等待
                 showLoginStatus('info', '⏳ ' + (data.message || '等待扫码/登录...'));
             }
         })
-        .catch(function() {
-            // 静默处理轮询错误
-        });
-    }, 10000); // 每10秒轮询一次
+        .catch(function() {});
+    }, 10000);
 }
 
 // ====== Cookie 调试模式开关 ======
@@ -1888,7 +2228,7 @@ function toggleDebugCookie() {
     }
 }
 
-// ====== 编辑账号（从后端动态获取登录能力） ======
+// ====== 编辑账号 ======
 function onEditAccount(aid) {
     fetch('/api/accounts/config/' + aid)
     .then(function(r) { return r.json(); })
@@ -1897,7 +2237,6 @@ function onEditAccount(aid) {
         var cfg = data.config || {};
         var platform = cfg._platform || '';
 
-        // 设置平台选择
         var sel = document.getElementById('newPlatformSelect');
         var opt = sel.querySelector('option[value="' + platform + '"]');
         if (opt) {
@@ -1914,38 +2253,32 @@ function onEditAccount(aid) {
         document.getElementById('debugCookieArea').style.display = 'none';
         document.getElementById('editAccountId').value = aid;
 
-        // 从后端动态获取登录能力
         fetch('/api/platform/' + platform + '/login-capabilities')
         .then(function(r) { return r.json(); })
         .then(function(capData) {
             if (capData.success && capData.login_methods && capData.login_methods.length > 0) {
                 var methods = capData.login_methods;
                 renderLoginCapabilityTabs(methods, capData.note || '');
-                // 查找与配置匹配的登录方法（优先密码，其次 cookie）
                 var preferredMethod = 'cookie';
                 if (cfg.username && cfg.password) {
                     preferredMethod = 'password';
                 } else if (cfg.phone) {
                     preferredMethod = 'phone';
                 }
-                // 检查 preferred 是否可用
                 var available = methods.filter(function(m) { return m.method !== 'cookie'; });
                 var hasPreferred = available.some(function(m) { return m.method === preferredMethod; });
                 var defaultMethod = hasPreferred ? preferredMethod : (available.length > 0 ? available[0].method : 'cookie');
                 selectCapabilityLoginMethod(defaultMethod, methods);
             } else {
-                // 回退
                 let methods = [];
                 try { methods = JSON.parse(opt ? opt.dataset.methods : '[]'); } catch(e) {}
                 renderFromLoginMethods(methods);
             }
 
-            // 设置为编辑模式
             document.getElementById('addFormTitle').innerHTML = '✏️ 编辑账号 — <span>' + escapeHtml(cfg._accountName || '') + '</span>';
             document.getElementById('addAccountName').value = cfg._accountName || '';
             document.getElementById('btnSaveOnly').textContent = '💾 更新';
 
-            // 预填所有配置字段
             Object.keys(cfg).forEach(function(k) {
                 if (k.startsWith('_')) return;
                 var input = document.querySelector('input[name="cfg_' + k + '"], textarea[name="cfg_' + k + '"]');
@@ -1955,7 +2288,6 @@ function onEditAccount(aid) {
             document.getElementById('addFormBox').style.display = 'flex';
         })
         .catch(function() {
-            // 网络错误，回退旧方式
             onAddAccount();
             document.getElementById('addFormTitle').innerHTML = '✏️ 编辑账号 — <span>' + escapeHtml(cfg._accountName || '') + '</span>';
             document.getElementById('editAccountId').value = aid;
@@ -1972,7 +2304,7 @@ function onEditAccount(aid) {
     .catch(function(e) { alert('请求失败: ' + e.message); });
 }
 
-// ─── 重写添加弹窗的标题默认值 ────────────
+// 旧标题占位
 var _origFormTitle = '➕ 添加账号 — ';
 </script>
 {% endblock %}

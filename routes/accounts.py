@@ -175,6 +175,48 @@ def api_account_toggle(aid):
    return jsonify({"success": True, "is_active": bool(new_status)})
 
 
+# ─── 批量操作 API ────────────────────────────────
+@app.route("/api/accounts/batch/toggle", methods=["POST"])
+@login_required
+def api_accounts_batch_toggle():
+    """批量启用/禁用账号"""
+    data = request.get_json() or {}
+    ids = data.get("ids", [])
+    enable = data.get("enable", True)
+    if not ids or not isinstance(ids, list):
+        return jsonify({"success": False, "error": "请选择至少一个账号"})
+    conn = get_db()
+    placeholders = ",".join("?" for _ in ids)
+    params = [1 if enable else 0] + ids + [current_user.id]
+    conn.execute(
+        f"UPDATE platform_accounts SET is_active=? WHERE id IN ({placeholders}) AND user_id=?",
+        params
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"已{'启用' if enable else '禁用'} {len(ids)} 个账号"})
+
+
+@app.route("/api/accounts/batch/delete", methods=["POST"])
+@login_required
+def api_accounts_batch_delete():
+    """批量删除账号"""
+    data = request.get_json() or {}
+    ids = data.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return jsonify({"success": False, "error": "请选择至少一个账号"})
+    conn = get_db()
+    placeholders = ",".join("?" for _ in ids)
+    params = ids + [current_user.id]
+    conn.execute(
+        f"DELETE FROM platform_accounts WHERE id IN ({placeholders}) AND user_id=?",
+        params
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"已删除 {len(ids)} 个账号"})
+
+
 def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
     """使用 Playwright 验证账号登录状态（共享给 status 和 test 两个端点使用）
     acct: platform_accounts 行 dict

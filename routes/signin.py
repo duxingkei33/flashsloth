@@ -44,13 +44,13 @@ def signin_page():
         "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=0",
         (today,)
     ).fetchone()[0]
-   # 累计成功（所有签到成功次数，含重复签到）
+   # 累计成功（去重：每个账号只算一次）
    total_success = conn.execute(
-        "SELECT COUNT(*) FROM signin_log WHERE success=1"
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE success=1"
    ).fetchone()[0]
-   # 累计失败（所有签到失败次数）
+   # 累计失败（去重：每个账号只算一次）
    total_failure = conn.execute(
-        "SELECT COUNT(*) FROM signin_log WHERE success=0"
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE success=0"
    ).fetchone()[0]
 
    conn.close()
@@ -278,4 +278,39 @@ def api_signin_run_all():
        })
 
    return jsonify({"success": True, "results": results})
+
+
+@app.route("/api/signin/stats")
+@login_required
+def api_signin_stats():
+    """签到统计 API（JSON 格式，供前端刷新使用）"""
+    conn = get_db()
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_count = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1 AND already_signed=0",
+        (today,)
+    ).fetchone()[0]
+    today_success = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1",
+        (today,)
+    ).fetchone()[0]
+    today_failure = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=0",
+        (today,)
+    ).fetchone()[0]
+    total_success = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE success=1"
+    ).fetchone()[0]
+    total_failure = conn.execute(
+        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE success=0"
+    ).fetchone()[0]
+    conn.close()
+    return jsonify({
+        "success": True,
+        "today_count": today_count,
+        "today_success": today_success,
+        "today_failure": today_failure,
+        "total_success": total_success,
+        "total_failure": total_failure,
+    })
 
