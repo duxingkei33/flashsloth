@@ -20,7 +20,9 @@
 - [x] 🍪 Cookie paste (debug mode)
 - [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
 - [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
-- [x] 📊 Three-layer status detection — persistent BrowserEngine + API lightweight check + Playwright real verification + 3-tier cache (memory/SQLite/real-time) + batch refresh + deep user info
+- [x] 🔐 Unified credential system — ScanLoginEngine unified scan engine + save/get/verify_credential tri-function API
+- [x] 🧪 Unified cookie validator — eliminated 4 scattered cookie validation code paths, unified verify_cookie / verify_cookie_for_adapter interface
+- [x] 📊 Three-layer status detection — persistent BrowserEngine+API lightweight check+Playwright real verification+3-tier cache (memory/SQLite/real-time)+batch refresh+deep user info
 - [x] 🧩 Unified browser login button — shared edit dialog for all platforms
 - [x] 📱 Phone SMS login extended to CSDN/Bilibili publishers
 - [x] 🏗️ BrowserEngine persistent refactor — shared engine + subprocess Playwright verification (avoids WSGI deadlock)
@@ -250,6 +252,9 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v5.02 | 2026-07-08 | Unified cookie validator — verify_credential/get/save tri-function + OSHWHub migration + keyword false-positive fix |
+| v4.93 | 2026-07-08 | QR code login full optimization — multi-method selection + timeout + account modal QR optimization |
+| v4.92 | 2026-07-08 | Unified credential system — ScanLoginEngine + save/get/verify_credential + QR engine refactor |
 | v4.91 | 2026-07-07 | QR code login priority #1 across all publishers + site_url propagation fix + BrowserEngine auto-cleanup + Unified log mgmt page |
 | v4.90 | 2026-07-07 | Unified log management (publish/sign-in/AI/deploy) + adapter architecture fix + composite search dropdown |
 | v4.80 | 2026-07-07 | Mobile layout optimization — full-page responsive (375px zero overflow, touch-friendly buttons/modals/nav/card grid) |

@@ -20,6 +20,8 @@
 - [x] 🍪 Cookie粘贴（调试模式）
 - [x] 🖼️ 登录方式演示说明卡（小程序风格步骤指引）
 - [x] 🔒 凭证加密存储（Fernet AES-128-CBC + HMAC-SHA256）
+- [x] 🔐 统一凭证体系 — ScanLoginEngine 统一扫码引擎 + save/get/verify_credential 三合一凭证操作
+- [x] 🧪 统一Cookie验证器 — 消除4处散落cookie验证代码，统一 verify_cookie / verify_cookie_for_adapter 接口
 - [x] 📊 三层状态检测系统 — 常驻BrowserEngine+API轻量检测+Playwright真实验证+三层缓存(内存/SQLite/实时)+批量刷新+深度用户信息
 - [x] 🧩 统一浏览器登录按钮 — 所有平台共用统一编辑弹窗登录流程
 - [x] 📱 手机验证码登录扩展到 CSDN/Bilibili 发布器
@@ -250,6 +252,9 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| v5.02 | 2026-07-08 | Cookie验证器统一 — verify_credential/get/save三合一 + OSHWHub迁移 + 关键词假阳性修复 |
+| v4.93 | 2026-07-08 | 扫码登录全流程优化 — 多方式选择+超时机制+账号弹窗QR优化 |
+| v4.92 | 2026-07-08 | 统一凭证体系 — ScanLoginEngine + save/get/verify_credential + QR引擎重构 |
 | v4.91 | 2026-07-07 | QR码登录全平台优先级#1 + site_url传透修复 + BrowserEngine自动回收 + 统一日志管理页面 |
 | v4.90 | 2026-07-07 | 统一日志管理（发布/签到/AI/部署）+ 适配器架构修复 + 复合搜索下拉框 |
 | v4.80 | 2026-07-07 | 手机端排版优化 — 全页面响应式增强（375px零溢出、触摸友好按钮/弹窗/导航/卡片网格） |
