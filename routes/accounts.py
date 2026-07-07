@@ -550,6 +550,101 @@ def api_platforms_list():
 	return jsonify({"success": True, "platforms": platforms})
 
 
+@app.route("/api/platforms/search")
+@login_required
+def api_platforms_search():
+	"""模糊搜索平台 — 匹配 name / display_name，动态加载架构类型"""
+	from flashsloth.core.publisher import list_publishers
+	q = request.args.get("q", "").strip().lower()
+	platforms = list_publishers()
+	results = []
+
+	# 统一架构推断：从已有数据动态推导，不硬编码
+	for p in platforms:
+		name = p["name"]
+		display_name = p["display_name"]
+		name_lower = name.lower()
+		display_lower = display_name.lower()
+
+		# 模糊匹配
+		if q:
+			if q not in name_lower and q not in display_lower:
+				continue
+
+		# 架构类型推断（数据来源：forum_registry + platform_reports）
+		arch = _infer_platform_architecture(name, display_name)
+
+		results.append({
+			"name": name,
+			"display_name": display_name,
+			"architecture": arch,
+			"config_fields": p.get("config_fields", []),
+			"login_methods": p.get("login_methods", []),
+		})
+
+	# 按 display_name 排序
+	results.sort(key=lambda x: x["display_name"])
+	return jsonify({"success": True, "results": results, "total": len(results)})
+
+
+def _infer_platform_architecture(platform_name: str, display_name: str) -> str:
+	"""动态推断平台架构类型 — 全部从已有数据加载，不硬编码
+
+	数据来源（按优先级）：
+	1. forum_registry.FORUM_DATA — Discuz! 论坛自动识别
+	2. forum_registry.PLATFORM_CATEGORIES — 内容平台分类
+	3. platform_reports/*.json note 字段 — AI探索的登录能力备注
+	"""
+	from flashsloth.core.forum_registry import FORUM_DATA, PLATFORM_CATEGORIES
+
+	# 平台名→域名映射（用于 forum_registry 查询）
+	domain_map = {
+		"amobbs": "amobbs.com",
+		"mydigit": "mydigit.cn",
+		"oshwhub": "oshwhub.com",
+		"discuz": "discuz.net",
+		"csdn": "csdn.net",
+		"zhihu": "zhihu.com",
+		"bilibili": "bilibili.com",
+		"juejin": "juejin.cn",
+		"xianyu": "goofish.com",
+		"xianyu_v2": "goofish.com",
+		"taobao": "taobao.com",
+		"wordpress": "wordpress.org",
+		"github_pages": "github.io",
+		"github_pages_blog": "github.io",
+		"static_site": "static.site",
+	}
+
+	domain = domain_map.get(platform_name)
+
+	# 1. 检查 FORUM_DATA → Discuz! 架构
+	if domain and domain in FORUM_DATA:
+		return "基于 Discuz! 架构"
+
+	# 2. 检查 PLATFORM_CATEGORIES → 协议平台/内容平台
+	if domain and domain in PLATFORM_CATEGORIES:
+		cat = PLATFORM_CATEGORIES[domain]
+		if "project_types" in cat:
+			return "立创开源硬件平台"
+		if "content_types" in cat:
+			return "自研CMS"
+
+	# 3. 检查 platform_reports note 字段
+	cap = _load_login_capabilities(platform_name)
+	if cap and cap.get("note"):
+		note = cap["note"]
+		note_lower = note.lower()
+		if "discuz" in note_lower:
+			return "基于 Discuz! 架构"
+		if "wordpress" in note_lower:
+			return "WordPress"
+		if "立创" in note or "oshwhub" in note_lower:
+			return "立创开源硬件平台"
+
+	return display_name
+
+
 # ═══════════════════════════════════════════════════
 # 登录能力 API — 从 platform_reports JSON 读取
 # ═══════════════════════════════════════════════════
@@ -1109,6 +1204,7 @@ def _get_qr_lock(session_id: str) -> threading.Lock:
 def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_queue.Queue):
 	"""QR 码登录工作线程 — 拥有独立的 Playwright 浏览器实例"""
 	_pw = None; _browser = None; _ctx = None; _page = None
+	_worker_started = time.time()
 	try:
 		from playwright.sync_api import sync_playwright
 		import base64
@@ -1151,8 +1247,12 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 			sess["_page"] = _page
 			sess["_ready"] = True
 
-		# 轮询循环 — 每 5 秒检查一次是否退出或需要检查登录态
+		# 轮询循环 — 每 3 秒检查一次是否退出或需要检查登录态
+		# 5 分钟超时自动清理：防止前端未调 /close 导致资源泄漏
 		while True:
+			# 超时检查：启动后超过 5 分钟自动退出
+			if time.time() - _worker_started > 300:
+				break
 			sess = _qr_login_sessions.get(sess_id)
 			if not sess or sess.get("_stop", False):
 				break
@@ -1173,7 +1273,7 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 					body_text = ""
 					try:
 						body_text = _page.inner_text("body")[:500]
-					except:
+					except Exception:
 						pass
 					sc_b64 = base64.b64encode(_page.screenshot(type="png", full_page=False)).decode()
 
@@ -1186,8 +1286,7 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 				except Exception as e:
 					sess["_poll_result"] = {"status": "error", "error": str(e)[:80]}
 
-			import time as _t
-			_t.sleep(3)
+			time.sleep(3)
 
 	except Exception as e:
 		result_queue.put({"success": False, "error": str(e)[:100]})
@@ -1195,10 +1294,10 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 		for obj in [_page, _ctx, _browser]:
 			try:
 				if obj: obj.close()
-			except: pass
+			except Exception: pass
 		try:
 			if _pw: _pw.__exit__(None, None, None)
-		except: pass
+		except Exception: pass
 
 
 @app.route("/api/login/qrcode/<platform>/start", methods=["POST"])

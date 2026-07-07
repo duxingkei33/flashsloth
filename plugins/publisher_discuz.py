@@ -165,9 +165,12 @@ class DiscuzPublisher(Publisher):
                     page_url = page.url.lower()
                     redirected_to_login = "login" in page_url
 
-                    # 查找登录态指示器
+                    # 查找登录态指示器（⚠️ 空用户名不能传入空正则，会匹配所有文本）
                     indicators = []
-                    for pat in [rf'{re.escape(self.username)}', r'个人主页', r'退出\s*登录', r'个人中心', r'我的中心', r'我的帖子']:
+                    _indicator_pats = [r'退出\s*登录', r'退出', r'个人主页', r'个人中心', r'我的中心', r'我的帖子', r'注销']
+                    if self.username and len(self.username.strip()) >= 2:
+                        _indicator_pats.insert(0, rf'{re.escape(self.username.strip())}')
+                    for pat in _indicator_pats:
                         if re.search(pat, body_text, re.IGNORECASE):
                             indicators.append(pat)
 
