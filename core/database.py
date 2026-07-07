@@ -468,6 +468,27 @@ def init_db():
         )
         conn.commit()
 
+    # ─── ai_call_log ───
+    try:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS ai_call_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                capability TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                prompt_tokens INTEGER DEFAULT 0,
+                response_tokens INTEGER DEFAULT 0,
+                cost REAL DEFAULT 0.0,
+                success INTEGER DEFAULT 1,
+                error TEXT DEFAULT '',
+                response_summary TEXT DEFAULT '',
+                prompt_preview TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+    except Exception:
+        pass
+
     # ─── 首次运行：自动生成随机 admin 账号 ───
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if user_count == 0:
