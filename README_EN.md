@@ -30,6 +30,7 @@
 - [x] 🔍 Login status deep verification — real extraction of username/points/level + frontend display enhancement
 - [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
 - [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives
+- [x] 🚀 Auto-start Playwright on login — Launches Playwright BrowserEngine on login (configurable auto_start)
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
@@ -109,7 +110,7 @@
 - [x] 🖥️ Playwright browser engine settings page
 - [x] 🖥️ BrowserEngine auto-cleanup — 60s monitoring thread, auto-recycle idle browser instances
 - [x] External service registry — unified management for xianyu-auto-reply etc.
-- [x] Deployment config enhancement — deploy block embedded in account page + deployers enhanced
+- [x] Deployment config enhancement — #deploy inline block + deploy normalization + unified test_connection format + auto-start engine
 
 ### 💬 Comment Monitoring
 - [x] Multi-forum comment monitoring — unread/reply/stats dashboard
@@ -257,6 +258,7 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v5.08 | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
 | v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |
 | v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
 | v5.04 | 2026-07-08 | Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend status display |

@@ -30,6 +30,7 @@
 - [x] 🔍 登录状态深度验证 — 真实提取用户名/积分/等级 + 前端展示增强
 - [x] 🎨 账号页UI增强 — 搜索优化/平台颜色标签/快捷添加/时间标签/批量进度条
 - [x] 🛡️ Cookie验证严格模式 — DiscuzPublisher严格登录态检测(退出按钮+2指示器) + test-connection Playwright子进程降级消除假阳性
+- [x] 🚀 登录自动启动Playwright — 登录时自动启动 Playwright BrowserEngine（auto_start 可配置）
 
 ### 📝 多平台发布
 - [x] Discuz! 论坛（amobbs/mydigit 等）— 发帖+存草稿+签到
@@ -109,7 +110,7 @@
 - [x] 🖥️ Playwright 浏览器引擎设置页面
 - [x] 🖥️ BrowserEngine 空闲自动关闭 — 60秒轮询监控线程，闲置超时自动回收浏览器实例
 - [x] 外部服务注册表 — 统一管理 xianyu-auto-reply 等服务
-- [x] 部署配置增强 — 账号页嵌入部署区块+deployers增强版
+- [x] 部署配置增强 — 账号页#deploy内联区块+deploy归一化+test_connection统一格式+auto-start自动引擎
 
 ### 💬 评论监控
 - [x] 多论坛评论监控 — 未读/回复/统计数据看板
@@ -257,6 +258,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.08** | 2026-07-08 | deploy归一化 — 账号页#deploy内联区块+test_connection统一格式+登录自动启动Playwright(可配置auto_start)+平台探索数据更新(得物/什么值得买/小红书) |
 | v5.07 | 2026-07-08 | Cookie验证严格模式 — Discuz login假阳性修复 + test-connection Playwright子进程降级 + 版块注册表双轨验证 + 探索报告更新 |
 | v5.05 | 2026-07-08 | 51CTO平台探索 — WAF+SMS-only评估 + 探索雷达v2（得物/什么值得买/小红书）+ category分类字段 |
 | v5.04 | 2026-07-08 | 发布前Cookie过期预检 — Publisher基类check_cookie() + publish_select前端状态展示 |
