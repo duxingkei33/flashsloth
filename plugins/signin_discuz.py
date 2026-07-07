@@ -17,7 +17,10 @@ from typing import Optional
 # core/signin.py 由 orchestrator (forum_signin.py) 先行加载并注入 sys.modules
 # 这里直接导入即可共享同一个 registry
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
-from core_signin import SigninBase, register  # noqa: E402
+try:
+    from core_signin import SigninBase, register  # noqa: E402
+except ImportError:
+    from flashsloth.core.signin import SigninBase, register
 
 
 @register
