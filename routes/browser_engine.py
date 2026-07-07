@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 def inject_browser_engine_status():
     """注入浏览器引擎状态到所有模板"""
     try:
+        # 仅在已登录时检查引擎状态（避免未登录页面卡住）
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return {
+                "pw_status": "stopped",
+                "pw_badge_class": "badge-secondary",
+                "pw_badge_text": "🖥️ 已停止",
+                "pw_tabs_count": 0,
+            }
         engine = get_engine()
         status = engine.get_status()
         return {
