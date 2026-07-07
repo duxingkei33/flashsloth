@@ -2299,12 +2299,20 @@ function renderCapabilityFields(method, allMethods) {
 
 function getFieldsForMethod(platform, method, methodDef) {
     if (methodDef && methodDef.fields && methodDef.fields.length > 0) {
-        return methodDef.fields;
+        var fields = methodDef.fields.slice();  // 复制，避免修改原数组
+        // 如果 API 有 site_url_default 但 fields 没包含 site_url，自动加上
+        if (_loginCapData && _loginCapData.site_url_default && fields.indexOf('site_url') < 0) {
+            fields.unshift('site_url');
+        }
+        return fields;
     }
-    var platformSiteUrl = ['discuz', 'amobbs', 'wordpress', 'oshwhub'];
-    var needsSiteUrl = platformSiteUrl.indexOf(platform) >= 0;
+    // Fallback: 从平台预设数据获取
     var fields = [];
-    if (needsSiteUrl) fields.push('site_url');
+    // 检查该平台在预设中是否有站点列表（Discuz 类平台有多个站点）
+    var preset = _presetsData[platform];
+    if ((_loginCapData && _loginCapData.site_url_default) || (preset && preset.sites && preset.sites.length > 0)) {
+        fields.push('site_url');
+    }
     if (method === 'password') {
         fields.push('username');
         fields.push('password');

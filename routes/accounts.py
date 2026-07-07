@@ -408,6 +408,7 @@ def api_account_status(aid):
     
     # 第三层：Playwright 真实浏览器验证（兜底）
     result = _do_playwright_verify(acct, cfg)
+    result["method"] = "playwright_full"
     
     # 将 Playwright 结果写入缓存
     if result.get("success") or result.get("logged_in") is not None:
@@ -446,6 +447,7 @@ def test_account(aid):
    decrypt_config(cfg)  # 解密凭证用于连接测试
    # 复用 api_account_status 的 Playwright 验证逻辑
    result = _do_playwright_verify(acct, cfg)
+   result["method"] = "playwright_test"
    
    # 同时更新状态缓存（测试连接也算一次状态刷新）
    if result.get("success") or result.get("logged_in") is not None:
@@ -775,7 +777,7 @@ def api_platform_login_capabilities(platform):
             "success": True,
             "platform": platform,
             "login_url": login_url,
-            "site_url_default": login_url,
+            "site_url_default": login_url if login_url.startswith("http") else "",
             "login_methods": enhanced_methods,
             "captcha_info": captcha_info,
             "source": "json",
