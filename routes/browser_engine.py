@@ -31,8 +31,7 @@ logger = logging.getLogger(__name__)
 
 @app.context_processor
 def inject_browser_engine_status():
-    """注入浏览器引擎状态到所有模板（带超时保护，不阻塞请求线程）"""
-    t0 = time.time()
+    """注入浏览器引擎状态到所有模板（直接读取状态字段，避免锁争用）"""
     try:
         from flask_login import current_user
         if not current_user.is_authenticated:
@@ -42,20 +41,25 @@ def inject_browser_engine_status():
                 "pw_badge_text": "🖥️ 已停止",
                 "pw_tabs_count": 0,
             }
-        # get_status() 内部使用超时锁，不会永久阻塞
         engine = get_engine()
-        t1 = time.time()
-        status = engine.get_status()
-        t2 = time.time()
-        logger.info(f"CP_ENGINE: get_engine={t1-t0:.3f}s get_status={t2-t1:.3f}s total={t2-t0:.3f}s status={status['status']}")
+        # 直接读取状态字段，避免调get_status()可能发生的锁死
+        with engine._lock:
+            st = engine._status
+            tabs = len(engine._context.pages) if engine._context else 0
+        badge_cls, badge_text = {
+            "starting": ("badge-warning", "🖥️ 启动中"),
+            "ready": ("badge-success", "🖥️ 已就绪"),
+            "restarting": ("badge-warning", "🖥️ 重启中"),
+            "error": ("badge-danger", "🖥️ 异常"),
+            "stopped": ("badge-secondary", "🖥️ 已停止"),
+        }.get(st, ("badge-secondary", "🖥️ 未知"))
         return {
-            "pw_status": status["status"],
-            "pw_badge_class": status["badge_class"],
-            "pw_badge_text": status["badge_text"],
-            "pw_tabs_count": status["tabs_count"],
+            "pw_status": st,
+            "pw_badge_class": badge_cls,
+            "pw_badge_text": badge_text,
+            "pw_tabs_count": tabs,
         }
-    except Exception as e:
-        logger.error(f"CP_ENGINE error at t={time.time()-t0:.3f}s: {e}")
+    except Exception:
         return {
             "pw_status": "stopped",
             "pw_badge_class": "badge-secondary",

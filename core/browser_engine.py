@@ -87,7 +87,9 @@ class BrowserEngine:
         
         locked = cls._instance_lock.acquire(timeout=0.5)
         if not locked:
-            logger.warning("BrowserEngine.get_instance: lock timeout, waiting...")
+            import sys as _sys
+            _sys.stderr.write("BrowserEngine.get_instance: lock timeout, waiting...\n")
+            _sys.stderr.flush()
             # 阻塞等待另一个线程创建完成
             cls._instance_lock.acquire()
             locked = True
@@ -373,7 +375,9 @@ class BrowserEngine:
         # 非阻塞尝试获取锁，避免请求线程卡死
         locked = self._lock.acquire(timeout=0.5)
         if not locked:
-            logger.warning("BrowserEngine.get_status: lock timeout (held by another thread)")
+            import sys as _sys
+            _sys.stderr.write("BrowserEngine.get_status: lock timeout, returning default\n")
+            _sys.stderr.flush()
             return {
                 "status": STATUS_STOPPED,
                 "badge_class": "badge-secondary",
