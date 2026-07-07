@@ -50,10 +50,19 @@ def _load_from_db() -> dict:
         conn = sqlite3.connect(_db_path)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT platform_domain, section_id, section_name, keywords "
+            "SELECT platform_domain, section_id, section_name, keywords, "
+            "extra_info, tags_of_interest "
             "FROM forum_exploration WHERE can_post=1"
         ).fetchall()
         conn.close()
+
+        def _parse_json_field(val: str, fallback: list | dict):
+            if isinstance(val, str) and val.strip():
+                try:
+                    return json.loads(val)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return fallback
 
         result: dict = {}
         for r in rows:
@@ -64,17 +73,24 @@ def _load_from_db() -> dict:
                 result[domain] = {}
 
             raw_kw = r["keywords"] or "[]"
-            try:
-                kw = json.loads(raw_kw) if isinstance(raw_kw, str) else []
-            except (json.JSONDecodeError, TypeError):
-                kw = [r["section_name"]]
+            kw = _parse_json_field(raw_kw, [r["section_name"]])
             if not kw:
                 kw = [r["section_name"]]
 
-            result[domain][r["section_id"]] = {
+            entry: dict = {
                 "name": r["section_name"],
                 "keywords": kw,
             }
+
+            # 携带 extra_info 和 tags_of_interest（为后续完全迁移到DB做准备）
+            extra = _parse_json_field(r["extra_info"], {})
+            if extra:
+                entry["extra_info"] = extra
+            toi = _parse_json_field(r["tags_of_interest"], [])
+            if toi:
+                entry["tags_of_interest"] = toi
+
+            result[domain][r["section_id"]] = entry
         return result
     except Exception as e:
         if REGISTRY_MODE == "db":
