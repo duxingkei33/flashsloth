@@ -1,8 +1,14 @@
 {
   "platform": "csdn",
-  "explored_at": "2026-07-06T23:12:55.781484+00:00",
+  "explored_at": "2026-07-07T21:54:35.540683+00:00",
   "login_url": "https://passport.csdn.net/login",
   "login_methods": [
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "selector": "input[type='password']"
+    },
     {
       "method": "qrcode",
       "label": "扫码登录",
@@ -12,31 +18,19 @@
           "id": "wechat",
           "label": "微信扫码",
           "detected": true
-        },
-        {
-          "id": "app",
-          "label": "APP扫码",
-          "detected": true
         }
       ],
       "selector": "img[src*='qrcode']"
-    },
-    {
-      "method": "password",
-      "label": "账号密码登录",
-      "detected": true,
-      "selector": "input[type='password']"
     },
     {
       "method": "oauth",
       "label": "第三方账号登录",
       "detected": true,
       "providers": [
-        "wechat_oauth",
-        "weibo",
         "qq",
+        "github",
         "google",
-        "github"
+        "wechat_oauth"
       ]
     },
     {
@@ -45,23 +39,22 @@
       "detected": true
     }
   ],
-  "note": "csdn登录页支持扫码登录/账号密码登录/第三方账号登录/Cookie粘贴/第三方(qq/weibo/github/google/wechat_oauth)",
+  "note": "csdn登录页支持账号密码登录/扫码登录/第三方账号登录/第三方(qq,github,google,wechat_oauth)",
   "raw_detection": {
     "has_password_input": true,
     "has_phone_input": false,
     "has_code_button": false,
-    "has_qrcode_img": true,
+    "has_qrcode_img": false,
     "has_wechat": true,
-    "has_app_qr": true,
+    "has_app_qr": false,
     "third_party_providers": [
       "qq",
-      "weibo",
       "github",
       "google",
       "wechat_oauth"
     ],
     "page_title": "CSDN-专业IT技术社区-登录",
-    "page_url": "https://passport.csdn.net/login?code=applets"
+    "page_url": "https://passport.csdn.net/login"
   },
   "error": null,
   "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/csdn_login.png"

@@ -66,8 +66,12 @@ checks.append(('Comment systems', f'{len(COMMENT_SYSTEMS)} systems'))
 checks.append(('Plugins', f'{len(PLUGINS)} plugins'))
 
 # 8. GitHub Pages deployer plugin
-from core.deployer import list_deployers
-import plugins.deployer_github_pages
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    # Force consistent import path with deployer_github_pages (uses flashsloth.core.deployer)
+    from flashsloth.core.deployer import list_deployers
+    import plugins.deployer_github_pages  # noqa: F401 — triggers @register decorator
 deps = list_deployers()
 checks.append(('Deployer plugins', f'{len(deps)} registered: {[d["name"] for d in deps]}'))
 

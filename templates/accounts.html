@@ -276,7 +276,7 @@
     <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
 
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="⚠️ 仅API轻量检测（不启动浏览器）。只能检测Cookie明显过期的情况，对假Cookie可能误报。如需真实登录态确认，请对每个账号使用「状态检测」按钮（Playwright全量验证）。">🔄 批量预检（API轻量）</button>
+        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="⚠️ 仅API轻量检测（requests访问，不启动浏览器）。只能检测Cookie明显过期的情况（重定向到登录页），对假Cookie可能误报为「待确认」。如需真实登录态确认，请对每个账号点击「🔍 状态检测」或「🔌 验证凭证」按钮（Playwright全量验证）。">🔄 批量预检（API轻量）</button>
         <div class="platform-search-wrap" style="position:relative;display:inline-flex;align-items:stretch;">
             <input type="text" id="platformSearchInput" placeholder="🔍 搜索平台..."
                    autocomplete="off" oninput="onPlatformSearchInput()"
@@ -505,7 +505,8 @@
 
         <!-- 操作按钮组 -->
         <div class="acct-actions">
-            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开目标平台 → 注入Cookie → 验证登录态 → 提取真实用户名/积分/等级/页面标题。集成了完整的Cookie有效性检测与状态验证，无需再单独验证Cookie。">🔍 状态检测</button>
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开目标平台 → 注入Cookie → 验证登录态 → 提取真实用户名/积分/等级/页面标题。真正验证Cookie有效性。">🔍 状态检测</button>
+            <button onclick="testSavedAccount({{ a.id }})" class="btn btn-sm btn-secondary" title="直接验证该账号的Cookie/凭证是否有效，返回真实的登录状态和用户名。与「状态检测」功能相同，但突出凭证验证目的。">🔌 验证凭证</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
             {% if p.name in ('xianyu', 'xianyu_v2') %}
@@ -1271,8 +1272,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             <!-- 操作按钮 -->
             <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-                <button id="btnTestConnectionAdd" type="button" onclick="testConnectionAdd()" class="btn btn-sm btn-secondary" style="display:none;">
-                    🔌 测试连接
+                <button id="btnTestConnectionAdd" type="button" onclick="testConnectionAdd()" class="btn btn-sm btn-secondary" style="display:none;" title="用Playwright打开目标网站 → 注入输入的Cookie/凭证 → 验证是否真正登录 → 返回真实用户名。先验证再保存。">
+                    🔌 验证凭证
                 </button>
                 <button id="btnStartLogin" type="button" onclick="unifiedLoginStart()" class="btn btn-primary" style="display:none;">
                     🚀 开始浏览器登录
@@ -2911,6 +2912,46 @@ function showCaptchaFeedback(text, isError) {
     fb.style.display = 'block';
     fb.style.color = isError ? '#ef4444' : '#22c55e';
     fb.textContent = isError ? '❌ ' + text : '✅ ' + text;
+}
+
+// ====== 已保存账号的验证凭证按钮 ======
+function testSavedAccount(aid) {
+    document.getElementById('statusContent').innerHTML = '<p style="color:#999;">⏳ 正在验证账号凭证...（Playwright真实浏览器验证）</p>';
+    document.getElementById('statusModal').style.display = 'flex';
+
+    fetch('/api/accounts/test/' + aid, {method: 'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var html = '<div style="margin-bottom:12px;">';
+        html += '<p><strong>平台：</strong>' + (data.platform || '—') + '</p>';
+        html += '<p><strong>账号：</strong>' + escapeHtml(data.account_name || '') + '</p>';
+
+        if (data.logged_in && data.username) {
+            html += '<p><strong>用户名：</strong><span style="color:#22c55e;font-weight:600;font-size:16px;">' + escapeHtml(data.username) + '</span></p>';
+            if (data.points) {
+                var pl = data.points_label || '积分';
+                html += '<p><strong>' + pl + '：</strong><span style="font-size:15px;color:#4361ee;">' + data.points + '</span></p>';
+            }
+            if (data.level) {
+                html += '<p><strong>等级：</strong>' + escapeHtml(data.level) + '</p>';
+            }
+        }
+        html += '<p><strong>状态：</strong><span style="font-size:16px;">' + (data.status || '⏳ 未知') + '</span></p>';
+        html += '<p><strong>检测方法：</strong>' + (data.method || 'Playwright') + '</p>';
+        html += '<p><strong>Cookie：</strong>' + (data.has_cookie ? '🍪 有' : '— 无') + '</p>';
+        html += '</div>';
+
+        if (data.logged_in === false && data.has_cookie) {
+            html += '<div class="alert alert-warning" style="margin-top:12px;">⚠️ Cookie 已失效，请使用「浏览器登录」重新获取 Cookie</div>';
+        }
+        document.getElementById('statusContent').innerHTML = html;
+        // 更新卡片上的状态显示
+        renderDeepStatus(aid, data);
+    })
+    .catch(function(e) {
+        document.getElementById('statusContent').innerHTML =
+            '<div class="alert alert-error">❌ 请求失败: ' + escapeHtml(e.message) + '</div>';
+    });
 }
 
 // ====== 添加弹窗中的测试连接 ======

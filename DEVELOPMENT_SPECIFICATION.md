@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.09 | **最后更新**: 2026-07-08 (每小时自动更新)
+**版本**: v5.10+P2 | **最后更新**: 2026-07-08 07:00 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -29,14 +29,14 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 39,709 行 Python | 13,613 行 HTML | 132 Python 文件 | 31 模板文件
+**代码规模**: 40,582 行 Python | 13,613 行 HTML | 135 Python 文件 | 31 模板文件
 || 模块目录 | 行数 |
 ||---------|:----:|
-|| core/ | 11,701 |
-||| routes/ | 9,388 |
-||| plugins/ | 12,689 |
+|| core/ | 11,717 |
+|| routes/ | 9,370 |
+|| plugins/ | 12,867 |
 || sdk/ | 4,563 |
-|| scripts/ | 1,368 |
+|| scripts/ | 1,665 |
 || fs_mgr.py | 321 (全生命周期管理) |
 || admin.py | 81 (入口点) |
 
@@ -67,7 +67,7 @@
 │                   统一工作流引擎                                    │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  core/ 模块层 (33 文件, 11,686 行)                        │   │
+|  │  core/ 模块层 (33 文件, 11,717 行)                        |   |
 │  │  ├── gateway.py (1181行) 通知网关核心                      │   │
 │  │  ├── credential_provider.py (962行) 统一扫码登录引擎        │   │
 │  │  ├── status_detector.py (791行) 三层登录状态检测器          │   │
@@ -1368,6 +1368,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | 价格刷新 | `core/price_monitor.py` | 手动触发 | LCSC 价格更新 |
 | 评论监控 | `routes/comment_monitor.py` 定时器 | 按配置时段(早/中/晚) | 检查帖子新回复+AI自动回帖 |
 | 外部服务健康检查 | `routes/external_services.py` | 按需调用 | 检查 Sidecar 等外部服务状态 |
+| **登录能力探索** | `scripts/refresh_login_capabilities.py` | **每15分钟** | **P0 任务: 重新探索过时(>12h)平台登录能力，更新 login_capabilities JSON 文件 (v5.09 新增)(5f1e67d)** |
 | AI趋势日报 | Hermes cron | 早8/晚8 | AI趋势日报生成+推送 |
 | FS每日备份 | 脚本 `fs_daily_backup.py` | 每天4:30 | 三位一体备份(tar.gz+TAG.txt+git tag) |
 | **凭证守护** | `core/credential_guard.py` | **每30分钟** | **清理过期扫码session + 凭证健康检查 (v4.92 新增)** |
@@ -1404,6 +1405,8 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| `v5.10+P2` | 2026-07-08 07:00 | **v5.10 test_connection 强化** — CSDN/OSHWHub/知乎发布器 test_connection 提取真实用户名+严格退出关键词检测+详细失败原因。README 同步更新。 |
+| **v5.09+P2** | 2026-07-08 | **P2: forum_registry DB双轨读取增强** — 加载extra_info+tags_of_interest字段，新增 `_parse_json_field()` 辅助函数。**deploy路由重定向** — `/deployers` 页面重定向到 `/accounts#deploy` (deploy归一化完成)。**新增 `scripts/refresh_login_capabilities.py`** (293行) — P0任务每15分钟自动探索过时平台登录能力，更新 login_capabilities JSON。仪表盘"管理部署"按钮链接同步到 `/accounts#deploy`。探索报告数据刷新(得物/值买/小红书/CSDN/掘金/知乎等)。 |
 | **v5.09** | 2026-07-08 | **Provider 配置字段动态化** — Provider 基类新增 `config_fields` 属性（各 Provider 声明自己的配置字段），前端 workspace.html 移除硬编码 `wsConfigFieldDefs`，改为从 `/api/workspace/providers` 动态读取并渲染配置面板。平台探索报告数据刷新（得物/值得买/小红书/51CTO/豆瓣）。 |
 | **v5.08** | 2026-07-08 | **deploy归一化增强+auto-start** — deploy配置内联到accounts页面, test_connection统一返回格式, 新增`scripts/e2e_deploy_check.py` (90行) E2E验证脚本, playwright_verify_raw.py扩展至237行, 探索报告更新(得物/值得买/小红书数据刷新), 账号页accounts.html大规模重构(729行变更), forum_registry双轨验证P2 TODO关闭. |
 | **v5.07** | 2026-07-08 | **forum_registry双轨验证完成 + P0巡检** — 探索报告数据更新(得物/值得买/小红书), PROJECT_STATUS同步, 架构文档同步。 |
@@ -1466,7 +1469,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `database.py` | 数据库初始化 + 连接 + 种子数据 |
 | `deployer.py` | 部署器基类 |
 | `explorer.py` | Playwright 论坛探索引擎 |
-| `forum_registry.py` | **统一智能版块匹配系统 — 双轨读取 JSON+DB (397行, v5.02)** |
+| `forum_registry.py` | **统一智能版块匹配系统 — 双轨读取 JSON+DB (413行, v5.02, v5.09 P2增强加载extra_info+tags_of_interest)** |
 | `gateway.py` | 通知网关核心（Provider 注册表，1181行） |
 | `image_pipeline.py` | 图片处理流水线 |
 | `notifier.py` | 统一通知系统 |
@@ -1484,7 +1487,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `status_detector.py` | 三层登录状态检测器 (v5.02 修复) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,388 行)
+### routes/ (25 个 Python 文件, 9,371 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
@@ -1509,11 +1512,11 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合, v5.06 P0修复) |
 | `price_monitor.py` | 122 | 价格监控管理/刷新 |
 | `signin.py` | 374 | 签到管理/手动签到/统计 |
-| `storage_deploy.py` | 531 | 存储后端配置/部署器管理 (v5.08 deploy归一化+test_connection统一格式) |
+| `storage_deploy.py` | 513 | 存储后端配置/部署器管理 — `/deployers` 已重定向到 `/accounts#deploy` (v5.08 deploy归一化, v5.09 路由重定向) |
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 12,679 行)
+### plugins/ (48 个 Python 文件, 12,690 行)
 **发布器 (16个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1646,13 +1649,14 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (8 个 Python 脚本, 1,368 行)
+### scripts/ (9 个 Python 脚本, 1,661 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
 | `playwright_verify.py` | 子进程 Playwright 账号登录验证 (303行) |
 | `playwright_verify_raw.py` | **子进程 Playwright 验证脚本(原始参数模式) — 添加账号连接测试 (237行, v5.06 新增, v5.08 扩展)** |
 | `e2e_deploy_check.py` | **部署归一化E2E验证脚本 (90行, v5.08 新增)** |
+| `refresh_login_capabilities.py` | **登录能力探索脚本 — 每15分钟自动探索过时(>12h)平台登录能力，更新 JSON 文件 (293行, v5.09 新增)** |
 | `sync_registry_keywords.py` | 同步 forum_registry 关键词到 DB |
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
@@ -1688,4 +1692,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.09 | Python 总行数: 39,709 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,613 行 (31 模板) | 新增: Provider 基类 config_fields 动态配置字段 | 最后更新: 2026-07-08*
+*版本: v5.10+P2 | Python 总行数: 40,582 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,613 行 (31 模板) | 新增: test_connection 强化(CSDN/OSHWHub/知乎真实用户名提取+严格退出检测) | 最后更新: 2026-07-08 07:00*

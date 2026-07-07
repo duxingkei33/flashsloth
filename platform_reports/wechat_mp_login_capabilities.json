@@ -1,8 +1,14 @@
 {
   "platform": "wechat_mp",
-  "explored_at": "2026-07-06T23:13:40.657802+00:00",
+  "explored_at": "2026-07-07T21:55:01.696318+00:00",
   "login_url": "https://mp.weixin.qq.com/",
   "login_methods": [
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "selector": "input[type='password']"
+    },
     {
       "method": "qrcode",
       "label": "扫码登录",
@@ -12,27 +18,18 @@
           "id": "wechat",
           "label": "微信扫码",
           "detected": true
-        },
-        {
-          "id": "app",
-          "label": "APP扫码",
-          "detected": true
         }
       ],
       "selector": "img[src*='qrcode']"
-    },
-    {
-      "method": "password",
-      "label": "账号密码登录",
-      "detected": true,
-      "selector": "input[type='password']"
     },
     {
       "method": "oauth",
       "label": "第三方账号登录",
       "detected": true,
       "providers": [
-        "qq"
+        "qq",
+        "google",
+        "wechat_oauth"
       ]
     },
     {
@@ -41,16 +38,18 @@
       "detected": true
     }
   ],
-  "note": "wechat_mp登录页支持扫码登录/账号密码登录/第三方账号登录/Cookie粘贴/第三方(qq)",
+  "note": "wechat_mp登录页支持账号密码登录/扫码登录/第三方账号登录/第三方(qq,google,wechat_oauth)",
   "raw_detection": {
     "has_password_input": true,
     "has_phone_input": false,
     "has_code_button": false,
     "has_qrcode_img": true,
     "has_wechat": true,
-    "has_app_qr": true,
+    "has_app_qr": false,
     "third_party_providers": [
-      "qq"
+      "qq",
+      "google",
+      "wechat_oauth"
     ],
     "page_title": "微信公众平台",
     "page_url": "https://mp.weixin.qq.com/"

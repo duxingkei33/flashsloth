@@ -4,21 +4,14 @@
   "domain": "xiaohongshu.com",
   "category": "social",
   "architecture": "custom",
-  "explored_at": "2026-07-08 04:25:08",
-  "last_updated": "2026-07-08 04:25:08",
+  "explored_at": "2026-07-08 06:23:32",
+  "last_updated": "2026-07-08 06:23:32",
   "explored_with_login": true,
   "has_account": false,
   "has_publisher": false,
   "login": {
     "login_url": "https://www.xiaohongshu.com/explore",
     "methods": [
-      {
-        "method": "phone",
-        "name": "手机验证码登录",
-        "fields": [
-          "xhs-pc-web-phone"
-        ]
-      },
       {
         "method": "captcha",
         "name": "验证码登录",
@@ -33,8 +26,6 @@
           "img[src*='data:image/png;base64,iVBORw0K']",
           "img[src*='data:image/png;base64,iVBORw0K']",
           "img[src*='data:image/png;base64,iVBORw0K']",
-          "img[src*='https://sns-webpic-qc.xhscdn.c']",
-          "img[src*='https://sns-avatar-qc.xhscdn.c']",
           "img[src*='https://sns-webpic-qc.xhscdn.c']"
         ]
       }
@@ -52,7 +43,7 @@
     "third_party": {
       "wechat": true,
       "weibo": false,
-      "qq": false,
+      "qq": true,
       "github": false,
       "apple": false,
       "others": []
@@ -63,16 +54,14 @@
         "img[src*='data:image/png;base64,iVBORw0K']",
         "img[src*='data:image/png;base64,iVBORw0K']",
         "img[src*='data:image/png;base64,iVBORw0K']",
-        "img[src*='https://sns-webpic-qc.xhscdn.c']",
-        "img[src*='https://sns-avatar-qc.xhscdn.c']",
         "img[src*='https://sns-webpic-qc.xhscdn.c']"
       ],
       "qr_container_sel": ""
     },
     "fields": [
       {
-        "type": "phone",
-        "name": "xhs-pc-web-phone",
+        "type": "text",
+        "name": "blur",
         "id": "",
         "placeholder": "输入手机号",
         "autocomplete": ""

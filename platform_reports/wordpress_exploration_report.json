@@ -1,0 +1,153 @@
+{
+  "platform": "wordpress",
+  "display_name": "WordPress",
+  "type": "cms",
+  "site_url": "https://wordpress.org",
+  "explored_at": "2026-07-08T07:00:00Z",
+  "explored_with_login": false,
+  "needs_credentials": true,
+  "login_page_url": "/wp-login.php",
+  "tech_stack": [
+    "PHP",
+    "MySQL/MariaDB",
+    "WP REST API (v2)"
+  ],
+  "login": {
+    "url": "/wp-login.php",
+    "methods": {
+      "password": {
+        "description": "应用密码认证（推荐）",
+        "fields": [
+          {"key": "site_url", "type": "text", "placeholder": "https://yourblog.com"},
+          {"key": "username", "type": "text", "placeholder": "WordPress 用户名"},
+          {"key": "app_password", "type": "password", "placeholder": "应用密码"}
+        ],
+        "notes": "使用 WordPress 的 Application Passwords（应用密码）功能，通过 HTTP Basic Auth 调用 REST API。每个应用密码对应一个独立 Token，可随时撤销。需要在 WP 后台「用户 → 个人资料 → 应用密码」中生成。"
+      },
+      "playwright_browser": {
+        "description": "通过 Playwright 浏览器自动填写登录表单",
+        "fields": [
+          {"key": "site_url", "type": "text", "placeholder": "https://yourblog.com"},
+          {"key": "username", "type": "text", "placeholder": "WordPress 用户名"},
+          {"key": "password", "type": "password", "placeholder": "WordPress 密码"}
+        ],
+        "selectors": {
+          "username_input": "#user_login",
+          "password_input": "#user_pass",
+          "login_button": "#wp-submit",
+          "remember_checkbox": "#rememberme"
+        },
+        "notes": "打开 /wp-login.php → 填写用户名密码 → 勾选记住我 → 点登录"
+      },
+      "cookie": {
+        "description": "从浏览器 F12 复制 Cookie",
+        "required_keys": ["wordpress_logged_in", "wordpress_sec", "wordpress_user"]
+      }
+    }
+  },
+  "publishing": {
+    "api_base": "/wp-json/wp/v2",
+    "auth_method": "HTTP Basic Auth (Application Passwords)",
+    "posts": {
+      "create": "POST /wp/v2/posts",
+      "update": "POST /wp/v2/posts/{id}",
+      "delete": "DELETE /wp/v2/posts/{id}",
+      "request_body": {
+        "title": "文章标题",
+        "content": "文章正文（HTML 格式）",
+        "status": "draft|publish|pending",
+        "categories": [1],
+        "tags": [1],
+        "featured_media": 0,
+        "excerpt": "文章摘要",
+        "slug": "URL 别名",
+        "format": "standard|gallery|link|image|quote|status|video|audio|chat"
+      },
+      "supported_formats": ["draft", "publish", "pending"],
+      "notes": "POST /wp/v2/posts 直接支持 status 参数控制发布或存草稿"
+    },
+    "categories": {
+      "list": "GET /wp/v2/categories",
+      "create": "POST /wp/v2/categories",
+      "fields": {"name": "分类名称", "parent": "父分类ID"}
+    },
+    "tags": {
+      "list": "GET /wp/v2/tags",
+      "create": "POST /wp/v2/tags",
+      "fields": {"name": "标签名称"}
+    },
+    "media": {
+      "upload": "POST /wp/v2/media",
+      "method": "multipart/form-data",
+      "auth_required": true,
+      "fields": {"file": "图片文件", "title": "媒体标题", "alt_text": "替代文本"},
+      "response": {"id": "媒体ID", "source_url": "图片URL", "media_details": "图片元数据"}
+    },
+    "users": {
+      "me": "GET /wp/v2/users/me",
+      "used_for_login_check": true
+    }
+  },
+  "image_upload": {
+    "api": "/wp/v2/media",
+    "method": "multipart/form-data POST",
+    "auth_required": "HTTP Basic Auth (Application Passwords)",
+    "limits": {
+      "max_file_size": "由 WordPress 配置决定（默认 2MB-128MB）",
+      "supported_formats": ["jpg", "jpeg", "png", "gif", "webp", "svg"]
+    },
+    "notes": "上传成功返回 media ID 和 source_url，可在文章中用 featured_media 或 block HTML 引用"
+  },
+  "draft_management": {
+    "supports_draft": true,
+    "api_create_draft": "POST /wp/v2/posts (status=draft)",
+    "api_submit_draft": "POST /wp/v2/posts/{id} (status=publish)",
+    "api_list": "GET /wp/v2/posts?status=draft",
+    "api_delete": "DELETE /wp/v2/posts/{id}",
+    "notes": "WordPress 原生支持草稿/发布双状态，REST API 直接用 status 参数控制"
+  },
+  "sign_in": {"supported": false, "notes": "WordPress 无签到功能"},
+  "scraping": {
+    "api_posts": "GET /wp/v2/posts",
+    "api_post_detail": "GET /wp/v2/posts/{id}",
+    "api_comments": "GET /wp/v2/comments?post={id}",
+    "notes": "WordPress REST API 默认公开，无需认证即可读取公开文章和评论"
+  },
+  "api_endpoints": {
+    "auth": [
+      {"url": "/wp-login.php", "desc": "Web 登录页"},
+      {"url": "/wp-json/wp/v2/users/me", "desc": "当前用户信息（用于检测登录态）"}
+    ],
+    "content": [
+      {"url": "/wp-json/wp/v2/posts", "desc": "文章 CRUD"},
+      {"url": "/wp-json/wp/v2/categories", "desc": "分类管理"},
+      {"url": "/wp-json/wp/v2/tags", "desc": "标签管理"},
+      {"url": "/wp-json/wp/v2/media", "desc": "媒体上传与查询"},
+      {"url": "/wp-json/wp/v2/pages", "desc": "页面管理"},
+      {"url": "/wp-json/wp/v2/comments", "desc": "评论管理"},
+      {"url": "/wp-json/wp/v2/settings", "desc": "站点设置（需管理员）"}
+    ],
+    "block_editor": [
+      {"url": "/wp-admin/post-new.php", "desc": "Gutenberg 块编辑器"},
+      {"url": "/wp-admin/post.php?post={id}&action=edit", "desc": "编辑特定文章"}
+    ]
+  },
+  "adapter_status": {
+    "publisher": "✅ plugins/publisher_wordpress.py — REST API 方式发布/存草稿/上传",
+    "sdk_adapter": "✅ sdk/adapters/wordpress.py — 发布/预留采集",
+    "login_plugin": "❌ 不需要（使用 REST API 应用密码认证，无需 Playwright）",
+    "account_in_db": "❌ 无（需要用户提供站点 URL 和应用密码）",
+    "e2e_verified": "❌ 未执行（缺少有效站点凭证）"
+  },
+  "special_notes": [
+    "WordPress 使用 REST API 发布，不需要 Playwright 浏览器操作（推荐方案）",
+    "应用密码在 WP 后台「用户→个人资料→应用密码」生成，每个关联一个应用名称，可独立撤销",
+    "REST API 端点格式：{site_url}/wp-json/wp/v2/{resource}",
+    "如果需要浏览器登录（如操作 Gutenberg 编辑器），使用 Playwright 打开 /wp-login.php",
+    "自托管 WordPress 每站点都有自己的 site_url，无法统一硬编码",
+    "图片上传使用 multipart/form-data POST 到 /wp/v2/media，返回 id + source_url",
+    "文章发布后可通过 site_url/?p={id} 或 site_url/{slug} 访问",
+    "发表文章不需要额外审核，status=publish 直接公开",
+    "WordPress 有 xmlrpc.php（传统远端发布协议）和 REST API（推荐）两种远端发布方式"
+  ]
+}

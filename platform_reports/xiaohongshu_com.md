@@ -2,15 +2,14 @@
 
 - 分类: social
 - 架构: custom
-- 探索时间: 2026-07-08 04:25:08
+- 探索时间: 2026-07-08 06:23:32
 
 ## 🔐 登录能力
 
 - 登录页: https://www.xiaohongshu.com/explore
-- 手机验证码登录: fields=['xhs-pc-web-phone']
 - 验证码登录: fields=['']
 - 扫码登录: fields=[]
-- 第三方登录: wechat
+- 第三方登录: wechat, qq
 - 验证码: ['slider', 'sms_code']
 - 二维码: ✅ 有
 - Cookie提示: sid, session, token, web_session

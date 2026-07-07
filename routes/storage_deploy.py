@@ -180,27 +180,9 @@ def storage_delete():
 @app.route("/deployers")
 @login_required
 def deployers_page():
-   """部署配置管理页（增强版：含站点配置）"""
-   conn = get_db()
-   configs = conn.execute(
-       "SELECT * FROM deployer_configs WHERE user_id=? ORDER BY created_at DESC",
-       (current_user.id,)
-   ).fetchall()
-   logs = conn.execute(
-       "SELECT * FROM deploy_log ORDER BY created_at DESC LIMIT 20"
-   ).fetchall()
-   sc = conn.execute(
-       "SELECT * FROM site_configs WHERE user_id=? ORDER BY id DESC LIMIT 1",
-       (current_user.id,)
-   ).fetchone()
-   conn.close()
-
-   deployer_list = list_deployers()
-   return render_template("deployers.html",
-                        deployers=deployer_list,
-                        configs=configs,
-                        logs=logs,
-                        site_config=dict(sc) if sc else None)
+   """部署配置管理 — 已整合到账号页 /accounts#deploy，此处重定向"""
+   flash("⏩ 部署管理已迁移到账号页的「部署配置」区块", "info")
+   return redirect("/accounts#deploy")
 
 @app.route("/deployers/add", methods=["POST"])
 @login_required
