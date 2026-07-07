@@ -119,7 +119,7 @@
 
 <!-- ====== 搜索/过滤/排序栏 (优化1/6) ====== -->
 <div class="filter-bar">
-    <input type="text" id="searchInput" placeholder="🔍 搜索账号名称、平台、站点..." oninput="filterAccounts()">
+    <input type="text" id="searchInput" placeholder="🔍 搜索账号名称、平台、站点..." oninput="filterAccounts()" onkeydown="filterAccountsImmediate(event)">
     <select id="filterPlatform" onchange="filterAccounts()">
         <option value="">所有平台</option>
         {% for p in platforms %}
@@ -139,6 +139,7 @@
     <button class="sort-btn active" data-sort="platform" onclick="sortAccounts('platform')">📋 平台</button>
     <button class="sort-btn" data-sort="name" onclick="sortAccounts('name')">📛 名称</button>
     <button class="sort-btn" data-sort="status" onclick="sortAccounts('status')">✅ 状态</button>
+    <button class="sort-btn" data-sort="lastcheck" onclick="sortAccounts('lastcheck')">⏱ 检测</button>
 
     <span class="filter-count" id="filterCount"></span>
 
@@ -172,7 +173,27 @@
     'xianyu': '🐟', 'xianyu_v2': '🐟', 'taobao': '🛒',
     'wordpress': '🔗', 'github_pages': '📄', 'github_pages_blog': '📄',
     'static_site': '🌐', 'github': '🐙',
+    'douyin': '🎵', 'kuaishou': '📱', 'xiaohongshu': '📕',
+    'tieba': '📋', 'jianshu': '✍️', 'medium': '✏️',
+    'segmentfault': '💻', 'v2ex': '🔶', 'hackernews': '🔴',
+    'qqzone': '💫', 'weibo': '📢', 'toutiao': '📰',
     'default': '🔑'
+} %}
+
+{% set platform_colors = {
+    'discuz': '#e8f5e9', 'amobbs': '#e3f2fd', 'mydigit': '#fce4ec',
+    'oshwhub': '#fff3e0', 'oshwhub_eda': '#fff8e1',
+    'csdn': '#e8eaf6', 'cnblogs': '#f3e5f5',
+    'zhihu': '#e0f2f1', 'bilibili': '#fce4ec', 'juejin': '#e8f5e9',
+    'wechat': '#e8f5e9', 'wechat_mp': '#e3f2fd',
+    'xianyu': '#fff3e0', 'xianyu_v2': '#fff3e0', 'taobao': '#fce4ec',
+    'wordpress': '#e8eaf6', 'github_pages': '#f5f5f5', 'github_pages_blog': '#f5f5f5',
+    'static_site': '#f5f5f5', 'github': '#f5f5f5',
+    'douyin': '#fce4ec', 'kuaishou': '#fff3e0', 'xiaohongshu': '#fce4ec',
+    'tieba': '#e3f2fd', 'jianshu': '#f3e5f5', 'medium': '#f5f5f5',
+    'segmentfault': '#e8f5e9', 'v2ex': '#fff8e1', 'hackernews': '#fce4ec',
+    'qqzone': '#e3f2fd', 'weibo': '#fce4ec', 'toutiao': '#fff3e0',
+    'default': '#f0f4ff'
 } %}
 
 <!-- ====== 有账号的平台卡片 (优化5: 卡片模式) ====== -->
@@ -200,17 +221,19 @@
     {% set cfg = a.config_json|from_json if a.config_json else {} %}
     {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
     {% set is_online = cached.get('logged_in', None) if cached else None %}
+    {% set last_check_ts = cached.get('_cache_timestamp', 0) if cached else 0 %}
     {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
     <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
          data-platform="{{ p.name }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else 'unknown') }}"
-         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}">
+         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}"
+         data-site-url="{{ cfg.get('site_url', '')|lower }}" data-last-check="{{ last_check_ts }}">
         <!-- 批量选择框 (优化3) -->
         <div class="check-wrap">
             <input type="checkbox" class="acct-checkbox" value="{{ a.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;cursor:pointer;">
         </div>
 
         <!-- 平台图标 (优化4) -->
-        <span class="plat-icon" style="background:{{ '#ecfdf3' if is_online else ('#fef2f2' if is_online == False else '#f5f5f5') }};">
+        <span class="plat-icon" style="background:{{ platform_colors.get(p.name, '#f0f4ff') }};">
             {{ platform_icons.get(p.name, platform_icons['default']) }}
         </span>
 
@@ -340,6 +363,37 @@
     </div>
     <button onclick="document.getElementById('newPlatformSelect').focus()" class="btn btn-primary" style="font-size:15px;padding:10px 24px;">🚀 选择平台开始添加</button>
     <p style="margin-top:12px;font-size:12px;color:#aaa;">已有账号？在上方下拉框中选择平台，点击「添加」即可</p>
+
+    <!-- 快捷平台入口 (优化7) -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
+        <p style="font-size:13px;color:#888;margin-bottom:10px;">⚡ 快捷添加：直接选择热门平台</p>
+        <div class="quick-plat-grid" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;max-width:500px;margin:0 auto;">
+            {% for p in platforms[:12] %}
+            <button type="button" class="quick-plat-btn" data-platform="{{ p.name }}"
+                    style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#f8f9fa;cursor:pointer;font-size:13px;transition:all .15s;display:flex;align-items:center;gap:5px;"
+                    onclick="quickAddPlatform('{{ p.name }}')"
+                    onmouseover="this.style.borderColor='#4361ee';this.style.background='#f0f4ff';"
+                    onmouseout="this.style.borderColor='#ddd';this.style.background='#f8f9fa';"
+                    title="添加 {{ p.display_name }} 账号">
+                <span>{{ platform_icons.get(p.name, platform_icons['default']) }}</span>
+                <span>{{ p.display_name }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+    function quickAddPlatform(platform) {
+        var sel = document.getElementById('newPlatformSelect');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === platform) {
+                sel.selectedIndex = i;
+                break;
+            }
+        }
+        sel.focus();
+        onAddAccount();
+    }
+    </script>
 </div>
 {% endif %}
 
@@ -568,8 +622,24 @@
 <script>
 // ====== 增强：搜索/过滤/排序/批量/视图切换 (优化1/3/5/6) ======
 
-// ─── 搜索与过滤 (优化1) ───
+// ─── 搜索与过滤 (优化1 — 增强版: debounce + 站点URL搜索) ───
+let _searchTimer = null;
 function filterAccounts() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(function() {
+        _doFilterAccounts();
+    }, 200);
+}
+
+// 回车键立即搜索
+function filterAccountsImmediate(e) {
+    if (e.key === 'Enter') {
+        clearTimeout(_searchTimer);
+        _doFilterAccounts();
+    }
+}
+
+function _doFilterAccounts() {
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
     const p = document.getElementById('filterPlatform').value;
     const s = document.getElementById('filterStatus').value;
@@ -580,12 +650,13 @@ function filterAccounts() {
         const name = (card.dataset.name || '').toLowerCase();
         const platform = card.dataset.platform || '';
         const status = card.dataset.status || 'unknown';
+        const siteUrl = (card.dataset.siteUrl || '').toLowerCase();
         const isEnabled = !card.classList.contains('disabled');
 
-        // Search
+        // Search: name + platform + site_url
         let match = true;
         if (q) {
-            match = name.includes(q) || platform.includes(q);
+            match = name.includes(q) || platform.includes(q) || siteUrl.includes(q);
         }
         if (match && p) {
             match = platform === p;
@@ -602,9 +673,8 @@ function filterAccounts() {
 
     // 隐藏/显示空的分组
     document.querySelectorAll('.card[data-platform]').forEach(function(group) {
-        const visibleCards = group.querySelectorAll('.acct-card[style*="display: none"]');
-        const totalCards = group.querySelectorAll('.acct-card').length;
-        if (visibleCards.length === totalCards) {
+        const visibleCards = group.querySelectorAll('.acct-card:not([style*="display: none"])');
+        if (visibleCards.length === 0) {
             group.style.display = 'none';
         } else {
             group.style.display = '';
@@ -658,6 +728,17 @@ function sortAccounts(field) {
                 var yo = order[y.dataset.status] || 99;
                 return _sortAsc ? xo - yo : yo - xo;
             });
+        } else if (field === 'lastcheck') {
+            cardsA.sort(function(x, y) {
+                var xc = parseFloat(x.dataset.lastCheck) || 0;
+                var yc = parseFloat(y.dataset.lastCheck) || 0;
+                return _sortAsc ? xc - yc : yc - xc;
+            });
+            cardsB.sort(function(x, y) {
+                var xc = parseFloat(x.dataset.lastCheck) || 0;
+                var yc = parseFloat(y.dataset.lastCheck) || 0;
+                return _sortAsc ? xc - yc : yc - xc;
+            });
         } else {
             // 按平台分组排序
             return _sortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
@@ -678,6 +759,32 @@ function setViewMode(mode) {
         btn.classList.toggle('active', btn.textContent.includes(mode === 'card' ? '卡片' : '列表'));
     });
     document.getElementById('accountsContainer').className = mode === 'card' ? 'card-view' : 'compact-view';
+}
+
+// ─── 最后检测时间自动更新 (优化2 — 客户端定时器) ───
+function startTimeAutoUpdater() {
+    // 每10秒更新一次所有 "X秒前" / "X分前" 时间标签
+    setInterval(function() {
+        document.querySelectorAll('#accountsContainer .time-tag').forEach(function(tag) {
+            var text = tag.textContent.trim();
+            // 匹配 "⏳ N秒前" 或 "⏳ N分前"
+            var secMatch = text.match(/⏳\s*(\d+)\u79d2\u524d/);
+            var minMatch = text.match(/⏳\s*(\d+)\u5206\u524d/);
+            if (secMatch) {
+                var secs = parseInt(secMatch[1]) + 10;
+                if (secs >= 60) {
+                    tag.innerHTML = '<span style="color:#f59e0b;">⏳ 1分前</span>';
+                } else {
+                    tag.innerHTML = '<span style="color:#22c55e;">⏳ ' + secs + '秒前</span>';
+                }
+            } else if (minMatch) {
+                var mins = parseInt(minMatch[1]);
+                // 每10秒更新一次分钟计数太密集，改为每轮+1
+                // 实际上这里不用频繁更新，因为分钟变化慢，靠页面刷新即可
+                // 但秒级更新对用户感知有帮助
+            }
+        });
+    }, 10000);
 }
 
 // ─── 批量操作 (优化3) ───
@@ -780,6 +887,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(() => {});
     setTimeout(refreshAllStatuses, 2000);
     setInterval(refreshAllStatuses, 120000);
+    startTimeAutoUpdater();
     // 初始化过滤统计
     setTimeout(filterAccounts, 100);
 });
@@ -1582,25 +1690,71 @@ function toggleKeepAlive(aid, checkbox) {
 
 // ====== 批量刷新 ======
 function batchRefreshAccounts() {
-    var btn = event && event.target ? event.target : document.querySelector('button[onclick*="batchRefresh"]');
+    var btn = document.querySelector('button[onclick*="batchRefresh"]');
     if (btn) { btn.disabled = true; btn.textContent = '🔄 刷新中...'; }
+    
+    // 显示进度
+    showBatchRefreshProgress('start');
 
     fetch('/api/accounts/batch/refresh', {method: 'POST'})
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {
+            showBatchRefreshProgress('done', data.refreshed + '/' + data.total);
             refreshAllStatuses(false);
-            alert('批量刷新完成：' + data.refreshed + '/' + data.total + ' 个账号已刷新');
+            setTimeout(function() {
+                if (btn) { btn.disabled = false; btn.textContent = '🔄 批量刷新'; }
+                showBatchRefreshProgress('hide');
+            }, 3000);
         } else {
-            alert('批量刷新失败：' + (data.error || '未知错误'));
+            showBatchRefreshProgress('error', data.error || '未知错误');
+            setTimeout(function() {
+                if (btn) { btn.disabled = false; btn.textContent = '🔄 批量刷新'; }
+                showBatchRefreshProgress('hide');
+            }, 3000);
         }
     })
     .catch(function(e) {
-        alert('请求失败: ' + e.message);
-    })
-    .finally(function() {
-        if (btn) { btn.disabled = false; btn.textContent = '🔄 批量刷新'; }
+        showBatchRefreshProgress('error', e.message);
+        setTimeout(function() {
+            if (btn) { btn.disabled = false; btn.textContent = '🔄 批量刷新'; }
+            showBatchRefreshProgress('hide');
+        }, 3000);
     });
+}
+
+// ─── 批量刷新进度条 (优化3) ───
+function showBatchRefreshProgress(state, msg) {
+    var el = document.getElementById('batchRefreshProgress');
+    if (!el) {
+        // 首次创建进度条
+        el = document.createElement('div');
+        el.id = 'batchRefreshProgress';
+        el.style.cssText = 'margin-bottom:10px;border-radius:8px;overflow:hidden;display:none;';
+        var filterBar = document.querySelector('.filter-bar');
+        if (filterBar) {
+            filterBar.parentNode.insertBefore(el, filterBar.nextSibling);
+        }
+    }
+    
+    if (state === 'start') {
+        el.style.display = 'block';
+        el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;">'
+            + '<div style="font-size:13px;color:#4361ee;flex-shrink:0;">🔄 批量刷新中...</div>'
+            + '<div style="flex:1;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden;">'
+            + '<div style="width:100%;height:100%;background:linear-gradient(90deg,#4361ee,#7c3aed);border-radius:3px;animation:refreshProgress 1.5s ease-in-out infinite;"></div>'
+            + '</div>'
+            + '</div>'
+            + '<style>@keyframes refreshProgress { 0% {width:20%;} 50% {width:80%;} 100% {width:20%;} }</style>';
+    } else if (state === 'done') {
+        el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:13px;color:#065f46;">'
+            + '✅ 批量刷新完成：已刷新 ' + msg + ' 个账号</div>';
+    } else if (state === 'error') {
+        el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#991b1b;">'
+            + '❌ 批量刷新失败：' + (msg || '未知错误') + '</div>';
+    } else {
+        el.style.display = 'none';
+    }
 }
 
 // ====== 自动刷新状态 ======
