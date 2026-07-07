@@ -38,8 +38,12 @@
 
 ## 🟡 微信公众号 — API 配置
 **文件**: `plugins/publisher_wechat.py`
-**状态**: ⏸ 框架就绪，需研究素材 API
+**状态**: ⏸ Publisher 完整就绪 (v4.57) — 含图片上传 + 封面支持 + 自动摘要
 **需要**: 公众号 AppID + AppSecret
+- **来源**: [微信公众平台](https://mp.weixin.qq.com) → 开发 → 基本配置
+- **注意**: API 只能存草稿，正式发布需在手机微信上操作
+- **探索报告**: `platform_reports/wechat_mp.md` ✅
+- **平台能力已入库**: `platform_config` ✅
 
 ## 🟢 闲鱼 — 已有 Cookie (V2 MTOP)
 **文件**: `plugins/publisher_xianyu_v2.py`

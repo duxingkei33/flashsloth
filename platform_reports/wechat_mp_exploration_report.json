@@ -1,0 +1,119 @@
+{
+  "platform": "wechat_mp",
+  "display_name": "WeChat Official Account",
+  "site_url": "https://mp.weixin.qq.com",
+  "exploration_date": "2026-07-07 11:54:34",
+  "login": {
+    "page_title": "微信公众平台",
+    "input_fields": [],
+    "buttons": [],
+    "has_qrcode": true,
+    "has_password_tab": false
+  },
+  "capabilities": {
+    "publish": {
+      "supported": true,
+      "api_method": "Official API (AppID+AppSecret)",
+      "content_format": "HTML subset",
+      "notes": "Requires AppID+AppSecret. API can only save drafts, publish needs phone confirmation."
+    },
+    "upload_image": {
+      "supported": true,
+      "method": "/cgi-bin/material/add_material",
+      "limits": {
+        "max_size": "10MB",
+        "formats": [
+          "bmp",
+          "png",
+          "jpeg",
+          "jpg",
+          "gif"
+        ]
+      },
+      "notes": "Must upload to WeChat material library before use in articles"
+    },
+    "save_draft": {
+      "supported": true,
+      "api": "/cgi-bin/draft/add",
+      "notes": "Full CRUD: create, update, delete, batchget"
+    },
+    "publish_from_draft": {
+      "supported": true,
+      "api": "/cgi-bin/freepublish/submit",
+      "notes": "Needs phone confirmation for actual publishing"
+    },
+    "sign_in": {
+      "supported": false,
+      "notes": "No sign-in for WeChat OA"
+    },
+    "fetch_posts": {
+      "supported": true,
+      "api": "/cgi-bin/freepublish/batchget"
+    },
+    "fetch_drafts": {
+      "supported": true,
+      "api": "/cgi-bin/draft/batchget"
+    },
+    "recommended_login": {
+      "method": "AppID+AppSecret (API) or WeChat Scan (Playwright)"
+    },
+    "auth_required": {
+      "type": "AppID + AppSecret",
+      "how_to_get": "mp.weixin.qq.com -> Development -> Basic Config"
+    }
+  },
+  "api_endpoints": {
+    "reference": {
+      "token": {
+        "url": "https://api.weixin.qq.com/cgi-bin/token",
+        "method": "GET",
+        "params": {
+          "grant_type": "client_credential",
+          "appid": "...",
+          "secret": "..."
+        },
+        "desc": "Get access token"
+      },
+      "draft_add": {
+        "url": "https://api.weixin.qq.com/cgi-bin/draft/add",
+        "method": "POST",
+        "desc": "Create draft"
+      },
+      "draft_update": {
+        "url": "https://api.weixin.qq.com/cgi-bin/draft/update",
+        "method": "POST",
+        "desc": "Update draft"
+      },
+      "draft_get": {
+        "url": "https://api.weixin.qq.com/cgi-bin/draft/get",
+        "method": "POST",
+        "desc": "Get draft detail"
+      },
+      "draft_delete": {
+        "url": "https://api.weixin.qq.com/cgi-bin/draft/delete",
+        "method": "POST",
+        "desc": "Delete draft"
+      },
+      "draft_batchget": {
+        "url": "https://api.weixin.qq.com/cgi-bin/draft/batchget",
+        "method": "POST",
+        "desc": "Batch get drafts"
+      },
+      "material_add": {
+        "url": "https://api.weixin.qq.com/cgi-bin/material/add_material",
+        "method": "POST",
+        "desc": "Upload image material"
+      },
+      "publish_submit": {
+        "url": "https://api.weixin.qq.com/cgi-bin/freepublish/submit",
+        "method": "POST",
+        "desc": "Submit draft for publication"
+      },
+      "publish_batchget": {
+        "url": "https://api.weixin.qq.com/cgi-bin/freepublish/batchget",
+        "method": "POST",
+        "desc": "Get published articles"
+      }
+    }
+  }
+}
