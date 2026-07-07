@@ -130,6 +130,27 @@ def delete_post(pid):
    flash("文章已删除", "success")
    return redirect(url_for("index"))
 
+
+@app.route("/api/articles/batch-delete", methods=["POST"])
+@login_required
+def batch_delete_articles():
+   """批量删除文章"""
+   data = request.get_json() or {}
+   ids = data.get("ids", [])
+   if not ids or not isinstance(ids, list):
+       return jsonify({"success": False, "error": "请提供要删除的文章ID列表"})
+   
+   conn = get_db()
+   deleted = 0
+   for pid in ids:
+       cursor = conn.execute("DELETE FROM articles WHERE id=? AND user_id=?", (pid, current_user.id))
+       deleted += cursor.rowcount
+   conn.commit()
+   conn.close()
+   flash(f"已删除 {deleted} 篇文章", "success")
+   return jsonify({"success": True, "deleted": deleted})
+
+
 # ─── 发布 ───────────────────────────────────────
 @app.route("/publish", methods=["POST"])
 @login_required

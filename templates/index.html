@@ -99,14 +99,30 @@
 
 <!-- 📝 文章列表 -->
 <div class="card" id="articles">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <h2 style="margin:0;">📝 文章 <span style="font-size:13px;color:#999;font-weight:normal;">（共 {{ total_articles }} 篇，已发布 {{ total_published }} 篇）</span></h2>
         <a href="/post/new" class="btn btn-success">+ 新建</a>
     </div>
+
+    <!-- 批量操作工具栏 -->
+    <div id="articleBatchToolbar" class="batch-toolbar" style="display:none;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="articleSelectAll" onchange="toggleArticleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;">
+            <span style="font-size:13px;">全选</span>
+        </label>
+        <span class="batch-count" id="articleBatchCount" style="font-weight:600;color:#4361ee;">已选 0 篇</span>
+        <button onclick="batchDeleteArticles()" class="btn btn-sm btn-danger">🗑 批量删除</button>
+        <button onclick="batchPublishArticles()" class="btn btn-sm btn-success">🚀 批量发布</button>
+        <button onclick="clearArticleSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
+        <span id="articleBatchProgress" style="font-size:12px;color:#888;margin-left:auto;"></span>
+    </div>
+
     {% if posts %}
+    <div style="overflow-x:auto;">
     <table>
         <thead>
             <tr>
+                <th style="width:32px;"><input type="checkbox" id="articleSelectAllHeader" onchange="toggleArticleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;"></th>
                 <th>标题</th>
                 <th>标签</th>
                 <th>状态</th>
@@ -117,7 +133,8 @@
         </thead>
         <tbody>
             {% for post in posts %}
-            <tr>
+            <tr data-post-id="{{ post.id }}">
+                <td><input type="checkbox" class="article-checkbox" value="{{ post.id }}" onchange="updateArticleBatchBar()" style="width:16px;height:16px;cursor:pointer;"></td>
                 <td><a href="/post/edit/{{ post.id }}" style="color:#4361ee;">{{ post.title or '(无标题)' }}</a></td>
                 <td>
                     {% if post.tags %}
@@ -183,6 +200,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p style="color:#999;text-align:center;padding:40px 0;">
         还没有文章，<a href="/post/new">创建第一篇</a>
@@ -276,5 +294,73 @@ async function checkPending2() {
         btn.disabled = false;
         btn.textContent = '🔄 刷新状态';
     }
+}
+
+// ====== 文章批量操作 ======
+function toggleArticleSelectAll(cb) {
+    document.querySelectorAll('.article-checkbox').forEach(function(c) { c.checked = cb.checked; });
+    updateArticleBatchBar();
+}
+
+function updateArticleBatchBar() {
+    var checked = document.querySelectorAll('.article-checkbox:checked');
+    var bar = document.getElementById('articleBatchToolbar');
+    var count = checked.length;
+    document.getElementById('articleBatchCount').textContent = '已选 ' + count + ' 篇';
+    if (count > 0) {
+        bar.style.display = 'flex';
+    } else {
+        bar.style.display = 'none';
+        document.getElementById('articleSelectAll').checked = false;
+        document.getElementById('articleSelectAllHeader').checked = false;
+    }
+}
+
+function clearArticleSelection() {
+    document.querySelectorAll('.article-checkbox').forEach(function(c) { c.checked = false; });
+    updateArticleBatchBar();
+}
+
+function getSelectedArticleIds() {
+    var ids = [];
+    document.querySelectorAll('.article-checkbox:checked').forEach(function(c) {
+        ids.push(parseInt(c.value));
+    });
+    return ids;
+}
+
+function batchDeleteArticles() {
+    var ids = getSelectedArticleIds();
+    if (ids.length === 0) { alert('请先选择文章'); return; }
+    if (!confirm('⚠️ 确定删除选中的 ' + ids.length + ' 篇文章？此操作不可恢复！')) return;
+    var prog = document.getElementById('articleBatchProgress');
+    prog.textContent = '⏳ 删除中...';
+    fetch('/api/articles/batch-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            prog.textContent = '✅ 已删除 ' + data.deleted + ' 篇';
+            setTimeout(function() { location.reload(); }, 800);
+        } else {
+            prog.textContent = '❌ ' + (data.error || '删除失败');
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) {
+        prog.textContent = '❌ 网络错误';
+        alert('网络错误: ' + e.message);
+    });
+}
+
+function batchPublishArticles() {
+    var ids = getSelectedArticleIds();
+    if (ids.length === 0) { alert('请先选择文章'); return; }
+    // 跳转到发布选择页面，传入多篇文章ID
+    var url = '/publish/select?ids=' + ids.join(',');
+    window.location.href = url;
 }
 </script>
