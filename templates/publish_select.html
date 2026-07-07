@@ -46,6 +46,28 @@
     overflow-y: auto;
     display: none;
 }
+/* 手机端优化 */
+@media (max-width: 768px) {
+    .card { padding: 12px; }
+    .card h2 { font-size: 1.1em; }
+    .card > div:first-of-type { flex-direction: column !important; gap: 8px !important; align-items: stretch !important; }
+    .card > div:first-of-type .btn { width: 100%; text-align: center; min-height: 40px; }
+    .account-card-header { padding: 8px 10px; font-size: 13px; flex-wrap: wrap; }
+    .account-card-body { padding: 8px 10px 10px 36px; }
+    .mode-select { flex-direction: column; gap: 8px; }
+    .mode-select label { font-size: 14px; min-height: 40px; }
+    .btn { min-height: 40px; }
+    .btn-sm { min-height: 36px; }
+}
+@media (max-width: 480px) {
+    .card { padding: 8px; }
+    .account-card-header { padding: 6px 8px; gap: 6px; }
+    .account-card-body { padding: 6px 8px 8px 30px; }
+    .account-card-header input[type="checkbox"] { width: 18px; height: 18px; }
+    .btn { min-height: 44px; font-size: 13px; }
+    .btn-sm { min-height: 40px; font-size: 11px; }
+    .compiled-preview { font-size: 11px; max-height: 150px; }
+}
 </style>
 
 <div class="card" style="max-width:700px;">

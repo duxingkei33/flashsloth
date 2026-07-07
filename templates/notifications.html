@@ -49,9 +49,23 @@
 }
 .notif-empty .big-icon { font-size: 48px; margin-bottom: 12px; }
 
-@media (max-width: 600px) {
-    .notif-header { flex-direction: column; align-items: stretch; }
+@media (max-width: 768px) {
+    .notif-container { padding: 10px; }
+    .notif-header { flex-direction: column; align-items: stretch; gap: 8px; }
+    .notif-header h1 { font-size: 17px; }
+    .notif-actions { width: 100%; }
+    .notif-actions button { flex: 1 1 auto; text-align: center; min-height: 40px; }
     .notif-item { padding: 10px 12px; }
+    .notif-title { font-size: 13px; }
+    .notif-message { font-size: 12px; }
+}
+@media (max-width: 480px) {
+    .notif-container { padding: 6px; }
+    .notif-item { padding: 8px 10px; gap: 8px; }
+    .notif-icon { font-size: 16px; width: 22px; }
+    .notif-title { font-size: 12px; }
+    .notif-message { font-size: 11px; }
+    .notif-actions button { min-height: 44px; font-size: 12px; }
 }
 
 /* Navbar 通知徽标 */
@@ -62,6 +76,17 @@
     min-width: 16px; height: 16px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     font-weight: 600; padding: 0 4px;
+}
+/* ═══ 通知中心手机端 ═══ */
+@media (max-width: 480px) {
+    .notif-container { padding: 8px; }
+    .notif-header h1 { font-size: 17px; }
+    .notif-actions { width: 100%; }
+    .notif-actions button { flex: 1 1 auto; text-align: center; min-height: 36px; font-size: 11px; }
+    .notif-item { padding: 8px 10px; gap: 8px; }
+    .notif-icon { font-size: 16px; width: 22px; }
+    .notif-title { font-size: 13px; }
+    .notif-message { font-size: 12px; }
 }
 </style>
 

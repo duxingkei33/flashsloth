@@ -5,6 +5,28 @@
 @media (max-width: 768px) {
     .rsp-table { white-space: normal !important; word-break: break-word !important; }
     .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+    .reader-header { flex-direction: column; align-items: flex-start !important; gap: 8px; }
+    .reader-header h1 { font-size: 1.1em; }
+    .reader-header > div { width: 100%; }
+    .reader-header .btn { width: 100%; text-align: center; min-height: 40px; }
+    .tab-bar { overflow-x: auto; white-space: nowrap; }
+    .tab { padding: 8px 12px; font-size: 12px; }
+    .rec-card { padding: 12px; }
+    .rec-card .title { font-size: 13px; }
+    .rec-card .meta { font-size: 11px; }
+    .control-panel { flex-direction: column; align-items: stretch; }
+    .control-panel select, .control-panel input { width: 100%; }
+    .control-panel button { width: 100%; min-height: 40px; }
+}
+@media (max-width: 480px) {
+    .reader-header h1 { font-size: 1em; }
+    .tab { font-size: 11px; padding: 6px 10px; }
+    .rec-card { padding: 8px; }
+    .rec-card .title { font-size: 12px; }
+    .rec-card .content-preview { font-size: 12px; }
+    .rec-card .btn { min-height: 40px; font-size: 11px; }
+    .rec-card .btn-sm { min-height: 36px; }
+    .reader-header .btn { min-height: 44px; }
 }
 </style>
 <style>
@@ -39,6 +61,26 @@
 .tab.active { color:#4361ee; border-bottom-color:#4361ee; font-weight:600; }
 .tab-content { display:none; }
 .tab-content.active { display:block; }
+/* ═══ 论坛阅读器手机端 ═══ */
+@media (max-width: 768px) {
+    .reader-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .reader-header h1 { font-size: 1.1em; }
+    .reader-header > div { width: 100%; }
+    .rec-card { padding: 12px; }
+    .rec-card .title { font-size: 14px; }
+    .rec-card .content-preview { font-size: 12px; max-height: 40px; }
+    .control-panel { flex-direction: column; }
+    .control-panel select, .control-panel input, .control-panel button { width: 100%; }
+    .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+    .tab { padding: 8px 14px; font-size: 13px; display: inline-block; }
+}
+@media (max-width: 480px) {
+    .rec-card { padding: 10px; }
+    .rec-card .title { font-size: 13px; }
+    .rec-card .meta { font-size: 11px; }
+    .rec-card .tag { font-size: 10px; padding: 1px 5px; }
+    .tab { padding: 6px 10px; font-size: 12px; }
+}
 </style>
 
 <div class="reader-header">

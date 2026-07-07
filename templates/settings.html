@@ -5,8 +5,24 @@
 @media (max-width: 768px) {
     .rsp-table { white-space: normal !important; word-break: break-word !important; }
     .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+    /* 设置页手机优化 */
+    .card { padding: 12px; }
+    .card h2 { font-size: 1em; }
+    .card > div:first-of-type { flex-direction: column !important; gap: 8px !important; }
+    .card > div:first-of-type input { width: 100% !important; flex: unset !important; }
+    .card > div:first-of-type button { width: 100%; }
+    .rsp-table { display: block; overflow-x: auto; }
+    .btn { min-height: 40px; }
+    .btn-sm { min-height: 36px; }
 }
-</style>
+@media (max-width: 480px) {
+    .card { padding: 8px; }
+    .card h2 { font-size: 0.95em; }
+    .card > div:first-of-type { align-items: stretch !important; }
+    .rsp-table th, .rsp-table td { font-size: 11px; padding: 3px 2px; }
+    .btn { min-height: 44px; font-size: 13px; }
+    .btn-sm { min-height: 40px; font-size: 11px; }
+}
 <h1 style="margin-bottom:20px;">⚙️ 系统设置</h1>
 
 <!-- API Keys -->

@@ -33,6 +33,25 @@
   .tab-btn { padding:8px 12px; font-size:12px; }
   .cell-truncate { max-width:100px; }
   .cell-truncate-wide { max-width:160px; }
+  .log-header { flex-direction: column; align-items: flex-start !important; gap: 8px; }
+  .log-header .actions { width: 100%; }
+  .log-header .btn { flex: 1 1 auto; text-align: center; min-height: 40px; }
+  .tab-bar { overflow-x: auto; white-space: nowrap; }
+  .log-table { font-size: 12px; display: block; overflow-x: auto; }
+  .log-table th, .log-table td { white-space: nowrap; padding: 4px 3px; }
+  .pagination a { padding: 6px 10px; font-size: 12px; min-width: 36px; text-align: center; }
+}
+@media (max-width: 480px) {
+  .log-table { font-size: 11px; }
+  .log-table th, .log-table td { padding: 3px 2px; }
+  .tab-btn { padding: 6px 10px; font-size: 11px; }
+  .log-header h3 { font-size: 14px; }
+  .log-header .btn { min-height: 44px; font-size: 12px; }
+  .pagination a { padding: 8px 12px; font-size: 14px; min-width: 44px; }
+  .empty-state { padding: 30px 12px; }
+  .empty-state .icon { font-size: 36px; }
+  .cell-truncate { max-width: 80px; }
+  .cell-truncate-wide { max-width: 120px; }
 }
 </style>
 

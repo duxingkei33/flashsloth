@@ -5,6 +5,32 @@
 @media (max-width: 768px) {
     .rsp-table { white-space: normal !important; word-break: break-word !important; }
     .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+    .platform-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; gap: 6px; }
+    .platform-card { padding: 10px; }
+    .platform-card .plat-icon { font-size: 22px; }
+    .platform-card .plat-name { font-size: 12px; }
+    .comment-select { flex-direction: column; align-items: stretch; }
+    .comment-option { max-width: 100%; min-width: unset; }
+    .plugin-grid { grid-template-columns: 1fr 1fr !important; gap: 6px; }
+    .plugin-card { padding: 8px; }
+    .config-actions { flex-direction: column; align-items: stretch; }
+    .config-actions button { width: 100%; min-height: 40px; }
+    .site-config-card { padding: 12px; }
+    .site-config-card h3 { font-size: 14px; }
+}
+@media (max-width: 480px) {
+    .platform-grid { grid-template-columns: 1fr 1fr !important; }
+    .platform-card { padding: 8px; }
+    .plugin-grid { grid-template-columns: 1fr !important; }
+    .comment-option { padding: 8px 10px; }
+    .site-config-card { padding: 8px; }
+    .config-actions button { min-height: 44px; font-size: 13px; }
+    .toggle-switch { width: 32px; height: 18px; }
+    .toggle-slider:before { height: 14px; width: 14px; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(14px); }
+    /* 触摸友好 */
+    .platform-card { min-height: 70px; display: flex; flex-direction: column; justify-content: center; }
+    .plugin-card .plugin-fields input { font-size: 16px; padding: 6px 8px; }
 }
 /* 站点配置卡片样式 */
 .site-config-card { background:#fff;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1); }
@@ -59,6 +85,22 @@
 .config-status.error { display:block;background:#f8d7da;color:#721c24; }
 /* 推荐标签 */
 .recommended-tag { font-size:9px;background:#ffd700;color:#1a1a2e;border-radius:4px;padding:1px 5px;display:inline-block;margin-left:4px;font-weight:600; }
+/* ═══ 部署管理手机端 ═══ */
+@media (max-width: 768px) {
+    .platform-grid { grid-template-columns: 1fr 1fr; }
+    .plugin-grid { grid-template-columns: 1fr; }
+    .comment-select { flex-direction: column; }
+    .comment-option { max-width: 100%; min-width: unset; }
+    .config-actions { flex-direction: column; align-items: stretch; }
+    .config-actions .btn { width: 100%; text-align: center; min-height: 40px; }
+    .site-config-card { padding: 14px; }
+    .site-config-card h3 { font-size: 14px; }
+}
+@media (max-width: 480px) {
+    .platform-grid { grid-template-columns: 1fr; }
+    .platform-card { padding: 10px; }
+    .plugin-card { padding: 10px; }
+}
 </style>
 
 <!-- ====== 博客站点全局配置 ====== -->

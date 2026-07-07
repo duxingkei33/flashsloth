@@ -119,12 +119,60 @@
 .xy-modal-link { margin-top: 16px; }
 
 /* 手机适配 */
+@media (max-width: 768px) {
+    .xy-search-box { padding: 20px; border-radius: 12px; }
+    .xy-search-row { flex-direction: column; }
+    .xy-search-row input[type="text"] { min-width: 100%; width: 100%; }
+    .xy-search-row input[type="number"] { width: 100%; }
+    .xy-search-row select { width: 100%; }
+    .xy-search-row button { width: 100%; min-height: 44px; }
+    .xy-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .xy-card-img { height: 140px; }
+    .xy-card-body { padding: 8px 10px; }
+    .xy-card-title { font-size: 12px; }
+    .xy-card-price { font-size: 15px; }
+    .xy-filters { flex-direction: column; align-items: stretch; }
+    .xy-filters input { width: 100%; }
+    .xy-modal { padding: 16px; max-width: 95%; }
+    .xy-modal-images { gap: 4px; }
+    .xy-modal-images img { height: 120px; }
+    .xy-modal-title { font-size: 15px; }
+    .xy-modal-price { font-size: 20px; }
+    .xy-modal-info { grid-template-columns: 1fr; }
+    .xy-account-bar { flex-direction: column; align-items: stretch; gap: 4px; }
+    .xy-account-bar select { width: 100%; }
+}
+@media (max-width: 480px) {
+    .xy-container { padding: 8px; }
+    .xy-search-box { padding: 14px; border-radius: 10px; }
+    .xy-search-box h1 { font-size: 18px; }
+    .xy-grid { grid-template-columns: 1fr; gap: 8px; }
+    .xy-card-img { height: 180px; }
+    .xy-card-title { font-size: 13px; }
+    .xy-modal { padding: 12px; }
+    .xy-modal-close { font-size: 20px; top: 8px; right: 10px; }
+    .xy-modal-title { font-size: 14px; }
+    .xy-modal-price { font-size: 18px; }
+    .xy-card-seller { font-size: 11px; }
+}
 @media (max-width: 600px) {
     .xy-search-box { padding: 20px; border-radius: 12px; }
     .xy-search-row input[type="text"] { min-width: 100%; }
     .xy-search-row input[type="number"] { width: 80px; }
     .xy-grid { grid-template-columns: 1fr; }
     .xy-modal { padding: 16px; }
+}
+/* ═══ 闲鱼搜索60手机端增强 ═══ */
+@media (max-width: 480px) {
+    .xy-container { padding: 8px; }
+    .xy-search-box { padding: 16px; }
+    .xy-search-box h1 { font-size: 18px; }
+    .xy-search-row { flex-direction: column; }
+    .xy-search-row input[type="text"], .xy-search-row input[type="number"], .xy-search-row select, .xy-search-row button { width: 100%; }
+    .xy-account-bar { flex-direction: column; align-items: flex-start; }
+    .xy-account-bar select { width: 100%; }
+    .xy-filters { flex-direction: column; align-items: flex-start; }
+    .xy-filters input { width: 100%; }
 }
 </style>
 
