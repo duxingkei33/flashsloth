@@ -105,11 +105,12 @@
 ### 🧰 Workspace & Provider Framework
 - [x] Unified content management workspace — Provider selection + pipeline + content logs
 - [x] Provider abstraction framework — base→workspace, 3 Providers (Markdown/Notion/Taobao), config management
+- [x] Provider config fields dynamic rendering — each Provider declares its own config_fields schema, frontend reads from API, replacing hardcoded definitions
 - [x] AI call log system — auto-recording + visual log page + pagination/filtering
 - [x] 📋 Unified log management — publish/sign-in/AI/deploy logs in one page + pagination + real-time filtering
 - [x] 🖥️ Playwright browser engine settings page
 - [x] 🖥️ BrowserEngine auto-cleanup — 60s monitoring thread, auto-recycle idle browser instances
-- [x] External service registry — unified management for xianyu-auto-reply etc.
+- [x] External service registry — unified management for xianyu-auto-reply等服务
 - [x] Deployment config enhancement — #deploy inline block + deploy normalization + unified test_connection format + auto-start engine
 
 ### 💬 Comment Monitoring
@@ -158,14 +159,14 @@
 │  signin_*.py   — 3 sign-in plugins                                │
 │  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
-│  sdk/adapters/ (14 platform adapters)                            │
+│  sdk/adapters/ (15 platform adapters)                            │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Public Infrastructure                            │
 │  SQLite (flashsloth.db + status_cache.db)                         │
 │  .fs_key encryption key · config/ · templates/ · static/          │
-│  platform_reports/ (51+ login/exploration reports)                  │
+│  platform_reports/ (15 reports + 32 JSON data files)              │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md        │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -258,7 +259,8 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
-| v5.08 | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
+| **v5.09** | 2026-07-08 | Provider config fields dynamic rendering — each Provider declares config_fields, frontend reads from API replacing hardcoded definitions + button label sync |
+| **v5.08** | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
 | v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |
 | v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
 | v5.04 | 2026-07-08 | Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend status display |

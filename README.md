@@ -105,6 +105,7 @@
 ### 🧰 工作台 & Provider 框架
 - [x] 统一内容管理工作台 — Provider选择+流水线+内容日志
 - [x] Provider 抽象框架 — base→workspace, 3 Providers (Markdown/Notion/淘宝), 配置管理
+- [x] Provider 配置字段动态渲染 — 各 Provider 自声明 config_fields 配置模式，前端从 API 动态读取，替代硬编码
 - [x] AI 调用日志系统 — 自动记录+可视化日志页面+分页筛选
 - [x] 📋 统一日志管理 — 发布/签到/AI/部署日志统一查看+分页+实时筛选
 - [x] 🖥️ Playwright 浏览器引擎设置页面
@@ -158,14 +159,14 @@
 │  signin_*.py   — 3 个签到插件                                    │
 │  provider_*.py — 3 个 Provider 插件 (Markdown/Notion/淘宝)       │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
-│  sdk/adapters/ (14 平台适配器)                                   │
+│  sdk/adapters/ (15 平台适配器)                                   │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                   公共基础设施层                                    │
 │  SQLite (flashsloth.db + status_cache.db)                        │
 │  .fs_key 加密密钥 · config/ · templates/ · static/               │
-│  platform_reports/ (51+ 登录能力/探索报告)                         │
+│  platform_reports/ (15 探索报告 + 32 JSON 数据文件)               │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md       │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -258,6 +259,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.09** | 2026-07-08 | Provider 配置字段动态渲染 — 各 Provider 自声明 config_fields，前端从 API 动态读取替代硬编码+按钮标签同步 |
 | **v5.08** | 2026-07-08 | deploy归一化 — 账号页#deploy内联区块+test_connection统一格式+登录自动启动Playwright(可配置auto_start)+平台探索数据更新(得物/什么值得买/小红书) |
 | v5.07 | 2026-07-08 | Cookie验证严格模式 — Discuz login假阳性修复 + test-connection Playwright子进程降级 + 版块注册表双轨验证 + 探索报告更新 |
 | v5.05 | 2026-07-08 | 51CTO平台探索 — WAF+SMS-only评估 + 探索雷达v2（得物/什么值得买/小红书）+ category分类字段 |
