@@ -312,10 +312,14 @@ class BrowserEngine:
 
     def get_page(self) -> object:
         """获取当前活跃页面（如无则新建一个）"""
-        with self._lock:
+        locked = self._lock.acquire(timeout=3.0)
+        if not locked:
+            raise RuntimeError("BrowserEngine.get_page: lock timeout")
+        try:
             if self._status != STATUS_READY or not self._browser:
+                # 引擎未就绪 → 释放锁后再 start（start() 内部会重新获取锁）
+                locked = False
                 self._lock.release()
-                # 自动尝试启动
                 ok = self.start()
                 if not ok:
                     raise RuntimeError(
@@ -340,6 +344,9 @@ class BrowserEngine:
             # 没有可用页面 → 新建
             page = self._context.new_page()
             return page
+        finally:
+            if locked:
+                self._lock.release()
 
     def close_tab(self, page):
         """关闭指定标签页，确保至少保留 1 个空白页"""
@@ -493,7 +500,10 @@ class BrowserEngine:
         if cfg_auto_close <= 0:
             return
 
-        with self._lock:
+        locked = self._lock.acquire(timeout=1.0)
+        if not locked:
+            return
+        try:
             if self._status != STATUS_READY:
                 return
             elapsed = time.time() - self._last_activity
@@ -502,9 +512,13 @@ class BrowserEngine:
                     f"BrowserEngine: auto-closing after {cfg_auto_close}min inactivity "
                     f"({elapsed:.0f}s elapsed)"
                 )
+                locked = False
                 self._lock.release()
                 self.stop()
                 return
+        finally:
+            if locked:
+                self._lock.release()
 
     def is_ready(self) -> bool:
         """快捷检查引擎是否就绪"""
