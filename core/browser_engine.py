@@ -447,22 +447,27 @@ class BrowserEngine:
 
             badge_cls, badge_text = _BADGE_MAP.get(status, ("badge-secondary", "🖥️ 未知"))
 
-            return {
-                "status": status,
-                "badge_class": badge_cls,
-                "badge_text": badge_text,
-                "tabs_count": tabs_count,
-                "uptime": round(uptime, 1),
-                "uptime_str": self._format_uptime(uptime),
-                "error": self._error_msg,
-                "pid": pid,
-                "memory_mb": memory_mb,
-                "last_activity_ago": round(time.time() - self._last_activity, 1)
-                    if self._last_activity > 0 else 0,
-                "config": self.get_config(),
-            }
         finally:
             self._lock.release()
+
+        # 配置单独读取（不持锁，避免自死锁）
+        # get_config() 内部有自己的 with self._lock
+        cfg = self.get_config()
+
+        return {
+            "status": status,
+            "badge_class": badge_cls,
+            "badge_text": badge_text,
+            "tabs_count": tabs_count,
+            "uptime": round(uptime, 1),
+            "uptime_str": self._format_uptime(uptime),
+            "error": self._error_msg,
+            "pid": pid,
+            "memory_mb": memory_mb,
+            "last_activity_ago": round(time.time() - self._last_activity, 1)
+                if self._last_activity > 0 else 0,
+            "config": cfg,
+        }
 
     @staticmethod
     def _format_uptime(seconds: float) -> str:

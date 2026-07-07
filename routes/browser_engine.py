@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 @app.context_processor
 def inject_browser_engine_status():
-    """注入浏览器引擎状态到所有模板（直接读取状态字段，避免锁争用）"""
+    """注入浏览器引擎状态到所有模板（避免 import 触发 threading.Lock 死锁）"""
     try:
         from flask_login import current_user
         if not current_user.is_authenticated:
@@ -41,7 +41,16 @@ def inject_browser_engine_status():
                 "pw_badge_text": "🖥️ 已停止",
                 "pw_tabs_count": 0,
             }
-        engine = get_engine()
+        # 检查是否已有引擎实例（不触发 import 和 threading.Lock 创建）
+        from flashsloth.core.browser_engine import BrowserEngine
+        engine = BrowserEngine._instance if BrowserEngine._instance is not None else None
+        if engine is None:
+            return {
+                "pw_status": "stopped",
+                "pw_badge_class": "badge-secondary",
+                "pw_badge_text": "🖥️ 已停止",
+                "pw_tabs_count": 0,
+            }
         # 超时锁读取状态，避免引擎启动卡死时阻塞所有页面
         locked = engine._lock.acquire(timeout=3.0)
         if locked:
