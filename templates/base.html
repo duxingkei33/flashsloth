@@ -397,9 +397,9 @@ function directLogin(aid) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.success) {
+    if (data.logged_in) {
       document.getElementById('captchaTitle').textContent = '✅ 已登录';
-      document.getElementById('captchaMsg').textContent = '登录状态正常';
+      document.getElementById('captchaMsg').textContent = '登录状态正常 — ' + (data.status || '');
       setTimeout(function() {
         closeCaptchaModal();
         if (_captchaState.onSuccess) {
@@ -407,7 +407,9 @@ function directLogin(aid) {
         }
       }, 500);
     } else {
-      showCaptchaError(data.error || '登录状态异常');
+      var errMsg = data.status || data.error || '登录状态异常';
+      document.getElementById('captchaMsg').textContent = errMsg;
+      showCaptchaError(errMsg);
       document.getElementById('captchaSubmitBtn').disabled = false;
     }
   })

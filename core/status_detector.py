@@ -179,8 +179,9 @@ def detect_discuz(site_url: str, cookie_str: str, platform: str = "discuz") -> d
                     avatar_url = "https:" + avatar_url
                 break
         
-        # 判断登录状态
-        logged_in = has_logout or bool(username) or resp.url == profile_url
+        # 判断登录状态 — 铁律：必须有真实用户信息（退出按钮/用户名）才认定为已登录
+        # resp.url == profile_url 太弱（未登录也能看到个人资料页，只是内容不同）
+        logged_in = has_logout or bool(username)
         
         result["logged_in"] = logged_in
         result["username"] = username if username else ""

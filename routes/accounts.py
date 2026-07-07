@@ -274,147 +274,57 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
             result["status"] = f"❌ 站点不可达: {str(e)[:100]}"
         return result
 
-    # ─── 动态站点：使用 Playwright 全面检测 ─────────
+    # ─── 动态站点：通过子进程调用 Playwright 验证 ────
+    # 在独立子进程中运行 Playwright，避免 WSGI 线程的 "Event loop is closed" 问题
     if not site_url:
         result["logged_in"] = None
         result["status"] = "🔗 未配置站点 URL"
         return result
 
+    import subprocess as _sp, os as _os
+    
+    script_path = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "scripts", "playwright_verify.py")
+    if not _os.path.exists(script_path):
+        result["status"] = "❌ Playwright 验证脚本不存在"
+        return result
+    
     try:
-        from flashsloth.core.browser_engine import BrowserEngine
-        engine = BrowserEngine.get_instance()
-
-        # 确保引擎运行
-        if not engine.is_ready():
-            engine.start()
-
-        # 在引擎的共享浏览器上创建隔离上下文
-        ctx = engine.create_isolated_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+        pw_env = _os.environ.copy()
+        pw_env["PYTHONPATH"] = f"{_os.path.expanduser('~/.hermes')}:{_os.path.expanduser('~/.hermes/flashsloth')}"
+        
+        pw_proc = _sp.run(
+            [_os.path.expanduser("~/.hermes/flashsloth/venv/bin/python3"), script_path, str(acct["id"])],
+            capture_output=True, text=True, timeout=45, env=pw_env,
         )
-        if not ctx:
-            result["status"] = "❌ 浏览器引擎未就绪"
+        
+        if pw_proc.returncode != 0:
+            result["status"] = f"❌ Playwright 子进程异常: {pw_proc.stderr[:100] if pw_proc.stderr else 'exit ' + str(pw_proc.returncode)}"
             return result
-
-        # 如果提供 cookie，注入 cookie
-        if cookie:
-            domain = site_url.replace("https://", "").replace("http://", "").split("/")[0]
-            cookies = []
-            for pair in cookie.split(";"):
-                pair = pair.strip()
-                if not pair or "=" not in pair:
-                    continue
-                n, v = pair.split("=", 1)
-                cookies.append({"name": n.strip(), "value": v.strip(),
-                                "domain": f".{domain}", "path": "/"})
-            ctx.add_cookies(cookies)
-
-        page = ctx.new_page()
-        try:
-            page.goto(site_url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(5000)
-
-            # 获取页面标题和纯文本
-            result["page_title"] = page.title()
-            body_text = page.inner_text("body")[:2000]
-            page_url_lower = page.url.lower()
-
-            # 判断是否被重定向到登录页
-            login_keywords_in_url = ["login", "signin", "passport", "oauth", "logon", "logging"]
-            redirected_to_login = any(kw in page_url_lower for kw in login_keywords_in_url)
-
-            # ⚠️ 铁律：查找真实用户登录指示器
-            # account_name（如 "discuz01"）是用户别名，不是平台用户名，不能作为登录证据
-            # 必须检测强指示器（退出/个人中心/欢迎+真实用户名等）
-            username_indicators = []
-
-            # 强指示器 1：退出/注销（最可靠的登录证据）
-            if re.search(r'退出\s*登录', body_text, re.IGNORECASE):
-                username_indicators.append("退出登录")
-            if re.search(r'注销', body_text):
-                username_indicators.append("注销")
-
-            # 强指示器 2：个人中心/我的帖子等（Discuz 等论坛标准登录后链接）
-            if re.search(r'个人中心', body_text):
-                username_indicators.append("个人中心")
-            if re.search(r'我的帖子', body_text):
-                username_indicators.append("我的帖子")
-            if re.search(r'我的文章', body_text):
-                username_indicators.append("我的文章")
-            if re.search(r'我的中心', body_text):
-                username_indicators.append("我的中心")
-
-            # 强指示器 3：如果配置了平台用户名，查找欢迎信息中包含该用户名
-            if platform_username and len(platform_username) >= 2:
-                escaped_uname = re.escape(platform_username)
-                welcome_pats = [
-                    rf'欢迎[：: 　]*{escaped_uname}',
-                    rf'{escaped_uname}[，,。.]*欢迎',
-                    rf'你好[：: 　]*{escaped_uname}',
-                    rf'个人资料.*{escaped_uname}',
-                    rf'{escaped_uname}.*个人资料',
-                    rf'<title>[^<]*?{escaped_uname}[^<]*?的个人资料',
-                ]
-                for pat in welcome_pats:
-                    m = re.search(pat, body_text, re.IGNORECASE)
-                    if m:
-                        username_indicators.append(f"欢迎/用户信息: {m.group(0)[:60]}")
-                        break
-
-            # 提取包含用户名的上下文
-            user_context = ""
-            if username_indicators:
-                for indicator in username_indicators[:3]:
-                    idx = body_text.find(indicator)
-                    if idx >= 0:
-                        start = max(0, idx - 100)
-                        end = min(len(body_text), idx + len(indicator) + 100)
-                        snippet = body_text[start:end].strip()
-                        user_context += f"...{snippet}...\n"
-
-            # ⚠️ 铁律：必须满足以下所有条件才算已登录：
-            #   1. 未被重定向到登录页
-            #   2. 至少找到 2 个独立登录指示器（或 1 个强指示器+真实用户名匹配）
-            strong_indicator_count = len(username_indicators)
-            is_logged_in = (
-                not redirected_to_login
-                and strong_indicator_count >= 2
-            )
-
-            result["logged_in"] = is_logged_in
-            result["username_found"] = bool(username_indicators)
-            result["username_indicators"] = username_indicators[:5]
-            result["page_preview"] = user_context[:500] if user_context else body_text[:500]
-            result["page_url"] = page.url
-
-            if is_logged_in:
-                if username_indicators:
-                    result["status"] = f"✅ 已登录 — 检测到: {' | '.join(username_indicators[:3])}"
-                else:
-                    result["status"] = "✅ 已登录（Cookie 有效）"
-            else:
-                reason_parts = []
-                if redirected_to_login:
-                    reason_parts.append("重定向到登录页")
-                    if not username_indicators or len(username_indicators) < 2:
-                        reason_parts.append(f"登录指示器不足(找到{len(username_indicators)}个，需要≥2)")
-                    reason = "；".join(reason_parts) if reason_parts else "未知原因"
-                    if cookie:
-                        result["status"] = f"❌ Cookie 已失效（{reason}）"
-                    else:
-                        result["status"] = f"❌ 未登录（无 Cookie）"
-
-        except Exception as e:
-            result["logged_in"] = False
-            result["status"] = f"❌ 检测异常: {str(e)[:100]}"
-            result["page_title"] = page.title() if page else ""
-        finally:
-            page.close()
-            ctx.close()
+        
+        pw_result = json.loads(pw_proc.stdout)
+        
+        # 将子进程结果合并到当前 result
+        for key in ("logged_in", "status", "username_indicators", "username", "display_name",
+                    "points", "level", "page_title", "page_url", "page_preview", "error", "success"):
+            if key in pw_result:
+                result[key] = pw_result[key]
+        
+        # 页面预览
+        if pw_result.get("page_preview"):
+            result["page_preview"] = pw_result["page_preview"][:500]
+        
+        # 确保 is_static 被携带
+        result["is_static_site"] = is_static
+        
+    except _sp.TimeoutExpired:
+        result["logged_in"] = False
+        result["status"] = "❌ Playwright 验证超时（45秒）"
+    except json.JSONDecodeError as e:
+        result["logged_in"] = False
+        result["status"] = f"❌ Playwright 结果解析失败: {str(e)[:60]}"
     except Exception as e:
         result["logged_in"] = False
-        result["status"] = f"❌ Playwright 初始化异常: {str(e)[:100]}"
+        result["status"] = f"❌ Playwright 子进程异常: {str(e)[:100]}"
 
     return result
 
@@ -536,6 +446,25 @@ def test_account(aid):
    decrypt_config(cfg)  # 解密凭证用于连接测试
    # 复用 api_account_status 的 Playwright 验证逻辑
    result = _do_playwright_verify(acct, cfg)
+   
+   # 同时更新状态缓存（测试连接也算一次状态刷新）
+   if result.get("success") or result.get("logged_in") is not None:
+       cache_data = {
+           "logged_in": result.get("logged_in", False),
+           "username": result.get("username", ""),
+           "display_name": result.get("display_name", ""),
+           "points": result.get("points", 0),
+           "level": result.get("level", ""),
+           "status": result.get("status", ""),
+           "method": "playwright_test",
+           "verified_at": datetime.now().isoformat(),
+           "page_title": result.get("page_title", ""),
+           "username_indicators": result.get("username_indicators", []),
+           "page_preview": result.get("page_preview", ""),
+           "page_url": result.get("page_url", ""),
+       }
+       set_status(aid, cache_data)
+   
    return jsonify(result)
 
 @app.route("/api/accounts/<int:aid>/signin_settings", methods=["POST"])
