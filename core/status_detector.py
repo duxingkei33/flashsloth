@@ -117,7 +117,6 @@ def detect_discuz(site_url: str, cookie_str: str, platform: str = "discuz") -> d
         name_patterns = [
             r'<title>[^<]*?([\u4e00-\u9fff\w]+)[^<]*?的个人资料',
             r'<a[^>]*?>([\u4e00-\u9fff\w]+)</a>\s*的</em>\s*个人资料',
-            r'<em>([\u4e00-\u9fff\w]+)</em>',
             r'欢迎您回来[：:]\s*([\u4e00-\u9fff\w]+)',
             r'欢迎\s*([\u4e00-\u9fff\w]+)',
             r'username[":\s>]+([\u4e00-\u9fff\w]+)',
@@ -179,9 +178,9 @@ def detect_discuz(site_url: str, cookie_str: str, platform: str = "discuz") -> d
                     avatar_url = "https:" + avatar_url
                 break
         
-        # 判断登录状态 — 铁律：必须有真实用户信息（退出按钮/用户名）才认定为已登录
-        # resp.url == profile_url 太弱（未登录也能看到个人资料页，只是内容不同）
-        logged_in = has_logout or bool(username)
+        # 判断登录状态 — 铁律：必须同时有退出按钮和用户名才认定为已登录
+        # 只有退出按钮但无用户名 / 只有用户名但无退出按钮，都不可靠
+        logged_in = has_logout and bool(username)
         
         result["logged_in"] = logged_in
         result["username"] = username if username else ""

@@ -127,7 +127,8 @@ def verify_account(aid: int) -> dict:
             result["page_url"] = page.url
 
             # 检查是否被重定向到登录页
-            login_keywords = ["login", "signin", "passport", "oauth", "logon", "logging"]
+            login_keywords = ["login", "signin", "passport", "oauth", "logon", "logging",
+                              "member.php", "logging.php", "connect.php", "login.php"]
             redirected_to_login = any(kw in page_url_lower for kw in login_keywords)
 
             # 查找登录指示器
@@ -171,12 +172,9 @@ def verify_account(aid: int) -> dict:
                 r'欢迎您回来[：:]\s*([\u4e00-\u9fff\w]+)',
                 r'欢迎\s*([\u4e00-\u9fff\w]+)',
                 r'<title>[^<]*?([\u4e00-\u9fff\w]+)[^<]*?的个人资料',
-                r'<em>([\u4e00-\u9fff\w]+)</em>',
                 r'"nickname"\s*[:=]\s*"([^"]+)"',
                 r'"username"\s*[:=]\s*"([^"]+)"',
                 r'"display_name"\s*[:=]\s*"([^"]+)"',
-                r'<span[^>]*class="[^"]*user[^"]*"[^>]*>([\u4e00-\u9fff\w]+)',
-                r'<a[^>]*class="[^"]*user[^"]*"[^>]*>([\u4e00-\u9fff\w]+)',
             ]
             for pat in username_patterns:
                 m = re.search(pat, body_text)
@@ -228,10 +226,10 @@ def verify_account(aid: int) -> dict:
             has_exit_or_logout = any(kw in str(indicators) for kw in ["退出", "注销"])
             is_logged_in = (
                 not redirected_to_login
+                and has_exit_or_logout  # 必须！页面中有"退出"或"注销"才是强登录证据
                 and (
-                    len(indicators) >= 2
-                    or (username_found_in_body and has_exit_or_logout)
-                    or bool(extracted_username)
+                    len(indicators) >= 2          # 至少有2个指示器
+                    or username_found_in_body      # 或者配置的用户名在页面中找到
                 )
             )
 
@@ -260,6 +258,13 @@ def verify_account(aid: int) -> dict:
                 reasons = []
                 if redirected_to_login:
                     reasons.append("重定向到登录页")
+                if not has_exit_or_logout:
+                    if len(indicators) >= 2:
+                        result["status"] = "❌ Cookie 已失效（页面导航栏检测到通用链接，但未检测到退出/注销按钮 — 未登录）"
+                        browser.close()
+                        return result
+                    else:
+                        reasons.append("未检测到退出/注销按钮")
                 if len(indicators) < 2:
                     reasons.append(f"登录指示器不足(找到{len(indicators)}个，需要≥2)")
                 if not reasons:
