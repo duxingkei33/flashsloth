@@ -18,7 +18,7 @@ from flashsloth.core.credential_crypto import decrypt_config, encrypt_config
 from flashsloth.core.status_cache import (
     get_status, set_status, invalidate, get_all_cached, get_cache_stats
 )
-from flashsloth.core.status_detector import detect_platform
+from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
 
 # ─── 平台账号管理 ──────────────────────────────
 @app.route("/accounts")
@@ -281,117 +281,122 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
         return result
 
     try:
-        from playwright.sync_api import sync_playwright
+        from flashsloth.core.browser_engine import BrowserEngine
+        engine = BrowserEngine.get_instance()
 
-        with sync_playwright() as pw:
-            browser = pw.chromium.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        # 确保引擎运行
+        if not engine.is_ready():
+            engine.start()
+
+        # 在引擎的共享浏览器上创建隔离上下文
+        ctx = engine.create_isolated_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+        )
+        if not ctx:
+            result["status"] = "❌ 浏览器引擎未就绪"
+            return result
+
+        # 如果提供 cookie，注入 cookie
+        if cookie:
+            domain = site_url.replace("https://", "").replace("http://", "").split("/")[0]
+            cookies = []
+            for pair in cookie.split(";"):
+                pair = pair.strip()
+                if not pair or "=" not in pair:
+                    continue
+                n, v = pair.split("=", 1)
+                cookies.append({"name": n.strip(), "value": v.strip(),
+                                "domain": f".{domain}", "path": "/"})
+            ctx.add_cookies(cookies)
+
+        page = ctx.new_page()
+        try:
+            page.goto(site_url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(5000)
+
+            # 获取页面标题和纯文本
+            result["page_title"] = page.title()
+            body_text = page.inner_text("body")[:2000]
+            page_url_lower = page.url.lower()
+
+            # 判断是否被重定向到登录页
+            login_keywords_in_url = ["login", "signin", "passport", "oauth", "logon", "logging"]
+            redirected_to_login = any(kw in page_url_lower for kw in login_keywords_in_url)
+
+            # ⚠️ 铁律：查找真实用户登录指示器
+            # account_name（如 "discuz01"）是用户别名，不是平台用户名，不能作为登录证据
+            # 必须检测强指示器（退出/个人中心/欢迎+真实用户名等）
+            username_indicators = []
+
+            # 强指示器 1：退出/注销（最可靠的登录证据）
+            if re.search(r'退出\s*登录', body_text, re.IGNORECASE):
+                username_indicators.append("退出登录")
+            if re.search(r'注销', body_text):
+                username_indicators.append("注销")
+
+            # 强指示器 2：个人中心/我的帖子等（Discuz 等论坛标准登录后链接）
+            if re.search(r'个人中心', body_text):
+                username_indicators.append("个人中心")
+            if re.search(r'我的帖子', body_text):
+                username_indicators.append("我的帖子")
+            if re.search(r'我的文章', body_text):
+                username_indicators.append("我的文章")
+            if re.search(r'我的中心', body_text):
+                username_indicators.append("我的中心")
+
+            # 强指示器 3：如果配置了平台用户名，查找欢迎信息中包含该用户名
+            if platform_username and len(platform_username) >= 2:
+                escaped_uname = re.escape(platform_username)
+                welcome_pats = [
+                    rf'欢迎[：: 　]*{escaped_uname}',
+                    rf'{escaped_uname}[，,。.]*欢迎',
+                    rf'你好[：: 　]*{escaped_uname}',
+                    rf'个人资料.*{escaped_uname}',
+                    rf'{escaped_uname}.*个人资料',
+                    rf'<title>[^<]*?{escaped_uname}[^<]*?的个人资料',
+                ]
+                for pat in welcome_pats:
+                    m = re.search(pat, body_text, re.IGNORECASE)
+                    if m:
+                        username_indicators.append(f"欢迎/用户信息: {m.group(0)[:60]}")
+                        break
+
+            # 提取包含用户名的上下文
+            user_context = ""
+            if username_indicators:
+                for indicator in username_indicators[:3]:
+                    idx = body_text.find(indicator)
+                    if idx >= 0:
+                        start = max(0, idx - 100)
+                        end = min(len(body_text), idx + len(indicator) + 100)
+                        snippet = body_text[start:end].strip()
+                        user_context += f"...{snippet}...\n"
+
+            # ⚠️ 铁律：必须满足以下所有条件才算已登录：
+            #   1. 未被重定向到登录页
+            #   2. 至少找到 2 个独立登录指示器（或 1 个强指示器+真实用户名匹配）
+            strong_indicator_count = len(username_indicators)
+            is_logged_in = (
+                not redirected_to_login
+                and strong_indicator_count >= 2
             )
-            ctx = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                viewport={"width": 1920, "height": 1080}, locale="zh-CN",
-            )
-            # 如果提供 cookie，注入 cookie
-            if cookie:
-                domain = site_url.replace("https://", "").replace("http://", "").split("/")[0]
-                cookies = []
-                for pair in cookie.split(";"):
-                    pair = pair.strip()
-                    if not pair or "=" not in pair:
-                        continue
-                    n, v = pair.split("=", 1)
-                    cookies.append({"name": n.strip(), "value": v.strip(),
-                                    "domain": f".{domain}", "path": "/"})
-                ctx.add_cookies(cookies)
 
-            page = ctx.new_page()
-            try:
-                page.goto(site_url, wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(5000)
+            result["logged_in"] = is_logged_in
+            result["username_found"] = bool(username_indicators)
+            result["username_indicators"] = username_indicators[:5]
+            result["page_preview"] = user_context[:500] if user_context else body_text[:500]
+            result["page_url"] = page.url
 
-                # 获取页面标题和纯文本
-                result["page_title"] = page.title()
-                body_text = page.inner_text("body")[:2000]
-                page_url_lower = page.url.lower()
-
-                # 判断是否被重定向到登录页
-                login_keywords_in_url = ["login", "signin", "passport", "oauth", "logon", "logging"]
-                redirected_to_login = any(kw in page_url_lower for kw in login_keywords_in_url)
-
-                # ⚠️ 铁律：查找真实用户登录指示器
-                # account_name（如 "discuz01"）是用户别名，不是平台用户名，不能作为登录证据
-                # 必须检测强指示器（退出/个人中心/欢迎+真实用户名等）
-                username_indicators = []
-
-                # 强指示器 1：退出/注销（最可靠的登录证据）
-                if re.search(r'退出\s*登录', body_text, re.IGNORECASE):
-                    username_indicators.append("退出登录")
-                if re.search(r'注销', body_text):
-                    username_indicators.append("注销")
-
-                # 强指示器 2：个人中心/我的帖子等（Discuz 等论坛标准登录后链接）
-                if re.search(r'个人中心', body_text):
-                    username_indicators.append("个人中心")
-                if re.search(r'我的帖子', body_text):
-                    username_indicators.append("我的帖子")
-                if re.search(r'我的文章', body_text):
-                    username_indicators.append("我的文章")
-                if re.search(r'我的中心', body_text):
-                    username_indicators.append("我的中心")
-
-                # 强指示器 3：如果配置了平台用户名，查找欢迎信息中包含该用户名
-                if platform_username and len(platform_username) >= 2:
-                    escaped_uname = re.escape(platform_username)
-                    welcome_pats = [
-                        rf'欢迎[：: 　]*{escaped_uname}',
-                        rf'{escaped_uname}[，,。.]*欢迎',
-                        rf'你好[：: 　]*{escaped_uname}',
-                        rf'个人资料.*{escaped_uname}',
-                        rf'{escaped_uname}.*个人资料',
-                        rf'<title>[^<]*?{escaped_uname}[^<]*?的个人资料',
-                    ]
-                    for pat in welcome_pats:
-                        m = re.search(pat, body_text, re.IGNORECASE)
-                        if m:
-                            username_indicators.append(f"欢迎/用户信息: {m.group(0)[:60]}")
-                            break
-
-                # 提取包含用户名的上下文
-                user_context = ""
+            if is_logged_in:
                 if username_indicators:
-                    for indicator in username_indicators[:3]:
-                        idx = body_text.find(indicator)
-                        if idx >= 0:
-                            start = max(0, idx - 100)
-                            end = min(len(body_text), idx + len(indicator) + 100)
-                            snippet = body_text[start:end].strip()
-                            user_context += f"...{snippet}...\n"
-
-                # ⚠️ 铁律：必须满足以下所有条件才算已登录：
-                #   1. 未被重定向到登录页
-                #   2. 至少找到 2 个独立登录指示器（或 1 个强指示器+真实用户名匹配）
-                strong_indicator_count = len(username_indicators)
-                is_logged_in = (
-                    not redirected_to_login
-                    and strong_indicator_count >= 2
-                )
-
-                result["logged_in"] = is_logged_in
-                result["username_found"] = bool(username_indicators)
-                result["username_indicators"] = username_indicators[:5]
-                result["page_preview"] = user_context[:500] if user_context else body_text[:500]
-                result["page_url"] = page.url
-
-                if is_logged_in:
-                    if username_indicators:
-                        result["status"] = f"✅ 已登录 — 检测到: {' | '.join(username_indicators[:3])}"
-                    else:
-                        result["status"] = "✅ 已登录（Cookie 有效）"
+                    result["status"] = f"✅ 已登录 — 检测到: {' | '.join(username_indicators[:3])}"
                 else:
-                    reason_parts = []
-                    if redirected_to_login:
-                        reason_parts.append("重定向到登录页")
+                    result["status"] = "✅ 已登录（Cookie 有效）"
+            else:
+                reason_parts = []
+                if redirected_to_login:
+                    reason_parts.append("重定向到登录页")
                     if not username_indicators or len(username_indicators) < 2:
                         reason_parts.append(f"登录指示器不足(找到{len(username_indicators)}个，需要≥2)")
                     reason = "；".join(reason_parts) if reason_parts else "未知原因"
@@ -400,13 +405,13 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
                     else:
                         result["status"] = f"❌ 未登录（无 Cookie）"
 
-            except Exception as e:
-                result["logged_in"] = False
-                result["status"] = f"❌ 检测异常: {str(e)[:100]}"
-                result["page_title"] = page.title() if page else ""
-            finally:
-                page.close()
-                browser.close()
+        except Exception as e:
+            result["logged_in"] = False
+            result["status"] = f"❌ 检测异常: {str(e)[:100]}"
+            result["page_title"] = page.title() if page else ""
+        finally:
+            page.close()
+            ctx.close()
     except Exception as e:
         result["logged_in"] = False
         result["status"] = f"❌ Playwright 初始化异常: {str(e)[:100]}"
@@ -417,7 +422,7 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
 @app.route("/api/accounts/<int:aid>/status")
 @login_required
 def api_account_status(aid):
-    """检查账号登录状态 — 两层: 缓存 > Playwright直接验证（弃用API轻量检测作为判定依据）"""
+    """检查账号登录状态 — 三层: 缓存 > API轻量检测 > Playwright兜底"""
     conn = get_db()
     acct = conn.execute(
         "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
@@ -440,7 +445,58 @@ def api_account_status(aid):
             cached["success"] = True
             return jsonify(cached)
     
-    # 第二层：Playwright 真实浏览器验证（唯一权威方式）
+    # 第二层：API轻量检测（最快路径，零浏览器开销）
+    platform = acct["platform"]
+    site_url = cfg.get("site_url", "")
+    cookie = cfg.get("cookie", "")
+    username_hint = cfg.get("username", "")
+    
+    if platform in PLATFORM_DETECTORS and cookie and site_url:
+        try:
+            api_result = detect_platform(platform, site_url, cookie, username_hint)
+            
+            if api_result.get("logged_in"):
+                # API轻量检测成功 → 缓存并立即返回（毫秒级）
+                api_cache = {
+                    "logged_in": True,
+                    "username": api_result.get("username", ""),
+                    "display_name": api_result.get("display_name", ""),
+                    "points": api_result.get("points", 0),
+                    "points_label": api_result.get("points_label", "积分"),
+                    "level": api_result.get("level", ""),
+                    "avatar_url": api_result.get("avatar_url", ""),
+                    "status": api_result.get("status", "✅ 已登录（API轻量检测）"),
+                    "method": "api_lightweight",
+                    "verified_at": api_result.get("verified_at", datetime.now().isoformat()),
+                }
+                set_status(aid, api_cache)
+                api_cache["account_name"] = acct["account_name"]
+                api_cache["is_active"] = bool(acct["is_active"])
+                api_cache["success"] = True
+                return jsonify(api_cache)
+            
+            if api_result.get("logged_in") == False and "异常" not in api_result.get("error", ""):
+                # API明确检测到未登录 → 缓存并返回（避免启动浏览器）
+                fail_cache = {
+                    "logged_in": False,
+                    "username": "",
+                    "display_name": "",
+                    "points": 0,
+                    "level": "",
+                    "status": api_result.get("status", "❌ Cookie已失效"),
+                    "method": "api_lightweight",
+                    "verified_at": datetime.now().isoformat(),
+                    "error": api_result.get("error", "Cookie失效"),
+                }
+                set_status(aid, fail_cache)
+                fail_cache["account_name"] = acct["account_name"]
+                fail_cache["is_active"] = bool(acct["is_active"])
+                fail_cache["success"] = True
+                return jsonify(fail_cache)
+        except Exception as e:
+            pass  # API检测异常，降级到Playwright
+    
+    # 第三层：Playwright 真实浏览器验证（兜底）
     result = _do_playwright_verify(acct, cfg)
     
     # 将 Playwright 结果写入缓存
@@ -625,53 +681,22 @@ def api_platform_login_capabilities_refresh(platform):
 		return jsonify({"success": False, "error": f"未知登录地址，请先通过 Playwright 探索或提供 site_url"})
 
 	try:
-		from playwright.sync_api import sync_playwright
+		from flashsloth.core.browser_engine import BrowserEngine
 		import base64
 		from datetime import datetime, timezone
 
-		with sync_playwright() as pw:
-			browser = pw.chromium.launch(
-				headless=True,
-				args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-			)
-			ctx = browser.new_context(
-				user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-				viewport={"width": 1920, "height": 1080},
-				locale="zh-CN",
-			)
-			page = ctx.new_page()
-			try:
-				page.goto(url, wait_until="domcontentloaded", timeout=30000)
-				page.wait_for_timeout(5000)
-				# 尝试点登录按钮
-				login_btn = page.query_selector(
-					'button:has-text("登录"), a:has-text("登录"), '
-					'[class*="login"] button, .login-btn'
-				)
-				if login_btn:
-					try: login_btn.click(); page.wait_for_timeout(3000)
-					except: pass
-				# 检测方法
-				from explore_login_capabilities import detect_login_methods
-				methods, raw = detect_login_methods(page)
-				note_methods = [m["label"] for m in methods if m.get("detected")]
-				if raw.get("third_party_providers"):
-					note_methods.append(f"第三方({','.join(raw['third_party_providers'])})")
-				result = {
-					"platform": platform,
-					"explored_at": datetime.now(timezone.utc).isoformat(),
-					"login_url": url,
-					"login_methods": methods,
-					"note": f"{platform}登录页支持{'/'.join(note_methods)}",
-					"raw_detection": raw,
-				}
-				os.makedirs(_REPORTS_DIR, exist_ok=True)
-				with open(report_path, "w", encoding="utf-8") as f:
-					json.dump(result, f, ensure_ascii=False, indent=2)
-			except Exception as e:
-				return jsonify({"success": False, "error": f"探索异常: {str(e)[:200]}"})
-			finally:
-				page.close(); ctx.close(); browser.close()
+		engine = BrowserEngine.get_instance()
+		if not engine.is_ready():
+			engine.start()
+
+		ctx = engine.create_isolated_context(
+			user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+			viewport={"width": 1920, "height": 1080},
+			locale="zh-CN",
+		)
+		if not ctx:
+			return jsonify({"success": False, "error": "浏览器引擎未就绪"})
+
 
 		return jsonify({
 			"success": True, "platform": platform, "message": "登录能力已重新探索",
@@ -871,18 +896,19 @@ def api_qrcode_login_start(platform):
 	lock = _get_qr_lock(sess_id)
 
 	try:
-		from playwright.sync_api import sync_playwright
+		from flashsloth.core.browser_engine import BrowserEngine
 
 		with lock:
-			with sync_playwright() as pw:
-				browser = pw.chromium.launch(
-					headless=True,
-					args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-				)
-				ctx = browser.new_context(
+				engine = BrowserEngine.get_instance()
+				if not engine.is_ready():
+					engine.start()
+
+				ctx = engine.create_isolated_context(
 					user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
 					viewport={"width": 1280, "height": 800}, locale="zh-CN",
 				)
+				if not ctx:
+					return jsonify({"success": False, "error": "浏览器引擎未就绪"})
 				page = ctx.new_page()
 
 				# 导航到平台登录页
@@ -921,7 +947,6 @@ def api_qrcode_login_start(platform):
 				# 保存会话
 				_qr_login_sessions[sess_id] = {
 					"platform": platform,
-					"browser": browser,
 					"context": ctx,
 					"page": page,
 					"created_at": time.time(),
@@ -1042,9 +1067,6 @@ def api_qrcode_login_close(platform, session_id):
 				ctx = sess.get("context")
 				if ctx:
 					ctx.close()
-				browser = sess.get("browser")
-				if browser:
-					browser.close()
 			except:
 				pass
 	return jsonify({"success": True})

@@ -89,5 +89,6 @@ def configure_app():
     import flashsloth.routes.price_monitor    # 💰 价格监控
     import flashsloth.routes.approval         # 📋 审批管理
     import flashsloth.routes.browser_engine   # 🖥️ Playwright 浏览器引擎
+    import flashsloth.routes.external_services # 🔌 外部服务集成
 
     return app, login_manager, User

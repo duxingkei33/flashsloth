@@ -363,6 +363,44 @@ class BrowserEngine:
                 except Exception:
                     pass
 
+    def get_browser(self) -> object:
+        """获取原始 browser 对象（用于在共享引擎上创建独立上下文）"""
+        with self._lock:
+            if self._status != STATUS_READY or not self._browser:
+                return None
+            return self._browser
+
+    def create_isolated_context(self, **kwargs) -> object:
+        """在共享浏览器上创建独立上下文（用于 cookie 隔离的操作）
+        
+        使用场景：账号状态验证、登录能力探索等临时性操作。
+        调用方用完必须 context.close()，但不会关闭引擎。
+        """
+        browser = self.get_browser()
+        if not browser:
+            return None
+        context_kwargs = {
+            "viewport": {
+                "width": self._config.get("viewport_width", 1280),
+                "height": self._config.get("viewport_height", 800),
+            },
+            "locale": self._config.get("locale", "zh-CN"),
+        }
+        ua = self._config.get("user_agent", "").strip()
+        if ua:
+            context_kwargs["user_agent"] = ua
+        context_kwargs.update(kwargs)
+        context = browser.new_context(**context_kwargs)
+        # 注入反检测脚本
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
+            window.chrome = {runtime: {}, loadTimes: function() {}, csi: function() {}, app: {}};
+        """)
+        self.keep_alive()
+        return context
+
     def keep_alive(self):
         """标记活动时间（每次操作时调用）"""
         with self._lock:
