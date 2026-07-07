@@ -628,23 +628,31 @@ def api_platform_login_capabilities_refresh(platform):
 		return jsonify({"success": False, "error": f"未知登录地址，请先通过 Playwright 探索或提供 site_url"})
 
 	try:
-		from flashsloth.core.browser_engine import BrowserEngine
+		from playwright.sync_api import sync_playwright
 		import base64
 		from datetime import datetime, timezone
 
-		engine = BrowserEngine.get_instance()
-		if not engine.is_ready():
-			engine.start()
-
-		ctx = engine.create_isolated_context(
-			user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		_pw_cm = sync_playwright()
+		_pw = _pw_cm.__enter__()
+		_browser = _pw.chromium.launch(
+			headless=True,
+			args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+				  '--disable-blink-features=AutomationControlled'],
+		)
+		_ctx = _browser.new_context(
+			user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+					   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			viewport={"width": 1920, "height": 1080},
 			locale="zh-CN",
 		)
-		if not ctx:
-			return jsonify({"success": False, "error": "浏览器引擎未就绪"})
+		_ctx.add_init_script("""
+			Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+			Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+			Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
+			window.chrome = {runtime: {}, loadTimes: function() {}, csi: function() {}, app: {}};
+		""")
+		page = _ctx.new_page()
 
-		page = ctx.new_page()
 		page.goto(url, wait_until="domcontentloaded", timeout=30000)
 		page.wait_for_timeout(3000)
 
@@ -736,6 +744,9 @@ def api_platform_login_capabilities_refresh(platform):
 			json.dump(cap_data, f, ensure_ascii=False, indent=2)
 
 		page.close()
+		_ctx.close()
+		_browser.close()
+		_pw_cm.__exit__(None, None, None)
 
 		return jsonify({
 			"success": True, "platform": platform, "message": "登录能力已重新探索",
@@ -743,6 +754,13 @@ def api_platform_login_capabilities_refresh(platform):
 			"capabilities": cap_data,
 		})
 	except Exception as e:
+		# 清理 Playwright 资源
+		try:
+			if 'page' in dir(): page.close()
+			if '_ctx' in dir(): _ctx.close()
+			if '_browser' in dir(): _browser.close()
+			if '_pw_cm' in dir(): _pw_cm.__exit__(None, None, None)
+		except: pass
 		return jsonify({"success": False, "error": f"Playwright 检测异常: {str(e)[:200]}"})
 
 
