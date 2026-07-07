@@ -79,6 +79,33 @@
 .gw-result.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .gw-result.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
+/* ═══ 网关页手机端优化 ═══ */
+@media (max-width: 768px) {
+    .gw-container { padding: 10px; }
+    .gw-header { flex-direction: column; align-items: flex-start !important; gap: 10px; }
+    .gw-header h1 { font-size: 17px; }
+    .gw-header > div { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+    .gw-header .gw-btn-secondary, .gw-header .gw-btn-success { flex: 1 1 auto; text-align: center; font-size: 12px; padding: 6px 12px; }
+    .gw-card { padding: 14px; }
+    .gw-card-header { flex-direction: column; gap: 8px; align-items: stretch; }
+    .gw-card-name { font-size: 14px; flex-wrap: wrap; }
+    .gw-card-actions { flex-wrap: wrap; gap: 4px; }
+    .gw-card-actions button { flex: 1 1 auto; text-align: center; font-size: 11px; padding: 6px 8px; min-height: 36px; }
+    .gw-form { padding: 16px; }
+    .gw-form h2 { font-size: 14px; }
+    .gw-form-row input, .gw-form-row select { font-size: 16px; }
+    .gw-config-fields { padding: 8px; }
+    .gw-form-actions { flex-direction: column; }
+    .gw-form-actions button { width: 100%; text-align: center; }
+    .gw-form-row textarea { min-height: 50px; }
+}
+@media (max-width: 480px) {
+    .gw-container { padding: 6px; }
+    .gw-card { padding: 10px; }
+    .gw-card-name { font-size: 13px; }
+    .gw-card-platform { font-size: 10px; }
+    .gw-card-actions button { font-size: 10px; padding: 4px 6px; min-height: 32px; }
+}
 @media (max-width: 600px) {
     .gw-card-header { flex-direction: column; gap: 8px; align-items: stretch; }
     .gw-card-actions { flex-wrap: wrap; }

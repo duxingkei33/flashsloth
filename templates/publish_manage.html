@@ -4,12 +4,20 @@
 <style>
 @media (max-width: 768px) {
     .pm-table th, .pm-table td { white-space: normal !important; word-break: break-word !important; max-width: unset !important; }
+    .pm-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .pm-actions { flex-direction: column !important; gap: 4px !important; }
+    .pm-actions .btn { width: 100%; text-align: center; }
+    .pm-header { flex-direction: column; align-items: flex-start !important; gap: 8px; }
+}
+@media (max-width: 480px) {
+    .pm-table th, .pm-table td { font-size: 11px; padding: 4px 3px; }
+    .pm-header h2 { font-size: 1.1em; }
 }
 </style>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+<div class="pm-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
     <h2 style="margin:0;">📡 发布管理</h2>
-    <div style="display:flex;gap:8px;">
+    <div class="pm-actions" style="display:flex;gap:8px;">
         <button id="refreshPendingBtn" class="btn btn-sm btn-info" onclick="checkPending()">🔄 刷新状态</button>
         <a href="/" class="btn btn-sm btn-primary">← 返回仪表盘</a>
     </div>
@@ -178,18 +186,18 @@ async function checkPending() {
                     {% endif %}
                 </td>
                 <td>
-                    <div style="display:flex;gap:4px;">
+                    <div class="pm-actions" style="display:flex;gap:4px;">
                         {% if log.success and log.status != 'retracted' %}
                         <a href="/publish/retract/{{ log.id }}" class="btn btn-sm btn-warning"
-                           onclick="return confirm('确认撤回此文章？')">↩️ 撤回</a>
+                           onclick="return confirm('确认撤回此文章？')" style="font-size:11px;">↩️ 撤回</a>
                         {% endif %}
                         {% if log.status == 'retracted' %}
                         <a href="/publish/re-publish/{{ log.id }}" class="btn btn-sm btn-success"
-                           onclick="return confirm('确认重新发布此文章？')">🔄 重新发布</a>
+                           onclick="return confirm('确认重新发布此文章？')" style="font-size:11px;">🔄 重新发布</a>
                         {% endif %}
                         {% if log.url %}
                         <a href="{{ log.url }}" target="_blank" class="btn btn-sm btn-primary"
-                           title="{{ log.url }}">🔗 查看</a>
+                           title="{{ log.url }}" style="font-size:11px;">🔗 查看</a>
                         {% endif %}
                     </div>
                 </td>
