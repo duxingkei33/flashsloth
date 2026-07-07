@@ -119,22 +119,68 @@ class DiscuzPublisher(Publisher):
             }
 
     def _test_cookie(self) -> dict:
-        """测试 Cookie — 模拟真人访问个人主页"""
+        """测试 Cookie — 使用 Playwright 模拟真人访问个人主页验证登录态"""
+        if not self.site_url:
+            return {"success": False, "error": "未配置论坛地址", "status": "配置不完整"}
+        raw_cookie = self.config.get("cookie", "")
+        if not raw_cookie:
+            return {"success": False, "error": "未配置 Cookie", "status": "无 Cookie"}
+        import re
         try:
-            # 先访问首页模拟入口
-            self.browser.get("/forum.php")
-            # 再访问个人主页（真人操作：首页→个人主页）
-            resp = self.browser.get("/home.php?mod=space&do=profile")
-            if "个人主页" in resp.text or self.username in resp.text:
-                return {"success": True, "error": "", "status": "已登录"}
-            for cookie in self.browser.session.cookies:
-                if "auth" in cookie.name.lower():
-                    return {"success": True, "error": "", "status": "已登录"}
-            if "login" in resp.url.lower():
-                return {"success": False, "error": "Cookie 已过期，请重新登录获取", "status": "Cookie过期"}
-            return {"success": False, "error": "无法确认登录状态", "status": "未知"}
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                )
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+                )
+                # 注入 Cookie
+                domain = self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
+                cookies = []
+                for pair in raw_cookie.split(";"):
+                    pair = pair.strip()
+                    if not pair or "=" not in pair:
+                        continue
+                    n, v = pair.split("=", 1)
+                    cookies.append({"name": n.strip(), "value": v.strip(),
+                                    "domain": f".{domain}", "path": "/"})
+                ctx.add_cookies(cookies)
+
+                page = ctx.new_page()
+                try:
+                    # 先访问首页
+                    page.goto(self.site_url + "/forum.php", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+                    # 再访问个人主页
+                    page.goto(self.site_url + "/home.php?mod=space&do=profile", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+
+                    body_text = page.inner_text("body")[:2000]
+                    page_url = page.url.lower()
+                    redirected_to_login = "login" in page_url
+
+                    # 查找登录态指示器
+                    indicators = []
+                    for pat in [rf'{re.escape(self.username)}', r'个人主页', r'退出\s*登录', r'个人中心', r'我的中心', r'我的帖子']:
+                        if re.search(pat, body_text, re.IGNORECASE):
+                            indicators.append(pat)
+
+                    if "login" in page_url:
+                        return {"success": False, "error": "Cookie 已过期，请重新登录获取", "status": "Cookie过期"}
+                    if indicators:
+                        return {"success": True, "error": "", "status": f"已登录 — 检测到: {' | '.join(indicators[:3])}",
+                                "username_found": True, "username_indicators": indicators[:3]}
+                    return {"success": False, "error": "无法确认登录状态（未检测到用户信息）", "status": "未知"}
+                except Exception as e:
+                    return {"success": False, "error": f"页面加载异常: {e}", "status": "连接失败"}
+                finally:
+                    page.close()
+                    browser.close()
         except Exception as e:
-            return {"success": False, "error": f"连接失败: {e}", "status": "连接失败"}
+            return {"success": False, "error": f"Playwright 初始化失败: {e}", "status": "连接失败"}
 
     def login_with_password(self, captcha_text: str, seccodehash: str) -> dict:
         """密码+验证码登录"""

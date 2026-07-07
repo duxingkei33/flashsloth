@@ -88,7 +88,7 @@
 
         <!-- 操作按钮组 -->
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
-            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开浏览器验证登录态，查找用户名">🔍 测试连接</button>
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright浏览器打开平台网站，注入Cookie，验证是否真正登录（查找用户名/个人中心等），返回真实结果">🔍 验证登录</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
 
             <!-- 🌐 统一浏览器登录（通过编辑弹窗的登录方式登录） -->

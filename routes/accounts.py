@@ -164,25 +164,17 @@ def api_account_toggle(aid):
    conn.close()
    return jsonify({"success": True, "is_active": bool(new_status)})
 
-@app.route("/api/accounts/<int:aid>/status")
-@login_required
-def api_account_status(aid):
-    """检查账号登录状态 — 全面使用 Playwright 验证登录态，查找用户名信息"""
-    conn = get_db()
-    acct = conn.execute(
-        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
-        (aid, current_user.id)
-    ).fetchone()
-    conn.close()
-    if not acct:
-        return jsonify({"success": False, "error": "账号不存在"})
-    acct = dict(acct)
-    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
-    decrypt_config(cfg)  # 解密用于 Playwright 检测
+
+def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
+    """使用 Playwright 验证账号登录状态（共享给 status 和 test 两个端点使用）
+    acct: platform_accounts 行 dict
+    cfg: 已解密的 config_json dict
+    返回结果字典（含 logged_in/status/username_indicators等）
+    """
+    import re
     cookie = cfg.get("cookie", "")
     site_url = cfg.get("site_url", "")
     platform = acct["platform"]
-    # 静态站点平台列表（无需 cookie/登录检测，只需检查站点可达性）
     static_platforms = {"github_pages_blog", "github_pages", "static_site"}
     is_static = platform in static_platforms
 
@@ -196,8 +188,6 @@ def api_account_status(aid):
         "site_url": site_url or "",
         "is_static_site": is_static,
     }
-
-    import re
 
     # ─── 静态站点处理 ─────────────────────────────
     if is_static and site_url:
@@ -223,13 +213,13 @@ def api_account_status(aid):
         except Exception as e:
             result["logged_in"] = None
             result["status"] = f"❌ 站点不可达: {str(e)[:100]}"
-        return jsonify(result)
+        return result
 
     # ─── 动态站点：使用 Playwright 全面检测 ─────────
     if not site_url:
         result["logged_in"] = None
         result["status"] = "🔗 未配置站点 URL"
-        return jsonify(result)
+        return result
 
     try:
         from playwright.sync_api import sync_playwright
@@ -272,18 +262,16 @@ def api_account_status(aid):
 
                 # 查找用户名/用户信息模式
                 account_name = acct["account_name"]
-                # 尝试查找账号名相关的文本（用户名、欢迎语等）
                 username_indicators = []
-                # 匹配 "你好，xxx"、"欢迎，xxx"、"xxx，欢迎"、"hello xxx" 等模式
                 user_patterns = [
                     rf'{re.escape(account_name)}',
-                    rf'欢迎[：:  ].*{re.escape(account_name[:max(2, len(account_name)//2)])}',
+                    rf'欢迎[：:  ].*{re.escape(account_name[:max(2, len(account_name)//2)])}',
                     rf'{re.escape(account_name[:max(2, len(account_name)//2)])}.*欢迎',
                     rf'你好[：: 　].*{re.escape(account_name[:max(2, len(account_name)//2)])}',
-                    r'user[=_\s-][A-Za-z0-9_\u4e00-\u9fff]+',
-                    r'username[=_\s-][A-Za-z0-9_\u4e00-\u9fff]+',
-                    r'nick[=_\s-][A-Za-z0-9_\u4e00-\u9fff]+',
-                    r'退出\s*登录',
+                    r'user[=_\\s-][A-Za-z0-9_\\u4e00-\\u9fff]+',
+                    r'username[=_\\s-][A-Za-z0-9_\\u4e00-\\u9fff]+',
+                    r'nick[=_\\s-][A-Za-z0-9_\\u4e00-\\u9fff]+',
+                    r'退出\\s*登录',
                     r'注销',
                     r'个人中心',
                     r'我的中心',
@@ -295,7 +283,7 @@ def api_account_status(aid):
                     if m:
                         username_indicators.append(m.group(0)[:80])
 
-                # 提取包含用户名的上下文（前500字节）
+                # 提取包含用户名的上下文
                 user_context = ""
                 if username_indicators:
                     for indicator in username_indicators[:3]:
@@ -306,13 +294,10 @@ def api_account_status(aid):
                             snippet = body_text[start:end].strip()
                             user_context += f"...{snippet}...\n"
 
+                # ⚠️ 铁律：必须有真实用户信息才算已登录
                 is_logged_in = (
                     not redirected_to_login
                     and len(username_indicators) > 0
-                ) or (
-                    not redirected_to_login
-                    and bool(cookie)
-                    and len(ctx.cookies()) > 3  # 有足够 cookie 且不在登录页
                 )
 
                 result["logged_in"] = is_logged_in
@@ -327,11 +312,11 @@ def api_account_status(aid):
                     else:
                         result["status"] = "✅ 已登录（Cookie 有效）"
                 else:
-                    reason = "重定向到登录页" if redirected_to_login else "未检测到用户信息"
+                    reason = "重定向到登录页" if redirected_to_login else "未检测到用户信息(用户名/退出/个人中心等关键词)"
                     if cookie:
                         result["status"] = f"❌ Cookie 已失效（{reason}）"
                     else:
-                        result["status"] = f"❌ 未登录（{reason}）"
+                        result["status"] = f"❌ 未登录（无 Cookie）"
 
             except Exception as e:
                 result["logged_in"] = False
@@ -344,12 +329,31 @@ def api_account_status(aid):
         result["logged_in"] = False
         result["status"] = f"❌ Playwright 初始化异常: {str(e)[:100]}"
 
+    return result
+
+
+@app.route("/api/accounts/<int:aid>/status")
+@login_required
+def api_account_status(aid):
+    """检查账号登录状态 — 代理到 _do_playwright_verify 统一逻辑"""
+    conn = get_db()
+    acct = conn.execute(
+        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
+        (aid, current_user.id)
+    ).fetchone()
+    conn.close()
+    if not acct:
+        return jsonify({"success": False, "error": "账号不存在"})
+    acct = dict(acct)
+    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
+    decrypt_config(cfg)
+    result = _do_playwright_verify(acct, cfg)
     return jsonify(result)
 
 @app.route("/api/accounts/test/<int:aid>", methods=["POST"])
 @login_required
 def test_account(aid):
-   """测试指定账号的连接状态"""
+   """测试指定账号的连接状态 — 统一使用 Playwright 验证，不再委托给 publisher 的 requests 测试"""
    conn = get_db()
    acct = conn.execute(
        "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
@@ -358,16 +362,12 @@ def test_account(aid):
    conn.close()
    if not acct:
        return jsonify({"success": False, "error": "账号不存在"})
+   acct = dict(acct)
    cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
    decrypt_config(cfg)  # 解密凭证用于连接测试
-   try:
-       publisher = get_publisher(acct["platform"], cfg)
-       if hasattr(publisher, "test_connection"):
-           result = publisher.test_connection()
-           return jsonify(result)
-       return jsonify({"success": False, "error": "该平台不支持连接测试"})
-   except Exception as e:
-       return jsonify({"success": False, "error": f"测试异常: {e}"})
+   # 复用 api_account_status 的 Playwright 验证逻辑
+   result = _do_playwright_verify(acct, cfg)
+   return jsonify(result)
 
 @app.route("/api/accounts/<int:aid>/signin_settings", methods=["POST"])
 @login_required
