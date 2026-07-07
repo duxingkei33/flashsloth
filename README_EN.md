@@ -20,20 +20,24 @@
 - [x] 🍪 Cookie paste (debug mode)
 - [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
 - [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
-- [x] 📊 Three-layer account status detection — persistent BrowserEngine + API lightweight check + Playwright real verification + 3-tier cache (memory/SQLite/real-time) + batch refresh + deep user info
+- [x] 📊 Three-layer status detection — persistent BrowserEngine + API lightweight check + Playwright real verification + 3-tier cache (memory/SQLite/real-time) + batch refresh + deep user info
 - [x] 🧩 Unified browser login button — shared edit dialog for all platforms
+- [x] 📱 Phone SMS login extended to CSDN/Bilibili publishers
+- [x] 🏗️ BrowserEngine persistent refactor — shared engine + subprocess Playwright verification (avoids WSGI deadlock)
+- [x] 🪟 Account modal deepening — amobbs/discuz/mydigit/wordpress login capability completion
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
 - [x] WordPress — REST API publish (App Password auth)
-- [x] WeChat Official Account — Official API draft (AppID + AppSecret)
+- [x] WeChat Official Account — Official API draft (AppID + AppSecret) + exploration + image upload/cover/summary
 - [x] CSDN — Playwright publish + sign-in
-- [x] Zhihu — Full Playwright rewrite (password/QR/Cookie)
+- [x] Zhihu — Full Playwright rewrite (password/QR/Cookie) + platform exploration report
 - [x] OSHWHub (JLCPCB Open Source) — Playwright publish + sign-in
 - [x] Juejin — Cookie-based publish (password/QR/Cookie)
 - [x] Bilibili Articles — Playwright publish + draft save + image upload + login plugin + exploration reports (password/QR/Cookie)
-- [x] Twitter/X — tweepy API v2 OAuth1.0a
+- [x] Twitter/X — tweepy API v2 OAuth1.0a + image upload pipeline + Article compatibility + draft isolation
 - [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category + SDK
+- [x] Xianyu Auto-Reply System Integration — Docker service (product listing/order query)
 - [x] Gallery Product Listing (Reserved)
 - [x] RSS Feed — Pure Python generation
 - [x] GitHub Pages — git push deployment
@@ -47,18 +51,20 @@
 ### 🔍 Platform Exploration
 - [x] Discuz forum auto-exploration (Playwright)
 - [x] Login capability exploration — 7-platform auto-detection (password/QR/SMS) + JSON reports
-- [x] Hourly incremental polling
-- [x] Anti-detection rate limiting (1/domain/hour, dual-cache memory+DB for cross-process)
-- [x] Forum section keyword matching
-- [x] Exploration data management page
+- [x] Hourly incremental polling + anti-detection rate limiting (dual-cache memory+DB persistence for cross-process)
+- [x] Forum section keyword matching + exploration data management page
 - [x] Platform publish capability display + tag section management
 - [x] Bilibili full exploration report + login plugin + platform capability import
+- [x] Zhihu platform exploration — login/editor/capability data
+- [x] WeChat Official Account exploration — image upload/cover/summary capability
+- [x] WeChat full exploration + publisher enhancement
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
 - [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
 - [x] CSDN sign-in
 - [x] amobbs / Discuz! sign-in
-- [x] Sign-in statistics (success/failure breakdown)
+- [x] Sign-in statistics (success/failure breakdown, de-duplication fix)
+- [x] Batch sign-in time configuration + random offset (±30min) setting
 - [x] Randomized execution window (within 1 hour of configured time, account_id offset to avoid concurrent sign-ins)
 
 ### 🛒 Xianyu Integration
@@ -66,6 +72,7 @@
 - [x] Price monitoring & comparison (LCSC components)
 - [x] MTOP Signature V2 publisher + AI category recognition
 - [x] xianyu_client SDK (mtop/sign/session/media/category/limiter/guard)
+- [x] Xianyu Auto-Reply System — Docker service integration + API proxy + health status monitoring
 
 ### 🧠 Smart Matching
 - [x] AI section matching (multi-platform support)
@@ -82,11 +89,17 @@
 - [x] Visual pipeline flow chart
 - [x] Run history list
 
-### 🧰 Workspace & AI Logs
+### 🧰 Workspace & Provider Framework
 - [x] Unified content management workspace — Provider selection + pipeline + content logs
-- [x] Notion/Markdown Provider plugins
+- [x] Provider abstraction framework — base→workspace, 3 Providers (Markdown/Notion/Taobao), config management
 - [x] AI call log system — auto-recording + visual log page + pagination/filtering
 - [x] 🖥️ Playwright browser engine settings page
+- [x] External service registry — unified management for xianyu-auto-reply etc.
+- [x] Deployment config enhancement — deploy block embedded in account page + deployers enhanced
+
+### 💬 Comment Monitoring
+- [x] Multi-forum comment monitoring — unread/reply/stats dashboard
+- [x] Comment notification push
 
 ### 📱 Mobile Support
 - [x] Mobile CSS enhancements — responsive layout for phones/tablets
@@ -100,34 +113,38 @@
 │                  User Interface Layer (Flask Web UI)               │
 │  Dashboard · Articles · Sign-In · Xianyu Search · Accounts        │
 │  Config · Exploration Data · Gateway · Approval · AI Settings     │
-│  Workspace · AI Logs · Playwright Settings                        │
+│  Workspace · AI Logs · Playwright Settings · Comment Monitor      │
+│  Deploy Config · External Services · Storage Settings             │
 └──────────────────────────────────────────────────────────────────┘
-                              ↕
+                             ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Gateway API Layer (routes/)                     │
 │  routes/accounts.py · gateway.py · ai.py · signin.py              │
 │  exploration.py · posts.py · api_v2.py · browser_login.py         │
 │  approval.py · notifications.py · price_monitor.py                │
-│  workspace_ui.py · browser_engine.py                              │
+│  workspace_ui.py · browser_engine.py · external_services.py       │
+│  storage_deploy.py · auth.py                                      │
 └──────────────────────────────────────────────────────────────────┘
-                              ↕
+                             ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                 Unified Workflow Engine (core/)                    │
-│  publisher · gateway · scheduler · database · credential_crypto    │
-│  anti_detect · explorer · price_monitor · approval · notifier      │
-│  ai_provider · article · deployer · compiler · pipeline            │
-│  pipeline · signin · image_pipeline · captcha_handler              │
-│  browser_engine · status_detector · status_cache                  │
+│  publisher · gateway · scheduler · database · credential_crypto   │
+│  anti_detect · explorer · price_monitor · approval · notifier     │
+│  ai_provider · article · deployer · compiler · pipeline           │
+│  signin · image_pipeline · captcha_handler                        │
+│  browser_engine · status_detector · status_cache · provider       │
+│  provider_registry · storage                                       │
 └──────────────────────────────────────────────────────────────────┘
-                              ↕
+                             ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                Plugin + Adapter Layer (plugins/ + sdk/)            │
-│  publisher_*.py — 14 platform publishers                          │
+│  publisher_*.py — 15 platform publishers                          │
 │  signin_*.py   — 3 sign-in plugins                                │
-│  generic_login.py · bilibili_login.py · xianyu_client/            │
+│  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
+│  generic_login.py · bilibili_login.py · xianyu_client/           │
 │  sdk/adapters/ (15+ platform adapters)                            │
 └──────────────────────────────────────────────────────────────────┘
-                              ↕
+                             ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Public Infrastructure                            │
 │  SQLite (flashsloth.db + status_cache.db)                         │
@@ -215,7 +232,7 @@ frpc -c frpc.toml
 
 | Task | Interval | Description |
 |------|----------|-------------|
-| Auto Sign-In | Every minute | Daemon thread executes within configured time window (default 08:00-09:00), account_id offset to avoid concurrent sign-ins |
+| Auto Sign-In | Every minute | Daemon thread executes within configured time window, account_id offset to avoid concurrent sign-ins |
 | Forum Exploration | Hourly | `scripts/hourly_forum_check.py` — incremental Discuz section check |
 | Price Refresh | Per config | LCSC component price refresh |
 
@@ -225,25 +242,21 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
-| v4.57 | 2026-07-07 | 3-layer status detection — persistent BrowserEngine + API lightweight + Playwright real verify + cache (memory/SQLite) + deep user info |
-| v4.56 | 2026-07-07 | Bilibili full exploration report + login plugin + platform capability import |
-| v4.55 | 2026-07-07 | AI call log system + Workspace + Phone SMS login + unified login capability exploration + Playwright settings + mobile CSS |
-| v4.54 | 2026-07-07 | Dev spec update + sign-in randomization + OSHWHub login fix |
-| v4.53 | 2026-07-07 | P0 captcha fix + fake logged-in status removal |
-| v4.52 | 2026-07-07 | xianyu_v2 unified login normalization + credential encryption fix |
-| v4.51 | 2026-07-07 | Bilibili Publisher enhancements (save_as_draft+upload_image) + dev spec + exploration report |
-| v4.50 | 2026-07-07 | Demo diagrams + generic login adapters (CSDN/wechat/zhihu) |
-| v4.49 | 2026-07-07 | Account dialog overhaul — QR login + demo cards + captcha UX |
-| v4.48 | 2026-07-06 | Unified edit dialog — redirect /edit to /accounts, masked value save |
-| v4.47 | 2026-07-06 | Fix test_connection decrypt compat + config_json encrypt/decrypt |
-| v4.46 | 2026-07-06 | Credential encryption — Fernet AES-128 for passwords/cookies/tokens |
-| v4.45 | 2026-07-06 | Gateway QR auto-config — /callback endpoint |
-| v4.42 | 2026-07-06 | OSHWHub auto re-login on cookie expiry + E2E draft save |
-| v4.41 | 2026-07-06 | Fix OSHWHub login status detection — Playwright cookie verify |
-| v4.39 | 2026-07-06 | 22-channel gateway + anti-detect module + Xianyu V2 MTOP + Explorer overhaul |
-| v4.36 | 2026-07-06 | Notification system + Gateway + unified pipeline + Xianyu search UI + exploration |
-| v4.35 | 2026-07-06 | Twitter/X Publisher + dynamic exploration sort |
-| v4.33 | 2026-07-06 | Zhihu publisher overhaul + exploration UI + sign-in stats fix |
+| v4.75 | 2026-07-07 | Account modal deepening — amobbs/discuz/mydigit/wordpress login completion |
+| v4.74 | 2026-07-07 | Provider framework → workspace — base→workspace, 3 Providers, config mgmt + mobile CSS |
+| v4.70 | 2026-07-07 | Sign-in stats fix — manual sign-in counting + de-duplication + state persistence |
+| v4.67 | 2026-07-07 | Twitter Publisher improvements — image upload pipeline + Article compatibility + draft isolation |
+| v4.66 | 2026-07-07 | Zhihu platform exploration — login/editor/capability data |
+| v4.65 | 2026-07-07 | Playwright verification subprocess (WSGI deadlock fix) + batch sign-in time + random offset |
+| v4.64 | 2026-07-07 | BrowserEngine deadlock fix — context_processor timeout decoupling |
+| v4.63 | 2026-07-07 | Cookie count anti-pattern cleanup |
+| v4.62 | 2026-07-07 | OSHWHub cookie expiry auto-fallback password + CSDN sign-in fix |
+| v4.60 | 2026-07-07 | BrowserEngine persistent + accounts.py refactor + Phone login thread fix |
+| v4.59 | 2026-07-07 | Phone SMS login extended to CSDN/Bilibili publishers |
+| v4.58 | 2026-07-07 | Production perf optimization — disable hot reload + BrowserEngine 2s cache |
+| v4.57 | 2026-07-07 | 3-layer status detection — persistent BrowserEngine + API lightweight + Playwright verify + cache + deep user info |
+| v4.56 | 2026-07-07 | Bilibili full exploration report + login plugin + platform capability import + WeChat exploration/publisher |
+| v4.55 | 2026-07-07 | AI call log system + Workspace + Phone SMS login + unified login exploration + Playwright settings + mobile CSS |
 
 ---
 
