@@ -83,9 +83,10 @@ class ZhihuPublisher(Publisher):
         return _parse_cookies(self.cookie_str) if self.cookie_str else []
 
     def test_connection(self) -> dict:
-        """测试 Cookie 有效性"""
+        """测试 Cookie 有效性，提取用户名，检测登录态"""
         if not self.cookie_str:
             return {"success": False, "error": "未配置 Cookie"}
+
         try:
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=[
@@ -97,16 +98,118 @@ class ZhihuPublisher(Publisher):
                 )
                 ctx.add_cookies(self._cookies())
                 page = ctx.new_page()
-                page.goto("https://www.zhihu.com/", wait_until="domcontentloaded", timeout=20000)
+
+                # 1. 加载首页
+                page.goto("https://www.zhihu.com/", wait_until="domcontentloaded",
+                          timeout=20000)
                 page.wait_for_timeout(3000)
-                # 检测是否未登录——知乎跳登录页时 URL 含 signin 或 login
+
+                # 2. 检查 URL 是否被重定向到登录页
                 redirected = "signin" in page.url.lower() or "login" in page.url.lower()
+                if redirected:
+                    browser.close()
+                    return {
+                        "success": False,
+                        "error": "Cookie 已过期",
+                        "status": "❌ Cookie已失效（重定向到登录页）",
+                    }
+
+                # 3. 获取页面正文，扫描登录态特征
+                body_text = page.inner_text("body")[:2000]
+
+                # 4. 查找退出/注销/个人主页链接（仅在已登录时出现）
+                logout_keywords = ["退出登录", "退出", "注销", "个人主页", "我的主页",
+                                   "我的收藏", "我的草稿"]
+                found_logout = any(kw in body_text for kw in logout_keywords)
+
+                # 5. 尝试提取用户名
+                username = self._extract_username(page, body_text)
+
                 browser.close()
-                if not redirected:
-                    return {"success": True, "error": "", "status": "已登录"}
-                return {"success": False, "error": "Cookie 已过期", "status": "Cookie过期"}
+
+                # 6. 判定登录态并返回详细状态
+                if found_logout and username:
+                    return {
+                        "success": True,
+                        "error": "",
+                        "status": f"✅ 已登录 — {username}",
+                        "username": username,
+                    }
+                if found_logout:
+                    return {
+                        "success": True,
+                        "error": "",
+                        "status": "✅ 已登录（未识别用户名）",
+                    }
+                if username:
+                    # 有用户名但无退出按钮——可能需要二次确认
+                    return {
+                        "success": True,
+                        "error": "",
+                        "status": f"✅ 可能已登录 — {username}（未检测到退出按钮）",
+                        "username": username,
+                    }
+
+                return {
+                    "success": False,
+                    "error": "Cookie 可能无效",
+                    "status": "❌ Cookie已失效（页面无用户信息）",
+                }
+
         except Exception as e:
-            return {"success": False, "error": str(e), "status": "连接失败"}
+            return {"success": False, "error": str(e), "status": "❌ 连接失败"}
+
+    def _extract_username(self, page, body_text: str) -> str:
+        """从页面中提取当前登录用户名"""
+        # 尝试常见选择器
+        selectors = [
+            # 知乎个人资料卡片
+            "button.GlobalNav-profile button span",
+            # 用户头像区域
+            ".AppHeader-profileCard",
+            "[class*='ProfileName']",
+            # 顶部栏用户区域
+            ".TopBar-item img[alt]",
+            ".AppHeader-userInfo",
+            # 通用用户名/昵称区域
+            "[class*='username']",
+            "[class*='userName']",
+            "[class*='nickname']",
+            "[class*='accountName']",
+        ]
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                if el.count() > 0:
+                    text = el.inner_text().strip()
+                    if text and len(text) < 50:
+                        return text
+            except Exception:
+                continue
+
+        # 尝试从头像的 title/alt 属性提取
+        try:
+            for attr in ["title", "alt"]:
+                val = page.locator(
+                    "img[class*='Avatar'], img[class*='avatar'], "
+                    "[class*='AvatarItem'] img, img[alt*='头像']"
+                ).first.get_attribute(attr)
+                if val and len(val) < 30 and val.strip():
+                    return val.strip()
+        except Exception:
+            pass
+
+        # 正则兜底: 欢迎语
+        m = re.search(r"(?:欢迎|你好|Hi)[，,]\s*([^\s，。,！!]{1,20})", body_text)
+        if m:
+            return m.group(1)
+
+        # 正则兜底: 个人主页链接文本
+        m = re.search(r"个人主页[：:]\s*([^\s，。]{1,20})", body_text)
+        if m:
+            return m.group(1)
+
+        return ""
 
     def publish(self, article: Article, **kwargs) -> dict:
         """使用 Playwright 发布到知乎专栏"""

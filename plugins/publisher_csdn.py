@@ -86,7 +86,7 @@ class CSDNPublisher(Publisher):
         return _parse_cookies(self.cookie_str) if self.cookie_str else []
 
     def test_connection(self) -> dict:
-        """测试 Cookie 有效性"""
+        """测试 Cookie 有效性，提取用户名"""
         if not self.cookie_str:
             return {"success": False, "error": "未配置 Cookie"}
         try:
@@ -102,12 +102,48 @@ class CSDNPublisher(Publisher):
                 page = ctx.new_page()
                 page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
                 page.wait_for_timeout(3000)
-                login_links = page.locator("a:has-text('登录')")
-                ok = login_links.count() == 0
+
+                # 获取页面文本内容检测登录态
+                body_text = page.inner_text("body")[:2000]
+
+                # 检查强登录态指标
+                has_logout = bool(re.search(r'退出', body_text))
+                has_cancel = bool(re.search(r'注销', body_text))
+                has_center = bool(re.search(r'个人中心|用户中心|会员中心', body_text))
+                strong_exit = has_logout or has_cancel
+
+                # 尝试提取用户名
+                username_hint = ""
+                # 方法1: 从 CSDN 博客主页链接提取
+                profile_links = page.locator("a[href*='blog.csdn.net/']")
+                for i in range(min(profile_links.count(), 5)):
+                    href = profile_links.nth(i).get_attribute("href") or ""
+                    m = re.search(r'blog\.csdn\.net/([^/"\'\s?]+)', href)
+                    if m:
+                        username_hint = m.group(1)
+                        break
+
+                # 方法2: 从配置中的用户名匹配
+                if not username_hint:
+                    configured = self.config.get("username", "")
+                    if configured and configured in body_text:
+                        username_hint = configured
+
+                # 方法3: 页面欢迎文本（支持 欢迎 xxx、Hi xxx 等模式）
+                if not username_hint:
+                    m = re.search(r'(?:欢迎|欢迎回来|Hi)[：:\s]+([^\s。！，、，用户]{2,30})', body_text)
+                    if m:
+                        username_hint = m.group(1).strip()[:30]
+
+                # 判定规则: 必须存在强退出标记 + (至少有2个指标 或 提取到用户名)
+                indicators = sum([has_logout, has_cancel, has_center])
+                is_logged_in = strong_exit and (indicators >= 2 or bool(username_hint))
+
                 browser.close()
-                if ok:
-                    return {"success": True, "error": "", "status": "已登录"}
-                return {"success": False, "error": "Cookie 已过期", "status": "Cookie过期"}
+                if is_logged_in:
+                    status = f"✅ 已登录 — {username_hint}" if username_hint else "✅ 已登录"
+                    return {"success": True, "error": "", "status": status}
+                return {"success": False, "error": "❌ Cookie已失效（未检测到登录态）", "status": "Cookie过期"}
         except Exception as e:
             return {"success": False, "error": str(e), "status": "连接失败"}
 

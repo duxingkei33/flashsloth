@@ -148,10 +148,30 @@ class OSHWHubArticlePublisher(Publisher):
             try:
                 pw, browser, ctx, page, login = _fresh_login_context(self.username, self.password)
                 avatar = page.locator("[class*='user-avatar']").first
-                ok = avatar.count() > 0
+                has_avatar = avatar.count() > 0
+                # Extract username from common display-name selectors
+                username_el = page.locator(
+                    "[class*='user-name'], [class*='nickname'], [class*='username'], "
+                    "[class*='display-name'], [class*='profile-name']"
+                ).first
+                has_username = username_el.count() > 0
+                username_text = (username_el.text_content() or "").strip() if has_username else ""
+                # Check for exit/logout links as additional evidence
+                exit_links = page.locator(
+                    "a:has-text('退出'), a:has-text('注销'), "
+                    "button:has-text('退出'), button:has-text('注销'), "
+                    "span:has-text('退出'), span:has-text('注销')"
+                )
+                has_exit_or_logout = exit_links.count() > 0
+                # Stricter check: must have avatar AND (username or exit/logout button)
+                ok = has_avatar and (has_username or has_exit_or_logout)
                 browser.close()
                 pw.stop()
-                return {"success": ok, "error": "" if ok else "登录失败", "status": "已登录" if ok else "登录失败"}
+                if ok:
+                    detail = f"已登录（{username_text}）" if username_text else "已登录（头像匹配）"
+                else:
+                    detail = "登录失败"
+                return {"success": ok, "error": "" if ok else "登录失败", "status": detail}
             except Exception as e:
                 return {"success": False, "error": str(e)}
         else:
@@ -170,11 +190,30 @@ class OSHWHubArticlePublisher(Publisher):
                 page.goto(f"{BASE}/", wait_until="domcontentloaded", timeout=20000)
                 page.wait_for_timeout(3000)
                 avatar = page.locator("[class*='user-avatar']").first
-                login_links = page.locator("a:has-text('登录')")
-                ok = avatar.count() > 0 or login_links.count() == 0
+                has_avatar = avatar.count() > 0
+                # Extract username from common display-name selectors
+                username_el = page.locator(
+                    "[class*='user-name'], [class*='nickname'], [class*='username'], "
+                    "[class*='display-name'], [class*='profile-name']"
+                ).first
+                has_username = username_el.count() > 0
+                username_text = (username_el.text_content() or "").strip() if has_username else ""
+                # Check for exit/logout links as additional evidence of logged-in state
+                exit_links = page.locator(
+                    "a:has-text('退出'), a:has-text('注销'), "
+                    "button:has-text('退出'), button:has-text('注销'), "
+                    "span:has-text('退出'), span:has-text('注销')"
+                )
+                has_exit_or_logout = exit_links.count() > 0
+                # Stricter check: must have avatar AND (username or exit/logout button)
+                ok = has_avatar and (has_username or has_exit_or_logout)
                 browser.close()
                 pw.stop()
-                return {"success": ok, "error": "" if ok else "Cookie 过期", "status": "已登录" if ok else "Cookie过期"}
+                if ok:
+                    detail = f"已登录（{username_text}）" if username_text else "已登录（头像匹配）"
+                else:
+                    detail = "Cookie 过期或未登录"
+                return {"success": ok, "error": "" if ok else "Cookie 过期", "status": detail}
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
