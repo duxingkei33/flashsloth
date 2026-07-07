@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 try:
     from core_signin import SigninBase, register
 except ImportError:
-    from core.signin import SigninBase, register
+    from flashsloth.core.signin import SigninBase, register
 
 logger = logging.getLogger(__name__)
 
