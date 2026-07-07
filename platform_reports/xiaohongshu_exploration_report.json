@@ -1,76 +1,133 @@
 {
   "platform": "xiaohongshu",
+  "display_name": "小红书",
   "domain": "xiaohongshu.com",
-  "explored_at": "2026-07-07 23:41:43",
+  "category": "social",
+  "architecture": "custom",
+  "explored_at": "2026-07-08 02:35:49",
+  "last_updated": "2026-07-08 02:35:49",
   "explored_with_login": false,
   "has_account": false,
   "has_publisher": false,
-  "login_methods": {
-    "has_password": false,
-    "has_phone": true,
-    "has_qrcode": true,
-    "has_wechat": true,
-    "has_weibo": true,
-    "has_qq": true,
-    "has_captcha": true,
-    "has_geetest": false,
-    "has_netease": false,
-    "login_url": "https://www.xiaohongshu.com/login"
+  "login": {
+    "login_url": "https://www.xiaohongshu.com/explore",
+    "methods": [
+      {
+        "method": "captcha",
+        "name": "验证码登录",
+        "fields": [
+          ""
+        ]
+      },
+      {
+        "method": "qrcode",
+        "name": "扫码登录",
+        "selectors": [
+          "img[src*='data:image/png;base64,iVBORw0K']",
+          "img[src*='data:image/png;base64,iVBORw0K']",
+          "img[src*='data:image/png;base64,iVBORw0K']",
+          "img[src*='https://sns-webpic-qc.xhscdn.c']"
+        ]
+      }
+    ],
+    "captcha": {
+      "has_captcha": true,
+      "types": [
+        "slider",
+        "sms_code"
+      ],
+      "selectors": [
+        "[class*='slider']"
+      ]
+    },
+    "third_party": {
+      "wechat": true,
+      "weibo": false,
+      "qq": false,
+      "github": false,
+      "apple": false,
+      "others": []
+    },
+    "qr_code": {
+      "has_qrcode": true,
+      "selectors": [
+        "img[src*='data:image/png;base64,iVBORw0K']",
+        "img[src*='data:image/png;base64,iVBORw0K']",
+        "img[src*='data:image/png;base64,iVBORw0K']",
+        "img[src*='https://sns-webpic-qc.xhscdn.c']"
+      ],
+      "qr_container_sel": ""
+    },
+    "fields": [
+      {
+        "type": "text",
+        "name": "blur",
+        "id": "",
+        "placeholder": "输入手机号",
+        "autocomplete": ""
+      },
+      {
+        "type": "captcha",
+        "name": "",
+        "id": "",
+        "placeholder": "输入验证码",
+        "autocomplete": "false"
+      },
+      {
+        "type": "text",
+        "name": "hp-inputsearch-input",
+        "id": "",
+        "placeholder": "登录探索更多内容",
+        "autocomplete": "off"
+      },
+      {
+        "type": "text",
+        "name": "",
+        "id": "search-input",
+        "placeholder": "登录探索更多内容",
+        "autocomplete": "off"
+      }
+    ],
+    "buttons": {
+      "login_button": "text=登录|SPAN.login-btn",
+      "register_button": "",
+      "other_buttons": [
+        "text=|DIV.icon-btn-wrapper.close-button",
+        "text=创作中心|BUTTON.reds-button-new.channel-btn.large.text.c",
+        "text=业务合作|BUTTON.reds-button-new.channel-btn.large.text.c",
+        "text=|DIV.floating-btn-sets",
+        "text=|DIV.btn-wrapper",
+        "text=|DIV.btn-wrapper",
+        "text=|BUTTON.reds-button-new.dragger.large.icon.has-i",
+        "text=|BUTTON.reds-button-new.share-icon.large.icon.ha",
+        "text=|BUTTON.reds-button-new.close-icon.large.icon.ha",
+        "text=|BUTTON.reds-button-new.close-icon.large.icon.ha"
+      ]
+    },
+    "cookie_hints": [
+      "sid",
+      "session",
+      "token",
+      "web_session"
+    ]
   },
-  "editor_url": "https://www.xiaohongshu.com/404?source=/editor",
-  "editor_requires_login": false,
-  "api_endpoints": [
-    "https://apm-fe.xiaohongshu.com/api/data",
-    "https://as.xiaohongshu.com/api/p/pj",
-    "https://as.xiaohongshu.com/api/sec/v1/ds?appId=xhs-pc-web",
-    "https://as.xiaohongshu.com/api/sec/v1/sbtsource",
-    "https://as.xiaohongshu.com/api/sec/v1/scripting",
-    "https://as.xiaohongshu.com/api/sec/v1/shield/webprofile",
-    "https://edith.xiaohongshu.com/api/im/redmoji/version",
-    "https://edith.xiaohongshu.com/api/qrcode/userinfo",
-    "https://edith.xiaohongshu.com/api/redcaptcha/v2/getconfig",
-    "https://edith.xiaohongshu.com/api/sns/web/global/config",
-    "https://edith.xiaohongshu.com/api/sns/web/racing_get",
-    "https://edith.xiaohongshu.com/api/sns/web/v1/config",
-    "https://edith.xiaohongshu.com/api/sns/web/v1/homefeed",
-    "https://edith.xiaohongshu.com/api/sns/web/v1/homefeed/category",
-    "https://edith.xiaohongshu.com/api/sns/web/v1/login/qrcode/create",
-    "https://edith.xiaohongshu.com/api/sns/web/v1/system/config",
-    "https://edith.xiaohongshu.com/api/sns/web/v2/user/me",
-    "https://edith.xiaohongshu.com/api/sns/web/worldcup/access_check",
-    "https://t2.xiaohongshu.com/api/v2/collect"
-  ],
-  "notes": [
-    "Starting 小红书 pre-exploration...",
-    "Step 1: Visiting homepage...",
-    "Homepage loaded: 小红书 - 你的生活兴趣社区",
-    "Step 2: Visiting login page...",
-    "Login page loaded: 小红书 - 你的生活兴趣社区",
-    "Found 2 input fields",
-    "  Input: name=xhs-pc-web-phone, type=text, placeholder=输入手机号",
-    "  Input: name=(no name), type=number, placeholder=输入验证码",
-    "Found 10 buttons/links",
-    "  Button: '登录'",
-    "Login methods: password=False, phone=True, qrcode=True",
-    "CAPTCHA: geetest=False, netease=False",
-    "Step 3: Checking editor URL...",
-    "Editor URL: https://www.xiaohongshu.com/404?source=/editor",
-    "Editor requires login: False",
-    "Step 4: Visiting explore page for API discovery...",
-    "Explore page title: 小红书 - 你的生活兴趣社区",
-    "Discovered 19 API endpoints",
-    "  API: https://apm-fe.xiaohongshu.com/api/data",
-    "  API: https://as.xiaohongshu.com/api/p/pj",
-    "  API: https://as.xiaohongshu.com/api/sec/v1/ds?appId=xhs-pc-web",
-    "  API: https://as.xiaohongshu.com/api/sec/v1/sbtsource",
-    "  API: https://as.xiaohongshu.com/api/sec/v1/scripting",
-    "  API: https://as.xiaohongshu.com/api/sec/v1/shield/webprofile",
-    "  API: https://edith.xiaohongshu.com/api/im/redmoji/version",
-    "  API: https://edith.xiaohongshu.com/api/qrcode/userinfo",
-    "  API: https://edith.xiaohongshu.com/api/redcaptcha/v2/getconfig",
-    "  API: https://edith.xiaohongshu.com/api/sns/web/global/config",
-    "Saving exploration results..."
-  ],
-  "homepage_title": "小红书 - 你的生活兴趣社区",
-  "category": "social"
+  "publish": {
+    "editor_url": "https://www.xiaohongshu.com/explore/editor",
+    "editor_requires_login": false,
+    "editor_type": "",
+    "api_endpoints": [
+      "https://as.xiaohongshu.com/api/sec/v1/ds?appId=xhs-pc-web"
+    ],
+    "image_upload": {
+      "url": "",
+      "method": ""
+    }
+  },
+  "technical": {
+    "has_rate_limit": false,
+    "has_anti_bot": false,
+    "has_dynamic_content": false,
+    "framework": "Vue.js",
+    "note": "生活方式社区，自建架构"
+  }
 }

@@ -3,46 +3,31 @@
   "display_name": "得物",
   "domain": "dewu.com",
   "category": "shopping",
-  "architecture": "React SPA + Mobile App",
-  "explored_at": "2026-07-08 00:19:00",
-  "last_updated": "2026-07-08 00:19:00",
+  "architecture": "custom",
+  "explored_at": "2026-07-08 02:35:37",
+  "last_updated": "2026-07-08 02:35:37",
   "explored_with_login": false,
   "has_account": false,
   "has_publisher": false,
   "login": {
     "login_url": "https://www.dewu.com/",
-    "methods": [
-      "phone_password",
-      "phone_verification_code",
-      "wechat_oauth",
-      "qq_oauth",
-      "weibo_oauth",
-      "qrcode_app"
-    ],
+    "methods": [],
     "captcha": {
-      "has_captcha": true,
-      "types": ["aliyun_slide"],
-      "selectors": [
-        ".aliyunCaptcha",
-        "[class*='feilin']",
-        "[class*='captcha']",
-        "div[class*='slide']",
-        "[class*='risk-stone']"
-      ],
-      "note": "阿里云 FeiLin 滑块验证码，访问首页即触发。自研 risk-stone-captcha API 进行风控验证。"
+      "has_captcha": false,
+      "types": [],
+      "selectors": []
     },
     "third_party": {
-      "wechat": true,
-      "weibo": true,
-      "qq": true,
+      "wechat": false,
+      "weibo": false,
+      "qq": false,
       "github": false,
       "apple": false
     },
     "qr_code": {
-      "has_qrcode": true,
-      "selectors": ["img[src*='qrcode']", "div[class*='qrcode']"],
-      "qr_container_sel": "div[class*='qrcode']",
-      "note": "得物主要为移动端App，App内支持扫码登录PC端"
+      "has_qrcode": false,
+      "selectors": [],
+      "qr_container_sel": ""
     },
     "fields": [
       {
@@ -61,57 +46,31 @@
       }
     ],
     "buttons": {
-      "login_button": "登录",
-      "register_button": "注册"
+      "login_button": "",
+      "register_button": ""
     },
     "cookie_hints": [
       "token",
       "sid",
       "session",
-      "dewu_token",
-      "poizon_token",
-      "duapp_token"
-    ],
-    "note": "得物PC网站(www.dewu.com)为纯展示+App下载引导页，首页无登录按钮。登录功能存在于SPA应用(/#/login 路由)中，但未登录状态下不渲染登录表单。开放平台(open.dewu.com)有完整登录系统：手机号+密码登录。主力产品为移动App，支持手机号验证码、微信、QQ、微博登录。PC网页访问即触发阿里云滑块验证码。"
+      "dewu_token"
+    ]
   },
   "publish": {
-    "editor_url": "https://www.dewu.com/",
-    "editor_requires_login": true,
-    "editor_type": "mobile_app_only",
-    "api_endpoints": [
-      "https://app.dewu.com/api/v1/h5/risk-stone-captcha/captcha/call",
-      "https://app.dewu.com/",
-      "https://open.dewu.com/",
-      "https://davstatic.dewu.com/captcha/blank.png",
-      "https://davstatic.dewu.com/pceptor.js",
-      "https://davstatic.dewu.com/preinforce2.js",
-      "https://davstatic.dewu.com/pyuntu.js"
-    ],
+    "editor_url": "https://www.dewu.com/editor",
+    "editor_requires_login": false,
+    "editor_type": "",
+    "api_endpoints": [],
     "image_upload": {
       "url": "",
       "method": ""
-    },
-    "note": "得物是移动App优先平台，PC无内容发布能力。所有创作（发帖、上传图片）均在App内完成。"
+    }
   },
   "technical": {
-    "has_rate_limit": true,
-    "has_anti_bot": true,
-    "has_dynamic_content": true,
-    "framework": "React/SPA",
-    "waf": "aliyun_captcha_feilin",
-    "subdomains": [
-      "www.dewu.com",
-      "app.dewu.com",
-      "open.dewu.com",
-      "cdn.dewu.com",
-      "cdn.poizon.com",
-      "dav.dewu.com",
-      "davstatic.dewu.com",
-      "h5static.dewucdn.com",
-      "cdn-jumper.dewu.com",
-      "cdn-config.dewu.com"
-    ],
-    "anti_bot_scripts": ["pceptor.js", "preinforce2.js", "pyuntu.js"],
-    "note": "潮流网购社区，React SPA架构。首页即触发阿里云FeiLin滑块验证码。app.dewu.com API有频率限制（操作频繁/401）。自研风控系统 risk-stone-captcha，配合阿里云Captcha。PC端仅为App下载引导页，全部核心功能在移动App中。"
+    "has_rate_limit": false,
+    "has_anti_bot": false,
+    "has_dynamic_content": false,
+    "framework": "",
+    "note": "潮流网购社区，自建架构"
   }
 }
