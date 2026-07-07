@@ -114,6 +114,15 @@ def _tick_scheduler():
             if not (window_start <= now_minutes < window_end):
                 continue  # 不在时间窗口内
 
+            # 每个账号在窗口内的随机偏移（避免同时触发）
+            # 基于 account_id 生成确定性偏移，确保同一账号在同一 tick 内不重复跑
+            acct_rand_offset = (d["id"] * 7 + 13) % 45  # 0~44 分钟偏移
+            # 只在当前分钟接近该账号的随机目标时间时才执行
+            target_minute = window_start + acct_rand_offset
+            # 允许 ±1 分钟的误差（scheduler 每分钟 tick 一次）
+            if not (target_minute - 1 <= now_minutes <= target_minute + 1):
+                continue
+
             # 4. 检查当天是否已经签过
             from plugins.forum_signin import ensure_signin_log_table
             ensure_signin_log_table()
