@@ -1,102 +1,63 @@
 {
   "bilibili": {
-    "login_methods": [
-      "qrcode",
-      "password",
-      "oauth",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "password", "oauth", "cookie"],
     "error": null
   },
   "csdn": {
-    "login_methods": [
-      "qrcode",
-      "password",
-      "oauth",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "password", "oauth", "cookie"],
     "error": null
   },
   "juejin": {
-    "login_methods": [
-      "qrcode",
-      "phone",
-      "oauth",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "phone", "oauth", "cookie"],
     "error": null
   },
   "oshwhub": {
-    "login_methods": [
-      "qrcode",
-      "oauth",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "oauth", "cookie"],
     "error": null
   },
   "wechat_mp": {
-    "login_methods": [
-      "qrcode",
-      "password",
-      "oauth",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "password", "oauth", "cookie"],
     "error": null
   },
   "xianyu": {
-    "login_methods": [
-      "qrcode",
-      "oauth",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "oauth", "cookie"],
     "error": null
   },
   "zhihu": {
-    "login_methods": [
-      "qrcode",
-      "phone",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "phone", "cookie"],
     "error": null
   },
   "discuz": {
-    "login_methods": [
-      "qrcode",
-      "password",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "password", "cookie"],
     "error": null
   },
   "amobbs": {
-    "login_methods": [
-      "qrcode",
-      "password",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "password", "cookie"],
     "error": null
   },
   "mydigit": {
-    "login_methods": [
-      "qrcode",
-      "password",
-      "cookie"
-    ],
+    "login_methods": ["qrcode", "password", "cookie"],
     "error": null
   },
   "wordpress": {
-    "login_methods": [
-      "password",
-      "cookie"
-    ],
+    "login_methods": ["password", "cookie"],
     "error": null
   },
   "twitter": {
-    "login_methods": [
-      "oauth1",
-      "bearer",
-      "cookie"
-    ],
+    "login_methods": ["oauth1", "bearer", "cookie"],
     "error": null
   },
-  "_last_checked_at": "2026-07-07T20:28:00"
+  "xianyu_auto_reply": {
+    "login_methods": ["cookie"],
+    "error": null
+  },
+  "xianyu_products": {
+    "login_methods": ["password", "qrcode", "cookie"],
+    "error": null
+  },
+  "rss": {
+    "login_methods": [],
+    "error": null
+  },
+  "_last_checked_at": "2026-07-07T23:30:00"
 }

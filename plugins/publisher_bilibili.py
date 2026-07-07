@@ -57,6 +57,23 @@ class BilibiliPublisher(Publisher):
          "fields": ["cookie"],
          "description": "登录 Bilibili 后从浏览器 F12 复制 Cookie"},
     ]
+    guide = {
+        "title": "Bilibili 账号配置指南",
+        "url": "https://www.bilibili.com/",
+        "steps": [
+            "推荐使用「扫码登录」或「账号密码登录」，Playwright 浏览器自动完成",
+            "选择扫码登录：点击后打开二维码截图，用 Bilibili App 扫码",
+            "选择密码登录：输入 Bilibili 用户名和密码，浏览器自动填写并处理验证码",
+            "Cookie 方式（备选）：登录后在浏览器 F12 → Application → Cookies → bilibili.com",
+            "复制完整的 Cookie 字符串粘贴到下方 Cookie 字段",
+            "Cookie 方式主要用于调试或迁移，建议优先使用浏览器登录",
+        ],
+        "fields_map": {
+            "username": "Bilibili 用户名 / 手机号 / 邮箱",
+            "password": "Bilibili 登录密码",
+            "cookie": "浏览器 Cookie（备选，F12 → 复制完整 Cookie 字符串）",
+        },
+    }
     config_fields = [
         {"key": "username", "label": "用户名/邮箱", "type": "text", "required": False, "default": ""},
         {"key": "password", "label": "密码", "type": "password", "required": False, "default": ""},

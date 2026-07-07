@@ -43,3 +43,4 @@ venv/
 *.pid
 .fs.pid
 *.db
+xianyu-auto-reply

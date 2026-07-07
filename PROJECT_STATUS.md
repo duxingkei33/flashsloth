@@ -29,10 +29,11 @@
 | 浏览器自死锁修复 | ✅ | threading.Lock不可重入→v4.64 |
 | 验证码+进度条登录 | ✅ | 5步进度条+Amobbs核验 |
 | 批量文章操作 | ✅ | 多选删除/发布 |
-| 铁律skill固化 | ✅ | 6章完整：禁止/必须/流程/备份/数据流/违规记录 |
+| 铁律skill固化 | ✅ | 7章完整：禁止/必须/流程/备份(加强)/数据流/违规记录/PM协作 |
 | 项目架构梳理文档 | ✅ | PROJECT_ARCHITECTURE_REVIEW.md 645行 |
 | Claude PM协作模式 | ✅ | 我管架构，Claude写代码 |
 | 定时任务清理省token | ✅ | 暂停3个假阳性cron，省~145次/天 |
+| **备份体系加固** | ✅ | 铁律B1-B9（三位一体强制+每日自动+完整性校验）+ 每日4:30自动备份cron |
 
 ### ❌ 已取消/不做的
 
@@ -40,7 +41,7 @@
 |------|------|
 | FRPC隧道自动管理 | 铁律禁止，frpc独立守护 |
 | browser-use/video-use集成FS | 仅学技能，不与FS绑定 |
-| 闲鱼AutoReply运行/安装 | 只学代码思路移植 |
+| 闲鱼AutoReply运行/安装 | 只学代码思路移植，已移出 FS 目录到 ~/study/ |
 | CSDN签到修复 | 用户说不做了 |
 | 视频下载模块 | 不与FS绑定 |
 
@@ -81,39 +82,42 @@
 
 ---
 
-## ⏰ 27个定时任务管理
+## ⏰ 34个定时任务管理（7/7更新）
 
-### ✅ 运行正常（19个）
-| 任务 | 备注 |
-|------|------|
-| flashsloth-autonomous-dev, evening-report, fs-auto-task-executor | 核心执行器 |
-| 🐶 TODO看门狗, 🛡️铁律监督, 🔍审计 | 监控三件套 |
-| 📖开发说明书, 📚README同步 | 文档自动化 |
-| 🔧平台适配-B站等, TODO-twitter-publisher | 平台推进 |
-| P0-连接状态Cookie, P0-登录能力, P0-Playwright引擎 | 6个P0监控 |
-| P0-签到统计, P0-Provider工作台, P0-Giscus | 持续监控 |
-| TODO-ai-call-log, TODO-mobile-responsive | 开发落地 |
-| P4-签到时间批量设置 | 低频维护 |
-| flashsloth-exploration (no_agent脚本) | 已修好 |
+### ✅ 运行正常（29个）
+| 类别 | 任务 | 状态 |
+|------|------|:----:|
+| **核心执行** | flashsloth-autonomous-dev, evening-report, fs-auto-task-executor | ✅ |
+| **监控三件套** | 🐶 TODO看门狗, 🛡️铁律监督, 🔍审计 | ✅ |
+| **文档自动化** | 📖开发说明书, 📚README同步 | ✅ |
+| **P0持续监控** | Provider工作台, 登录能力探索, Cookie修复, Playwright引擎, 签到统计, Giscus部署 | ✅ 6个 |
+| **TODO开发落地** | TODO-ai-call-log (4/6 🔄Claude编写中), TODO-mobile-responsive (4/6 🔄Claude编写中) | 🅱️ |
+| **平台推进** | 🔧平台适配流水线-B站等 | ✅ |
+| **E2E测试** | 01登录/02账号/03发布/04社区/05日志/06杂项 | ✅ 6个每日 |
+| **例行巡检** | weekly-regression(周日), fs-cleanup(周日), code-review(周六) | ✅ |
+| **每日审计** | pm-daily-progress(9/21点), hardcode-audit(3点) | ✅ |
+| **功能开发** | 📄日志统一管理页面(30次,每天9点) | 🅰️ |
+| **脚本任务** | flashsloth-exploration(每小时), AI趋势(早8/晚8), FS每日备份(4:30) | ✅ 4个no_agent |
 
-### ⚠️ 异常待修（3个）
-| 任务 | 问题 |
-|------|------|
-| AI趋势日报-早8点 | 🔄 Claude在修飞书推送 |
-| AI趋势日报-晚8点 | 🔄 Claude在修飞书推送 |
-| flashsloth-weekly-regression | 从未跑过，待观察 |
+### ⚠️ 异常/暂停（3个）
+| 任务 | 问题 | 处理 |
+|------|------|:----:|
+| AI趋势日报-早8点 | ~~delivery_error~~ ✅ **已修复**（deliver → origin），明早8点恢复 | ✅ 我修的 |
+| AI趋势日报-晚8点 | ~~delivery_error~~ ✅ **已修复**（同上），明晚8点恢复 | ✅ 我修的 |
+| flashsloth-morning-report | 暂停 — DeepSeek API 402 余额不足 | ⏸ 等你充值 |
 
-### ❌ 已暂停省token（3个）
-| 任务 | 省 | 原因 |
-|------|----|------|
-| P0-登录弹窗完整验收 | 72次/天 | 假阳性 |
-| P0-登录状态深度验证 | 72次/天 | 误报 |
-| flashsloth-morning-report | 1次/天 | 持续Error |
+### 🗑️ 已清理（3个）
+| 任务 | 删除原因 |
+|------|----------|
+| 🔴 P0-登录弹窗完整验收 | 12/12全部通过，已做完 → **已删除** |
+| 🔴 P0-登录状态深度验证 | Broken pipe假阳性，功能已做好 → **已删除** |
+| TODO-twitter-publisher | 代码已完成，缺你的Twitter API Key → **任务结束** |
 
-### 🆕 PM自主（1个）
+### 🆕 PM自主（2个）
 | 任务 | 频率 | 职责 |
 |------|------|------|
 | flashsloth-pm-daily-progress | 每天9/21点 | 自动检查进度派活 |
+| 📦 FS每日自动备份 | 每天4:30 no_agent | 三位一体备份（tar.gz+TAG.txt+git tag），静默成功，失败告警 |
 
 ---
 
@@ -128,3 +132,4 @@
 - 服务：本地运行 ✅
 - 数据库：flashsloth.db (749KB) + status_cache.db (20KB)
 - token节省：~145次/天 ✅
+- **备份体系：铁律B1-B9强制三位一体，每日4:30自动备份到 ~/fastsloth/**

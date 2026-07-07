@@ -603,6 +603,9 @@ def api_ai_logs():
    per_page = request.args.get("per_page", 50, type=int)
    capability = request.args.get("capability", "")
    success_filter = request.args.get("success", "")
+   model_filter = request.args.get("model", "")
+   search_text = request.args.get("search", "").strip()
+   user_id_filter = request.args.get("user_id", "", type=str)
 
    conn = get_db()
    where = ["1=1"]
@@ -613,6 +616,18 @@ def api_ai_logs():
    if success_filter in ("0", "1"):
        where.append("success=?")
        params.append(int(success_filter))
+   if model_filter:
+       where.append("model LIKE ?")
+       params.append(f"%{model_filter}%")
+   if search_text:
+       where.append("(prompt_preview LIKE ? OR response_summary LIKE ? OR error LIKE ?)")
+       params.extend([f"%{search_text}%"] * 3)
+   if user_id_filter:
+       try:
+           where.append("user_id=?")
+           params.append(int(user_id_filter))
+       except ValueError:
+           pass
 
    # 确保表存在
    conn.execute("""CREATE TABLE IF NOT EXISTS ai_call_log (
@@ -622,6 +637,7 @@ def api_ai_logs():
        response_tokens INTEGER DEFAULT 0, cost REAL DEFAULT 0.0,
        success INTEGER DEFAULT 1, error TEXT DEFAULT '',
        response_summary TEXT DEFAULT '', prompt_preview TEXT DEFAULT '',
+       user_id INTEGER DEFAULT 1,
        created_at TEXT DEFAULT (datetime('now'))
    )""")
 

@@ -488,9 +488,16 @@ def init_db():
                 error TEXT DEFAULT '',
                 response_summary TEXT DEFAULT '',
                 prompt_preview TEXT DEFAULT '',
+                user_id INTEGER DEFAULT 1,
                 created_at TEXT DEFAULT (datetime('now'))
             );
         """)
+    except Exception:
+        pass
+
+    # 迁移：ai_call_log 添加 user_id 字段
+    try:
+        conn.execute("ALTER TABLE ai_call_log ADD COLUMN user_id INTEGER DEFAULT 1")
     except Exception:
         pass
 

@@ -533,6 +533,11 @@ def api_platforms_list():
 	return jsonify({"success": True, "platforms": platforms})
 
 
+# ─── API 缓存：空搜索缓存 30 秒 ───
+_platform_search_cache = {"data": None, "ts": 0}
+_PLATFORM_SEARCH_CACHE_TTL = 30  # 秒
+
+
 @app.route("/api/platforms/search")
 @login_required
 def api_platforms_search():
@@ -542,85 +547,112 @@ def api_platforms_search():
 	1. list_publishers() — 已注册发布器
 	2. platform_reports/*_login_capabilities.json — 有登录能力的平台
 	3. forum_registry.FORUM_DATA — Discuz! 论坛域名
+
+	异常保护：单个源失败不影响其他源
+	缓存：空搜索（q 为空）结果缓存 30 秒
 	"""
 	from flashsloth.core.publisher import list_publishers
 	q = request.args.get("q", "").strip().lower()
+
+	# ─── 空搜索缓存命中 ───
+	if not q and _platform_search_cache["data"] is not None:
+		if time.time() - _platform_search_cache["ts"] < _PLATFORM_SEARCH_CACHE_TTL:
+			return jsonify({"success": True, "results": _platform_search_cache["data"], "total": len(_platform_search_cache["data"])})
+
 	results = []
 	seen = set()  # 去重
 
 	# ─── 1. list_publishers() ───
-	publishers = list_publishers()
-	for p in publishers:
-		name = p["name"]
-		display_name = p["display_name"]
-		name_lower = name.lower()
-		display_lower = display_name.lower()
-		if q and q not in name_lower and q not in display_lower:
-			continue
-		arch = p.get("architecture", "")
-		results.append({
-			"name": name,
-			"display_name": display_name,
-			"architecture": arch,
-			"config_fields": p.get("config_fields", []),
-			"login_methods": p.get("login_methods", []),
-		})
-		seen.add(name)
+	try:
+		publishers = list_publishers()
+		for p in publishers:
+			name = p["name"]
+			display_name = p["display_name"]
+			name_lower = name.lower()
+			display_lower = display_name.lower()
+			if q and q not in name_lower and q not in display_lower:
+				continue
+			arch = p.get("architecture", "")
+			results.append({
+				"name": name,
+				"display_name": display_name,
+				"architecture": arch,
+				"config_fields": p.get("config_fields", []),
+				"login_methods": p.get("login_methods", []),
+			})
+			seen.add(name)
+	except Exception:
+		# 源 1 失败不影响其他源
+		pass
 
 	# ─── 2. platform_reports/*_login_capabilities.json ───
-	import glob as _glob
-	reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
-	pattern = os.path.join(reports_dir, "*_login_capabilities.json")
-	for cap_path in _glob.glob(pattern):
-		fname = os.path.basename(cap_path)  # e.g. amobbs_login_capabilities.json
-		pname = fname.replace("_login_capabilities.json", "")  # e.g. amobbs
-		if pname in seen:
-			continue
-		if q and q not in pname.lower():
-			continue
-		# 读取 display_name + note
-		try:
-			with open(cap_path, "r", encoding="utf-8") as f:
-				cap = json.load(f)
-		except Exception:
-			cap = {}
-		display_name = cap.get("platform_name") or cap.get("display_name") or pname.replace("_", " ").title()
-		note = cap.get("note", "")
-		arch = ""
-		if note:
-			note_lower = note.lower()
-			if "discuz" in note_lower:
-				arch = "基于 Discuz! 架构"
-		results.append({
-			"name": pname,
-			"display_name": display_name,
-			"architecture": arch,
-			"note": note[:80],
-			"config_fields": [],
-			"login_methods": cap.get("login_methods", []),
-		})
-		seen.add(pname)
+	try:
+		import glob as _glob
+		reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+		pattern = os.path.join(reports_dir, "*_login_capabilities.json")
+		for cap_path in _glob.glob(pattern):
+			fname = os.path.basename(cap_path)  # e.g. amobbs_login_capabilities.json
+			pname = fname.replace("_login_capabilities.json", "")  # e.g. amobbs
+			if pname in seen:
+				continue
+			if q and q not in pname.lower():
+				continue
+			# 读取 display_name + note
+			try:
+				with open(cap_path, "r", encoding="utf-8") as f:
+					cap = json.load(f)
+			except Exception:
+				cap = {}
+			display_name = cap.get("platform_name") or cap.get("display_name") or pname.replace("_", " ").title()
+			note = cap.get("note", "")
+			arch = ""
+			if note:
+				note_lower = note.lower()
+				if "discuz" in note_lower:
+					arch = "基于 Discuz! 架构"
+			results.append({
+				"name": pname,
+				"display_name": display_name,
+				"architecture": arch,
+				"note": note[:80],
+				"config_fields": [],
+				"login_methods": cap.get("login_methods", []),
+			})
+			seen.add(pname)
+	except Exception:
+		# 源 2 失败不影响其他源
+		pass
 
 	# ─── 3. forum_registry — 域名级 Discuz 补充 ───
-	from flashsloth.core.forum_registry import FORUM_DATA
-	for domain in FORUM_DATA:
-		base = domain.split(".")[0]  # amobbs.com → amobbs
-		if base in seen:
-			continue
-		if q and q not in base.lower():
-			continue
-		display_name = f"{base.title()} 论坛 ({domain})"
-		results.append({
-			"name": base,
-			"display_name": display_name,
-			"architecture": "",
-			"config_fields": [],
-			"login_methods": [],
-		})
-		seen.add(base)
+	try:
+		from flashsloth.core.forum_registry import FORUM_DATA
+		for domain in FORUM_DATA:
+			base = domain.split(".")[0]  # amobbs.com → amobbs
+			if base in seen:
+				continue
+			if q and q not in base.lower():
+				continue
+			display_name = f"{base.title()} 论坛 ({domain})"
+			results.append({
+				"name": base,
+				"display_name": display_name,
+				"architecture": "",
+				"config_fields": [],
+				"login_methods": [],
+			})
+			seen.add(base)
+	except Exception:
+		# 源 3 失败不影响其他源
+		pass
 
 	# 按 display_name 排序
 	results.sort(key=lambda x: x["display_name"])
+
+	# ─── 空搜索写入缓存 ───
+	if not q:
+		_platform_search_cache["data"] = results
+		_platform_search_cache["ts"] = time.time()
+
 	return jsonify({"success": True, "results": results, "total": len(results)})
 
 
@@ -632,6 +664,9 @@ def api_platforms_search():
 _PLATFORM_CAP_MAP = {
     "wechat": "wechat_mp",
     "xianyu_v2": "xianyu",
+    "xianyu_sidecar": "xianyu",
+    "xianyu_auto_reply": "xianyu",
+    "xianyu_products": "xianyu",
     # 其他平台同名为：csdn, zhihu, bilibili, juejin, oshwhub, xianyu
 }
 
@@ -657,13 +692,20 @@ def api_platform_login_capabilities(platform):
 	"""返回指定平台的登录能力"""
 	cap = _load_login_capabilities(platform)
 	if cap:
-		return jsonify({"success": True, "platform": platform, "source": "json", **cap})
-	from flashsloth.core.publisher import list_login_methods
+		# 也尝试从 publisher 加载 guide
+		from flashsloth.core.publisher import _registry as _publisher_registry
+		cls = _publisher_registry.get(platform)
+		guide = getattr(cls, 'guide', None) if cls else None
+		return jsonify({"success": True, "platform": platform, "source": "json", **cap, "guide": guide})
+	from flashsloth.core.publisher import _registry as _publisher_registry, list_login_methods
 	methods = list_login_methods(platform)
+	cls = _publisher_registry.get(platform)
+	guide = getattr(cls, 'guide', None) if cls else None
 	if methods:
 		return jsonify({
 			"success": True, "platform": platform, "source": "publisher",
 			"login_methods": methods,
+			"guide": guide,
 			"note": f"来自 {platform} publisher 的预设登录方式",
 		})
 	return jsonify({"success": False, "error": f"平台 {platform} 无登录能力数据"})
@@ -698,6 +740,9 @@ def api_platform_login_capabilities_refresh(platform):
 		"oshwhub": "https://passport.jlc.com/login",
 		"xianyu": "https://www.goofish.com/",
 		"xianyu_v2": "https://www.goofish.com/",
+		"xianyu_sidecar": "https://www.goofish.com/",
+		"xianyu_auto_reply": "https://www.goofish.com/",
+		"xianyu_products": "https://www.goofish.com/",
 	}
 	# 优先级：POST body site_url > 硬编码映射 > 失败
 	url = site_url_from_body or login_url_map.get(platform) or login_url_map.get(json_name)
@@ -705,29 +750,18 @@ def api_platform_login_capabilities_refresh(platform):
 		return jsonify({"success": False, "error": f"未知登录地址，请先通过 Playwright 探索或提供 site_url"})
 
 	try:
-		from playwright.sync_api import sync_playwright
+		from flashsloth.core.browser_engine import BrowserEngine
 		import base64
 		from datetime import datetime, timezone
 
-		_pw_cm = sync_playwright()
-		_pw = _pw_cm.__enter__()
-		_browser = _pw.chromium.launch(
-			headless=True,
-			args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-				  '--disable-blink-features=AutomationControlled'],
-		)
-		_ctx = _browser.new_context(
-			user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-					   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-			viewport={"width": 1920, "height": 1080},
-			locale="zh-CN",
-		)
-		_ctx.add_init_script("""
-			Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-			Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-			Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
-			window.chrome = {runtime: {}, loadTimes: function() {}, csi: function() {}, app: {}};
-		""")
+		_engine = BrowserEngine.get_instance()
+		_ctx = _engine.create_isolated_context()
+		if not _ctx:
+			# 引擎未就绪 → 启动
+			_engine.start()
+			_ctx = _engine.create_isolated_context()
+			if not _ctx:
+				raise RuntimeError("无法启动 Playwright 浏览器引擎")
 		page = _ctx.new_page()
 
 		page.goto(url, wait_until="domcontentloaded", timeout=30000)
@@ -822,8 +856,6 @@ def api_platform_login_capabilities_refresh(platform):
 
 		page.close()
 		_ctx.close()
-		_browser.close()
-		_pw_cm.__exit__(None, None, None)
 
 		return jsonify({
 			"success": True, "platform": platform, "message": "登录能力已重新探索",
@@ -835,8 +867,6 @@ def api_platform_login_capabilities_refresh(platform):
 		try:
 			if 'page' in dir(): page.close()
 			if '_ctx' in dir(): _ctx.close()
-			if '_browser' in dir(): _browser.close()
-			if '_pw_cm' in dir(): _pw_cm.__exit__(None, None, None)
 		except: pass
 		return jsonify({"success": False, "error": f"Playwright 检测异常: {str(e)[:200]}"})
 
@@ -1183,6 +1213,47 @@ def _get_qr_lock(session_id: str) -> threading.Lock:
 		_qr_login_locks[session_id] = threading.Lock()
 	return _qr_login_locks[session_id]
 
+
+def _screenshot_qr(page):
+	"""查找页面中的 QR 码元素并截图，降级为截取整个视口"""
+	import base64
+	# 尝试常见 QR 码元素选择器
+	for sel in ["canvas", "img[src*='qrcode' i]", "img[src*='qr' i]"]:
+		try:
+			elements = page.query_selector_all(sel)
+			for el in elements:
+				box = el.bounding_box()
+				if box and box["width"] >= 80 and box["height"] >= 80:
+					return base64.b64encode(el.screenshot(type="png")).decode()
+		except Exception:
+			continue
+	# 尝试 QR 容器内部的元素
+	try:
+		containers = page.query_selector_all('[class*="qr" i], [id*="qr" i]')
+		for container in containers:
+			inner = container.query_selector("canvas, img")
+			if inner:
+				box = inner.bounding_box()
+				if box and box["width"] >= 80 and box["height"] >= 80:
+					return base64.b64encode(inner.screenshot(type="png")).decode()
+			box = container.bounding_box()
+			if box and box["width"] >= 80 and box["height"] >= 80:
+				return base64.b64encode(container.screenshot(type="png")).decode()
+	except Exception:
+		pass
+	# 降级：截取整个视口
+	return base64.b64encode(page.screenshot(type="png", full_page=False)).decode()
+
+
+def _check_auth_cookies(platform: str, cookies: list) -> bool:
+	"""按平台检查真正的认证 Cookie（委派到统一验证器）
+	
+	使用 phase='keyword' 避免网络请求，保持原有无网络开销特性。
+	"""
+	from flashsloth.core.cookie_validator import verify_cookie
+	return verify_cookie(platform, cookies, input_type="list", phase="keyword")["valid"]
+
+
 def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_queue.Queue):
 	"""QR 码登录工作线程 — 拥有独立的 Playwright 浏览器实例"""
 	_pw = None; _browser = None; _ctx = None; _page = None
@@ -1215,8 +1286,18 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 		_page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
 		_page.wait_for_timeout(3000)
 
+		# 对于 Bilibili：需要点击登录按钮弹出二维码面板
+		if platform == "bilibili":
+			try:
+				login_btn = _page.query_selector(".header-login-entry")
+				if login_btn and login_btn.is_visible():
+					login_btn.click()
+					_page.wait_for_timeout(2000)
+			except Exception:
+				pass
+
 		# 截图并放入队列
-		img_b64 = base64.b64encode(_page.screenshot(type="png", full_page=False)).decode()
+		img_b64 = _screenshot_qr(_page)
 		page_title = _page.title()
 		result_queue.put({"success": True, "image": img_b64, "page_title": page_title})
 
@@ -1246,18 +1327,14 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 					cookies = _ctx.cookies()
 					current_url = _page.url.lower()
 					on_login_page = any(kw in current_url for kw in ["login", "signin", "passport", "oauth", "logon"])
-					has_auth_cookies = any(
-						kw in c["name"].lower()
-						for c in cookies
-						for kw in ["auth", "token", "sid", "session", "login", "passport", "uid", "userid", "key"]
-					)
+					has_auth_cookies = _check_auth_cookies(platform, cookies)
 					all_cookies_str = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
 					body_text = ""
 					try:
 						body_text = _page.inner_text("body")[:500]
 					except Exception:
 						pass
-					sc_b64 = base64.b64encode(_page.screenshot(type="png", full_page=False)).decode()
+					sc_b64 = _screenshot_qr(_page)
 
 					if has_auth_cookies and not on_login_page:
 						sess["_poll_result"] = {"status": "logged_in", "cookies": all_cookies_str, "image": sc_b64}
@@ -1285,78 +1362,112 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 @app.route("/api/login/qrcode/<platform>/start", methods=["POST"])
 @login_required
 def api_qrcode_login_start(platform):
-	"""启动 QR 码扫码登录 — 在后台线程中打开 Playwright 浏览器，截图返回"""
+	"""启动 QR 码扫码登录 — 委托统一扫码登录引擎"""
 	data = request.get_json() or {}
 	aid = data.get("account_id", 0)
 	site_url = data.get("site_url", "")
 
-	sess_id = f"qrcode_{current_user.id}_{platform}_{int(time.time())}"
-	lock = _get_qr_lock(sess_id)
-	try:
-		with lock:
-			# 确定登录 URL
-			login_url = data.get("login_url", site_url or "")
-			if not login_url:
-				login_page_map = {
-					"discuz": "/member.php?mod=logging&action=login",
-					"amobbs": "/member.php?mod=logging&action=login",
-					"csdn": "https://passport.csdn.net/login",
-					"oshwhub": "https://passport.jlc.com/login",
-					"xianyu": "https://www.goofish.com/",
-					"xianyu_v2": "https://www.goofish.com/",
-					"wechat": "https://mp.weixin.qq.com/",
-					"zhihu": "https://www.zhihu.com/signin",
-					"bilibili": "https://www.bilibili.com/",
-					"juejin": "https://juejin.cn/",
-					"wordpress": f"{site_url.rstrip('/')}/wp-login.php" if site_url else "",
-				}
-				login_url = login_page_map.get(platform, site_url or "")
-			if not login_url:
-				return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
+	# 确定登录 URL
+	login_url = data.get("login_url", site_url or "")
+	if not login_url:
+		login_page_map = {
+			"discuz": "/member.php?mod=logging&action=login",
+			"amobbs": "/member.php?mod=logging&action=login",
+			"csdn": "https://passport.csdn.net/login",
+			"oshwhub": "https://passport.jlc.com/login",
+			"xianyu": "https://www.goofish.com/",
+			"xianyu_v2": "https://www.goofish.com/",
+			"wechat": "https://mp.weixin.qq.com/",
+			"zhihu": "https://www.zhihu.com/signin",
+			"bilibili": "https://www.bilibili.com/",
+			"juejin": "https://juejin.cn/",
+			"wordpress": f"{site_url.rstrip('/')}/wp-login.php" if site_url else "",
+		}
+		login_url = login_page_map.get(platform, site_url or "")
+	if not login_url:
+		return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
 
-			# 创建 session 记录
-			result_queue: _qr_queue.Queue = _qr_queue.Queue()
-			_qr_login_sessions[sess_id] = {
-				"platform": platform,
-				"created_at": time.time(),
-				"status": "starting",
-				"user_id": current_user.id,
-				"account_id": aid,
-				"_ready": False,
-				"_stop": False,
-				"_poll_requested": False,
-				"_poll_result": None,
-				"_thread": None,
-			}
+	# 委托统一扫码登录引擎
+	from flashsloth.core.credential_provider import ScanLoginEngine
+	result = ScanLoginEngine.start_scan_login(
+		platform=platform,
+		login_url=login_url,
+		scan_type="qrcode",
+		account_id=aid,
+		user_id=current_user.id,
+	)
 
-			# 启动后台工作线程
-			import threading as _t
-			worker = _t.Thread(target=_qr_worker, args=(platform, login_url, sess_id, result_queue), daemon=True)
-			worker.start()
-			_qr_login_sessions[sess_id]["_thread"] = worker
+	if result.get("success"):
+		# 将旧的 session_id 映射到新引擎 session，以便旧 poll/close 能工作
+		_qr_login_sessions[result["session_id"]] = {
+			"platform": platform,
+			"created_at": time.time(),
+			"status": "waiting",
+			"user_id": current_user.id,
+			"account_id": aid,
+			"_engine_session": True,
+		}
+		return jsonify({
+			"success": True,
+			"session_id": result["session_id"],
+			"image": result["image"],
+			"page_title": result.get("page_title", ""),
+			"message": "请扫码完成登录，系统将自动捕获 Cookie",
+		})
+	else:
+		return jsonify({"success": False, "error": result.get("error", "启动失败")})
 
-			# 等待截图（最多 35 秒）
-			try:
-				result = result_queue.get(timeout=35)
-			except _qr_queue.Empty:
-				result = {"success": False, "error": "浏览器启动超时"}
 
-			if result.get("success"):
-				_qr_login_sessions[sess_id]["status"] = "waiting"
-				return jsonify({
-					"success": True,
-					"session_id": sess_id,
-					"image": result["image"],
-					"page_title": result.get("page_title", ""),
-					"message": "请查看页面截图，扫码/登录后系统将自动捕获 Cookie",
-				})
-			else:
-				# 启动失败，清理
-				_qr_login_sessions.pop(sess_id, None)
-				return jsonify({"success": False, "error": result.get("error", "启动失败")})
+@app.route("/api/login/scan/<platform>/start", methods=["POST"])
+@login_required
+def api_scan_login_start(platform):
+	"""统一扫码登录入口 — 支持 QR 码/小程序码/自动检测"""
+	data = request.get_json() or {}
+	aid = data.get("account_id", 0)
+	site_url = data.get("site_url", "")
+	scan_type = data.get("scan_type", "auto")
 
-	except Exception as e:
-		return jsonify({"success": False, "error": f"QR 码登录启动异常: {str(e)[:100]}"})
+	# 确定登录 URL
+	login_url = data.get("login_url", site_url or "")
+	if not login_url:
+		login_page_map = {
+			"discuz": "/member.php?mod=logging&action=login",
+			"amobbs": "/member.php?mod=logging&action=login",
+			"csdn": "https://passport.csdn.net/login",
+			"oshwhub": "https://passport.jlc.com/login",
+			"xianyu": "https://www.goofish.com/",
+			"xianyu_v2": "https://www.goofish.com/",
+			"wechat": "https://mp.weixin.qq.com/",
+			"zhihu": "https://www.zhihu.com/signin",
+			"bilibili": "https://www.bilibili.com/",
+			"juejin": "https://juejin.cn/",
+			"wordpress": f"{site_url.rstrip('/')}/wp-login.php" if site_url else "",
+		}
+		login_url = login_page_map.get(platform, site_url or "")
+	if not login_url:
+		return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
+
+	# 委托统一扫码登录引擎
+	from flashsloth.core.credential_provider import ScanLoginEngine
+	result = ScanLoginEngine.start_scan_login(
+		platform=platform,
+		login_url=login_url,
+		scan_type=scan_type,
+		account_id=aid,
+		user_id=current_user.id,
+	)
+
+	if result.get("success"):
+		return jsonify({
+			"success": True,
+			"session_id": result["session_id"],
+			"image": result["image"],
+			"scan_type": result.get("scan_type", scan_type),
+			"page_title": result.get("page_title", ""),
+			"message": "请扫码完成登录，系统将自动捕获 Cookie",
+		})
+	else:
+		return jsonify({"success": False, "error": result.get("error", "启动失败")})
 
 
 @app.route("/api/login/qrcode/<platform>/poll/<session_id>")
@@ -1368,6 +1479,49 @@ def api_qrcode_login_poll(platform, session_id):
 		return jsonify({"success": False, "error": "会话已过期或不存在", "status": "expired"})
 	if sess["user_id"] != current_user.id:
 		return jsonify({"success": False, "error": "无权限", "status": "forbidden"})
+
+	# 委托统一扫码引擎（如果 session 由引擎创建）
+	if sess.get("_engine_session"):
+		from flashsloth.core.credential_provider import ScanLoginEngine
+		engine_result = ScanLoginEngine.poll_scan_login(session_id, user_id=current_user.id)
+		status = engine_result.get("status", "error")
+
+		# 登录成功时保存 Cookie 到账号
+		if status == "logged_in":
+			cookies_str = engine_result.get("cookies", "")
+			aid = sess.get("account_id")
+			if aid:
+				_save_cookie_to_account(aid, cookies_str)
+			return jsonify({
+				"success": True,
+				"status": "logged_in",
+				"cookies": cookies_str,
+				"image": engine_result.get("image", ""),
+				"message": "✅ 登录成功！Cookie 已自动获取",
+			})
+		elif status == "waiting":
+			return jsonify({
+				"success": True,
+				"status": "waiting",
+				"image": engine_result.get("image", ""),
+				"url": engine_result.get("url", ""),
+				"page_preview": engine_result.get("page_preview", ""),
+				"message": "🔍 请查看截图，在浏览器中完成登录",
+			})
+		elif status == "expired":
+			_qr_login_sessions.pop(session_id, None)
+			return jsonify({"success": False, "error": "会话已过期", "status": "expired"})
+		else:
+			return jsonify({
+				"success": True,
+				"status": engine_result.get("status", "unknown"),
+				"image": engine_result.get("image", ""),
+				"cookies_count": engine_result.get("cookies_count", 0),
+				"page_preview": engine_result.get("page_preview", ""),
+				"message": engine_result.get("message", "⏳ 等待登录完成..."),
+			})
+
+	# 旧版 session 处理（向后兼容）
 	if not sess.get("_ready", False):
 		return jsonify({"success": True, "status": "starting", "message": "⏳ 浏览器正在启动..."})
 
@@ -1422,12 +1576,16 @@ def api_qrcode_login_close(platform, session_id):
 	"""关闭 QR 码登录浏览器会话（通知后台线程退出）"""
 	sess = _qr_login_sessions.pop(session_id, None)
 	if sess:
-		sess["_stop"] = True
-		thread = sess.get("_thread")
-		if thread:
-			thread.join(timeout=5)
-		# 清理锁
-		_qr_login_locks.pop(session_id, None)
+		# 委托统一扫码引擎关闭（如果 session 由引擎创建）
+		if sess.get("_engine_session"):
+			from flashsloth.core.credential_provider import ScanLoginEngine
+			ScanLoginEngine.close_scan_login(session_id)
+		else:
+			sess["_stop"] = True
+			thread = sess.get("_thread")
+			if thread:
+				thread.join(timeout=5)
+			_qr_login_locks.pop(session_id, None)
 	return jsonify({"success": True})
 
 
@@ -1644,3 +1802,35 @@ def api_accounts_batch_refresh():
         "errors": errors[:5],
         "message": f"已刷新 {refreshed}/{len(accounts)} 个账号"
     })
+
+
+@app.route("/api/accounts/test-connection", methods=["POST"])
+@login_required
+def api_test_connection():
+    """测试账号连接 — 在保存前验证凭证有效性"""
+    try:
+        data = request.get_json(silent=True) or {}
+        platform = data.get("platform", "")
+        config = {k[4:]: v for k, v in data.items() if k.startswith("cfg_")}
+        if not platform:
+            return jsonify({"success": False, "error": "缺少平台名"})
+        # 尝试使用 publisher 的 test_connection
+        from flashsloth.core.publisher import _registry as _publisher_registry
+        cls = _publisher_registry.get(platform)
+        if cls and hasattr(cls, 'test_connection') and callable(cls.test_connection):
+            try:
+                pub = cls(config)
+                result = pub.test_connection()
+                return jsonify({"success": True, "result": result})
+            except Exception as e:
+                return jsonify({"success": False, "error": f"连接测试失败: {str(e)[:200]}"})
+        # 降级：Cookie + site_url 进行 Playwright 验证
+        cookie = config.get("cookie", data.get("cookie", ""))
+        site_url = config.get("site_url", data.get("site_url", ""))
+        if cookie and site_url:
+            from flashsloth.core.status_detector import detect_platform
+            detect_result = detect_platform(platform, site_url, cookie, config.get("username", ""))
+            return jsonify({"success": True, "result": detect_result})
+        return jsonify({"success": False, "error": "无有效凭证可测试（需要 Cookie 或 API 密钥）"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)[:200]})

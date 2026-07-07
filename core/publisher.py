@@ -17,6 +17,7 @@ class Publisher(ABC):
     architecture: str = ""             # 平台架构类型，如"基于 Discuz! 架构"
     config_fields: list[dict] = []     # 配置字段定义
     login_methods: list[dict] = []     # 支持的登录方法，格式见下方说明
+    guide: dict | None = None         # 引导指南字典，包含 title/url/steps/fields_map
 
     """
     login_methods 格式：

@@ -21,6 +21,23 @@ class WeChatPublisher(Publisher):
          "fields": ["app_id", "app_secret"],
          "description": "使用微信公众号的 AppID + AppSecret 通过官方 API 认证"},
     ]
+    guide = {
+        "title": "微信公众号 AppID / AppSecret 获取指南",
+        "url": "https://mp.weixin.qq.com/",
+        "steps": [
+            "登录微信公众号后台（https://mp.weixin.qq.com/）",
+            "左侧菜单选择「开发」→「基本配置」",
+            "在「开发者ID」区域找到 AppID（应用ID）",
+            "在「开发者密码」区域点击「重置」获取 AppSecret",
+            "注意：重置 AppSecret 后旧的会立即失效",
+            "将 AppID 和 AppSecret 填入下方对应字段",
+            "提示：公众号后台需先完成开发者密码（IP白名单等）设置",
+        ],
+        "fields_map": {
+            "app_id": "微信公众号 AppID（应用ID）",
+            "app_secret": "AppSecret（应用密钥，重置后获取）",
+        },
+    }
     config_fields = [
         {"key": "app_id", "label": "AppID", "type": "text", "required": True},
         {"key": "app_secret", "label": "AppSecret", "type": "password", "required": True},

@@ -260,7 +260,9 @@ def _screenshot_scan_code(page, scan_type: str = "auto") -> dict:
 # ─── Cookie 验证 ───────────────────────────────────────
 
 def _check_auth_cookies(platform: str, cookies: list) -> bool:
-    """按平台检查真正的认证 Cookie（UX2 铁律 — 禁止假阳性）
+    """按平台检查真正的认证 Cookie（委派到统一验证器）
+    
+    使用 phase='keyword' 避免网络请求，保持原有无网络开销特性。
     
     Args:
         platform: 平台名
@@ -269,33 +271,8 @@ def _check_auth_cookies(platform: str, cookies: list) -> bool:
     Returns:
         True 表示存在有效认证 Cookie
     """
-    cookie_map = {c["name"]: c.get("value", "") for c in cookies}
-    
-    if platform == "bilibili":
-        # B站需要同时存在三个认证 Cookie 才算登录
-        return all(k in cookie_map for k in ["bili_jct", "SESSDATA", "DedeUserID"])
-    
-    if platform in ("discuz", "amobbs"):
-        # Discuz/Amobbs 需要 auth cookie 值非空
-        auth_val = cookie_map.get("auth", "")
-        return bool(auth_val and auth_val.strip())
-    
-    if platform == "wechat":
-        # 微信/公众号平台需要特定 Cookie
-        wx_keys = ["token", "fakeid", "slave_user", "slave_sid"]
-        return any(k in cookie_map and cookie_map[k].strip() for k in wx_keys)
-    
-    # 通用兜底：至少 2 个不同的 auth 类 cookie 且值都非空
-    # 防止随机网站的跟踪 cookie（如 _ga_session）误报为登录
-    auth_kw = ["auth", "token", "session", "login", "passport"]
-    matched = []
-    for c in cookies:
-        for kw in auth_kw:
-            if kw in c["name"].lower() and c.get("value", "").strip():
-                if c["name"] not in [m["name"] for m in matched]:
-                    matched.append(c)
-                    break
-    return len(matched) >= 2
+    from flashsloth.core.cookie_validator import verify_cookie
+    return verify_cookie(platform, cookies, input_type="list", phase="keyword")["valid"]
 
 
 # ─── 平台特定扫码操作 ──────────────────────────────────

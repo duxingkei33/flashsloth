@@ -74,6 +74,7 @@ def exploration_page():
             all_platforms.append({
                 "platform": r["platform"],
                 "domain": r["platform_domain"],
+                "norm_domain": norm_domain,
                 "has_data": True,
                 "count": 0,
                 "sections": [],
@@ -85,7 +86,7 @@ def exploration_page():
     for p in all_platforms:
         # 加载登录能力（从 platform_reports JSON）
         _reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
-        _cap_map = {"wechat": "wechat_mp", "xianyu_v2": "xianyu"}
+        _cap_map = {"wechat": "wechat_mp", "xianyu_v2": "xianyu", "xianyu_sidecar": "xianyu", "xianyu_auto_reply": "xianyu", "xianyu_products": "xianyu"}
         json_name = _cap_map.get(p["platform"], p["platform"])
         cap_path = os.path.join(_reports_dir, f"{json_name}_login_capabilities.json")
         if os.path.exists(cap_path):

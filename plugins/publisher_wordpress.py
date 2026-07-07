@@ -17,6 +17,24 @@ class WordPressPublisher(Publisher):
          "fields": ["site_url", "username", "app_password"],
          "description": "使用 WordPress 应用密码通过 REST API 认证"},
     ]
+    guide = {
+        "title": "WordPress 应用密码获取指南",
+        "url": None,
+        "steps": [
+            "登录你的 WordPress 后台（如 https://yourblog.com/wp-admin）",
+            "进入「用户」→「个人资料」（Users → Profile）",
+            "滚动到「应用密码」（Application Passwords）区域",
+            "在「新建应用密码」输入框填写名称（如 'FlashSloth'）",
+            "点击「新增应用密码」，系统会生成一串密码",
+            "将生成的密码复制到下方的「应用密码」字段",
+            "注意：该密码只显示一次，请立即保存",
+        ],
+        "fields_map": {
+            "site_url": "你的 WordPress 站点地址（如 https://yourblog.com）",
+            "username": "WordPress 登录用户名",
+            "app_password": "上方步骤 5 生成的应用密码",
+        },
+    }
     config_fields = [
         {"key": "site_url", "label": "站点 URL", "type": "text", "required": True,
          "placeholder": "https://yourblog.com"},

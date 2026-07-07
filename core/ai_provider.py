@@ -42,6 +42,7 @@ def _init_ai_call_log_table():
             error TEXT DEFAULT '',
             response_summary TEXT DEFAULT '',
             prompt_preview TEXT DEFAULT '',
+            user_id INTEGER DEFAULT 1,
             created_at TEXT DEFAULT (datetime('now'))
         )""")
         conn.commit()
@@ -52,18 +53,28 @@ def _init_ai_call_log_table():
 def log_ai_call(capability: str, provider: str = "", model: str = "",
                 prompt: str = "", response: str = "",
                 prompt_tokens: int = 0, response_tokens: int = 0,
-                cost: float = 0.0, success: bool = True, error: str = ""):
+                cost: float = 0.0, success: bool = True, error: str = "",
+                user_id: int = 0):
     try:
         _init_ai_call_log_table()
         conn = sqlite3.connect(_get_ai_log_db())
+        # 尝试获取当前用户（可能不在 Flask 上下文中）
+        uid = user_id
+        if not uid:
+            try:
+                from flask_login import current_user
+                if current_user and current_user.is_authenticated:
+                    uid = current_user.id
+            except Exception:
+                uid = 1  # fallback 到 admin
         conn.execute(
             """INSERT INTO ai_call_log
                (capability, provider, model, prompt_tokens, response_tokens,
-                cost, success, error, response_summary, prompt_preview)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                cost, success, error, response_summary, prompt_preview, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (capability, provider, model, prompt_tokens, response_tokens,
              cost, 1 if success else 0, error or "",
-             (response or "")[:200], (prompt or "")[:200])
+             (response or "")[:200], (prompt or "")[:200], uid)
         )
         conn.commit()
         conn.close()

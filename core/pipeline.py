@@ -89,28 +89,54 @@ class StageHandler(ABC):
 
 
 class CollectHandler(StageHandler):
-    """采集阶段基类"""
-    pass
+    """采集阶段 — 默认实现：原样通过"""
+    def execute(self, content: ContentObject, **kwargs) -> ContentObject:
+        content.current_stage = "collect"
+        return content
 
 
 class CompileHandler(StageHandler):
-    """编译阶段基类"""
-    pass
+    """编译阶段 — 默认实现：原样通过"""
+    def execute(self, content: ContentObject, **kwargs) -> ContentObject:
+        content.current_stage = "compile"
+        return content
 
 
 class PreviewHandler(StageHandler):
-    """预览阶段基类"""
-    pass
+    """预览阶段 — 默认实现：原样通过"""
+    def execute(self, content: ContentObject, **kwargs) -> ContentObject:
+        content.current_stage = "preview"
+        content.preview_url = "(预览模式)"
+        return content
 
 
 class DraftHandler(StageHandler):
-    """草稿阶段基类"""
-    pass
+    """草稿阶段 — 默认实现：保存到数据库"""
+    def execute(self, content: ContentObject, **kwargs) -> ContentObject:
+        content.current_stage = "draft"
+        content.status = "draft"
+        try:
+            from flashsloth.core.database import get_db
+            conn = get_db()
+            conn.execute(
+                "INSERT INTO articles (title, body, summary, tags, source, status) "
+                "VALUES (?, ?, ?, ?, ?, 'draft')",
+                (content.title, content.body, content.summary,
+                 ",".join(content.tags) if content.tags else "", content.type),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass  # 静默保存
+        return content
 
 
 class PublishHandler(StageHandler):
-    """发布阶段基类"""
-    pass
+    """发布阶段 — 默认实现：仅供测试占位"""
+    def execute(self, content: ContentObject, **kwargs) -> ContentObject:
+        content.current_stage = "publish"
+        content.status = "published"
+        return content
 
 
 # ═══════════════════════════════════════════════

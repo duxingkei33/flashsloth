@@ -95,13 +95,16 @@
             .badge { font-size: 11px; padding: 2px 6px; }
         }
         @media (max-width: 480px) {
-            .navbar a { font-size: 11px; margin-right: 4px; padding: 3px 4px; }
+            .navbar { padding: 6px 8px; }
+            .navbar .brand { font-size: 0.9em; }
+            .navbar a { font-size: 11px; margin-right: 4px; padding: 3px 4px; min-height: 36px; display: inline-flex; align-items: center; }
             .container { padding: 8px; }
             .card { padding: 10px; }
             th, td { padding: 4px 3px; font-size: 11px; }
             .stats { grid-template-columns: 1fr 1fr; gap: 6px; }
             .stat-card { padding: 10px; }
             .stat-card .num { font-size: 1.2em; }
+            .stat-card .label { font-size: 11px; }
         }
         /* ═══ 全站移动端增强 ═══ */
         @media (max-width: 768px) {
@@ -133,6 +136,37 @@
             /* 导航栏紧凑 */
             .navbar > div:first-child { display: flex; flex-wrap: wrap; gap: 2px; }
             .navbar a { font-size: 12px; padding: 6px 6px; min-height: 36px; display: inline-flex; align-items: center; }
+            /* 两列导航时允许横滚 */
+            .navbar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            /* 卡片标题 */
+            .card h2 { font-size: 1em; }
+            .card h3 { font-size: 0.95em; }
+            /* 详情/摘要 */
+            details summary { font-size: 13px; }
+            details pre { max-width: 100% !important; font-size: 11px; }
+            /* 分页横滚 */
+            .pagination { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; justify-content: flex-start; padding: 4px 0; }
+            .pagination a { padding: 8px 12px; font-size: 13px; min-width: 36px; text-align: center; white-space: nowrap; }
+            /* 代码块 */
+            pre, code { word-break: break-all; white-space: pre-wrap; max-width: 100%; }
+            /* 容器-fluid */
+            .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
+            /* 弹窗/模态框 */
+            .modal-content, [class*="modal"] > div, [id$="Modal"] > div, [id*="Form"] > div, [id*="form"] > div:first-of-type { max-width: 95% !important; margin: 10px auto !important; padding: 16px !important; }
+            /* 存储文件浏览器 */
+            #storage-modal > div, [id*="storage-modal"] > div { width: 96% !important; max-width: 96% !important; padding: 12px !important; }
+            /* 编辑器 */
+            #editor-container { flex-direction: column !important; gap: 8px !important; }
+            #editor-container > * { flex: none !important; width: 100% !important; min-height: 200px !important; }
+            #editor-container textarea { min-height: 250px !important; }
+            /* 编译预览面板 */
+            .split-pane { flex-direction: column !important; min-height: auto !important; }
+            .split-pane .code-pane, .split-pane .preview-pane { flex: none !important; width: 100% !important; max-height: 300px !important; border-right: none !important; }
+            /* 过滤栏中的输入框不溢出 */
+            .filter-bar input, .filter-bar select { max-width: 100% !important; box-sizing: border-box; }
+            /* Bootstrap 行/列（价格监控等用的）*/
+            .row { flex-direction: column; }
+            .row .col, .row [class*="col-"] { width: 100% !important; margin-bottom: 8px; }
         }
         @media (max-width: 480px) {
             h2 { font-size: 1.2em; }

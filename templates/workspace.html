@@ -134,6 +134,24 @@
     .ws-stage { padding: 6px 8px; min-width: 48px; font-size: 11px; }
     .ws-arrow { font-size: 14px; padding: 0 2px; }
     .ws-log-grid { grid-template-columns: 1fr; }
+    /* 工作台手机端增强 */
+    .ws-container { padding: 8px; }
+    .ws-section { padding: 12px; }
+    .ws-section h2 { font-size: 14px; }
+    .ws-provider-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .ws-provider-btn { justify-content: center; padding: 8px 12px; font-size: 13px; min-height: 40px; }
+    .ws-item-grid { grid-template-columns: 1fr; }
+    .ws-flow { flex-wrap: wrap; justify-content: flex-start; gap: 2px; }
+    .ws-stage { min-width: 0; flex: 1 1 auto; padding: 6px 8px; font-size: 11px; }
+    .ws-arrow { display: none; }
+    .ws-form-row { flex-direction: column; gap: 6px; }
+    .ws-form-row label { min-width: unset; }
+    .ws-form-row input, .ws-form-row select { width: 100%; }
+    .ws-log-grid { grid-template-columns: 1fr; }
+    .ws-btn-run { width: 100%; text-align: center; }
+}
+@supports (display: grid) {
+    /* 保护性声明 */
 }
 </style>
 
