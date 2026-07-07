@@ -598,10 +598,19 @@ def api_platform_login_capabilities(platform):
 @app.route("/api/platform/<platform>/login-capabilities/refresh", methods=["POST"])
 @login_required
 def api_platform_login_capabilities_refresh(platform):
-	"""重新探索平台的登录能力（用 Playwright）"""
+	"""重新探索平台的登录能力（用 Playwright）
+	
+	铁律#12：优先使用 POST body 中的 site_url，避免硬编码。
+	"""
 	# 把平台名映射到 JSON 名
 	json_name = _PLATFORM_CAP_MAP.get(platform, platform)
 	report_path = os.path.join(_REPORTS_DIR, f"{json_name}_login_capabilities.json")
+	
+	# 🔥 铁律#12：先接受 post body 中动态 site_url
+	data = request.get_json(silent=True) or {}
+	site_url_from_body = str(data.get("site_url", "") or "")
+	
+	# 硬编码兜底（仅当无动态 site_url 时）
 	login_url_map = {
 		"csdn": "https://passport.csdn.net/login",
 		"zhihu": "https://www.zhihu.com/signin",
@@ -613,7 +622,8 @@ def api_platform_login_capabilities_refresh(platform):
 		"xianyu": "https://www.goofish.com/",
 		"xianyu_v2": "https://www.goofish.com/",
 	}
-	url = login_url_map.get(platform) or login_url_map.get(json_name)
+	# 优先级：POST body site_url > 硬编码映射 > 失败
+	url = site_url_from_body or login_url_map.get(platform) or login_url_map.get(json_name)
 	if not url:
 		return jsonify({"success": False, "error": f"未知登录地址，请先通过 Playwright 探索或提供 site_url"})
 
