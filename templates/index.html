@@ -5,6 +5,32 @@
     .idx-actions-bar { flex-direction: column !important; gap: 8px !important; }
     .idx-actions-bar > * { width: 100% !important; }
 }
+/* ═══ 仪表盘手机端优化 ═══ */
+@media (max-width: 768px) {
+    /* 统计卡片网格 */
+    .stats { grid-template-columns:repeat(2,1fr); gap:8px; }
+    .stat-card { padding:12px; min-height:80px; }
+    .stat-card .num { font-size:1.3em; }
+    /* 文章列表横滚 */
+    #articles table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; font-size:12px; }
+    #articles th, #articles td { white-space:nowrap; padding:6px 4px; font-size:12px; }
+    /* 发布平台卡片 */
+    .publisher-card { padding:12px; }
+    /* 按钮触摸友好 */
+    .card .btn { min-height:40px; display:inline-flex; align-items:center; justify-content:center; }
+    .card .btn-sm { min-height:36px; }
+    /* 部署目标 */
+    .publisher-grid { grid-template-columns:1fr; }
+}
+@media (max-width: 480px) {
+    .stats { grid-template-columns:1fr 1fr; gap:6px; }
+    .stat-card .num { font-size:1.1em; }
+    .stat-card { padding:10px; min-height:70px; }
+    .stat-card .label { font-size:11px; }
+    .card h2 { font-size:1.1em; }
+    .card .btn { min-height:44px; font-size:13px; }
+    .card .btn-sm { min-height:40px; font-size:11px; padding:8px 10px; }
+}
 </style>
 <!-- 统计 — 可点击跳转对应区域 -->
 <div class="stats">

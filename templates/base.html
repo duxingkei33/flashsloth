@@ -109,8 +109,12 @@
             .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
             table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; font-size: 12px; }
             th, td { white-space: nowrap; padding: 6px 4px; }
-            /* 表单元素 */
+            /* 表单元素 - 防止溢出 */
             input, select, textarea { max-width: 100% !important; box-sizing: border-box; }
+            input[type="text"], input[type="number"], input[type="password"], input[type="email"], input[type="url"] { max-width: 100% !important; }
+            /* 触摸友好按钮尺寸 */
+            .btn { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+            .btn-sm { min-height: 36px; }
             /* 按钮区换行 */
             .btn-group, .actions { display: flex; flex-wrap: wrap; gap: 4px; }
             .btn-group .btn, .actions .btn { flex: 1 1 auto; min-width: 60px; }
@@ -119,13 +123,16 @@
             .flex-row { flex-direction: column !important; }
             .flex-row > * { width: 100% !important; }
             /* 弹窗 */
-            .modal-content { max-width: 95% !important; margin: 10px auto !important; padding: 16px !important; }
+            .modal-content, [id$="Modal"] > div, [id$="modal"] > div, [id*="FormBox"] { max-width: 95% !important; margin: 10px auto !important; padding: 16px !important; }
             /* 搜索/过滤栏 */
             .filter-bar, .search-bar { flex-direction: column; align-items: stretch !important; }
             .filter-bar > *, .search-bar > * { width: 100%; }
             /* 部署标签 */
             .rsp-table { white-space: normal !important; word-break: break-word !important; }
             .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+            /* 导航栏紧凑 */
+            .navbar > div:first-child { display: flex; flex-wrap: wrap; gap: 2px; }
+            .navbar a { font-size: 12px; padding: 6px 6px; min-height: 36px; display: inline-flex; align-items: center; }
         }
         @media (max-width: 480px) {
             h2 { font-size: 1.2em; }
@@ -148,11 +155,14 @@
             /* 工作台区 */
             .provider-bar { flex-direction: column; align-items: stretch; }
             .article-grid { grid-template-columns: 1fr !important; }
+            /* 触摸友好按钮最小尺寸 44px */
+            .btn { min-height: 44px; padding: 10px 14px; font-size: 14px; }
+            .btn-sm { min-height: 40px; padding: 8px 12px; font-size: 12px; }
         }
         /* 验证码弹窗手机优化 */
         @media (max-width: 480px) {
             #captchaModal > div { max-width: 95% !important; padding: 16px !important; }
-            #captchaInput { width: 100% !important; }
+            #captchaInput { width: 100% !important; box-sizing: border-box !important; }
             #captchaSubmitBtn { padding: 12px 24px !important; font-size: 16px !important; min-height: 44px; }
         }
     </style>
