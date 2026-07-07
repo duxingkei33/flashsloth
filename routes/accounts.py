@@ -5,6 +5,7 @@ from flashsloth.routes._app import app
 
 import json
 import os
+import re
 import time
 from datetime import datetime
 
@@ -630,13 +631,106 @@ def api_platform_login_capabilities_refresh(platform):
 		if not ctx:
 			return jsonify({"success": False, "error": "浏览器引擎未就绪"})
 
+		page = ctx.new_page()
+		page.goto(url, wait_until="domcontentloaded", timeout=30000)
+		page.wait_for_timeout(3000)
+
+		# 截图
+		screenshot_dir = os.path.join(_REPORTS_DIR, "screenshots")
+		os.makedirs(screenshot_dir, exist_ok=True)
+		screenshot_path = os.path.join(screenshot_dir, f"{json_name}_login.png")
+		page.screenshot(path=screenshot_path, full_page=False)
+		with open(screenshot_path, "rb") as f:
+			screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+		# 检测登录方式
+		body_text = page.inner_text("body")[:3000]
+		page_html = page.content()
+		page_url = page.url
+		page_title = page.title()
+
+		has_password = page.query_selector("input[type='password']") is not None
+		has_phone = bool(re.search(r"手机号|电话号码|phone|mobile", body_text, re.I))
+		has_code_btn = bool(re.search(r"获取验证码|发送验证码|get.*code|send.*code", body_text, re.I))
+		has_qrcode = page.query_selector("img[src*='qrcode'], canvas[class*='qrcode'], div[class*='qrcode']") is not None
+		has_wechat = bool(re.search(r"微信|wechat|weixin", body_text, re.I)) or page.query_selector("img[alt*='wechat'], i[class*='wechat']") is not None
+		has_app_qr = bool(re.search(r"APP扫码|APP.*扫码|客户端扫码", body_text, re.I))
+		has_oauth = page.query_selector("[class*='oauth'], [class*='third'], [class*='social'], a[href*='qq'], a[href*='weibo'], a[href*='github']") is not None
+
+		# 检测第三方提供商
+		third_providers = []
+		for prov, patterns in [("qq", r"qq\.com|QQ"), ("weibo", r"weibo\.com|微博"),
+								("github", r"github\.com|GitHub"), ("google", r"google|Google"),
+								("wechat_oauth", r"微信登录|wechat")]:
+			if re.search(patterns, page_html, re.I):
+				third_providers.append(prov)
+		third_providers = list(dict.fromkeys(third_providers))  # 去重保序
+
+		# 构建 login_methods
+		methods = []
+		if has_password:
+			methods.append({"method": "password", "label": "账号密码登录", "detected": True, "selector": "input[type='password']"})
+
+		phone_detected = has_phone and has_code_btn
+		if phone_detected:
+			methods.append({"method": "phone", "label": "手机验证码登录", "detected": True, "selector": "input[type='tel']"})
+
+		qrcode_sub_types = []
+		if has_wechat:
+			qrcode_sub_types.append({"id": "wechat", "label": "微信扫码", "detected": True})
+		if has_app_qr:
+			qrcode_sub_types.append({"id": "app", "label": "APP扫码", "detected": True})
+		if has_qrcode or qrcode_sub_types:
+			qrcode_sub_types = qrcode_sub_types or [{"id": "default", "label": "二维码登录", "detected": True}]
+			methods.append({"method": "qrcode", "label": "扫码登录", "detected": True, "sub_types": qrcode_sub_types, "selector": "img[src*='qrcode']"})
+
+		if third_providers or has_oauth:
+			methods.append({"method": "oauth", "label": "第三方账号登录", "detected": True, "providers": third_providers or ["wechat_oauth", "qq", "weibo"]})
+
+		methods.append({"method": "cookie", "label": "Cookie粘贴", "detected": True})
+
+		# 构建备注
+		detected_labels = [m["label"] for m in methods if m.get("detected") and m["method"] != "cookie"]
+		note_parts = [f"{json_name}登录页支持"]
+		note_parts.append("/".join(detected_labels))
+		if third_providers:
+			note_parts.append(f"/第三方({','.join(third_providers)})")
+		note = "".join(note_parts)
+
+		cap_data = {
+			"platform": json_name,
+			"explored_at": datetime.now(timezone.utc).isoformat(),
+			"login_url": url,
+			"login_methods": methods,
+			"note": note,
+			"raw_detection": {
+				"has_password_input": has_password,
+				"has_phone_input": has_phone,
+				"has_code_button": has_code_btn,
+				"has_qrcode_img": has_qrcode,
+				"has_wechat": has_wechat,
+				"has_app_qr": has_app_qr,
+				"third_party_providers": third_providers,
+				"page_title": page_title,
+				"page_url": page_url,
+			},
+			"error": None,
+			"screenshot": screenshot_path,
+		}
+
+		# 保存 JSON
+		with open(report_path, "w", encoding="utf-8") as f:
+			json.dump(cap_data, f, ensure_ascii=False, indent=2)
+
+		page.close()
 
 		return jsonify({
 			"success": True, "platform": platform, "message": "登录能力已重新探索",
 			"login_methods": [m["method"] for m in methods if m.get("detected")],
+			"capabilities": cap_data,
 		})
 	except Exception as e:
-		return jsonify({"success": False, "error": f"Playwright 初始化异常: {str(e)[:200]}"})
+		return jsonify({"success": False, "error": f"Playwright 检测异常: {str(e)[:200]}"})
 
 
 # ═══════════════════════════════════════════════════

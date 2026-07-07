@@ -396,6 +396,26 @@ def init_db():
             pass
     conn.commit()
 
+    # 迁移：site_configs 表（站点全局部署配置 — 博客平台/评论系统/插件）
+    try:
+        conn.execute("SELECT COUNT(*) FROM site_configs")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS site_configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                deployer_id INTEGER,
+                platform TEXT DEFAULT 'github_pages',
+                comment_system TEXT DEFAULT '',
+                comment_config TEXT DEFAULT '{}',
+                plugins_config TEXT DEFAULT '{}',
+                extra_config TEXT DEFAULT '{}',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        conn.commit()
+
     # 迁移：gateway_channels 表（通知网关终端配置）
     try:
         conn.execute("SELECT COUNT(*) FROM gateway_channels")
