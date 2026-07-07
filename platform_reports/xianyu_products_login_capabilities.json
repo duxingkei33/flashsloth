@@ -1,0 +1,41 @@
+{
+  "platform": "xianyu_products",
+  "explored_at": "2026-07-07T00:00:00+00:00",
+  "login_url": "https://www.goofish.com/",
+  "login_methods": [
+    {
+      "method": "password",
+      "label": "密码+二维码登录",
+      "icon": "🔑",
+      "priority": 1,
+      "detected": true,
+      "fields": ["site_url", "username", "password"],
+      "description": "输入淘宝账号密码，Playwright 处理扫码/验证码完成登录"
+    },
+    {
+      "method": "qrcode",
+      "label": "📱 扫码登录",
+      "icon": "📱",
+      "priority": 2,
+      "detected": true,
+      "fields": ["site_url"],
+      "description": "打开闲鱼登录页截图，用手机淘宝扫码后自动捕获 Cookie"
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie 粘贴",
+      "icon": "🍪",
+      "priority": 99,
+      "detected": true,
+      "fields": ["site_url", "cookie"],
+      "description": "从浏览器 F12 → Application → Cookies → goofish.com 复制"
+    }
+  ],
+  "note": "闲鱼商品发布（预留功能）。登录方式复用闲鱼淘宝账号体系，支持密码+二步验证/扫码登录/Cookie粘贴。",
+  "capabilities": {
+    "publish": false,
+    "requires_login": true,
+    "under_development": true
+  },
+  "error": null
+}

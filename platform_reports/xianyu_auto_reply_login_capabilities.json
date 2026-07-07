@@ -1,0 +1,24 @@
+{
+  "platform": "xianyu_auto_reply",
+  "explored_at": "2026-07-07T00:00:00+00:00",
+  "login_url": null,
+  "login_methods": [
+    {
+      "method": "cookie",
+      "label": "Cookie 导入",
+      "icon": "🍪",
+      "priority": 1,
+      "detected": true,
+      "fields": ["cookie"],
+      "description": "从 xianyu-auto-reply Docker 后台复制 Cookie 直接粘贴",
+      "note": "xianyu-auto-reply 是基于 Docker 的后端服务，需要先通过其内置的 Playwright 登录获取 Cookie"
+    }
+  ],
+  "note": "闲鱼自动回复系统（Docker 服务）。Cookie 由 xianyu-auto-reply 后台的 Playwright 登录功能获取，然后再将 Cookie 导入到 FlashSloth。",
+  "capabilities": {
+    "publish": true,
+    "query_orders": true,
+    "requires_docker_service": true
+  },
+  "error": null
+}

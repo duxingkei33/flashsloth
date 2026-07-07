@@ -209,6 +209,11 @@ def init_db():
             success INTEGER DEFAULT 0,
             url TEXT,
             error TEXT,
+            status TEXT DEFAULT 'draft',
+            message TEXT DEFAULT '',
+            deploy_status TEXT DEFAULT '',
+            retracted_at TEXT,
+            updated_at TEXT DEFAULT (datetime('now')),
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS forum_recommendations (
