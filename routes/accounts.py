@@ -21,6 +21,9 @@ from flashsloth.core.status_cache import (
 )
 from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
 
+# ─── Discuz 系平台集合（登录流程相同，仅 site_url 不同）───
+DISCUZ_PLATFORMS = {"amobbs", "discuz", "mydigit"}
+
 # ─── 平台账号管理 ──────────────────────────────
 @app.route("/accounts")
 @login_required
@@ -758,12 +761,12 @@ def api_platform_login_start(platform):
 	password = data.get("password", "")
 	site_url = data.get("site_url", "")
 
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _get_amobbs_login
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			sess_id = f"user_{current_user.id}"
-			inst = _get_amobbs_login(sess_id)
+			sess_id = f"user_{current_user.id}_{platform}"
+			inst = _get_discuz_login(sess_id, site_url=site_url)
 			result = inst.login(username, password)
 			if result.get("logged_in") and result.get("cookies") and aid:
 				_save_cookie_to_account(aid, result["cookies"])
@@ -817,12 +820,12 @@ def api_platform_login_captcha(platform):
 	data = request.get_json() or {}
 	aid = data.get("account_id", 0)
 
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _get_amobbs_login
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			sess_id = f"user_{current_user.id}"
-			inst = _get_amobbs_login(sess_id)
+			sess_id = f"user_{current_user.id}_{platform}"
+			inst = _get_discuz_login(sess_id)
 			result = inst.click_captcha_and_submit()
 			if result.get("logged_in") and result.get("cookies") and aid:
 				_save_cookie_to_account(aid, result["cookies"])
@@ -868,11 +871,11 @@ def api_platform_login_captcha(platform):
 @login_required
 def api_platform_login_screenshot(platform):
 	"""统一登录：获取页面截图"""
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _get_amobbs_login
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			inst = _get_amobbs_login(f"user_{current_user.id}")
+			inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
 	elif platform in ("xianyu", "xianyu_v2"):
@@ -910,12 +913,12 @@ def api_platform_login_submit_captcha(platform):
 	if not captcha_code:
 		return jsonify({"success": False, "error": "请输入验证码"})
 
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _get_amobbs_login
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			sess_id = f"user_{current_user.id}"
-			inst = _get_amobbs_login(sess_id)
+			sess_id = f"user_{current_user.id}_{platform}"
+			inst = _get_discuz_login(sess_id)
 			# 提交文本验证码 — 填入代码，点击边框核验，再提交登录
 			result = inst.submit_text_captcha(captcha_code)
 			if result.get("logged_in") and result.get("cookies") and aid:
@@ -957,12 +960,12 @@ def api_platform_login_poll(platform):
 	data = request.get_json() or {}
 	aid = data.get("account_id", 0)
 
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _get_amobbs_login
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			sess_id = f"user_{current_user.id}"
-			inst = _get_amobbs_login(sess_id)
+			sess_id = f"user_{current_user.id}_{platform}"
+			inst = _get_discuz_login(sess_id)
 			# 检查当前登录状态
 			cookies = inst.get_cookies()
 			if cookies:
@@ -1010,11 +1013,11 @@ def api_platform_login_poll(platform):
 @login_required
 def api_platform_login_refresh_captcha(platform):
 	"""刷新验证码图片"""
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _get_amobbs_login
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			inst = _get_amobbs_login(f"user_{current_user.id}")
+			inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
 			screenshot = inst.take_screenshot()
 			return jsonify({"success": True, "image": screenshot})
 	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
@@ -1035,10 +1038,10 @@ def api_platform_login_auto_captcha(platform):
 	handler = get_handler()
 	# 先尝试截图
 	try:
-		if platform in ("amobbs", "discuz"):
-			from flashsloth.routes.browser_login import _get_amobbs_login
+		if platform in DISCUZ_PLATFORMS:
+			from flashsloth.routes.browser_login import _get_discuz_login
 			with _get_login_lock(platform):
-				inst = _get_amobbs_login(f"user_{current_user.id}")
+				inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
 				screenshot = inst.take_screenshot()
 		else:
 			from plugins.generic_login import get_generic_login
@@ -1319,14 +1322,12 @@ def api_login_method_demo(method):
 @login_required
 def api_platform_login_close(platform):
 	"""统一登录：关闭浏览器会话"""
-	if platform in ("amobbs", "discuz"):
-		from flashsloth.routes.browser_login import _amobbs_login_instances
+	if platform in DISCUZ_PLATFORMS:
+		from flashsloth.routes.browser_login import _close_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
-			sess_id = f"user_{current_user.id}"
-			inst = _amobbs_login_instances.pop(sess_id, None)
-			if inst:
-				inst.close()
+			sess_id = f"user_{current_user.id}_{platform}"
+			_close_discuz_login(sess_id)
 			return jsonify({"success": True})
 
 	elif platform in ("xianyu", "xianyu_v2"):

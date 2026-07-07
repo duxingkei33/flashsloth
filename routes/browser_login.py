@@ -9,7 +9,32 @@ from flashsloth.core.database import get_db
 from flashsloth.core.credential_crypto import encrypt_config
 
 # ═══════════════════════════════════════════════════
-# 阿莫论坛 (amobbs) Playwright 登录
+# 通用 Discuz 系论坛 Playwright 登录（支持 amobbs/mydigit/discuz 等）
+# ═══════════════════════════════════════════════════
+
+_discuz_login_instances: dict[str, "AmobbsPlaywrightLogin"] = {}
+_discuz_lock = threading.Lock()
+
+def _get_discuz_login(session_id: str, site_url: str = "https://www.amobbs.com") -> "AmobbsPlaywrightLogin":
+    """获取/创建 Discuz 系论坛登录实例（按 session_id 区分）"""
+    with _discuz_lock:
+        # site_url 变化时重建实例
+        if session_id in _discuz_login_instances:
+            return _discuz_login_instances[session_id]
+        from plugins.amobbs_login import AmobbsPlaywrightLogin
+        inst = AmobbsPlaywrightLogin(site_url=site_url)
+        _discuz_login_instances[session_id] = inst
+        return inst
+
+def _close_discuz_login(session_id: str):
+    """关闭 Discuz 登录实例"""
+    with _discuz_lock:
+        inst = _discuz_login_instances.pop(session_id, None)
+    if inst:
+        inst.close()
+
+# ═══════════════════════════════════════════════════
+# 阿莫论坛 (amobbs) Playwright 登录（向下兼容）
 # ═══════════════════════════════════════════════════
 
 _amobbs_login_instances: dict[str, "AmobbsPlaywrightLogin"] = {}
