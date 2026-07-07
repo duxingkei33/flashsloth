@@ -177,9 +177,20 @@ class DiscuzPublisher(Publisher):
 
                     if "login" in page_url:
                         return {"success": False, "error": "Cookie 已过期，请重新登录获取", "status": "Cookie过期"}
-                    if indicators:
+                    # ── 严格判断登录态（2026-07-08: 修复弱验证Bug） ──
+                    # 铁律：必须检测到「退出」或「注销」作为强登录证据
+                    # 且至少需要2个独立登录指示器，或用户名出现在页面中
+                    has_strong_exit = bool(re.search(r'退出|注销', body_text))
+                    username_in_body = self.username and len(self.username.strip()) >= 2 and \
+                        re.search(re.escape(self.username.strip()), body_text)
+                    sufficient_indicators = len(indicators) >= 2
+
+                    if has_strong_exit and (sufficient_indicators or username_in_body):
                         return {"success": True, "error": "", "status": f"已登录 — 检测到: {' | '.join(indicators[:3])}",
                                 "username_found": True, "username_indicators": indicators[:3]}
+
+                    if indicators:
+                        return {"success": False, "error": f"Cookie可能已过期：检测到{len(indicators)}个页面元素但无退出/注销按钮", "status": "Cookie过期"}
                     return {"success": False, "error": "无法确认登录状态（未检测到用户信息）", "status": "未知"}
                 except Exception as e:
                     return {"success": False, "error": f"页面加载异常: {e}", "status": "连接失败"}

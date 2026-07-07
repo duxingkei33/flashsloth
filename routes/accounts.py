@@ -1265,45 +1265,30 @@ def _check_auth_cookies(platform: str, cookies: list) -> bool:
 
 
 def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_queue.Queue):
-	"""QR 码登录工作线程 — 拥有独立的 Playwright 浏览器实例"""
-	_pw = None; _browser = None; _ctx = None; _page = None
+	"""QR 码登录工作线程 — 使用 BrowserEngine 的隔离上下文"""
+	_ctx = None; _page = None
 	_worker_started = time.time()
-	# 从 playwright_config 读取超时（兜底 10 分钟 = 600 秒）
-	_qr_timeout_seconds = 600
+
+	# 从 BrowserEngine 配置读取超时
+	_qr_timeout_seconds = 600  # 兜底 10 分钟
 	try:
-		from flashsloth.core.database import get_db as _get_db
-		_conn = _get_db()
-		_row = _conn.execute(
-			"SELECT config_json FROM playwright_config WHERE id=1"
-		).fetchone()
-		_conn.close()
-		if _row and _row["config_json"]:
-			_cfg = json.loads(_row["config_json"])
-			_qr_timeout_seconds = _cfg.get("qr_login_timeout_minutes", 10) * 60
+		from flashsloth.core.browser_engine import BrowserEngine
+		_bengine = BrowserEngine.get_instance()
+		_bcfg = _bengine.get_config()
+		_qr_timeout_seconds = _bcfg.get("qr_login_timeout_minutes", 10) * 60
 	except Exception:
 		pass
 	try:
-		from playwright.sync_api import sync_playwright
 		import base64
 
-		_pw = sync_playwright().__enter__()
-		_browser = _pw.chromium.launch(
-			headless=True,
-			args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-				  '--disable-blink-features=AutomationControlled'],
-		)
-		_ctx = _browser.new_context(
-			user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-					   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-			viewport={"width": 1280, "height": 800},
-			locale="zh-CN",
-		)
-		_ctx.add_init_script("""
-			Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-			Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-			Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
-			window.chrome = {runtime: {}, loadTimes: function() {}, csi: function() {}, app: {}};
-		""")
+		# 使用 BrowserEngine 创建隔离上下文（共享浏览器进程，隔离 Cookie）
+		from flashsloth.core.browser_engine import BrowserEngine
+		_bengine = BrowserEngine.get_instance()
+		if not _bengine.is_ready():
+			_bengine.start()
+		_ctx = _bengine.create_isolated_context()
+		if not _ctx:
+			raise RuntimeError("无法从 BrowserEngine 获取隔离上下文")
 		_page = _ctx.new_page()
 
 		# 导航到登录页
@@ -1328,8 +1313,6 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 		# 将 Playwright 对象存入 session 供 poll 使用
 		sess = _qr_login_sessions.get(sess_id)
 		if sess:
-			sess["_pw"] = _pw
-			sess["_browser"] = _browser
 			sess["_context"] = _ctx
 			sess["_page"] = _page
 			sess["_ready"] = True
@@ -1374,13 +1357,11 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
 	except Exception as e:
 		result_queue.put({"success": False, "error": str(e)[:100]})
 	finally:
-		for obj in [_page, _ctx, _browser]:
+		# 只清除上下文（浏览器由 BrowserEngine 管理）
+		for obj in [_page, _ctx]:
 			try:
 				if obj: obj.close()
 			except Exception: pass
-		try:
-			if _pw: _pw.__exit__(None, None, None)
-		except Exception: pass
 
 
 @app.route("/api/login/qrcode/<platform>/start", methods=["POST"])
@@ -1912,9 +1893,24 @@ def api_test_connection():
     try:
         data = request.get_json(silent=True) or {}
         platform = data.get("platform", "")
-        config = {k[4:]: v for k, v in data.items() if k.startswith("cfg_")}
+        if not platform:
+            # 尝试从 form-data 读取
+            platform = request.form.get("platform", "")
         if not platform:
             return jsonify({"success": False, "error": "缺少平台名"})
+        # 从 config 嵌套字段或 cfg_ 前缀字段读取
+        config = {}
+        nested_config = data.get("config", {})
+        if isinstance(nested_config, dict):
+            config.update(nested_config)
+        # 也检查顶层 cfg_ 前缀字段
+        for k, v in data.items():
+            if k.startswith("cfg_"):
+                config[k[4:]] = v
+        # 也检查 form-data 中的 cfg_ 前缀字段
+        for k, v in request.form.items():
+            if k.startswith("cfg_"):
+                config[k[4:]] = v
         # 尝试使用 publisher 的 test_connection
         from flashsloth.core.publisher import _registry as _publisher_registry
         cls = _publisher_registry.get(platform)
@@ -1925,20 +1921,33 @@ def api_test_connection():
                 return jsonify({"success": True, "result": result})
             except Exception as e:
                 return jsonify({"success": False, "error": f"连接测试失败: {str(e)[:200]}"})
-        # 降级：Cookie + site_url 进行 Playwright 验证
+        # 降级：Cookie + site_url 进行 Playwright 验证（使用独立子进程，避免WSGI线程问题）
         cookie = config.get("cookie", data.get("cookie", ""))
         site_url = config.get("site_url", data.get("site_url", ""))
+        username = config.get("username", data.get("username", ""))
         if cookie and site_url:
-            from flashsloth.core.status_detector import detect_platform
-            detect_result = detect_platform(platform, site_url, cookie, config.get("username", ""))
-            # ⚠️ 铁律：API轻量检测只能信任"未登录"结果
-            # 如果API说"已登录"，标记为"待确认"而非直接信任
-            if detect_result.get("logged_in") == False:
-                detect_result["status"] = "❌ Cookie已失效（API轻量检测）"
-            elif detect_result.get("logged_in"):
-                detect_result["logged_in"] = None  # 改为待确认
-                detect_result["status"] = "⏳ API轻量检测通过，保存后使用「状态检测」做Playwright确认"
-            return jsonify({"success": True, "result": detect_result})
-        return jsonify({"success": False, "error": "无有效凭证可测试（需要 Cookie 或 API 密钥）"})
+            # 使用子进程运行 Playwright 验证，传参通过 stdin JSON
+            import subprocess as _sp, os as _os, sys as _sys
+            _pw_env = _os.environ.copy()
+            _pw_env["PYTHONPATH"] = f"{_os.path.expanduser('~/.hermes')}:{_os.path.expanduser('~/.hermes/flashsloth')}"
+            _pw_script = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "scripts", "playwright_verify_raw.py")
+            if _os.path.exists(_pw_script):
+                try:
+                    _input_json = json.dumps({
+                        "cookie": cookie, "site_url": site_url,
+                        "username": username, "platform": platform
+                    }, ensure_ascii=False)
+                    _pw_proc = _sp.run(
+                        [_os.path.expanduser("~/.hermes/flashsloth/venv/bin/python3"), _pw_script],
+                        capture_output=True, text=True, timeout=45, env=_pw_env,
+                        input=_input_json,
+                    )
+                    if _pw_proc.returncode == 0 and _pw_proc.stdout.strip():
+                        pw_result = json.loads(_pw_proc.stdout)
+                        return jsonify({"success": True, "result": pw_result})
+                except Exception as e:
+                    pass  # Playwright 降级失败，兜底返回
+            return jsonify({"success": False, "error": "无有效凭证可测试（需要 Cookie 或 账号密码）"})
+        return jsonify({"success": False, "error": "需要配置站点 URL 和 Cookie 才能测试连接"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)[:200]})
