@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-08 07:35 | PM: duxingkei | 铁律: fs-iron-rules
+> 最后更新：2026-07-08 07:55 | PM: duxingkei | 铁律: fs-iron-rules
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -10,6 +10,8 @@
 **v5.11** — signin BrowserEngine复用 + 验证凭证按钮 + deploy页面重定向
 
 ---
+
+| **引擎路由数据驱动重构** | ✅ | 替换DISCUZ_PLATFORMS硬编码，13处路由改用_get_engine_for_platform()动态推导 |
 
 ## 📋 历史需求对照（按最新要求对齐）
 
