@@ -213,11 +213,29 @@ class GenericPlaywrightLogin:
         if not login_url:
             return {"success": False, "error": "无法确定登录地址"}
 
+        # 每个请求创建独立的 Playwright 实例，避免多线程问题
+        from playwright.sync_api import sync_playwright
+        _pw = None
+        _browser = None
+        _context = None
+        _page = None
         try:
-            self._ensure_browser()
-            page = self.page
-            page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(3000)
+            _pw = sync_playwright().__enter__()
+            _browser = _pw.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                      '--disable-blink-features=AutomationControlled'],
+            )
+            _context = _browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800},
+                locale="zh-CN",
+            )
+            _page = _context.new_page()
+
+            _page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
+            _page.wait_for_timeout(3000)
 
             # 尝试切换到手机/SMS Tab
             tab_selectors = [
@@ -233,10 +251,10 @@ class GenericPlaywrightLogin:
             ]
             for sel in tab_selectors:
                 try:
-                    tab_btn = page.wait_for_selector(sel, timeout=2000)
+                    tab_btn = _page.wait_for_selector(sel, timeout=2000)
                     if tab_btn and tab_btn.is_visible():
                         tab_btn.click()
-                        page.wait_for_timeout(1000)
+                        _page.wait_for_timeout(1000)
                         break
                 except Exception:
                     pass
@@ -246,11 +264,11 @@ class GenericPlaywrightLogin:
                 phone_sel = 'input[type="tel"], input[name*="phone"], input[id*="phone"], '
                 phone_sel += 'input[placeholder*="手机"], input[placeholder*="phone"]'
                 try:
-                    phone_input = page.wait_for_selector(phone_sel, timeout=5000)
+                    phone_input = _page.wait_for_selector(phone_sel, timeout=5000)
                     if phone_input:
                         phone_input.click()
-                        page.fill(phone_sel, phone)
-                        page.wait_for_timeout(500)
+                        _page.fill(phone_sel, phone)
+                        _page.wait_for_timeout(500)
                 except Exception:
                     pass
 
@@ -265,23 +283,23 @@ class GenericPlaywrightLogin:
                 ]
                 for cb_sel in code_btn_selectors:
                     try:
-                        send_btn = page.wait_for_selector(cb_sel, timeout=2000)
+                        send_btn = _page.wait_for_selector(cb_sel, timeout=2000)
                         if send_btn and send_btn.is_visible():
                             send_btn.click()
-                            page.wait_for_timeout(2000)
+                            _page.wait_for_timeout(2000)
                             break
                     except Exception:
                         pass
             except Exception:
                 pass
 
-            page.wait_for_timeout(2000)
-            screenshot_b64 = self.take_screenshot()
+            _page.wait_for_timeout(2000)
+            screenshot_b64 = base64.b64encode(_page.screenshot(type="png", full_page=False)).decode()
 
             # 检测是否已有验证码输入框（表示已发送成功）
             has_code_input = False
             try:
-                code_input = page.query_selector(
+                code_input = _page.query_selector(
                     'input[placeholder*="验证码"], input[name*="captcha"], input[id*="captcha"], '
                     'input[placeholder*="code"], input[name*="code"]'
                 )
@@ -290,7 +308,7 @@ class GenericPlaywrightLogin:
             except Exception:
                 pass
 
-            return {
+            result = {
                 "success": True,
                 "logged_in": False,
                 "needs_captcha": True,
@@ -299,12 +317,26 @@ class GenericPlaywrightLogin:
                            else "📞 请输入手机号并手动发送验证码",
                 "phone_input_ready": True,
             }
+            return result
         except Exception as e:
             return {
                 "success": False,
                 "error": f"手机登录启动异常: {str(e)[:100]}",
                 "logged_in": False,
             }
+        finally:
+            # 清理本地的 Playwright 实例（避免跨线程问题）
+            try:
+                if _page:
+                    _page.close()
+                if _context:
+                    _context.close()
+                if _browser:
+                    _browser.close()
+                if _pw:
+                    _pw.__exit__(None, None, None)
+            except Exception:
+                pass
 
     def submit_captcha_and_login(self, platform: str = "") -> dict:
         """已验证码已处理，尝试提交并检查登录状态"""
