@@ -31,6 +31,9 @@
     .card .btn { min-height:44px; font-size:13px; }
     .card .btn-sm { min-height:40px; font-size:11px; padding:8px 10px; }
 }
+/* 批量操作工具栏：置灰按钮 */
+.batch-toolbar button:disabled { opacity:0.4; cursor:not-allowed; }
+.batch-toolbar button { transition:opacity .2s; }
 </style>
 <!-- 统计 — 可点击跳转对应区域 -->
 <div class="stats">
@@ -131,14 +134,15 @@
     </div>
 
     <!-- 批量操作工具栏 -->
-    <div id="articleBatchToolbar" class="batch-toolbar" style="display:none;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px;">
+    <div id="articleBatchToolbar" class="batch-toolbar" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px;">
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
             <input type="checkbox" id="articleSelectAll" onchange="toggleArticleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;">
             <span style="font-size:13px;">全选</span>
         </label>
         <span class="batch-count" id="articleBatchCount" style="font-weight:600;color:#4361ee;">已选 0 篇</span>
-        <button onclick="batchDeleteArticles()" class="btn btn-sm btn-danger">🗑 批量删除</button>
-        <button onclick="batchPublishArticles()" class="btn btn-sm btn-success">🚀 批量发布</button>
+        <button onclick="batchDeleteArticles()" class="btn btn-sm btn-danger" id="batchDeleteBtn" disabled>🗑 批量删除</button>
+        <button onclick="batchPublishArticles()" class="btn btn-sm btn-success" id="batchPublishBtn" disabled>🚀 批量发布</button>
+        <button onclick="batchExportMd()" class="btn btn-sm btn-info" id="batchExportBtn" disabled>📥 导出Markdown</button>
         <button onclick="clearArticleSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
         <span id="articleBatchProgress" style="font-size:12px;color:#888;margin-left:auto;"></span>
     </div>
@@ -330,13 +334,13 @@ function toggleArticleSelectAll(cb) {
 
 function updateArticleBatchBar() {
     var checked = document.querySelectorAll('.article-checkbox:checked');
-    var bar = document.getElementById('articleBatchToolbar');
     var count = checked.length;
     document.getElementById('articleBatchCount').textContent = '已选 ' + count + ' 篇';
-    if (count > 0) {
-        bar.style.display = 'flex';
-    } else {
-        bar.style.display = 'none';
+    var hasSel = count > 0;
+    document.getElementById('batchDeleteBtn').disabled = !hasSel;
+    document.getElementById('batchPublishBtn').disabled = !hasSel;
+    document.getElementById('batchExportBtn').disabled = !hasSel;
+    if (!hasSel) {
         document.getElementById('articleSelectAll').checked = false;
         document.getElementById('articleSelectAllHeader').checked = false;
     }
@@ -388,5 +392,75 @@ function batchPublishArticles() {
     // 跳转到发布选择页面，传入多篇文章ID
     var url = '/publish/select?ids=' + ids.join(',');
     window.location.href = url;
+}
+
+function batchExportMd() {
+    var ids = getSelectedArticleIds();
+    if (ids.length === 0) { alert('请先选择文章'); return; }
+    var prog = document.getElementById('articleBatchProgress');
+    prog.textContent = '⏳ 导出中 (0/' + ids.length + ')...';
+
+    var articles = [];
+    var fetchPromises = ids.map(function(id, index) {
+        return fetch('/post/edit/' + id)
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+
+                var title = '';
+                var body = '';
+                var summary = '';
+                var tags = '';
+
+                var titleEl = doc.querySelector('input[name="title"]');
+                if (titleEl) title = titleEl.value;
+
+                var bodyEl = doc.querySelector('textarea[name="body"]');
+                if (bodyEl) body = bodyEl.value;
+
+                var summaryEl = doc.querySelector('input[name="summary"]');
+                if (summaryEl) summary = summaryEl.value;
+
+                var tagsEl = doc.querySelector('input[name="tags"]');
+                if (tagsEl) tags = tagsEl.value;
+
+                articles.push({id: id, title: title, body: body, summary: summary, tags: tags});
+                prog.textContent = '⏳ 导出中 (' + (index + 1) + '/' + ids.length + ')...';
+            })
+            .catch(function(e) {
+                prog.textContent = '❌ 文章 #' + id + ' 读取失败: ' + e.message;
+            });
+    });
+
+    Promise.all(fetchPromises).then(function() {
+        if (articles.length === 0) {
+            prog.textContent = '❌ 导出失败';
+            return;
+        }
+
+        var md = '';
+        articles.forEach(function(a, i) {
+            if (i > 0) md += '\n\n---\n\n';
+            md += '# ' + (a.title || '(无标题)') + '\n\n';
+            if (a.summary) md += '> ' + a.summary + '\n\n';
+            if (a.tags) md += '**标签:** ' + a.tags + '\n\n---\n\n';
+            md += a.body || '(无内容)';
+        });
+
+        var blob = new Blob([md], {type: 'text/markdown;charset=utf-8'});
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        var dateStr = new Date().toISOString().slice(0, 10);
+        link.download = 'flashsloth-export-' + dateStr + '.md';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        prog.textContent = '✅ 已导出 ' + articles.length + ' 篇';
+        setTimeout(function() { prog.textContent = ''; }, 3000);
+    });
 }
 </script>

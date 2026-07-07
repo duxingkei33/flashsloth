@@ -32,6 +32,7 @@ def _parse_cookies(cookie_str: str) -> list:
 class CSDNPublisher(Publisher):
     name = "csdn"
     display_name = "CSDN"
+    architecture = "自研CMS"
 
     PLATFORM_LIMITS = {
         "csdn.net": {

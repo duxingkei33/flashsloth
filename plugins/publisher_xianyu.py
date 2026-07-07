@@ -10,6 +10,7 @@ from flashsloth.sdk.adapter import Article
 class XianyuPublisher(PlatformAdapter):
     name = "xianyu"
     display_name = "闲鱼"
+    architecture = "闲鱼平台"
     description = "闲鱼二手交易平台 — 基于 XianyuAutoAgent API 层"
     icon = "🐟"
     supports_draft = False  # 闲鱼没有草稿功能

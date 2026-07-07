@@ -92,6 +92,26 @@
     .empty-state-enhanced .step-card { max-width:100%;width:100%; }
     .view-toggle { margin-left:0;width:100%;justify-content:flex-end; }
 }
+/* 平台搜索自动补全下拉框 */
+.platform-search-wrap { position:relative; display:inline-flex; align-items:stretch; min-width:180px; }
+#platformSearchInput:focus { border-color:#4361ee;outline:none;box-shadow:0 0 0 2px rgba(67,97,238,.15); }
+#platformDropdownToggle:hover { background:#f0f4ff !important;border-color:#4361ee !important;color:#4361ee !important; }
+#platformSearchDropdown { display:none; position:absolute; top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:999;max-height:320px;overflow-y:auto;margin-top:4px; }
+#platformSearchDropdown .plat-item { display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s; }
+#platformSearchDropdown .plat-item:last-child { border-bottom:none; }
+#platformSearchDropdown .plat-item:hover,
+#platformSearchDropdown .plat-item.active { background:#f0f4ff; }
+#platformSearchDropdown .plat-item .plat-icon { width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0; }
+#platformSearchDropdown .plat-item .plat-info { flex:1;min-width:0; }
+#platformSearchDropdown .plat-item .plat-info .plat-name { font-weight:600;font-size:13px;color:#1a1a2e; }
+#platformSearchDropdown .plat-item .plat-info .plat-arch { font-size:11px;color:#888;margin-top:2px; }
+#platformSearchDropdown .plat-empty { padding:16px;text-align:center;color:#aaa;font-size:13px; }
+#platformSearchDropdown .plat-loading { padding:16px;text-align:center;color:#4361ee;font-size:13px; }
+#platformSearchDropdown .plat-noquery { padding:16px;text-align:center;color:#aaa;font-size:12px;line-height:1.6; }
+@media (max-width: 768px) {
+    .platform-search-wrap { display:flex;min-width:unset;width:100%; }
+    .platform-search-wrap #platformSearchInput { width:100%; }
+}
 @media (max-width: 480px) {
     .filter-bar { padding:8px 10px; }
     .acct-card { padding:8px;gap:6px; }
@@ -105,6 +125,11 @@
     /* 添加账号弹窗 */
     #addFormBox > div { padding:16px !important; max-width:98% !important; width:98% !important; }
     #addFormBox input, #addFormBox select { font-size:16px; }
+    #addFormBox #platformSearchInput { font-size:16px; }
+    #addFormBox input, #addFormBox .platform-search-wrap { font-size:16px; }
+    /* 平台搜索 */
+    .platform-search-wrap { display:flex;min-width:unset;width:100%; }
+    #platformSearchInput { font-size:16px; }
     /* 部署区块 */
     #deploy .stat-card { min-width:100% !important; flex:1 1 100% !important; }
 }
@@ -116,14 +141,20 @@
 
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="批量刷新所有活跃账号的状态（API轻量检测，不启动浏览器）">🔄 批量刷新</button>
-        <select id="newPlatformSelect" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;min-width:180px;">
-            <option value="">— 选择平台添加账号 —</option>
-            {% for p in platforms %}
-            <option value="{{ p.name }}" data-fields='{{ p.config_fields|tojson }}'
-                    data-methods='{{ p.login_methods|tojson }}'>➕ {{ p.display_name }}</option>
-            {% endfor %}
-        </select>
-        <button onclick="onAddAccount()" class="btn btn-success">添加</button>
+        <div class="platform-search-wrap" style="position:relative;display:inline-flex;align-items:stretch;">
+            <input type="text" id="platformSearchInput" placeholder="🔍 搜索平台..."
+                   autocomplete="off" oninput="onPlatformSearchInput()"
+                   onfocus="onPlatformSearchFocus()" onkeydown="onPlatformSearchKeydown(event)"
+                   data-selected=""
+                   style="padding:8px 12px;border:1px solid #ddd;border-radius:6px 0 0 6px;font-size:14px;width:260px;box-sizing:border-box;border-right:none;">
+            <button type="button" id="platformDropdownToggle"
+                    onclick="togglePlatformDropdown()"
+                    style="padding:8px 10px;border:1px solid #ddd;border-radius:0 6px 6px 0;background:#fff;cursor:pointer;font-size:12px;color:#666;display:flex;align-items:center;">
+                ▼
+            </button>
+            <div id="platformSearchDropdown"></div>
+        </div>
+        <button onclick="onAddAccount()" class="btn btn-success" id="btnAddAccount" disabled>添加</button>
     </div>
 </div>
 
@@ -376,7 +407,7 @@
             <div class="step-label">发布内容<br>支持多平台同步发布</div>
         </div>
     </div>
-    <button onclick="document.getElementById('newPlatformSelect').focus()" class="btn btn-primary" style="font-size:15px;padding:10px 24px;">🚀 选择平台开始添加</button>
+    <button onclick="document.getElementById('platformSearchInput').focus();document.getElementById('platformSearchInput').click();" class="btn btn-primary" style="font-size:15px;padding:10px 24px;">🚀 选择平台开始添加</button>
     <p style="margin-top:12px;font-size:12px;color:#aaa;">已有账号？在上方下拉框中选择平台，点击「添加」即可</p>
 
     <!-- 快捷平台入口 (优化7) -->
@@ -398,14 +429,18 @@
     </div>
     <script>
     function quickAddPlatform(platform) {
-        var sel = document.getElementById('newPlatformSelect');
-        for (var i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value === platform) {
-                sel.selectedIndex = i;
+        // 使用新搜索选择器
+        var input = document.getElementById('platformSearchInput');
+        input.dataset.selected = platform;
+        // 查找显示名
+        for (var i = 0; i < _platformSearchData.length; i++) {
+            if (_platformSearchData[i].name === platform) {
+                input.placeholder = '✅ ' + _platformSearchData[i].display_name;
                 break;
             }
         }
-        sel.focus();
+        input.value = '';
+        document.getElementById('btnAddAccount').disabled = false;
         onAddAccount();
     }
     </script>
@@ -960,22 +995,229 @@ function toggleAccount(aid, checkbox) {
     .catch(e => { checkbox.checked = !checkbox.checked; alert('网络错误: ' + e.message); });
 }
 
+// ====== 平台模糊搜索/自动补全 ======
+let _platformSearchTimer = null;
+let _platformSearchData = [];  // 缓存全量平台数据
+let _platformSearchIdx = -1;   // 键盘导航索引
+
+function onPlatformSearchInput() {
+    clearTimeout(_platformSearchTimer);
+    var input = document.getElementById('platformSearchInput');
+    var q = input.value.trim();
+
+    // 用户重新输入 → 清除已选状态
+    input.dataset.selected = '';
+    document.getElementById('btnAddAccount').disabled = true;
+
+    // 空输入 → 展示全量平台列表（combobox 行为）
+    if (!q) {
+        _loadAllPlatformsForDropdown();
+        _platformSearchIdx = -1;
+        return;
+    }
+
+    _platformSearchTimer = setTimeout(function() {
+        _doPlatformSearch(q);
+    }, 200);
+}
+
+function onPlatformSearchFocus() {
+    // 聚焦时展示全量平台列表（combobox 行为）
+    _loadAllPlatformsForDropdown();
+}
+
+function _loadAllPlatformsForDropdown() {
+    var dd = document.getElementById('platformSearchDropdown');
+    dd.innerHTML = '<div class="plat-loading">⏳ 加载平台列表...</div>';
+    dd.style.display = 'block';
+
+    fetch('/api/platforms/search?q=')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.results) {
+            dd.innerHTML = '<div class="plat-empty">加载失败</div>';
+            return;
+        }
+        _platformSearchData = data.results;
+        _renderPlatformDropdown(data.results);
+    })
+    .catch(function() {
+        dd.innerHTML = '<div class="plat-empty">网络错误，请重试</div>';
+    });
+}
+
+// ====== 切換下拉面板显示/隐藏（全量列表） ======
+function togglePlatformDropdown() {
+    var dd = document.getElementById('platformSearchDropdown');
+    if (dd.style.display === 'block') {
+        dd.style.display = 'none';
+    } else {
+        _loadAllPlatformsForDropdown();
+    }
+}
+
+function _doPlatformSearch(q) {
+    var dd = document.getElementById('platformSearchDropdown');
+    dd.innerHTML = '<div class="plat-loading">🔍 搜索中...</div>';
+    dd.style.display = 'block';
+
+    fetch('/api/platforms/search?q=' + encodeURIComponent(q))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.results) {
+            dd.innerHTML = '<div class="plat-empty">搜索失败</div>';
+            return;
+        }
+        _platformSearchData = data.results;
+        if (data.results.length === 0) {
+            dd.innerHTML = '<div class="plat-empty">未找到匹配「' + escapeHtml(q) + '」的平台</div>';
+            return;
+        }
+        _renderPlatformDropdown(data.results);
+    })
+    .catch(function() {
+        dd.innerHTML = '<div class="plat-empty">网络错误，请重试</div>';
+    });
+}
+
+function _renderPlatformDropdown(results) {
+    var dd = document.getElementById('platformSearchDropdown');
+    _platformSearchIdx = -1;
+    var html = '';
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        var icon = getPlatformIconCode(r.name);
+        html += '<div class="plat-item" data-index="' + i + '" onclick="onPlatformSelect(\'' + escapeHtml(r.name) + '\')"'
+             + ' onmouseenter="this.classList.add(\'active\');_platformSearchIdx=' + i + ';"'
+             + ' onmouseleave="this.classList.remove(\'active\');">'
+             + '<span class="plat-icon" style="background:' + getPlatformColor(r.name) + ';">' + icon + '</span>'
+             + '<div class="plat-info">'
+             + '<div class="plat-name">➕ ' + escapeHtml(r.display_name) + '</div>'
+             + '<div class="plat-arch">' + escapeHtml(r.architecture) + '</div>'
+             + '</div>'
+             + '</div>';
+    }
+    dd.innerHTML = html;
+    dd.style.display = 'block';
+
+    // 如果没有滚动条，选中第一项
+    if (results.length > 0) {
+        var first = dd.querySelector('.plat-item');
+        if (first) { first.classList.add('active'); _platformSearchIdx = 0; }
+    }
+}
+
+function onPlatformSearchKeydown(e) {
+    var dd = document.getElementById('platformSearchDropdown');
+    if (dd.style.display !== 'block') return;
+
+    var items = dd.querySelectorAll('.plat-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        items.forEach(function(item) { item.classList.remove('active'); });
+        _platformSearchIdx = Math.min(_platformSearchIdx + 1, items.length - 1);
+        items[_platformSearchIdx].classList.add('active');
+        items[_platformSearchIdx].scrollIntoView({block: 'nearest'});
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items.forEach(function(item) { item.classList.remove('active'); });
+        _platformSearchIdx = Math.max(_platformSearchIdx - 1, 0);
+        items[_platformSearchIdx].classList.add('active');
+        items[_platformSearchIdx].scrollIntoView({block: 'nearest'});
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (_platformSearchIdx >= 0 && _platformSearchIdx < items.length) {
+            var activeItem = items[_platformSearchIdx];
+            var name = activeItem.getAttribute('onclick');
+            // Extract the platform name from the onclick attribute
+            var match = name.match(/onPlatformSelect\('([^']+)'\)/);
+            if (match) {
+                onPlatformSelect(match[1]);
+            }
+        }
+    } else if (e.key === 'Escape') {
+        dd.style.display = 'none';
+    }
+}
+
+function onPlatformSelect(name) {
+    var input = document.getElementById('platformSearchInput');
+    input.dataset.selected = name;
+    // Find the display name from cached data
+    var displayName = name;
+    for (var i = 0; i < _platformSearchData.length; i++) {
+        if (_platformSearchData[i].name === name) {
+            displayName = _platformSearchData[i].display_name;
+            break;
+        }
+    }
+    input.placeholder = '✅ ' + displayName;
+    input.value = '';
+    document.getElementById('platformSearchDropdown').style.display = 'none';
+    document.getElementById('btnAddAccount').disabled = false;
+}
+
+// 获取平台图标（从已有 Jinja2 platform_icons 映射同步）
+var _platIconsMap = {
+    'discuz': '💬', 'amobbs': '💬', 'mydigit': '💬',
+    'oshwhub': '🔧', 'oshwhub_eda': '⚡',
+    'csdn': '📝', 'cnblogs': '📖',
+    'zhihu': '❓', 'bilibili': '📺', 'juejin': '🥇',
+    'wechat': '💬', 'wechat_mp': '📢',
+    'xianyu': '🐟', 'xianyu_v2': '🐟', 'taobao': '🛒',
+    'wordpress': '🔗', 'github_pages': '📄', 'github_pages_blog': '📄',
+    'static_site': '🌐', 'github': '🐙',
+    'douyin': '🎵', 'kuaishou': '📱', 'xiaohongshu': '📕',
+    'tieba': '📋', 'jianshu': '✍️', 'medium': '✏️',
+    'segmentfault': '💻', 'v2ex': '🔶', 'hackernews': '🔴',
+    'qqzone': '💫', 'weibo': '📢', 'toutiao': '📰',
+    'default': '🔑'
+};
+var _platColorsMap = {
+    'discuz': '#e8f5e9', 'amobbs': '#e3f2fd', 'mydigit': '#fce4ec',
+    'oshwhub': '#fff3e0', 'oshwhub_eda': '#fff8e1',
+    'csdn': '#e8eaf6', 'cnblogs': '#f3e5f5',
+    'zhihu': '#e0f2f1', 'bilibili': '#fce4ec', 'juejin': '#e8f5e9',
+    'wechat': '#e8f5e9', 'wechat_mp': '#e3f2fd',
+    'xianyu': '#fff3e0', 'xianyu_v2': '#fff3e0', 'taobao': '#fce4ec',
+    'wordpress': '#e8eaf6', 'github_pages': '#f5f5f5', 'github_pages_blog': '#f5f5f5',
+    'static_site': '#f5f5f5', 'github': '#f5f5f5',
+    'douyin': '#fce4ec', 'kuaishou': '#fff3e0', 'xiaohongshu': '#fce4ec',
+    'tieba': '#e3f2fd', 'jianshu': '#f3e5f5', 'medium': '#f5f5f5',
+    'segmentfault': '#e8f5e9', 'v2ex': '#fff8e1', 'hackernews': '#fce4ec',
+    'qqzone': '#e3f2fd', 'weibo': '#fce4ec', 'toutiao': '#fff3e0',
+    'default': '#f0f4ff'
+};
+function getPlatformIconCode(name) { return _platIconsMap[name] || _platIconsMap['default']; }
+function getPlatformColor(name) { return _platColorsMap[name] || _platColorsMap['default']; }
+
+// 点击外部关闭下拉框
+document.addEventListener('click', function(e) {
+    var wrap = document.querySelector('.platform-search-wrap');
+    var dd = document.getElementById('platformSearchDropdown');
+    if (wrap && dd && !wrap.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
+
 // ====== 添加账号弹窗 ======
 function onAddAccount() {
-    const sel = document.getElementById('newPlatformSelect');
-    const opt = sel.options[sel.selectedIndex];
-    if (!opt.value) { alert('请先选择一个平台'); return; }
+    var input = document.getElementById('platformSearchInput');
+    var platform = input.dataset.selected;
+    if (!platform) { alert('请先选择一个平台'); return; }
 
-    _loginPlatform = opt.value;
+    _loginPlatform = platform;
     _loginMethod = 'cookie';
     _loginSession = null;
     _isLoginRunning = false;
 
-    document.getElementById('addPlatInput').value = opt.value;
-    document.getElementById('addPlatName').textContent = opt.text.replace('➕ ', '');
+    document.getElementById('addPlatInput').value = platform;
+    document.getElementById('addPlatName').textContent = input.placeholder.replace('✅ ', '');
     document.getElementById('addAccountName').value = '';
     document.getElementById('debugCookieArea').style.display = 'none';
-    document.getElementById('addFormTitle').innerHTML = '➕ 添加账号 — <span>' + escapeHtml(opt.text.replace('➕ ', '')) + '</span>';
+    document.getElementById('addFormTitle').innerHTML = '➕ 添加账号 — <span>' + escapeHtml(input.placeholder.replace('✅ ', '')) + '</span>';
 
     // 从后端动态获取登录能力
     fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
@@ -1004,7 +1246,16 @@ function onAddAccount() {
     })
     .catch(function() {
         let methods = [];
-        try { methods = JSON.parse(opt.dataset.methods || '[]'); } catch(e) {}
+        try {
+            // 从缓存的搜索数据中获取登录方法
+            var plat = _loginPlatform;
+            for (var i = 0; i < _platformSearchData.length; i++) {
+                if (_platformSearchData[i].name === plat) {
+                    methods = _platformSearchData[i].login_methods || [];
+                    break;
+                }
+            }
+        } catch(e) {}
         renderFromLoginMethods(methods);
         document.getElementById('addFormBox').style.display = 'flex';
     });
@@ -1016,8 +1267,14 @@ function renderFromLoginMethods(methods) {
     if (!mainMethods || mainMethods.length === 0) {
         let fields = [];
         try {
-            const opt = document.getElementById('newPlatformSelect').options[document.getElementById('newPlatformSelect').selectedIndex];
-            fields = JSON.parse(opt.dataset.fields || '[]');
+            // 从缓存的搜索数据中获取配置字段
+            var plat = _loginPlatform;
+            for (var i = 0; i < _platformSearchData.length; i++) {
+                if (_platformSearchData[i].name === plat) {
+                    fields = _platformSearchData[i].config_fields || [];
+                    break;
+                }
+            }
         } catch(e) {}
         renderConfigFields(fields);
         return;
@@ -1292,8 +1549,15 @@ function selectLoginMethod(method, methods) {
 
     if (!methods) {
         try {
-            const opt = document.getElementById('newPlatformSelect').options[document.getElementById('newPlatformSelect').selectedIndex];
-            methods = JSON.parse(opt.dataset.methods || '[]');
+            // 从缓存的搜索数据中获取登录方法
+            var plat = _loginPlatform;
+            methods = [];
+            for (var i = 0; i < _platformSearchData.length; i++) {
+                if (_platformSearchData[i].name === plat) {
+                    methods = _platformSearchData[i].login_methods || [];
+                    break;
+                }
+            }
         } catch(e) { methods = []; }
     }
 
@@ -2807,11 +3071,21 @@ function onEditAccount(aid) {
         var cfg = data.config || {};
         var platform = cfg._platform || '';
 
-        var sel = document.getElementById('newPlatformSelect');
-        var opt = sel.querySelector('option[value="' + platform + '"]');
-        if (opt) {
-            sel.value = platform;
+        // 使用新搜索选择器
+        var input = document.getElementById('platformSearchInput');
+        input.dataset.selected = platform;
+        // 查找显示名
+        var displayName = platform;
+        for (var i = 0; i < _platformSearchData.length; i++) {
+            if (_platformSearchData[i].name === platform) {
+                displayName = _platformSearchData[i].display_name;
+                _platformSearchData[i].config_fields = _platformSearchData[i].config_fields || [];
+                break;
+            }
         }
+        input.placeholder = '✅ ' + displayName;
+        input.value = '';
+        document.getElementById('btnAddAccount').disabled = false;
 
         _loginPlatform = platform;
         _loginMethod = 'cookie';

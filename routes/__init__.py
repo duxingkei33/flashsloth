@@ -90,5 +90,6 @@ def configure_app():
     import flashsloth.routes.approval         # 📋 审批管理
     import flashsloth.routes.browser_engine   # 🖥️ Playwright 浏览器引擎
     import flashsloth.routes.external_services # 🔌 外部服务集成
+    import flashsloth.routes.logs            # 📋 统一日志管理
 
     return app, login_manager, User

@@ -39,6 +39,7 @@ class XianyuAutoReplyPublisher(Publisher):
 
     name = "xianyu_auto_reply"
     display_name = "闲鱼自动回复 (Docker)"
+    architecture = "闲鱼平台"
     login_methods = [
         {
             "method": "cookie",

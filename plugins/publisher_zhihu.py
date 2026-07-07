@@ -36,6 +36,7 @@ def _parse_cookies(cookie_str: str) -> list:
 class ZhihuPublisher(Publisher):
     name = "zhihu"
     display_name = "知乎"
+    architecture = "自研CMS"
     capabilities = ["publish_draft", "upload_image"]
 
     PLATFORM_LIMITS = {

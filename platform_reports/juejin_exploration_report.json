@@ -1,0 +1,15 @@
+{
+  "platform": "juejin",
+  "platform_domain": "juejin.cn",
+  "explored_at": "2026-07-07T14:20:23.828266",
+  "explored_with_login": false,
+  "needs_credentials": true,
+  "site_url": "https://juejin.cn",
+  "login_page": {
+    "blocked": true
+  },
+  "editor_access": {},
+  "api_endpoints": [],
+  "publisher_status": "exists_but_needs_rewrite",
+  "publisher_file": "plugins/publisher_juejin.py"
+}

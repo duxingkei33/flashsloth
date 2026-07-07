@@ -15,6 +15,7 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class XianyuProductsPublisher(Publisher):
     name = "xianyu_products"
     display_name = "闲鱼发布商品（预留）"
+    architecture = "闲鱼平台"
     login_methods = [
         {"method": "password", "label": "密码+二维码登录", "icon": "🔑", "priority": 1,
          "fields": ["site_url", "username", "password"],

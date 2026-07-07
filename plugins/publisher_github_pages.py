@@ -23,6 +23,7 @@ def _get_date_str():
 class GitHubPagesBlogPublisher(Publisher):
     name = "github_pages_blog"
     display_name = "GitHub Pages 博客"
+    architecture = "GitHub Pages"
     description = "将文章发布为 GitHub Pages 博客 Markdown 文件，支持撤回"
     login_methods = []  # 无需登录，通过 git push 部署
 

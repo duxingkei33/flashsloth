@@ -18,6 +18,7 @@ except ImportError:
 class DiscuzPublisher(Publisher):
     name = "discuz"
     display_name = "Discuz! 论坛"
+    architecture = "基于 Discuz! 架构"
     
     # ─── 各平台特殊限制 ─────────────────────────
     PLATFORM_LIMITS = {

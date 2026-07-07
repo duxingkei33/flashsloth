@@ -42,6 +42,7 @@ def _extract_cookie_value(cookie_str: str, key: str) -> str:
 class BilibiliPublisher(Publisher):
     name = "bilibili"
     display_name = "Bilibili 专栏"
+    architecture = "自研CMS"
     login_methods = [
         {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
          "fields": ["username", "password"],

@@ -110,6 +110,7 @@ def _save_cookies_to_db(ctx, username_hint: str = ""):
 class OSHWHubArticlePublisher(Publisher):
     name = "oshwhub"
     display_name = "立创开源硬件平台"
+    architecture = "立创开源硬件平台"
     login_methods = [
         {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
          "fields": ["site_url", "username", "password"],

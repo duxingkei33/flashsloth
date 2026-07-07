@@ -557,7 +557,7 @@ def api_platforms_search():
 		display_lower = display_name.lower()
 		if q and q not in name_lower and q not in display_lower:
 			continue
-		arch = _infer_platform_architecture(name, display_name)
+		arch = p.get("architecture", "")
 		results.append({
 			"name": name,
 			"display_name": display_name,
@@ -585,14 +585,17 @@ def api_platforms_search():
 		except Exception:
 			cap = {}
 		display_name = cap.get("platform_name") or cap.get("display_name") or pname.replace("_", " ").title()
-		arch = _infer_platform_architecture(pname, display_name)
 		note = cap.get("note", "")
+		arch = ""
 		if note:
-			display_name = f"{display_name} ({note})"
+			note_lower = note.lower()
+			if "discuz" in note_lower:
+				arch = "基于 Discuz! 架构"
 		results.append({
 			"name": pname,
 			"display_name": display_name,
 			"architecture": arch,
+			"note": note[:80],
 			"config_fields": [],
 			"login_methods": cap.get("login_methods", []),
 		})
@@ -610,7 +613,7 @@ def api_platforms_search():
 		results.append({
 			"name": base,
 			"display_name": display_name,
-			"architecture": "基于 Discuz! 架构",
+			"architecture": "",
 			"config_fields": [],
 			"login_methods": [],
 		})
@@ -619,64 +622,6 @@ def api_platforms_search():
 	# 按 display_name 排序
 	results.sort(key=lambda x: x["display_name"])
 	return jsonify({"success": True, "results": results, "total": len(results)})
-
-
-def _infer_platform_architecture(platform_name: str, display_name: str) -> str:
-	"""动态推断平台架构类型 — 全部从已有数据加载，不硬编码
-
-	数据来源（按优先级）：
-	1. forum_registry.FORUM_DATA — Discuz! 论坛自动识别
-	2. forum_registry.PLATFORM_CATEGORIES — 内容平台分类
-	3. platform_reports/*.json note 字段 — AI探索的登录能力备注
-	"""
-	from flashsloth.core.forum_registry import FORUM_DATA, PLATFORM_CATEGORIES
-
-	# 平台名→域名映射（用于 forum_registry 查询）
-	domain_map = {
-		"amobbs": "amobbs.com",
-		"mydigit": "mydigit.cn",
-		"oshwhub": "oshwhub.com",
-		"discuz": "discuz.net",
-		"csdn": "csdn.net",
-		"zhihu": "zhihu.com",
-		"bilibili": "bilibili.com",
-		"juejin": "juejin.cn",
-		"xianyu": "goofish.com",
-		"xianyu_v2": "goofish.com",
-		"taobao": "taobao.com",
-		"wordpress": "wordpress.org",
-		"github_pages": "github.io",
-		"github_pages_blog": "github.io",
-		"static_site": "static.site",
-	}
-
-	domain = domain_map.get(platform_name)
-
-	# 1. 检查 FORUM_DATA → Discuz! 架构
-	if domain and domain in FORUM_DATA:
-		return "基于 Discuz! 架构"
-
-	# 2. 检查 PLATFORM_CATEGORIES → 协议平台/内容平台
-	if domain and domain in PLATFORM_CATEGORIES:
-		cat = PLATFORM_CATEGORIES[domain]
-		if "project_types" in cat:
-			return "立创开源硬件平台"
-		if "content_types" in cat:
-			return "自研CMS"
-
-	# 3. 检查 platform_reports note 字段
-	cap = _load_login_capabilities(platform_name)
-	if cap and cap.get("note"):
-		note = cap["note"]
-		note_lower = note.lower()
-		if "discuz" in note_lower:
-			return "基于 Discuz! 架构"
-		if "wordpress" in note_lower:
-			return "WordPress"
-		if "立创" in note or "oshwhub" in note_lower:
-			return "立创开源硬件平台"
-
-	return display_name
 
 
 # ═══════════════════════════════════════════════════

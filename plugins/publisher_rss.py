@@ -12,6 +12,7 @@ from flashsloth.core.publisher import Publisher, register
 class RSSPublisher(Publisher):
     name = "rss"
     display_name = "RSS 订阅"
+    architecture = ""
     login_methods = []  # 无需登录，纯本地生成
     config_fields = [
         {"key": "output_path", "label": "输出路径", "type": "text", "default": "blog/docs/feed.xml"},

@@ -29,6 +29,7 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class TwitterPublisher(Publisher):
     name = "twitter"
     display_name = "Twitter / X"
+    architecture = "Twitter/X"
     login_methods = [
         {
             "method": "oauth1",

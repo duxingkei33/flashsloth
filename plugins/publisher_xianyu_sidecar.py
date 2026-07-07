@@ -161,6 +161,7 @@ class XianyuSidecarPublisher(Publisher):
     """闲鱼 Sidecar 发布器 — 通过 xianyu-auto-reply 代理操作"""
     name = "xianyu_sidecar"
     display_name = "闲鱼(自动回复)"
+    architecture = "闲鱼平台"
     description = "闲鱼自动回复 Sidecar — 包装 zhinianboke/xianyu-auto-reply Docker 服务的 REST API"
     icon = "🐟"
     supports_draft = False  # 闲鱼无草稿功能

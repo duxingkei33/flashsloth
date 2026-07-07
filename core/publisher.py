@@ -14,6 +14,7 @@ class Publisher(ABC):
 
     name: str = ""                     # 唯一标识，如 "wordpress"
     display_name: str = ""             # 显示名，如 "WordPress"
+    architecture: str = ""             # 平台架构类型，如"基于 Discuz! 架构"
     config_fields: list[dict] = []     # 配置字段定义
     login_methods: list[dict] = []     # 支持的登录方法，格式见下方说明
 
@@ -144,6 +145,7 @@ def list_publishers() -> list[dict]:
         {
             "name": cls.name,
             "display_name": cls.display_name,
+            "architecture": getattr(cls, "architecture", ""),
             "config_fields": cls.config_fields,
             "login_methods": cls.get_login_methods(),
         }

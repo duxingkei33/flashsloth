@@ -11,6 +11,7 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class JuejinPublisher(Publisher):
     name = "juejin"
     display_name = "掘金"
+    architecture = "自研CMS"
     login_methods = [
         {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
          "fields": ["username", "password"],

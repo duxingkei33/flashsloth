@@ -59,6 +59,7 @@ class XianyuV2Publisher(Publisher):
 
     name = "xianyu_v2"
     display_name = "闲鱼 V2（MTOP API）"
+    architecture = "闲鱼平台"
     login_methods = [
         {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 1,
          "fields": ["site_url"],

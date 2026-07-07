@@ -11,6 +11,7 @@ from flashsloth.core.publisher import Publisher, register, PublishError
 class WordPressPublisher(Publisher):
     name = "wordpress"
     display_name = "WordPress"
+    architecture = "WordPress"
     login_methods = [
         {"method": "password", "label": "应用密码认证", "icon": "🔑", "priority": 1,
          "fields": ["site_url", "username", "app_password"],
