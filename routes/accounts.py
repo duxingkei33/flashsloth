@@ -1016,7 +1016,7 @@ def api_qrcode_login_poll(platform, session_id):
 			except:
 				pass
 
-			if has_auth_cookies and not on_login_page and len(cookies) > 2:
+			if has_auth_cookies and not on_login_page:
 				sess["status"] = "logged_in"
 				sess["cookies"] = all_cookies_str
 				aid = sess.get("account_id")

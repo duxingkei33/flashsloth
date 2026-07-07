@@ -374,8 +374,8 @@ class GenericPlaywrightLogin:
                 except Exception:
                     pass
 
-            # Cookie 检查
-            if has_auth_cookie and not on_login_page and len(cookies) > 2:
+            # Cookie 检查（仅凭真实认证cookie判断，禁止cookie数量判据）
+            if has_auth_cookie and not on_login_page:
                 return True
 
             return False

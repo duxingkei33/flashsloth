@@ -222,8 +222,7 @@ class AmobbsPlaywrightLogin:
                            or "sid" in c.get("name", "").lower()]
             if auth_cookies:
                 is_logged_in = True
-            if "login" not in current_url.lower() and len(cookies_list) > 2:
-                is_logged_in = True
+            # 禁止 cookie 数量判据（铁律 v4.55）
 
             if is_logged_in:
                 cookie_str = "; ".join(
