@@ -1,21 +1,27 @@
 {
   "platform": "dewu",
   "platform_name": "得物",
-  "explored_at": "2026-07-08T00:19:00",
+  "explored_at": "2026-07-08T00:19:00+00:00",
   "login_url": "https://www.dewu.com/",
   "login_methods": [
     {
       "method": "password",
       "label": "账号密码登录",
       "detected": true,
-      "fields": ["site_url", "username", "password"],
+      "fields": [
+        "site_url",
+        "username",
+        "password"
+      ],
       "selector": "input[type='password']"
     },
     {
       "method": "phone",
       "label": "手机验证码登录",
       "detected": true,
-      "fields": ["phone"],
+      "fields": [
+        "phone"
+      ],
       "selector": "input[type='tel']"
     },
     {
@@ -23,7 +29,11 @@
       "label": "扫码登录",
       "detected": true,
       "sub_types": [
-        {"id": "app", "label": "得物APP扫码", "detected": true}
+        {
+          "id": "app",
+          "label": "得物APP扫码",
+          "detected": true
+        }
       ],
       "fields": [],
       "selector": "img[src*='qrcode']"
@@ -32,19 +42,27 @@
       "method": "oauth",
       "label": "第三方账号登录",
       "detected": true,
-      "providers": ["wechat_oauth", "weibo", "qq"],
+      "providers": [
+        "wechat_oauth",
+        "weibo",
+        "qq"
+      ],
       "fields": []
     },
     {
       "method": "cookie",
       "label": "Cookie粘贴",
       "detected": true,
-      "fields": ["cookie"]
+      "fields": [
+        "cookie"
+      ]
     }
   ],
   "captcha": {
     "has_captcha": true,
-    "types": ["aliyun_slide"],
+    "types": [
+      "aliyun_slide"
+    ],
     "note": "阿里云 FeiLin 滑块验证码，访问首页即触发"
   },
   "waf": "aliyun_captcha_feilin",
@@ -56,7 +74,11 @@
     "has_qrcode_img": true,
     "has_wechat": true,
     "has_app_qr": true,
-    "third_party_providers": ["wechat_oauth", "weibo", "qq"],
+    "third_party_providers": [
+      "wechat_oauth",
+      "weibo",
+      "qq"
+    ],
     "page_title": "得物-有毒运动-潮物社区",
     "page_url": "https://www.dewu.com/"
   },

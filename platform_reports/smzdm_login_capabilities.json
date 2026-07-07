@@ -1,40 +1,55 @@
 {
   "platform": "smzdm",
   "platform_name": "什么值得买",
-  "explored_at": "2026-07-08T00:35:09",
+  "explored_at": "2026-07-08T00:35:09+00:00",
   "login_url": "https://www.smzdm.com/",
   "login_methods": [
     {
       "method": "password",
       "label": "账号密码登录",
       "detected": true,
-      "fields": ["site_url", "username", "password"],
+      "fields": [
+        "site_url",
+        "username",
+        "password"
+      ],
       "selector": "input[type='password']"
     },
     {
       "method": "phone",
       "label": "手机验证码登录",
       "detected": true,
-      "fields": ["phone"],
+      "fields": [
+        "phone"
+      ],
       "selector": "input[type='tel']"
     },
     {
       "method": "oauth",
       "label": "第三方账号登录",
       "detected": true,
-      "providers": ["wechat_oauth", "weibo", "qq"],
+      "providers": [
+        "wechat_oauth",
+        "weibo",
+        "qq"
+      ],
       "fields": []
     },
     {
       "method": "cookie",
       "label": "Cookie粘贴",
       "detected": true,
-      "fields": ["cookie"]
+      "fields": [
+        "cookie"
+      ]
     }
   ],
   "captcha": {
     "has_captcha": true,
-    "types": ["tencent_waf_captcha", "tencent_drag_captcha"],
+    "types": [
+      "tencent_waf_captcha",
+      "tencent_drag_captcha"
+    ],
     "note": "Tencent Cloud WAF JS挑战 + 拖拽验证码，所有登录页触发"
   },
   "waf": "Tencent Cloud WAF with JS challenge",
@@ -46,7 +61,11 @@
     "has_qrcode_img": false,
     "has_wechat": true,
     "has_app_qr": false,
-    "third_party_providers": ["wechat_oauth", "weibo", "qq"],
+    "third_party_providers": [
+      "wechat_oauth",
+      "weibo",
+      "qq"
+    ],
     "page_title": "什么值得买",
     "page_url": "https://www.smzdm.com/"
   },

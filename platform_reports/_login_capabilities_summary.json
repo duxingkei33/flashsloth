@@ -1,54 +1,54 @@
 {
   "amobbs": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "password",
-      "cookie"
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-07T17:11:31.644793+00:00"
   },
   "bilibili": {
     "login_methods": [
-      "qrcode",
+      "cookie",
+      "oauth",
       "password",
       "phone",
-      "oauth",
-      "cookie"
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-07T18:11:50.806584+00:00"
   },
   "csdn": {
     "login_methods": [
-      "qrcode",
-      "password",
+      "cookie",
       "oauth",
-      "cookie"
+      "password",
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-06T23:12:55.781484+00:00"
   },
   "dewu": {
     "login_methods": [
+      "cookie",
+      "oauth",
       "password",
       "phone",
-      "qrcode",
-      "oauth",
-      "cookie"
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
-    "explored_at": "2026-07-08T00:19:00"
+    "explored_at": "2026-07-08T00:19:00+00:00"
   },
   "discuz": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "password",
-      "cookie"
+      "qrcode"
     ],
     "detail": "BASIC",
     "error": null,
@@ -56,9 +56,9 @@
   },
   "douban": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "phone",
-      "cookie"
+      "qrcode"
     ],
     "detail": "BASIC",
     "error": null,
@@ -66,20 +66,20 @@
   },
   "juejin": {
     "login_methods": [
-      "qrcode",
-      "phone",
+      "cookie",
       "oauth",
-      "cookie"
+      "phone",
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-06T23:13:29.558987+00:00"
   },
   "mydigit": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "password",
-      "cookie"
+      "qrcode"
     ],
     "detail": "BASIC",
     "error": null,
@@ -87,11 +87,11 @@
   },
   "oshwhub": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "oauth",
-      "cookie"
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-06T23:56:37.133983+00:00"
   },
@@ -103,19 +103,19 @@
   },
   "smzdm": {
     "login_methods": [
-      "password",
-      "phone",
+      "cookie",
       "oauth",
-      "cookie"
+      "password",
+      "phone"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
-    "explored_at": "2026-07-08T00:35:09"
+    "explored_at": "2026-07-08T00:35:09+00:00"
   },
   "twitter": {
     "login_methods": [
-      "oauth1",
-      "bearer"
+      "bearer",
+      "oauth1"
     ],
     "detail": "BASIC",
     "error": null,
@@ -123,19 +123,19 @@
   },
   "wechat_mp": {
     "login_methods": [
-      "qrcode",
-      "password",
+      "cookie",
       "oauth",
-      "cookie"
+      "password",
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-06T23:13:40.657802+00:00"
   },
   "wordpress": {
     "login_methods": [
-      "password",
-      "cookie"
+      "cookie",
+      "password"
     ],
     "detail": "BASIC",
     "error": null,
@@ -151,19 +151,19 @@
   },
   "xianyu": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "oauth",
-      "cookie"
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-06T23:14:23.662492+00:00"
   },
   "xianyu_products": {
     "login_methods": [
+      "cookie",
       "password",
-      "qrcode",
-      "cookie"
+      "qrcode"
     ],
     "detail": "BASIC",
     "error": null,
@@ -171,24 +171,24 @@
   },
   "xiaohongshu": {
     "login_methods": [
-      "phone",
-      "qrcode",
+      "cookie",
       "oauth",
-      "cookie"
+      "phone",
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
-    "explored_at": "2026-07-07T23:41:43"
+    "explored_at": "2026-07-07T23:41:43+00:00"
   },
   "zhihu": {
     "login_methods": [
-      "qrcode",
+      "cookie",
       "phone",
-      "cookie"
+      "qrcode"
     ],
-    "detail": "FULL",
+    "detail": "BASIC",
     "error": null,
     "explored_at": "2026-07-06T23:13:06.381047+00:00"
   },
-  "_last_checked_at": "2026-07-07T19:22:53.477973+00:00"
+  "_last_checked_at": "2026-07-07T20:35:58+00:00"
 }

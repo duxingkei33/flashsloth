@@ -28,6 +28,20 @@ class Provider(ABC):
     display_name: str = ""     # 显示名 "Markdown 文件", "Notion 数据库"...
     description: str = ""      # 简短说明
     icon: str = "📄"           # 图标
+    config_fields: list[dict] = []  # 配置字段定义（UI 动态渲染用）
+    """
+    config_fields 格式：
+    [
+        {
+            "key": "token",
+            "label": "API Token",
+            "type": "password",    # text | password | select
+            "default": "",
+            "hint": "Notion API 集成 Token",
+            "required": True,
+        },
+    ]
+    """
 
     def __init__(self, config: Optional[dict] = None):
         self.config = config or {}
@@ -58,6 +72,7 @@ class Provider(ABC):
             "display_name": self.display_name,
             "description": self.description,
             "icon": self.icon,
+            "config_fields": self.config_fields,
         }
 
 

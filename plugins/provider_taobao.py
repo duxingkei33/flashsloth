@@ -11,6 +11,9 @@ class TaobaoProvider(Provider):
     display_name = "淘宝商品"
     description = "淘宝商品数据采集（预留，需要淘宝账号 Cookie）"
     icon = "🛒"
+    config_fields = [
+        {"key": "cookie", "label": "淘宝 Cookie", "type": "password", "default": "", "hint": "淘宝登录后的 Cookie 字符串", "required": True},
+    ]
 
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)

@@ -13,6 +13,9 @@ class MarkdownProvider(Provider):
     display_name = "Markdown 文件"
     description = "从 posts/ 目录扫描 .md 文件"
     icon = "📁"
+    config_fields = [
+        {"key": "watch_dir", "label": "监控目录", "type": "text", "default": "", "hint": "留空用默认 posts/ 目录", "required": False},
+    ]
 
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)

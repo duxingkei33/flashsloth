@@ -13,6 +13,10 @@ class NotionProvider(Provider):
     display_name = "Notion 数据库"
     description = "从 Notion 数据库读取文章内容"
     icon = "📄"
+    config_fields = [
+        {"key": "token", "label": "Notion Token", "type": "password", "default": "", "hint": "Notion API 集成 Token", "required": True},
+        {"key": "database_id", "label": "数据库 ID", "type": "text", "default": "", "hint": "Notion 数据库的 32 位 ID", "required": True},
+    ]
 
     def __init__(self, config: Optional[dict] = None):
         super().__init__(config)

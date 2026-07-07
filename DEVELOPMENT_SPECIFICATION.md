@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.08 | **最后更新**: 2026-07-08 (每小时自动更新)
+**版本**: v5.09 | **最后更新**: 2026-07-08 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -29,16 +29,16 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 39,675 行 Python | 13,663 行 HTML | 132 Python 文件 | 31 模板文件
-| 模块目录 | 行数 |
-|---------|:----:|
-| core/ | 11,686 |
-|| routes/ | 9,388 |
-|| plugins/ | 12,679 |
-| sdk/ | 4,563 |
-| scripts/ | 1,359 |
-| fs_mgr.py | 321 (全生命周期管理) |
-| admin.py | 81 (入口点) |
+**代码规模**: 39,709 行 Python | 13,613 行 HTML | 132 Python 文件 | 31 模板文件
+|| 模块目录 | 行数 |
+||---------|:----:|
+|| core/ | 11,701 |
+||| routes/ | 9,388 |
+||| plugins/ | 12,689 |
+|| sdk/ | 4,563 |
+|| scripts/ | 1,368 |
+|| fs_mgr.py | 321 (全生命周期管理) |
+|| admin.py | 81 (入口点) |
 
 ---
 
@@ -490,6 +490,7 @@
 ### 3.18 工作台模块 (`routes/workspace_ui.py` + `core/provider.py` + `core/pipeline.py`)
 
 - `core/provider.py` — Provider 抽象基类（ContentItem 模型 + `@register_provider` 装饰器）
+  - **`config_fields`** (v5.09) — 类属性 `list[dict]`，每个 Provider 声明自己的配置字段定义（key/label/type/default/hint/required），前端动态渲染配置面板，消除硬编码
 - `core/pipeline.py` — 统一内容流水线调度器，5 阶段 PipelineStage (Collect→Compile→Preview→Draft→Publish)
 - `plugins/provider_markdown.py` — 扫描 `posts/` 目录的 Markdown 文件
 - `plugins/provider_notion.py` — 通过 Notion API 读取数据库
@@ -1403,7 +1404,8 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
-| **v5.08** | 2026-07-08 | **deploy归一化增强+auto-start** — deploy配置内联到accounts页面, test_connection统一返回格式, 新增`scripts/e2e_deploy_check.py` (90行) E2E验证脚本, playwright_verify_raw.py扩展至237行, 探索报告更新(得物/值得买/小红书数据刷新), 账号页accounts.html大规模重构(729行变更/新增), forum_registry双轨验证P2 TODO关闭. |
+| **v5.09** | 2026-07-08 | **Provider 配置字段动态化** — Provider 基类新增 `config_fields` 属性（各 Provider 声明自己的配置字段），前端 workspace.html 移除硬编码 `wsConfigFieldDefs`，改为从 `/api/workspace/providers` 动态读取并渲染配置面板。平台探索报告数据刷新（得物/值得买/小红书/51CTO/豆瓣）。 |
+| **v5.08** | 2026-07-08 | **deploy归一化增强+auto-start** — deploy配置内联到accounts页面, test_connection统一返回格式, 新增`scripts/e2e_deploy_check.py` (90行) E2E验证脚本, playwright_verify_raw.py扩展至237行, 探索报告更新(得物/值得买/小红书数据刷新), 账号页accounts.html大规模重构(729行变更), forum_registry双轨验证P2 TODO关闭. |
 | **v5.07** | 2026-07-08 | **forum_registry双轨验证完成 + P0巡检** — 探索报告数据更新(得物/值得买/小红书), PROJECT_STATUS同步, 架构文档同步。 |
 | **v5.06** | 2026-07-08 | **Cookie验证P0修复** — DiscuzPublisher._test_cookie()严格登录态检测(必须有exit/logout关键词)。test-connection路由Playwright子进程降级(新增`scripts/playwright_verify_raw.py`)。探索雷达数据完善(得物/值得买/小红书探索报告更新+截图)。 |
 | **v5.05** | 2026-07-08 | **新平台探索: 51CTO + 豆瓣** — blog子域名WAF防护(SMS-only登录), 暂不适配。死代码清理(api_platforms_list)。 |
@@ -1443,7 +1445,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 ## 附录：文件完整清单
 
-### core/ (35 个 Python 文件, 11,686 行)
+### core/ (35 个 Python 文件, 11,701 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1471,7 +1473,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `pipeline.py` | 内容流水线调度器(5阶段) |
 | `platform_presets.json` | 全局平台预设 |
 | `price_monitor.py` | LCSC 元器件价格监控 |
-| `provider.py` | Provider 统一内容来源基类 + 注册机制 |
+| `provider.py` | Provider 统一内容来源基类 + 注册机制 + **`config_fields` 动态配置字段声明 (v5.09)** |
 | `provider_registry.json` | AI 供应商注册表预设 |
 | `provider_registry.py` | 动态AI供应商注册表加载 |
 | `publisher.py` | **Publisher 基类 + check_cookie() (v5.04, v5.06 _test_cookie严格登录态)** |
@@ -1549,12 +1551,12 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `oshwhub_login.py` | OSHWHub 登录器 |
 | `bilibili_login.py` | Bilibili 登录器 |
 
-**Provider (3个)**:
+**Provider (3个)** — **v5.09 新增 config_fields 声明配置字段，前端动态渲染**:
 | 文件 | 说明 |
 |------|------|
-| `provider_markdown.py` | Markdown 文件扫描 |
-| `provider_notion.py` | Notion API 读取 |
-| `provider_taobao.py` | 淘宝商品 Provider |
+| `provider_markdown.py` | Markdown 文件扫描（config_fields: watch_dir） |
+| `provider_notion.py` | Notion API 读取（config_fields: token, database_id） |
+| `provider_taobao.py` | 淘宝商品 Provider（config_fields: cookie） |
 
 **工具 (5个)**:
 | 文件 | 说明 |
@@ -1609,7 +1611,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `adapters/github_pages.py` | GitHub Pages 适配器 (370行) |
 | `adapters/giscus.py` | Giscus 适配器 |
 
-### templates/ (31 个 HTML 模板, 13,098 行)
+### templates/ (31 个 HTML 模板, 13,613 行)
 | 模板 | 说明 |
 |------|------|
 | `index.html` | 仪表盘总览 |
@@ -1644,7 +1646,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (8 个 Python 脚本, 1,359 行)
+### scripts/ (8 个 Python 脚本, 1,368 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
@@ -1686,4 +1688,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.08 | Python 总行数: 39,675 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,663 行 (31 模板) | 新增: e2e_deploy_check.py(90) + playwright_verify_raw.py(237→扩展) | 最后更新: 2026-07-08*
+*版本: v5.09 | Python 总行数: 39,709 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,613 行 (31 模板) | 新增: Provider 基类 config_fields 动态配置字段 | 最后更新: 2026-07-08*

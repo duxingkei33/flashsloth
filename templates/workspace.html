@@ -286,6 +286,7 @@
 // ══════════════════════════════════════════════════════════════
 
 var wsCurrentProvider = null;
+var wsProviderInfo = {};  // {name: {display_name, icon, config_fields, ...}}
 
 function wsLoadProviders() {
     fetch('/api/workspace/providers')
@@ -297,6 +298,9 @@ function wsLoadProviders() {
             bar.innerHTML = '<div style="color:#94a3b8;font-size:13px;">暂无可用 Provider</div>';
             return;
         }
+        // 存储 provider 元信息（含 config_fields）
+        items.forEach(p => { wsProviderInfo[p.name] = p; });
+
         bar.innerHTML = items.map(p =>
             `<div style="display:flex;align-items:center;gap:4px;">
                 <div class="ws-provider-btn" data-name="${escapeHtml(p.name)}" onclick="wsSelectProvider('${escapeHtml(p.name)}', this)">
@@ -371,18 +375,6 @@ function wsSelectProvider(name, btnEl) {
 // ══════════════════════════════════════════════════════════════
 
 var wsConfigProvider = null;
-var wsConfigFieldDefs = {
-    markdown: [
-        {key: 'watch_dir', label: '监控目录', type: 'text', default: '', hint: '留空用默认 posts/ 目录'}
-    ],
-    notion: [
-        {key: 'token', label: 'Notion Token', type: 'password', default: '', hint: 'Notion API 集成 Token'},
-        {key: 'database_id', label: '数据库 ID', type: 'text', default: '', hint: 'Notion 数据库的 32 位 ID'}
-    ],
-    taobao: [
-        {key: 'cookie', label: '淘宝 Cookie', type: 'password', default: '', hint: '淘宝登录后的 Cookie 字符串'}
-    ]
-};
 
 function wsToggleConfig(name) {
     const panel = document.getElementById('wsProviderConfigPanel');
@@ -395,7 +387,9 @@ function wsToggleConfig(name) {
     panel.style.display = 'block';
     document.getElementById('wsConfigTitle').textContent = '⚙️ 配置 ' + name;
 
-    const fields = wsConfigFieldDefs[name] || [];
+    // 从 wsProviderInfo 获取 config_fields（已从 API 加载）
+    const info = wsProviderInfo[name] || {};
+    const fields = info.config_fields || [];
     const fieldsEl = document.getElementById('wsConfigFields');
 
     // 加载当前配置
@@ -405,7 +399,8 @@ function wsToggleConfig(name) {
         const cfg = data.config || {};
         fieldsEl.innerHTML = fields.map(f =>
             '<div style="margin-bottom:8px;">' +
-            '<label style="font-size:12px;color:#475569;display:block;margin-bottom:2px;">' + f.label + '</label>' +
+            '<label style="font-size:12px;color:#475569;display:block;margin-bottom:2px;">' +
+            (f.required ? '<span style="color:#dc2626;">*</span> ' : '') + f.label + '</label>' +
             '<input type="' + f.type + '" id="wsCfg_' + f.key + '" ' +
             'value="' + escapeHtml(cfg[f.key] || f.default || '') + '" ' +
             'placeholder="' + escapeHtml(f.hint || '') + '" ' +
@@ -422,7 +417,8 @@ function wsToggleConfig(name) {
 function wsSaveConfig() {
     const statusEl = document.getElementById('wsConfigStatus');
     if (!wsConfigProvider) return;
-    const fields = wsConfigFieldDefs[wsConfigProvider] || [];
+    const info = wsProviderInfo[wsConfigProvider] || {};
+    const fields = info.config_fields || [];
     const cfg = {};
     fields.forEach(f => {
         const el = document.getElementById('wsCfg_' + f.key);

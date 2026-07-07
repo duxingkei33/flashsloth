@@ -4,55 +4,25 @@
   "domain": "smzdm.com",
   "category": "shopping",
   "architecture": "custom",
-  "explored_at": "2026-07-08 02:55:39",
-  "last_updated": "2026-07-08 02:58:00",
+  "explored_at": "2026-07-08 04:25:03",
+  "last_updated": "2026-07-08 04:25:03",
   "explored_with_login": true,
   "has_account": false,
   "has_publisher": false,
   "login": {
-    "login_url": "https://zhiyou.smzdm.com/user/login",
-    "login_page_urls": [
-      "https://www.smzdm.com/",
-      "https://zhiyou.smzdm.com/user/login"
-    ],
-    "methods": [
-      {
-        "method": "phone",
-        "label": "手机验证码登录",
-        "priority": 1,
-        "fields": ["phone", "sms_code"],
-        "note": "手机号+短信验证码，需要腾讯验证码"
-      },
-      {
-        "method": "password",
-        "label": "密码登录",
-        "priority": 2,
-        "fields": ["username", "password"],
-        "note": "手机号/邮箱/用户名+密码，需要腾讯验证码"
-      },
-      {
-        "method": "cookie",
-        "label": "Cookie粘贴",
-        "priority": 99,
-        "fields": ["cookie"],
-        "note": "通用备选方式"
-      }
-    ],
+    "login_url": "https://www.smzdm.com/",
+    "methods": [],
     "captcha": {
-      "has_captcha": true,
-      "types": ["tencent_captcha", "image_captcha"],
-      "selectors": [
-        "#captcha_img",
-        "[class*='captcha']"
-      ]
+      "has_captcha": false,
+      "types": [],
+      "selectors": []
     },
     "third_party": {
-      "wechat": true,
+      "wechat": false,
       "weibo": false,
       "qq": false,
       "github": false,
-      "apple": false,
-      "others": []
+      "apple": false
     },
     "qr_code": {
       "has_qrcode": false,
@@ -92,29 +62,18 @@
     ],
     "buttons": {
       "login_button": "",
-      "register_button": "",
-      "other_buttons": []
+      "register_button": ""
     },
     "cookie_hints": [
       "sess",
       "auth",
       "token",
-      "smzdm_id",
-      "session",
-      "zhiyou"
-    ],
-    "notes": [
-      "主站 www.smzdm.com 有腾讯验证码(TencentCaptcha) WAF保护，首次访问需过验证码",
-      "zhiyou.smzdm.com 是用户中心子域名，同样受WAF保护",
-      "使用腾讯验证码 ssl.captcha.qq.com/TCaptcha.js + 自建 WAF (probe.js)",
-      "登录失败3次后出现图片验证码 #captcha_img",
-      "微信第三方登录可用（推测，需实际登录确认）",
-      "IP或频率异常时触发 WAF 返回 202 + probe 脚本"
+      "smzdm_id"
     ]
   },
   "publish": {
     "editor_url": "https://www.smzdm.com/publish",
-    "editor_requires_login": true,
+    "editor_requires_login": false,
     "editor_type": "",
     "api_endpoints": [],
     "image_upload": {
@@ -123,10 +82,10 @@
     }
   },
   "technical": {
-    "has_rate_limit": true,
+    "has_rate_limit": false,
     "has_anti_bot": true,
-    "has_dynamic_content": true,
+    "has_dynamic_content": false,
     "framework": "",
-    "note": "消费导购平台，自建架构。非常强的反爬：WAF + 腾讯验证码(TencentCaptcha) + probe.js + 202状态码。主站首页完全被WAF保护，无法直接获取内容。可能使用Akamai或自建WAF"
+    "note": "消费导购平台，自建架构"
   }
 }

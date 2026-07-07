@@ -1,14 +1,16 @@
 {
   "platform": "xiaohongshu",
   "platform_name": "小红书",
-  "explored_at": "2026-07-07T23:41:43",
+  "explored_at": "2026-07-07T23:41:43+00:00",
   "login_url": "https://www.xiaohongshu.com/login",
   "login_methods": [
     {
       "method": "phone",
       "label": "手机验证码登录",
       "detected": true,
-      "fields": ["phone"],
+      "fields": [
+        "phone"
+      ],
       "selector": "input[type='tel']"
     },
     {
@@ -16,7 +18,11 @@
       "label": "扫码登录",
       "detected": true,
       "sub_types": [
-        {"id": "wechat", "label": "微信扫码", "detected": true}
+        {
+          "id": "wechat",
+          "label": "微信扫码",
+          "detected": true
+        }
       ],
       "fields": [],
       "selector": "div[class*='qrcode']"
@@ -25,19 +31,27 @@
       "method": "oauth",
       "label": "第三方账号登录",
       "detected": true,
-      "providers": ["wechat_oauth", "weibo", "qq"],
+      "providers": [
+        "wechat_oauth",
+        "weibo",
+        "qq"
+      ],
       "fields": []
     },
     {
       "method": "cookie",
       "label": "Cookie粘贴",
       "detected": true,
-      "fields": ["cookie"]
+      "fields": [
+        "cookie"
+      ]
     }
   ],
   "captcha": {
     "has_captcha": true,
-    "types": ["redcaptcha"],
+    "types": [
+      "redcaptcha"
+    ],
     "note": "小红书自研验证码系统"
   },
   "note": "小红书登录页支持手机验证码/微信扫码/QQ/微博第三方登录，无密码登录",
@@ -48,7 +62,11 @@
     "has_qrcode_img": true,
     "has_wechat": true,
     "has_app_qr": false,
-    "third_party_providers": ["wechat_oauth", "weibo", "qq"],
+    "third_party_providers": [
+      "wechat_oauth",
+      "weibo",
+      "qq"
+    ],
     "page_title": "小红书 - 你的生活兴趣社区",
     "page_url": "https://www.xiaohongshu.com/login"
   },
