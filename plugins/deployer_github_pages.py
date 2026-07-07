@@ -40,8 +40,9 @@ class GitHubPagesDeployer(Deployer):
             "label": "本地仓库目录",
             "type": "text",
             "required": True,
-            "default": "/opt/data/contenthub",
+            "default": "~/.hermes/github-pages/blog",
             "placeholder": "GitHub Pages 仓库的本地路径",
+            "description": "GitHub Pages 仓库的本地克隆目录",
         },
         {
             "key": "site_url",
@@ -75,7 +76,7 @@ class GitHubPagesDeployer(Deployer):
         self.github_token = config.get("github_token", "")
         self.repo = config.get("repo", "")
         self.repo_dir = os.path.expanduser(
-            config.get("repo_dir", "/opt/data/contenthub")
+            config.get("repo_dir", os.path.expanduser("~/.hermes/github-pages/blog"))
         )
         self.site_url = config.get("site_url", "https://duxingkei33.github.io")
         self.branch = config.get("branch", "main")
