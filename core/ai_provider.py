@@ -9,7 +9,66 @@ AI Provider — 统一AI能力框架
 from typing import Optional, Callable
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-import json, os
+import json, os, sqlite3, time as time_module
+from datetime import datetime
+
+
+# ═══════════════════════════════════════════════
+# AI 调用日志
+# ═══════════════════════════════════════════════
+
+_AI_LOG_DB: Optional[str] = None
+
+def _get_ai_log_db() -> str:
+    global _AI_LOG_DB
+    if _AI_LOG_DB is None:
+        _AI_LOG_DB = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "flashsloth.db"
+        )
+    return _AI_LOG_DB
+
+def _init_ai_call_log_table():
+    try:
+        conn = sqlite3.connect(_get_ai_log_db())
+        conn.execute("""CREATE TABLE IF NOT EXISTS ai_call_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            capability TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT '',
+            model TEXT NOT NULL DEFAULT '',
+            prompt_tokens INTEGER DEFAULT 0,
+            response_tokens INTEGER DEFAULT 0,
+            cost REAL DEFAULT 0.0,
+            success INTEGER DEFAULT 1,
+            error TEXT DEFAULT '',
+            response_summary TEXT DEFAULT '',
+            prompt_preview TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        )""")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+def log_ai_call(capability: str, provider: str = "", model: str = "",
+                prompt: str = "", response: str = "",
+                prompt_tokens: int = 0, response_tokens: int = 0,
+                cost: float = 0.0, success: bool = True, error: str = ""):
+    try:
+        _init_ai_call_log_table()
+        conn = sqlite3.connect(_get_ai_log_db())
+        conn.execute(
+            """INSERT INTO ai_call_log
+               (capability, provider, model, prompt_tokens, response_tokens,
+                cost, success, error, response_summary, prompt_preview)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (capability, provider, model, prompt_tokens, response_tokens,
+             cost, 1 if success else 0, error or "",
+             (response or "")[:200], (prompt or "")[:200])
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════
@@ -40,6 +99,9 @@ class AIResponse:
     model: str = ""               # 实际使用的模型
     provider: str = ""            # 实际使用的Provider
     error: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_cost: float = 0.0
     raw: dict = field(default_factory=dict)
 
 
@@ -526,6 +588,14 @@ class AIRouter:
                             request.context["mode"] = mode
                         result = provider.generate(request)
                         if result.success:
+                            log_ai_call(
+                                capability=capability, provider=pname,
+                                model=request.model, prompt=prompt,
+                                response=result.content,
+                                prompt_tokens=result.prompt_tokens,
+                                response_tokens=result.completion_tokens,
+                                cost=result.total_cost,
+                            )
                             return result
                     except Exception:
                         continue
@@ -544,8 +614,24 @@ class AIRouter:
             if mode and mode != "auto":
                 request.context["mode"] = mode
             try:
-                return provider.generate(request)
+                result = provider.generate(request)
+                log_ai_call(
+                    capability=capability, provider=provider_name,
+                    model=request.model, prompt=prompt,
+                    response=result.content if result.success else "",
+                    prompt_tokens=result.prompt_tokens,
+                    response_tokens=result.completion_tokens,
+                    cost=result.total_cost,
+                    success=result.success,
+                    error=result.error if not result.success else "",
+                )
+                return result
             except Exception as e:
+                log_ai_call(
+                    capability=capability, provider=provider_name,
+                    model=request.model, prompt=prompt,
+                    success=False, error=str(e),
+                )
                 return AIResponse(success=False, error=f"Provider「{provider_name}」调用异常: {e}")
 
         return AIResponse(success=False, error=f"Provider「{provider_name}」不可用或未配置")

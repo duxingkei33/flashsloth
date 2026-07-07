@@ -4,7 +4,7 @@ from flashsloth.routes._app import app
 import json
 import time
 from datetime import datetime
-from flask import (render_template, request, jsonify)
+from flask import (render_template, request, jsonify, redirect, url_for)
 from flask_login import login_required, current_user
 
 from flashsloth.core.database import get_db
@@ -21,10 +21,9 @@ _max_runs = 50
 
 @app.route("/pipeline")
 @login_required
-def pipeline_page():
-    """流水线管理页面"""
-    return render_template("pipeline.html",
-                         content_types=CONTENT_TYPES)
+def pipeline_page_redirect():
+    """向后兼容：/pipeline → 重定向到 /workspace"""
+    return redirect(url_for("workspace_page"))
 
 
 @app.route("/api/pipeline/run", methods=["POST"])

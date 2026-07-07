@@ -103,6 +103,52 @@
             .stat-card { padding: 10px; }
             .stat-card .num { font-size: 1.2em; }
         }
+        /* ═══ 全站移动端增强 ═══ */
+        @media (max-width: 768px) {
+            /* 表格横滚+字号 */
+            .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; font-size: 12px; }
+            th, td { white-space: nowrap; padding: 6px 4px; }
+            /* 表单元素 */
+            input, select, textarea { max-width: 100% !important; box-sizing: border-box; }
+            /* 按钮区换行 */
+            .btn-group, .actions { display: flex; flex-wrap: wrap; gap: 4px; }
+            .btn-group .btn, .actions .btn { flex: 1 1 auto; min-width: 60px; }
+            /* 多列布局 */
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; }
+            .flex-row { flex-direction: column !important; }
+            .flex-row > * { width: 100% !important; }
+            /* 弹窗 */
+            .modal-content { max-width: 95% !important; margin: 10px auto !important; padding: 16px !important; }
+            /* 搜索/过滤栏 */
+            .filter-bar, .search-bar { flex-direction: column; align-items: stretch !important; }
+            .filter-bar > *, .search-bar > * { width: 100%; }
+            /* 部署标签 */
+            .rsp-table { white-space: normal !important; word-break: break-word !important; }
+            .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+        }
+        @media (max-width: 480px) {
+            h2 { font-size: 1.2em; }
+            h3 { font-size: 1.05em; }
+            .card h3 { font-size: 1em; }
+            /* 账号卡片 */
+            .account-card { padding: 10px !important; }
+            .account-card .info { font-size: 12px; }
+            .account-card .actions { gap: 2px; }
+            .account-card .actions a { font-size: 11px; padding: 3px 6px; }
+            /* 分页 */
+            .pagination a { padding: 6px 10px; font-size: 13px; min-width: 36px; text-align: center; }
+            /* 统计/摘要 */
+            .summary-line { flex-direction: column; gap: 4px; }
+            /* 标签页 */
+            .tabs { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+            .tabs a { padding: 6px 10px; font-size: 12px; }
+            /* 发布选择/多选 */
+            .checkbox-grid { grid-template-columns: 1fr 1fr !important; }
+            /* 工作台区 */
+            .provider-bar { flex-direction: column; align-items: stretch; }
+            .article-grid { grid-template-columns: 1fr !important; }
+        }
         /* 验证码弹窗手机优化 */
         @media (max-width: 480px) {
             #captchaModal > div { max-width: 95% !important; padding: 16px !important; }
@@ -128,11 +174,12 @@
             {% if has_xianyu %}<a href="/xianyu/search" style="color:#ff6b35;">🐟 闲鱼</a>{% endif %}
             <a href="/accounts">账号</a>
             <a href="/publish/manage">发布</a>
-            <a href="/pipeline" style="color:#6366f1;">📋 流水线</a>
+            <a href="/workspace" style="color:#6366f1;">🏗️ 工作台</a>
             <a href="/signin">签到</a>
             <a href="/deployers" style="color:#ffd700;">部署</a>
             <a href="/storage/settings">存储</a>
             <a href="/ai/settings" style="color:#00d4ff;">🤖 AI</a>
+            <a href="/ai/logs" style="color:#00d4ff;font-size:12px;">📊 日志</a>
         </div>
         <div>
             <a href="/notifications" class="notif-bell" style="position:relative;font-size:18px;text-decoration:none;">

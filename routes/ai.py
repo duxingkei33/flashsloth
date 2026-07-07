@@ -585,3 +585,74 @@ def api_ai_balance_refresh_one(acid):
    conn.close()
    return jsonify({"success": True, "balance": balance})
 
+
+# ─── AI 调用日志 ────────────────────────────────
+
+@app.route("/ai/logs")
+@login_required
+def ai_logs_page():
+   """AI 调用日志页面"""
+   return render_template("ai_logs.html")
+
+
+@app.route("/api/ai/logs")
+@login_required
+def api_ai_logs():
+   """获取 AI 调用日志"""
+   page = request.args.get("page", 1, type=int)
+   per_page = request.args.get("per_page", 50, type=int)
+   capability = request.args.get("capability", "")
+   success_filter = request.args.get("success", "")
+
+   conn = get_db()
+   where = ["1=1"]
+   params = []
+   if capability:
+       where.append("capability=?")
+       params.append(capability)
+   if success_filter in ("0", "1"):
+       where.append("success=?")
+       params.append(int(success_filter))
+
+   # 确保表存在
+   conn.execute("""CREATE TABLE IF NOT EXISTS ai_call_log (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       capability TEXT NOT NULL, provider TEXT NOT NULL DEFAULT '',
+       model TEXT NOT NULL DEFAULT '', prompt_tokens INTEGER DEFAULT 0,
+       response_tokens INTEGER DEFAULT 0, cost REAL DEFAULT 0.0,
+       success INTEGER DEFAULT 1, error TEXT DEFAULT '',
+       response_summary TEXT DEFAULT '', prompt_preview TEXT DEFAULT '',
+       created_at TEXT DEFAULT (datetime('now'))
+   )""")
+
+   total = conn.execute(
+       f"SELECT COUNT(*) FROM ai_call_log WHERE {' AND '.join(where)}", params
+   ).fetchone()[0]
+
+   offset = (page - 1) * per_page
+   rows = conn.execute(
+       f"SELECT * FROM ai_call_log WHERE {' AND '.join(where)} "
+       f"ORDER BY id DESC LIMIT ? OFFSET ?",
+       params + [per_page, offset]
+   ).fetchall()
+   conn.close()
+
+   return jsonify({
+       "success": True,
+       "total": total,
+       "page": page,
+       "per_page": per_page,
+       "logs": [dict(r) for r in rows],
+   })
+
+
+@app.route("/api/ai/logs/clear", methods=["POST"])
+@login_required
+def api_ai_logs_clear():
+   """清空 AI 调用日志"""
+   conn = get_db()
+   conn.execute("DELETE FROM ai_call_log")
+   conn.commit()
+   conn.close()
+   return jsonify({"success": True, "message": "日志已清空"})
+

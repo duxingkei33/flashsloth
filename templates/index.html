@@ -29,44 +29,6 @@
     </a>
 </div>
 
-<!-- ⚙️ Provider 选择 -->
-<div class="card" id="provider">
-    <h2>📥 内容来源 (Provider)</h2>
-    <form class="idx-provider-form" method="post" action="/settings/provider" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
-        <div class="form-group" style="flex:1;min-width:200px;margin:0;">
-            <label>文章来源</label>
-            <select name="provider_type" onchange="toggleNotion(this)">
-                <option value="markdown" {{ 'selected' if not provider or provider.provider_type == 'markdown' else '' }}>
-                    📁 Markdown 文件 (posts/ 目录)
-                </option>
-                <option value="notion" {{ 'selected' if provider and provider.provider_type == 'notion' else '' }}>
-                    📄 Notion 数据库
-                </option>
-            </select>
-        </div>
-        <div id="notionFields" style="display:{{ 'flex' if provider and provider.provider_type == 'notion' else 'none' }};gap:8px;flex-wrap:wrap;">
-            {% set nc = (provider.config_json|from_json) if provider else {} %}
-            <div class="form-group" style="margin:0;">
-                <label>Notion Token</label>
-                <input type="password" name="notion_token" value="{{ nc.token or '' }}"
-                       placeholder="ntn_..." style="width:280px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-                <label>数据库 ID</label>
-                <input type="text" name="notion_db_id" value="{{ nc.database_id or '' }}"
-                       placeholder="38dc67..." style="width:280px;">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">保存</button>
-    </form>
-</div>
-<script>
-function toggleNotion(sel) {
-    document.getElementById('notionFields').style.display =
-        sel.value === 'notion' ? 'flex' : 'none';
-}
-</script>
-
 <!-- 📡 发布平台 -->
 <div class="card" id="platforms">
     <div style="display:flex;justify-content:space-between;align-items:center;">
