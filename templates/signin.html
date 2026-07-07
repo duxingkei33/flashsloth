@@ -377,14 +377,20 @@ function refreshStats() {
     .then(r => r.json())
     .then(data => {
         if (!data.success) return;
-        const cards = document.querySelectorAll('.signin-stats-row .stat-card .num, .signin-stats-row-2 .stat-card .num');
-        // today_count, today_success, today_failure, total_success, total_failure
-        if (cards.length >= 5) {
-            cards[0].textContent = data.today_count;
-            cards[1].textContent = data.today_success;
-            cards[2].textContent = data.today_failure;
-            cards[3].textContent = data.total_success;
-            cards[4].textContent = data.total_failure;
+        // 按固定顺序更新：today_count, today_success, today_failure, total_success, total_failure
+        const row1 = document.querySelector('.signin-stats-row');
+        const row2 = document.querySelector('.signin-stats-row-2');
+        if (row1) {
+            const nums = row1.querySelectorAll('.stat-card .num');
+            if (nums[0]) nums[0].textContent = data.today_count;
+            if (nums[1]) nums[1].textContent = data.today_success;
+        }
+        if (row2) {
+            const nums = row2.querySelectorAll('.stat-card .num');
+            // row2 has 5 cards: 可签到账号[0], 总账号[1], today_failure[2], total_success[3], total_failure[4]
+            if (nums[2]) nums[2].textContent = data.today_failure;
+            if (nums[3]) nums[3].textContent = data.total_success;
+            if (nums[4]) nums[4].textContent = data.total_failure;
         }
     })
     .catch(() => {});
