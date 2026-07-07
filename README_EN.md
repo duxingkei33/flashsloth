@@ -31,6 +31,7 @@
 - [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
 - [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives + enhanced CSDN/OSHWHub/Zhihu test_connection (real username extraction + strong exit indicators + detailed failure messages)
 - [x] 🚀 Auto-start Playwright on login — Launches Playwright BrowserEngine on login (configurable auto_start)
+- [x] 🔌 Verify credential button — One-click credential verification for saved accounts (test_connection → verify credential label unified)
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
@@ -71,6 +72,8 @@
 - [x] 📡 Exploration radar v2 — Dewu/SMZDM/Xiaohongshu full exploration reports + category classification field
 - [x] 🆕 New platform exploration: 51CTO (WAF detection + SMS-only login assessment) + Douban exploration report
 - [x] 📚 Forum registry dual-track — JSON+DB dual support, FORUM_REGISTRY_MODE=auto/db/json three modes, loads extra_info+tags_of_interest fields
+- [x] ⏱️ Auto-refresh login capabilities — P0 script polls all platforms every 15 minutes + JSON sync update
+- [x] 📄 WordPress exploration report
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
 - [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
@@ -79,6 +82,7 @@
 - [x] Sign-in statistics (success/failure breakdown, de-duplication fix)
 - [x] Batch sign-in time configuration + random offset (±30min) setting
 - [x] Randomized execution window (within 1 hour of configured time, account_id offset to avoid concurrent sign-ins)
+- [x] ♻️ Sign-in BrowserEngine reuse — Discuz sign-in migrated from standalone Playwright to shared BrowserEngine singleton
 
 ### 🛒 Xianyu Integration
 - [x] Product search (keyword/price range/sort/pagination)
@@ -111,7 +115,7 @@
 - [x] 🖥️ Playwright browser engine settings page
 - [x] 🖥️ BrowserEngine auto-cleanup — 60s monitoring thread, auto-recycle idle browser instances
 - [x] External service registry — unified management for xianyu-auto-reply等服务
-- [x] Deployment config enhancement — #deploy inline block + deploy normalization + unified test_connection format + auto-start engine
+- [x] Deployment config enhancement — #deploy inline block + deploy normalization + unified test_connection format + auto-start engine + /deployers redirect to /accounts#deploy
 
 ### 💬 Comment Monitoring
 - [x] Multi-forum comment monitoring — unread/reply/stats dashboard
@@ -159,14 +163,14 @@
 │  signin_*.py   — 3 sign-in plugins                                │
 │  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
-│  sdk/adapters/ (15 platform adapters)                            │
+│  sdk/adapters/ (14 platform adapters)                            │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Public Infrastructure                            │
 │  SQLite (flashsloth.db + status_cache.db)                         │
 │  .fs_key encryption key · config/ · templates/ · static/          │
-│  platform_reports/ (15 reports + 32 JSON data files)              │
+│  platform_reports/ (15 reports + 33 JSON data files)              │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md        │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -259,6 +263,7 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| **v5.11** | 2026-07-08 | P0 Provider abstraction framework E2E verified; sign-in BrowserEngine reuse; verify credential button; deploy page redirect (/deployers→/accounts#deploy); 15-min login capability auto-refresh; WordPress exploration report |
 | **v5.10** | 2026-07-08 | test_connection enhancement — CSDN/OSHWHub/Zhihu publisher real username extraction + strong exit indicators + detailed failure messages; forum registry loads extra_info+tags_of_interest |
 | **v5.08** | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
 | v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |

@@ -31,6 +31,7 @@
 - [x] 🎨 账号页UI增强 — 搜索优化/平台颜色标签/快捷添加/时间标签/批量进度条
 - [x] 🛡️ Cookie验证严格模式 — DiscuzPublisher严格登录态检测(退出按钮+2指示器) + test-connection Playwright子进程降级消除假阳性 + CSDN/OSHWHub/知乎发布器增强版test_connection(真实用户名提取+强退出指标+详细失败信息)
 - [x] 🚀 登录自动启动Playwright — 登录时自动启动 Playwright BrowserEngine（auto_start 可配置）
+- [x] 🔌 验证凭证按钮 — 已保存账号「验证凭证」一键验证登录状态（test_connection → 验证凭证 文案统一）
 
 ### 📝 多平台发布
 - [x] Discuz! 论坛（amobbs/mydigit 等）— 发帖+存草稿+签到
@@ -71,6 +72,8 @@
 - [x] 📡 探索雷达 v2 — 得物/什么值得买/小红书完整探索报告 + category分类字段
 - [x] 🆕 新平台探索: 51CTO（WAF检测+SMS-only登录评估）+ 豆瓣探索报告
 - [x] 📚 论坛注册表双轨读取 — JSON+DB双轨支撑，FORUM_REGISTRY_MODE=auto/db/json三模式，加载extra_info+tags_of_interest字段
+- [x] ⏱️ 登录能力自动刷新 — P0脚本每15分钟自动轮询全平台登录能力+JSON同步更新
+- [x] 📄 WordPress探索报告
 
 ### 👨‍👩‍👧‍👦 自动签到
 - [x] OSHWHub 签到（含Cookie过期自动重登+asyncio隔离修复）
@@ -79,6 +82,7 @@
 - [x] 签到统计（成功/失败分解，去重修复）
 - [x] 签到时间批量设置 + 随机偏移（±30分钟）配置
 - [x] 签到时间随机化（1小时窗口内随机执行，基于account_id偏移避免同时签到）
+- [x] ♻️ 签到BrowserEngine复用 — Discuz签到从独立Playwright改为复用共享BrowserEngine单例
 
 ### 🛒 闲鱼集成
 - [x] 商品搜索（关键词/价格范围/排序/分页）
@@ -111,7 +115,7 @@
 - [x] 🖥️ Playwright 浏览器引擎设置页面
 - [x] 🖥️ BrowserEngine 空闲自动关闭 — 60秒轮询监控线程，闲置超时自动回收浏览器实例
 - [x] 外部服务注册表 — 统一管理 xianyu-auto-reply 等服务
-- [x] 部署配置增强 — 账号页#deploy内联区块+deploy归一化+test_connection统一格式+auto-start自动引擎
+- [x] 部署配置增强 — 账号页#deploy内联区块+deploy归一化+test_connection统一格式+auto-start自动引擎 + /deployers重定向到/accounts#deploy
 
 ### 💬 评论监控
 - [x] 多论坛评论监控 — 未读/回复/统计数据看板
@@ -159,14 +163,14 @@
 │  signin_*.py   — 3 个签到插件                                    │
 │  provider_*.py — 3 个 Provider 插件 (Markdown/Notion/淘宝)       │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
-│  sdk/adapters/ (15 平台适配器)                                   │
+│  sdk/adapters/ (14 平台适配器)                                   │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                   公共基础设施层                                    │
 │  SQLite (flashsloth.db + status_cache.db)                        │
 │  .fs_key 加密密钥 · config/ · templates/ · static/               │
-│  platform_reports/ (15 探索报告 + 32 JSON 数据文件)               │
+│  platform_reports/ (15 探索报告 + 33 JSON 数据文件)               │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md       │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -259,6 +263,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.11** | 2026-07-08 | P0 Provider抽象框架E2E验证通过；签到BrowserEngine复用；验证凭证按钮；deploy页面重定向(/deployers→/accounts#deploy)；登录能力每15分钟自动刷新；WordPress探索报告 |
 | **v5.10** | 2026-07-08 | test_connection强化 — CSDN/OSHWHub/知乎发布器真实用户名提取+强退出指标+详细失败信息；论坛注册表加载extra_info+tags_of_interest |
 | **v5.08** | 2026-07-08 | deploy归一化 — 账号页#deploy内联区块+test_connection统一格式+登录自动启动Playwright(可配置auto_start)+平台探索数据更新(得物/什么值得买/小红书) |
 | v5.07 | 2026-07-08 | Cookie验证严格模式 — Discuz login假阳性修复 + test-connection Playwright子进程降级 + 版块注册表双轨验证 + 探索报告更新 |
