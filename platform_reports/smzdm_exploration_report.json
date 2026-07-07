@@ -4,41 +4,140 @@
   "domain": "smzdm.com",
   "category": "shopping",
   "architecture": "custom",
-  "explored_at": "2026-07-08 00:10:09",
-  "last_updated": "2026-07-08 00:10:09",
+  "explored_at": "2026-07-08 00:35:09",
+  "last_updated": "2026-07-08 00:35:09",
   "explored_with_login": false,
   "has_account": false,
   "has_publisher": false,
   "login": {
     "login_url": "https://www.smzdm.com/",
-    "methods": [],
+    "login_popup_url": "https://zhiyou.smzdm.com/user/login/window/",
+    "methods": [
+      "password",
+      "sms_code",
+      "quick_login",
+      "mobile_app"
+    ],
     "captcha": {
-      "has_captcha": false,
-      "types": [],
-      "selectors": []
+      "has_captcha": true,
+      "types": [
+        "tencent_waf_captcha",
+        "tencent_drag_captcha"
+      ],
+      "selectors": [
+        "#captcha_img",
+        ".captcha_switch",
+        ".tcaptcha-transform",
+        "#tcaptcha_iframe_dy",
+        "#t_mask"
+      ],
+      "note": "Tencent Cloud WAF (JS验证) + Tencent CAPTCHA拖拽验证码。WAF在首页和所有子页面；密码错误>=3次显示图片验证码"
     },
     "third_party": {
-      "wechat": false,
-      "weibo": false,
-      "qq": false,
+      "wechat": true,
+      "weibo": true,
+      "qq": true,
       "github": false,
       "apple": false
     },
     "qr_code": {
       "has_qrcode": false,
       "selectors": [],
-      "qr_container_sel": ""
+      "qr_container_sel": "",
+      "note": "网站资源中有qrcode.png图标，但探索未发现二维码登录入口"
     },
-    "fields": [],
+    "fields": [
+      {
+        "name": "username",
+        "type": "text",
+        "placeholder": "手机号/邮箱/用户名"
+      },
+      {
+        "name": "password",
+        "type": "password",
+        "placeholder": "密码"
+      },
+      {
+        "name": "sms_code",
+        "type": "text",
+        "placeholder": "短信验证码"
+      },
+      {
+        "name": "captcha",
+        "type": "image",
+        "placeholder": "验证码",
+        "selector": "#captcha_img",
+        "condition": "login_error_num >= 3"
+      }
+    ],
     "buttons": {
-      "login_button": "",
-      "register_button": ""
+      "login_button": ".J_login_trigger",
+      "register_button": ".J_register_trigger",
+      "login_popup_close": ".J_popup_close",
+      "login_submit": "user/login/doLogin"
     },
+    "selectors": {
+      "login_popup": "#J_login_popup",
+      "login_iframe": "#J_login_iframe",
+      "popup_head": ".z-popup-head",
+      "login_trigger": ".J_login_trigger",
+      "register_trigger": ".J_register_trigger",
+      "user_entry": ".J_user_entry",
+      "username_display": ".J_nav_username",
+      "user_info_api": "user/info/jsonp_get_current"
+    },
+    "api_endpoints": [
+      {
+        "url": "https://zhiyou.smzdm.com/user/login/doLogin",
+        "method": "POST",
+        "note": "密码登录（受WAF保护）"
+      },
+      {
+        "url": "https://zhiyou.smzdm.com/user/login/login",
+        "method": "POST",
+        "note": "登录（受WAF保护）"
+      },
+      {
+        "url": "https://zhiyou.smzdm.com/user/login/quickLogin",
+        "method": "POST",
+        "note": "快速登录（受WAF保护）"
+      },
+      {
+        "url": "https://zhiyou.smzdm.com/user/login/smsLogin",
+        "method": "POST",
+        "note": "短信验证码登录（受WAF保护）"
+      },
+      {
+        "url": "https://zhiyou.smzdm.com/user/info/jsonp_get_current",
+        "method": "GET",
+        "auth": "cookie",
+        "note": "获取当前用户信息（无WAF保护，可直接调用）"
+      }
+    ],
     "cookie_hints": [
       "sess",
       "auth",
       "token",
-      "smzdm_id"
+      "smzdm_id",
+      "w_tsfp",
+      "x-waf-captcha-referer"
+    ],
+    "waf": {
+      "provider": "Tencent Cloud WAF",
+      "type": "js_challenge_and_captcha",
+      "probe_script": "/C2WF946J0/probe.js",
+      "challenge_engine": "__TENCENT_CHAOS_VM",
+      "captcha_provider": "Tencent CAPTCHA (appid: 2017163193)",
+      "captcha_type": "drag (滑动验证码)"
+    },
+    "notes": [
+      "登录通过JS弹窗实现，点击 .J_login_trigger 打开 #J_login_popup",
+      "弹窗内嵌 iframe #J_login_iframe，加载 zhiyou.smzdm.com/user/login/window/",
+      "iframe与父页面通过 postMessage 通信 (agreeType: register_post/reload_post)",
+      "所有登录页面受腾讯云WAF保护（JS挑战+拖拽验证码），headless浏览器无法直接访问",
+      "user/info/jsonp_get_current API 不受WAF保护，可直接获取用户信息",
+      "WAF使用 __TENCENT_CHAOS_VM 虚拟机引擎检测浏览器指纹",
+      "移动端有 call_client_login() 唤起App登录"
     ]
   },
   "publish": {
@@ -54,8 +153,9 @@
   "technical": {
     "has_rate_limit": false,
     "has_anti_bot": true,
-    "has_dynamic_content": false,
+    "has_dynamic_content": true,
     "framework": "",
-    "note": "消费导购平台，自建架构"
+    "waf": "Tencent Cloud WAF with JS challenge + drag captcha",
+    "note": "消费导购平台，自建架构。所有页面受腾讯云WAF保护，JS虚拟机和拖拽验证码双重防护"
   }
 }

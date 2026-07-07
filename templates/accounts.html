@@ -456,8 +456,8 @@
 
         <!-- 操作按钮组 -->
         <div class="acct-actions">
-            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright直接验证登录状态，返回真实用户名/积分等信息">🔍 检测</button>
-            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-secondary" title="直接用Playwright打开目标站点验证Cookie有效性">🔌 测试</button>
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="用Playwright打开目标平台 → 注入Cookie → 验证是否真正登录 → 返回真实用户名/积分/等级信息。这是最可靠的登录态检测方式。">🔍 状态检测</button>
+            <button onclick="testConnection({{ a.id }})" class="btn btn-sm btn-secondary" title="用Playwright打开目标平台 → 注入保存的Cookie → 检查是否被重定向到登录页 → 确认Cookie是否真的有效。【和状态检测的区别：只专注Cookie验证，不提取积分/等级细节】">🔌 验证Cookie</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
             {% if p.name in ('xianyu', 'xianyu_v2') %}
@@ -2627,8 +2627,8 @@ function showBatchRefreshProgress(state, msg) {
 
 // ====== 自动刷新状态 ======
 function refreshAllStatuses(forceRefresh) {
-    document.querySelectorAll('[id^="onlineStatus_"]').forEach(function(span) {
-        var id = span.id.replace('onlineStatus_', '');
+    document.querySelectorAll('[id^="statusBadge_"]').forEach(function(span) {
+        var id = span.id.replace('statusBadge_', '');
         var url = '/api/accounts/' + id + '/status';
         if (forceRefresh) { url += '?refresh=1'; }
         fetch(url)
@@ -2639,7 +2639,7 @@ function refreshAllStatuses(forceRefresh) {
             }
         })
         .catch(function() {
-            span.innerHTML = '<span class="badge badge-secondary">⏳ 未知</span>';
+            span.innerHTML = '<span class=\"badge badge-secondary\">⏳ 未知</span>';
         });
     });
 }

@@ -360,6 +360,12 @@ def detect_oshwhub(cookie_str: str, username_hint: str = "") -> dict:
         resp = sess.get("https://oshwhub.com/", timeout=15, allow_redirects=True)
         html = resp.text
         
+        # ⚠️ 检查是否被重定向到登录页
+        if "login" in resp.url.lower() or "passport" in resp.url.lower() or "sign" in resp.url.lower():
+            result["error"] = "重定向到登录页（Cookie无效）"
+            result["status"] = "❌ Cookie已失效（被重定向到登录页）"
+            return result
+        
         # 检查是否已登录: 查找右上角用户信息
         username = ""
         name_patterns = [
@@ -416,7 +422,8 @@ def detect_oshwhub(cookie_str: str, username_hint: str = "") -> dict:
             except Exception:
                 pass
         
-        logged_in = has_logout or bool(username)
+        # ⚠️ 必须同时有退出按钮 AND 用户名才认定为已登录（防止假Cookie误报）
+        logged_in = has_logout and bool(username)
         result["logged_in"] = logged_in
         result["username"] = username
         result["display_name"] = username
@@ -466,6 +473,12 @@ def detect_xianyu(cookie_str: str) -> dict:
         resp = sess.get("https://goofish.com/", timeout=15, allow_redirects=True)
         html = resp.text
         
+        # ⚠️ 检查是否被重定向到登录页（假Cookie必然重定向）
+        if "login" in resp.url.lower() or "passport" in resp.url.lower() or "sign" in resp.url.lower():
+            result["error"] = "重定向到登录页（Cookie无效）"
+            result["status"] = "❌ Cookie已失效（被重定向到登录页）"
+            return result
+        
         username = ""
         name_patterns = [
             r'"nick"\s*:\s*"([^"]+)"',
@@ -482,7 +495,8 @@ def detect_xianyu(cookie_str: str) -> dict:
         
         has_logout = bool(re.search(r'退出|注销|logout', html, re.IGNORECASE))
         
-        logged_in = has_logout or bool(username)
+        # ⚠️ 必须同时有退出按钮 AND 用户名才认定为已登录（防止假Cookie误报）
+        logged_in = has_logout and bool(username)
         result["logged_in"] = logged_in
         result["username"] = username if username else ""
         result["display_name"] = username if username else ""

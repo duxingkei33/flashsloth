@@ -6,6 +6,8 @@ from flashsloth.core.database import get_db
 from flashsloth.core.article import Article
 from flashsloth.core.publisher import get_publisher, list_publishers
 from flashsloth.core.deployer import get_deployer, list_deployers
+from flashsloth.core.credential_crypto import decrypt_config
+from flashsloth.core.cookie_validator import verify_cookie_for_adapter
 import json, time, os, re, threading, datetime
 from datetime import datetime
 
@@ -207,6 +209,24 @@ def publish():
        if existing:
            results.append({"success": True, "error": "", "message": "already_published"})
            continue
+
+       # ── 发布前Cookie有效性检查（P2优化项） ──
+       try:
+           decrypt_config(cfg)  # 解密凭证（Cookie/密码等敏感字段）
+           if cfg.get("cookie", ""):  # 仅Cookie模式需要检查
+               check = verify_cookie_for_adapter(acct["platform"], cfg)
+               if not check.get("valid"):
+                   msg = check.get("message", "")
+                   method = check.get("method", "none")
+                   results.append({
+                       "success": False,
+                       "error": f"❌ Cookie已失效，跳过{acct['platform']} ({method}检测: {msg})",
+                       "message": "cookie_expired",
+                   })
+                   continue
+       except Exception as e:
+           logger = __import__('logging').getLogger(__name__)
+           logger.warning("[publish] Cookie检查异常 (降级/不阻塞): %s", e)
 
        try:
            # 编译文章到该平台格式

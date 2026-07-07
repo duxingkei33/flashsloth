@@ -548,11 +548,11 @@ PLATFORM_SCAN_INFO = {
 def _scan_login_worker(platform: str, login_url: str, scan_type: str,
                        sess_id: str, result_queue: queue.Queue,
                        timeout_minutes: int = 10):
-    """扫码登录后台工作线程 — 拥有独立的 Playwright 浏览器实例
-    
-    从 routes/accounts.py _qr_worker 适配而来，增加了 scan_type 支持、
-    小程序码检测和平台特定操作。
-    
+    """扫码登录后台工作线程 — 复用常驻 BrowserEngine 浏览器实例
+
+    使用 BrowserEngine 的 create_isolated_context() 在共享浏览器上创建
+    独立上下文/页面进行扫码登录轮询。不再独立 launch/close 浏览器。
+
     Args:
         platform: 平台名
         login_url: 登录 URL
@@ -561,39 +561,24 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
         result_queue: 结果队列
         timeout_minutes: 超时分钟数，超时后自动释放资源（默认 10 分钟）
     """
-    _pw = None
-    _browser = None
     _ctx = None
     _page = None
     _worker_started = time.time()
 
     try:
-        from playwright.sync_api import sync_playwright
         import base64
+        from flashsloth.core.browser_engine import BrowserEngine
 
-        _pw = sync_playwright().__enter__()
-        _browser = _pw.chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox', '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-blink-features=AutomationControlled',
-            ],
-        )
-        _ctx = _browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            ),
-            viewport={"width": 1280, "height": 800},
-            locale="zh-CN",
-        )
-        _ctx.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']});
-            window.chrome = {runtime: {}, loadTimes: function() {}, csi: function() {}, app: {}};
-        """)
+        _engine = BrowserEngine.get_instance()
+        if not _engine.is_ready():
+            ok = _engine.start()
+            if not ok:
+                raise RuntimeError(f"BrowserEngine failed to start (status={_engine.get_status()['status']})")
+        _engine.keep_alive()
+
+        _ctx = _engine.create_isolated_context()
+        if not _ctx:
+            raise RuntimeError("BrowserEngine failed to create isolated context")
         _page = _ctx.new_page()
 
         # 导航到登录页
@@ -643,8 +628,6 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
         # 将 Playwright 对象存入 session 供 poll 使用
         sess = _scan_login_sessions.get(sess_id)
         if sess:
-            sess["_pw"] = _pw
-            sess["_browser"] = _browser
             sess["_context"] = _ctx
             sess["_page"] = _page
             sess["_ready"] = True
@@ -708,17 +691,12 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
     except Exception as e:
         result_queue.put({"success": False, "error": str(e)[:100]})
     finally:
-        for obj in [_page, _ctx, _browser]:
+        for obj in [_page, _ctx]:
             try:
-                if obj:
+                if obj and hasattr(obj, 'close'):
                     obj.close()
             except Exception:
                 pass
-        try:
-            if _pw:
-                _pw.__exit__(None, None, None)
-        except Exception:
-            pass
 
 
 # ═══════════════════════════════════════════════════════

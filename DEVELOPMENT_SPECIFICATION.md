@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v4.91 | **最后更新**: 2026-07-07 (每小时自动更新)
+**版本**: v4.94 | **最后更新**: 2026-07-08 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -13,7 +13,7 @@
 - 定时自动签到（论坛/CSDN/OSHWHub）
 - 统一通知网关（22+ Provider，推送到飞书/企微/微信/Telegram/Discord/Slack/邮件/Webhook）
 - 账号三层登录状态检测（API轻量→Playwright快速→Playwright全量）
-- 论坛探索与版块监控（Discuz 系的自动版块结构采集）
+- 论坛探索与版块监控（Discuz 系的自动版块结构采集 + 通用平台雷达探索）
 - 评论监控与 AI 自动回帖
 - 价格监控（LCSC 立创商城元器件）
 - 闲鱼集成（搜索/发布/MTOP 签名 API/自动回复 Sidecar）
@@ -22,12 +22,14 @@
 - 审批流程系统（AI 发起敏感操作的人工审批）
 - Gateway REST API（对外暴露系统/账号/文章/签到/AI 接口）
 - 凭证安全加密（Fernet AES-128-CBC）
+- 统一扫码登录引擎（QR码/小程序码/Cookie捕捉）
+- 统一 Cookie 验证器（消除多处散落重复校验逻辑）
 - Playwright 反检测人类行为模拟
 - **统一日志管理**（发布/签到/部署/AI 四表合一 Tab 式管理页面）
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 34,357 行 Python | 13,066 行 HTML | 25 路由文件 | 48 插件文件 | 30 核心模块
+**代码规模**: 34,945 行 Python | 13,439 行 HTML | 130 Python 文件 | 31 模板文件
 
 ---
 
@@ -56,16 +58,19 @@
 │                   统一工作流引擎                                    │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  core/ 模块层 (30 文件, 9,543 行)                         │   │
+│  │  core/ 模块层 (33 文件, 11,377 行)                        │   │
 │  │  ├── gateway.py (1181行) 通知网关核心                      │   │
+│  │  ├── credential_provider.py (962行) 统一扫码登录引擎        │   │
 │  │  ├── status_detector.py (791行) 三层登录状态检测器          │   │
 │  │  ├── ai_provider.py (692行) AI 路由框架                    │   │
+│  │  ├── cookie_validator.py (681行) 统一 Cookie 验证器         │   │
 │  │  ├── browser_engine.py (588行) 常驻 Playwright 浏览器引擎   │   │
 │  │  ├── database.py (565行) 数据库初始化+迁移+种子数据          │   │
 │  │  ├── pipeline.py, compiler.py, deployer.py, scheduler.py  │   │
 │  │  ├── image_pipeline.py, anti_detect.py, notifier.py       │   │
 │  │  ├── approval.py, signin.py, article.py, config.py        │   │
-│  │  ├── credential_crypto.py, explorer.py, forum_registry.py │   │
+│  │  ├── credential_crypto.py, credential_guard.py            │   │
+│  │  ├── explorer.py, forum_registry.py                       │   │
 │  │  ├── price_monitor.py, status_cache.py, captcha_handler.py│   │
 │  │  ├── compile_rule.py, compiled_cache.py, renderers.py     │   │
 │  │  ├── provider.py, provider_registry.py, storage.py        │   │
@@ -73,9 +78,9 @@
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  sdk/ 统一平台适配器层 (16 适配器文件, 3,833 行)           │   │
+│  │  sdk/ 统一平台适配器层 (19 适配器文件, 4,581 行)           │   │
 │  │  ├── adapter.py, router.py, scaffold.py                  │   │
-│  │  └── adapters/ 各平台实现                                  │   │
+│  │  └── adapters/ 各平台实现 (16个)                           │   │
 │  │      ├── xianyu_v2.py, xianyu.py (闲鱼)                  │   │
 │  │      ├── bilibili.py (B站, 641行)                        │   │
 │  │      ├── oshwhub.py, mydigit.py, amobbs.py               │   │
@@ -97,6 +102,10 @@
 │  │ 多供应商  │ │ 人类模拟  │ │ 调度器   │ │ 加密  │                │
 │  │ 自动切换  │ │          │ │ cron     │ │Fernet│                │
 │  └──────────┘ └──────────┘ └──────────┘ └──────┘                │
+│  ┌──────────┐ ┌──────────┐                                       │
+│  │ Cookie   │ │ 扫码登录  │                                       │
+│  │ 验证器   │ │ 引擎     │                                       │
+│  └──────────┘ └──────────┘                                       │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -262,7 +271,8 @@
 - **限流规则**: 每域名每小时最多探索一次（`explore_cooldown` 表持久化，双缓存策略 内存+DB）
 - **核心流程**: 检测论坛类型 → 爬取版块列表 → 对比差异(内容哈希) → 保存到 DB
 - **版块注册中心** (`core/forum_registry.py`): 从 `platform_reports/*.json` 自动加载论坛版块数据
-- **支持平台**: Discuz! (amobbs.com, mydigit.cn 等)
+- **探索雷达 v2**: 新增通用平台雷达探索，支持电商/社交平台（得物/什么值得买/小红书）的自动化探索
+- **支持平台**: Discuz! (amobbs.com, mydigit.cn 等) + 得物/什么值得买/小红书/B站/知乎/掘金/微信公众号
 - **定时脚本**:
   - `scripts/hourly_forum_check.py` — 每小时增量检查 Discuz 论坛版块变更 (542行)
   - `scripts/sync_registry_keywords.py` — 将 forum_registry 关键词同步到 forum_exploration DB
@@ -286,7 +296,43 @@
 - **加密标记**: 加密后值以 `enc:` 前缀标记
 - **向下兼容**: 非 `enc:` 前缀的值原样返回（兼容旧数据）
 
-### 3.7 反检测模块 (`core/anti_detect.py`)
+### 3.7 统一 Cookie 验证器 (`core/cookie_validator.py`) — v4.92 新增
+
+- **功能说明**: 消除散落在 4 个模块中的 Cookie 校验重复代码，统一验证入口
+- **消除的重复代码**:
+  - `core/credential_provider.py`  `_check_auth_cookies()`
+  - `routes/accounts.py`  `_check_auth_cookies()`
+  - `sdk/adapters/oshwhub.py`  `_has_valid_cookie()`
+  - `core/status_detector.py`  `PLATFORM_DETECTORS`
+- **核心函数**: `verify_cookie(platform, cookies, input_type)`
+  - 支持 Playwright cookies list 输入 (`input_type="list"`)
+  - 支持 Cookie 字符串输入 (`input_type="string"`)
+  - 自动检测输入类型
+- **支持平台验证规则**: Discuz!/Bilibili/知乎/掘金/CSDN/OSHWHub/微信公众号/GitHub Pages 等
+- **输入格式**: Playwright cookies list / 标准 Cookie 字符串 / 字典
+
+### 3.8 统一扫码登录引擎 (`core/credential_provider.py`) — v4.92 新增
+
+- **功能说明**: 统一处理所有扫码类登录方式的引擎 + 凭证基础设施
+- **核心组件**:
+  - `ScanLoginEngine` — 统一扫码登录引擎（QR码/小程序码等）
+  - `save_credential()` / `get_credential()` — 凭证加密存储（基于 `platform_accounts.config_json`）
+  - `verify_credential()` — 验证凭证是否仍有效
+- **关键方法**: `start_scan_login()`, `poll_scan_login()`, `close_scan_login()`
+- **扫码类型自动检测**: 根据页面 DOM 自动判断 QR 码/小程序码类型
+- **会话管理**: 全局 session 字典 + threading.Lock 线程安全 + 超时自动清理
+
+### 3.9 凭证守护脚本 (`core/credential_guard.py`) — v4.92 新增
+
+- **功能说明**: 每 30 分钟运行一次的凭证健康守护
+- **检查项目**:
+  1. 清理过期扫码登录 session（超过 300 秒的）
+  2. 检查所有已保存的凭证是否过期（30 天默认有效期）
+  3. 报告凭证健康状态
+  4. 清理孤立 session 资源
+- **配置**: `SESSION_MAX_AGE = 300`, `CREDENTIAL_EXPIRE_DAYS = 30`, `WARN_BEFORE_EXPIRE = 7`
+
+### 3.10 反检测模块 (`core/anti_detect.py`)
 
 - **核心原则**: 像真人一样操作，不触发平台反爬机制
 - **能力清单**:
@@ -300,7 +346,7 @@
 - **使用方式**: `create_human_context(browser)` → 返回配置好的人类模拟浏览器上下文
 - **环境变量可覆盖**: AD_MOUSE_MIN/MAX, AD_TYPE_DELAY_MIN/MAX, AD_OP_WAIT_MIN/MAX, AD_SCROLL_MIN/MAX
 
-### 3.8 AI 路由模块 (`core/ai_provider.py`)
+### 3.11 AI 路由模块 (`core/ai_provider.py`)
 
 - **功能说明**: 统一 AI 能力框架，每个服务商写一个 Provider 注册到全局注册表
 - **支持能力类型**: writing / image_gen / audio_gen / video_gen / translate
@@ -321,7 +367,7 @@
   - `GET /api/ai/logs` — AI调用日志分页查询
   - `POST /api/ai/logs/clear` — 清空AI调用日志
 
-### 3.9 闲鱼集成模块
+### 3.12 闲鱼集成模块
 
 | 子模块 | 位置 | 功能 |
 |--------|------|------|
@@ -352,7 +398,7 @@
 | `limiter.py` | 频率限制(3次/分钟) |
 | `errors.py` | 错误类型定义 |
 
-### 3.10 价格监控模块 (`core/price_monitor.py` + `routes/price_monitor.py`)
+### 3.13 价格监控模块 (`core/price_monitor.py` + `routes/price_monitor.py`)
 
 - **功能说明**: LCSC（立创商城）元器件价格追踪
 - **API 端点**:
@@ -363,7 +409,7 @@
   - `POST /api/price-monitor/<id>/refresh` — 刷新价格
 - **数据表**: `price_monitors` + `price_history`
 
-### 3.11 审批系统 (`core/approval.py` + `routes/approval.py`)
+### 3.14 审批系统 (`core/approval.py` + `routes/approval.py`)
 
 - **功能说明**: AI 发起的敏感操作审批流程（发布/删除/修改）
 - **流程**: `create_approval()` → 通知网关推送 → 管理员回复 → `process_approval()`
@@ -374,7 +420,7 @@
   - `GET /api/approval/history` — 审批历史
   - `POST /api/approval/<id>/respond` — 通过/拒绝
 
-### 3.12 通知系统 (`core/notifier.py` + `routes/notifications.py`)
+### 3.15 通知系统 (`core/notifier.py` + `routes/notifications.py`)
 
 - **统一通知接口**: `notify()`, `notify_info()`, `notify_warn()`, `notify_error()`
 - **自动广播**: 当网关有已启用终端时，自动通过网关广播
@@ -386,7 +432,7 @@
   - `POST /api/notifications/read-all` — 全部标记已读
   - `GET /api/notifications/unread-count` — 未读计数
 
-### 3.13 SDK 平台适配器层 (`sdk/`)
+### 3.16 SDK 平台适配器层 (`sdk/`)
 
 | 文件 | 功能 |
 |------|------|
@@ -408,7 +454,7 @@
 | `sdk/adapters/github_pages.py` | GitHub Pages 适配器 (370行) |
 | `sdk/adapters/giscus.py` | Giscus 适配器 |
 
-### 3.14 部署管理模块 (`routes/storage_deploy.py` + `core/deployer.py`)
+### 3.17 部署管理模块 (`routes/storage_deploy.py` + `core/deployer.py`)
 
 - 部署管理负责将静态站点发布到托管平台（GitHub Pages 等）
 - `core/deployer.py` — Deployer 抽象基类 + `@register` 注册器
@@ -426,7 +472,7 @@
   - `POST /api/deployer/<id>/run` — 执行部署
   - `GET /api/deployer/logs` — 部署日志
 
-### 3.15 工作台模块 (`routes/workspace_ui.py` + `core/provider.py` + `core/pipeline.py`)
+### 3.18 工作台模块 (`routes/workspace_ui.py` + `core/provider.py` + `core/pipeline.py`)
 
 - `core/provider.py` — Provider 抽象基类（ContentItem 模型 + `@register_provider` 装饰器）
 - `core/pipeline.py` — 统一内容流水线调度器，5 阶段 PipelineStage (Collect→Compile→Preview→Draft→Publish)
@@ -444,7 +490,7 @@
   - `GET /api/workspace/logs/publish` — 发布记录
   - `GET /api/workspace/logs/collect` — 采集记录
 
-### 3.16 AI 调用日志模块 (`core/ai_provider.py` + `routes/ai.py`)
+### 3.19 AI 调用日志模块 (`core/ai_provider.py` + `routes/ai.py`)
 
 - 自动记录每一次 AI 调用的元数据（模型、token数、费用、成功/失败）
 - `ai_call_log` 表：id/capability/provider/model/prompt_tokens/response_tokens/cost/success/error/response_summary/prompt_preview/created_at
@@ -452,7 +498,7 @@
 - `/ai/logs` — 日志查看页面（分页、按能力筛选、按状态筛选）
 - DDL 已正式集成到 `init_db()` 中
 
-### 3.17 评论监控模块 (`plugins/reply_monitor.py` + `routes/comment_monitor.py`)
+### 3.20 评论监控模块 (`plugins/reply_monitor.py` + `routes/comment_monitor.py`)
 
 - **功能说明**: 定时检查各论坛已发表帖子的新回复，AI 生成智能回帖
 - **核心组件**:
@@ -470,7 +516,7 @@
   - `PUT /api/comment-monitor/config/<account_id>` — 更新监控配置
   - `PUT /api/comment-monitor/reply/<reply_id>/mark-read` — 标记已读
 
-### 3.18 登录状态检测 (`core/status_detector.py` + `core/status_cache.py`)
+### 3.21 登录状态检测 (`core/status_detector.py` + `core/status_cache.py`)
 
 - **三层检测架构**:
 
@@ -485,7 +531,7 @@
 - **支持平台**: Discuz!/CSDN/OSHWHub/知乎/掘金 等通过 `_detect_*` 函数实现
 - **缓存系统**: 内存缓存(5分钟 TTL) + SQLite `status_cache.db` 持久化，缓存键 `status:{account_id}`
 
-### 3.19 编译规则与渲染 (`core/compile_rule.py` + `core/renderers.py` + `core/compiled_cache.py`)
+### 3.22 编译规则与渲染 (`core/compile_rule.py` + `core/renderers.py` + `core/compiled_cache.py`)
 
 - **编译规则** (`compile_rule.py`):
   - `ImageRule` — 图片限制(max_width/max_height/max_size_mb/upload_method/auto_compress)
@@ -503,7 +549,7 @@
   - 通过 source_hash 检测是否需要重新编译
   - 支持多平台缓存共享
 
-### 3.20 AI 逛论坛 (`plugins/forum_reader.py`)
+### 3.23 AI 逛论坛 (`plugins/forum_reader.py`)
 
 - **功能说明**: 自动登录配置的论坛账号，抓取新帖子，AI 筛选推荐
 - **DiscuzForumReader** + InterestFilter: 读取 Discuz! 论坛帖子列表和详情，关键字兴趣匹配
@@ -516,7 +562,7 @@
   - `PATCH /api/forum-reader/read/<rid>` — 标记已读
   - `POST /api/forum-reader/refresh-content/<rid>` — 刷新推荐内容
 
-### 3.21 登录器插件
+### 3.24 登录器插件
 
 | 登录器 | 文件 | 平台 | 说明 |
 |--------|------|------|------|
@@ -526,7 +572,7 @@
 | OSHWHub 登录器 | `plugins/oshwhub_login.py` | OSHWHub | passport.jlc.com 统一登录 |
 | Bilibili 登录器 | `plugins/bilibili_login.py` | Bilibili | B站 Cookie/QR 登录 |
 
-### 3.22 浏览器引擎 (`core/browser_engine.py` + `routes/browser_engine.py`)
+### 3.25 浏览器引擎 (`core/browser_engine.py` + `routes/browser_engine.py`)
 
 - **常驻 Playwright 浏览器引擎**: 全局单例 BrowserEngine，不反复 launch/close
 - **线程安全**: 通过 `threading.Lock` 保护状态读写，10 分钟无活动自动关闭
@@ -544,7 +590,7 @@
   - `POST /api/browser/config` — 更新配置
 - **全局上下文注入**: 所有模板自动获取 `pw_status` / `pw_badge_class` / `pw_badge_text` / `pw_tabs_count`
 
-### 3.23 外部服务模块 (`routes/external_services.py`)
+### 3.26 外部服务模块 (`routes/external_services.py`)
 
 - **功能说明**: 管理外部服务（如 xianyu-auto-reply）的管理入口链接和状态监控
 - **注册机制**: `register_service()` 动态注册
@@ -553,7 +599,7 @@
 - **API 端点**:
   - `GET /api/external-services` — 获取所有已注册服务及其健康状态
 
-### 3.24 统一日志管理模块 (`routes/logs.py` + `templates/logs.html`) — v4.90 新增
+### 3.27 统一日志管理模块 (`routes/logs.py` + `templates/logs.html`) — v4.90 新增
 
 - **功能说明**: 四表合一 Tab 式日志管理页面，统一管理发布/签到/部署/AI 日志
 - **核心 API**:
@@ -715,6 +761,23 @@ GET /logs → 前端 Tab 切换 →
 /api/logs/signin → signin_log
 /api/logs/deploy → deploy_log
 /api/logs/ai → ai_call_log (代理到 /api/ai/logs)
+```
+
+### 5.9 Cookie 验证数据流 (v4.92 新增)
+```
+verify_cookie(platform, cookies) →
+根据 platform 匹配验证规则 →
+检查必要 Cookie 字段(key/domain/httponly/expiry) →
+返回 {valid: bool, missing: [], message: ""}
+```
+
+### 5.10 扫码登录数据流 (v4.92 新增)
+```
+ScanLoginEngine.start_scan_login() →
+Playwright 打开登录页面 → 自动检测扫码类型 →
+生成 session_id → 后台轮询扫码结果 →
+ScanLoginEngine.poll_scan_login() →
+Cookie 自动捕获 → save_credential() → 加密存储
 ```
 
 ---
@@ -1291,6 +1354,7 @@ GET /logs → 前端 Tab 切换 →
 | 外部服务健康检查 | `routes/external_services.py` | 按需调用 | 检查 Sidecar 等外部服务状态 |
 | AI趋势日报 | Hermes cron | 早8/晚8 | AI趋势日报生成+推送 |
 | FS每日备份 | 脚本 `fs_daily_backup.py` | 每天4:30 | 三位一体备份(tar.gz+TAG.txt+git tag) |
+| **凭证守护** | `core/credential_guard.py` | **每30分钟** | **清理过期扫码session + 凭证健康检查 (v4.92 新增)** |
 
 **注意**: 签到调度器为守护线程（`fs-scheduler`），随 Flask 应用启动。探索任务通过外部 cron 触发。评论监控检查在应用内按配置时间段定时运行。
 
@@ -1315,6 +1379,7 @@ GET /logs → 前端 Tab 切换 →
 15. **QR码优先级** — 所有 Publisher 登录方式首选项统一为 QR 扫码
 16. **site_url 传透** — 前端表单 site_url 必须传透到登录类，自动补全 `https://` 前缀
 17. **登录状态始终 Playwright 验证** — API 轻量检测的 logged_in 结果不提前信任
+18. **Cookie 验证统一** — Cookie 验证统一走 `core/cookie_validator.py`，不散落多处重复
 
 ---
 
@@ -1322,7 +1387,10 @@ GET /logs → 前端 Tab 切换 →
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
-| **v4.91** | 2026-07-07 | **当前版本**。QR码全平台优先级#1统一，site_url传透修复（login-capabilities refresh自动补https://）。手机端排版优化：全页面响应式增强(768px+480px双断点)。 |
+| **v4.94** | 2026-07-08 | **探索雷达 v2** — 新增得物/什么值得买/小红书通用平台雷达探索（含 category 分类字段）。扫码登录全流程优化+多方式选择+超时机制。RSS Publisher 登录方式预设。探索报告新增 category 分类字段。 |
+| **v4.93** | 2026-07-07 | **扫码登录全流程优化** — QR码登录不会误报成功(连锁3个Bug修复)。Cookie验证假阳性修复（P0级）— 需要 `has_exit_or_logout` 才算登录状态。 |
+| **v4.92** | 2026-07-07 | **统一凭证体系+扫码引擎重构** — 新增 `core/cookie_validator.py`(681行) 统一Cookie验证器消除4处散落代码。新增 `core/credential_provider.py`(962行) 统一扫码登录引擎。新增 `core/credential_guard.py`(190行) 凭证守护脚本。重构 `core/credential_crypto.py` 为统一凭证入口。 |
+| **v4.91** | 2026-07-07 | QR码全平台优先级#1统一，site_url传透修复（login-capabilities refresh自动补https://）。手机端排版优化：全页面响应式增强(768px+480px双断点)。 |
 | **v4.90** | 2026-07-07 | **统一日志管理** — 新增 `routes/logs.py`(252行) + `templates/logs.html`(444行)，四表合一Tab式日志页面。BrowserEngine 自动关闭监控线程（60秒轮询）。publish_log DDL补全5缺失列。移除了API轻量检测的logged_in提前返回——始终用Playwright验证。适配器架构修复。 |
 | v4.80 | 2026-07-07 | 手机端排版优化。Twitter/X Publisher 完善。BrowserEngine threading double-release 修复。知乎/掘金API轻量登录状态检测器。文章列表批量删除/发布。 |
 | v4.79 | 2026-07-07 | 闲鱼自动回复 Sidecar 适配器。Phone 登录方法多平台添加。DISCUZ_PLATFORMS 集合 + site_url 传透。验证码输入+5步进度条+Amobbs边框核验。 |
@@ -1352,7 +1420,7 @@ GET /logs → 前端 Tab 切换 →
 
 ## 附录：文件完整清单
 
-### core/ (30 个 Python 文件, 9,543 行)
+### core/ (33 个 Python 文件, 11,377 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1366,7 +1434,10 @@ GET /logs → 前端 Tab 切换 →
 | `compiled_cache.py` | 编译产物数据库缓存 |
 | `compiler.py` | 文章编译器 (MD→IR→输出) |
 | `config.py` | 全局配置加载 |
+| `cookie_validator.py` | **统一 Cookie 验证器 (681行, v4.92 新增)** |
 | `credential_crypto.py` | Fernet AES-128-CBC 凭证加密 |
+| `credential_guard.py` | **凭证守护脚本 (190行, v4.92 新增)** |
+| `credential_provider.py` | **统一扫码登录引擎 + 凭证基础设施 (962行, v4.92 新增)** |
 | `database.py` | 数据库初始化 + 连接 + 种子数据 |
 | `deployer.py` | 部署器基类 |
 | `explorer.py` | Playwright 论坛探索引擎 |
@@ -1388,7 +1459,7 @@ GET /logs → 前端 Tab 切换 →
 | `status_detector.py` | 三层登录状态检测器 |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,015 行)
+### routes/ (25 个 Python 文件, 9,282 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
@@ -1417,7 +1488,7 @@ GET /logs → 前端 Tab 切换 →
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 10,939 行)
+### plugins/ (48 个 Python 文件, 12,673 行)
 **发布器 (16个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1493,25 +1564,29 @@ GET /logs → 前端 Tab 切换 →
 | `xianyu/utils/xianyu_utils.py` | 闲鱼工具函数 |
 | `xianyu/utils/__init__.py` | 包标记 |
 
-### sdk/adapters/ (16 个 Python 文件, 3,833 行)
+### sdk/ (19 个 Python 文件, 4,581 行)
 | 文件 | 说明 |
 |------|------|
-| `xianyu_v2.py` | 闲鱼 API v2 适配器（搜索/详情/比价） |
-| `xianyu.py` | 闲鱼 PlatformAdapter（Playwright） |
-| `bilibili.py` | B站适配器 (641行) |
-| `csdn.py` | CSDN 适配器 |
-| `zhihu.py` | 知乎适配器 |
-| `juejin.py` | 掘金适配器 |
-| `oshwhub.py` | OSHWHub 适配器 (471行) |
-| `amobbs.py` | 阿莫论坛适配器 |
-| `mydigit.py` | 数码之家适配器 (428行) |
-| `wordpress.py` | WordPress 适配器 |
-| `wechat.py` | 微信适配器 |
-| `notion.py` | Notion 适配器 |
-| `github_pages.py` | GitHub Pages 适配器 (370行) |
-| `giscus.py` | Giscus 适配器 |
+| `__init__.py` | 包标记 |
+| `adapter.py` | PlatformAdapter 基类 + 数据模型 |
+| `router.py` | 内容路由引擎 |
+| `scaffold.py` | 适配器脚手架生成器 |
+| `adapters/xianyu_v2.py` | 闲鱼 API v2 适配器（搜索/详情/比价） |
+| `adapters/xianyu.py` | 闲鱼 PlatformAdapter（Playwright） |
+| `adapters/bilibili.py` | B站适配器 (641行) |
+| `adapters/csdn.py` | CSDN 适配器 |
+| `adapters/zhihu.py` | 知乎适配器 |
+| `adapters/juejin.py` | 掘金适配器 |
+| `adapters/oshwhub.py` | OSHWHub 适配器 (471行) |
+| `adapters/amobbs.py` | 阿莫论坛适配器 |
+| `adapters/mydigit.py` | 数码之家适配器 (428行) |
+| `adapters/wordpress.py` | WordPress 适配器 |
+| `adapters/wechat.py` | 微信适配器 |
+| `adapters/notion.py` | Notion 适配器 |
+| `adapters/github_pages.py` | GitHub Pages 适配器 (370行) |
+| `adapters/giscus.py` | Giscus 适配器 |
 
-### templates/ (31 个 HTML 模板, 13,066 行)
+### templates/ (31 个 HTML 模板, 13,439 行)
 | 模板 | 说明 |
 |------|------|
 | `index.html` | 仪表盘总览 |
@@ -1546,7 +1621,7 @@ GET /logs → 前端 Tab 切换 →
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (5 个 Python 脚本, 1,027 行)
+### scripts/ (5 个 Python 脚本, 1,032 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
@@ -1555,7 +1630,24 @@ GET /logs → 前端 Tab 切换 →
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
 
+### platform_reports/ (探索报告数据)
+| 文件 | 说明 |
+|------|------|
+| `amobbs_com.md` + `amobbs_com_forums.json` | 阿莫论坛探索 |
+| `mydigit_cn.md` + `mydigit_cn_forums.json` | 数码之家探索 |
+| `csdn_net.md` + `csdn_net_deep.md` | CSDN 探索 |
+| `oshwhub_com.md` + `oshwhub_com_deep.md` | OSHWHub 探索 |
+| `bilibili.md` + `bilibili_exploration_report.json` | B站探索 |
+| `zhihu.md` + `zhihu_exploration_report.json` | 知乎探索 |
+| `juejin.md` + `juejin_exploration_report.json` | 掘金探索 |
+| `wechat_mp.md` + `wechat_mp_exploration_report.json` | 微信公众号探索 |
+| `xiaohongshu_com.md` + `xiaohongshu_exploration_report.json` | **小红书探索 (v4.94 新增)** |
+| `smzdm_com.md` + `smzdm_exploration_report.json` | **什么值得买探索 (v4.94 新增)** |
+| `dewu_com.md` + `dewu_exploration_report.json` + `dewu_screenshot.png` | **得物探索 (v4.94 新增)** |
+| `*_login_capabilities.json` | 各平台登录能力配置 |
+| `_login_capabilities_summary.json` | 登录能力汇总 |
+
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v4.91 | 文件行数: 约 1,100 行 | Python 总行数: 34,357 行 | 最后更新: 2026-07-07*
+*版本: v4.94 | Python 总行数: 34,945 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,439 行 | 最后更新: 2026-07-08*

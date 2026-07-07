@@ -1,0 +1,64 @@
+{
+  "platform": "dewu",
+  "platform_name": "得物",
+  "explored_at": "2026-07-08T00:19:00",
+  "login_url": "https://www.dewu.com/",
+  "login_methods": [
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "fields": ["site_url", "username", "password"],
+      "selector": "input[type='password']"
+    },
+    {
+      "method": "phone",
+      "label": "手机验证码登录",
+      "detected": true,
+      "fields": ["phone"],
+      "selector": "input[type='tel']"
+    },
+    {
+      "method": "qrcode",
+      "label": "扫码登录",
+      "detected": true,
+      "sub_types": [
+        {"id": "app", "label": "得物APP扫码", "detected": true}
+      ],
+      "fields": [],
+      "selector": "img[src*='qrcode']"
+    },
+    {
+      "method": "oauth",
+      "label": "第三方账号登录",
+      "detected": true,
+      "providers": ["wechat_oauth", "weibo", "qq"],
+      "fields": []
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "detected": true,
+      "fields": ["cookie"]
+    }
+  ],
+  "captcha": {
+    "has_captcha": true,
+    "types": ["aliyun_slide"],
+    "note": "阿里云 FeiLin 滑块验证码，访问首页即触发"
+  },
+  "waf": "aliyun_captcha_feilin",
+  "note": "得物PC首页为纯展示+App下载引导页，开放平台(open.dewu.com)有完整登录系统：手机号密码/验证码/第三方登录。PC访问即触发阿里云滑块验证码",
+  "raw_detection": {
+    "has_password_input": true,
+    "has_phone_input": true,
+    "has_code_button": true,
+    "has_qrcode_img": true,
+    "has_wechat": true,
+    "has_app_qr": true,
+    "third_party_providers": ["wechat_oauth", "weibo", "qq"],
+    "page_title": "得物-有毒运动-潮物社区",
+    "page_url": "https://www.dewu.com/"
+  },
+  "error": null
+}
