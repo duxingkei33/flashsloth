@@ -29,7 +29,7 @@
 - [x] 🪟 账号弹窗归一化深化 — 补齐 amobbs/discuz/mydigit/wordpress + 验证码输入+5步进度条+Amobbs边框核验
 - [x] 🔍 登录状态深度验证 — 真实提取用户名/积分/等级 + 前端展示增强
 - [x] 🎨 账号页UI增强 — 搜索优化/平台颜色标签/快捷添加/时间标签/批量进度条
-- [x] 🛡️ Cookie验证严格模式 — DiscuzPublisher严格登录态检测(退出按钮+2指示器) + test-connection Playwright子进程降级消除假阳性
+- [x] 🛡️ Cookie验证严格模式 — DiscuzPublisher严格登录态检测(退出按钮+2指示器) + test-connection Playwright子进程降级消除假阳性 + CSDN/OSHWHub/知乎发布器增强版test_connection(真实用户名提取+强退出指标+详细失败信息)
 - [x] 🚀 登录自动启动Playwright — 登录时自动启动 Playwright BrowserEngine（auto_start 可配置）
 
 ### 📝 多平台发布
@@ -70,7 +70,7 @@
 - [x] 🤖 知乎/掘金 API轻量登录状态检测器
 - [x] 📡 探索雷达 v2 — 得物/什么值得买/小红书完整探索报告 + category分类字段
 - [x] 🆕 新平台探索: 51CTO（WAF检测+SMS-only登录评估）+ 豆瓣探索报告
-- [x] 📚 论坛注册表双轨读取 — JSON+DB双轨支撑，FORUM_REGISTRY_MODE=auto/db/json三模式
+- [x] 📚 论坛注册表双轨读取 — JSON+DB双轨支撑，FORUM_REGISTRY_MODE=auto/db/json三模式，加载extra_info+tags_of_interest字段
 
 ### 👨‍👩‍👧‍👦 自动签到
 - [x] OSHWHub 签到（含Cookie过期自动重登+asyncio隔离修复）
@@ -259,7 +259,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
-| **v5.09** | 2026-07-08 | Provider 配置字段动态渲染 — 各 Provider 自声明 config_fields，前端从 API 动态读取替代硬编码+按钮标签同步 |
+| **v5.10** | 2026-07-08 | test_connection强化 — CSDN/OSHWHub/知乎发布器真实用户名提取+强退出指标+详细失败信息；论坛注册表加载extra_info+tags_of_interest |
 | **v5.08** | 2026-07-08 | deploy归一化 — 账号页#deploy内联区块+test_connection统一格式+登录自动启动Playwright(可配置auto_start)+平台探索数据更新(得物/什么值得买/小红书) |
 | v5.07 | 2026-07-08 | Cookie验证严格模式 — Discuz login假阳性修复 + test-connection Playwright子进程降级 + 版块注册表双轨验证 + 探索报告更新 |
 | v5.05 | 2026-07-08 | 51CTO平台探索 — WAF+SMS-only评估 + 探索雷达v2（得物/什么值得买/小红书）+ category分类字段 |

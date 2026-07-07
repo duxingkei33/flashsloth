@@ -29,7 +29,7 @@
 - [x] 🪟 Account modal deepening — amobbs/discuz/mydigit/wordpress + captcha input + 5-step progress bar + Amobbs border verification
 - [x] 🔍 Login status deep verification — real extraction of username/points/level + frontend display enhancement
 - [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
-- [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives
+- [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives + enhanced CSDN/OSHWHub/Zhihu test_connection (real username extraction + strong exit indicators + detailed failure messages)
 - [x] 🚀 Auto-start Playwright on login — Launches Playwright BrowserEngine on login (configurable auto_start)
 
 ### 📝 Multi-Platform Publishing
@@ -70,7 +70,7 @@
 - [x] 🤖 Zhihu/Juejin API lightweight login status detector
 - [x] 📡 Exploration radar v2 — Dewu/SMZDM/Xiaohongshu full exploration reports + category classification field
 - [x] 🆕 New platform exploration: 51CTO (WAF detection + SMS-only login assessment) + Douban exploration report
-- [x] 📚 Forum registry dual-track — JSON+DB dual support, FORUM_REGISTRY_MODE=auto/db/json three modes
+- [x] 📚 Forum registry dual-track — JSON+DB dual support, FORUM_REGISTRY_MODE=auto/db/json three modes, loads extra_info+tags_of_interest fields
 
 ### 👨‍👩‍👧‍👦 Auto Sign-In
 - [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
@@ -259,7 +259,7 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
-| **v5.09** | 2026-07-08 | Provider config fields dynamic rendering — each Provider declares config_fields, frontend reads from API replacing hardcoded definitions + button label sync |
+| **v5.10** | 2026-07-08 | test_connection enhancement — CSDN/OSHWHub/Zhihu publisher real username extraction + strong exit indicators + detailed failure messages; forum registry loads extra_info+tags_of_interest |
 | **v5.08** | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
 | v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |
 | v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
