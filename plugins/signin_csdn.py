@@ -124,10 +124,10 @@ class CsdnSignin(SigninBase):
                         return {"success": True, "already_signed": False,
                                 "error": "", "message": "签到操作已完成"}
                     else:
-                        # 检查是否显示的是抽奖记录页面（CSDN 网页签到已迁移到微信小程序）
+                        # CSDN 签到在小程序，暂时不做！！！
                         if "小程序签到" in body_text or "抽奖记录" in body_text:
                             return {"success": False, "already_signed": False,
-                                    "error": "CSDN 网页签到已迁移到微信小程序，暂不支持网页签到",
+                                    "error": "CSDN 签到已迁移至微信小程序，暂不支持网页签到",
                                     "message": ""}
                         return {"success": False, "already_signed": False,
                                 "error": "找不到签到按钮，页面可能已改版", "message": ""}

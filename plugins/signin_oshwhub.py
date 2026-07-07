@@ -102,30 +102,47 @@ class OshwhubSignin(SigninBase):
         from playwright.sync_api import sync_playwright
 
         try:
-            # 方案 A: 有 Cookie 直接签到
+            # 方案 A: 有 Cookie 尝试签到
             if self.cookie:
-                return self._do_signin_with_cookie(sync_playwright)
+                result = self._do_signin_with_cookie(sync_playwright)
+                # Cookie 签到成功或已签到 → 返回
+                if result.get("success") or result.get("already_signed"):
+                    return result
+                # Cookie 过期且有密码 → fallback 到密码登录
+                if self.password and self.username:
+                    logger.info("Cookie 过期，尝试密码登录重新获取 Cookie")
+                    return self._login_and_signin()
+                # Cookie 过期且无密码 → 报告错误
+                return result
 
-            # 方案 B: 无 Cookie，先用 OshwhubPlaywrightLogin 登录
-            from plugins.oshwhub_login import OshwhubPlaywrightLogin
-            login = OshwhubPlaywrightLogin(site_url=self.site_url)
-            result = login.login(self.username, self.password)
-            if not (result.get("logged_in") and result.get("cookies")):
-                login.close()
-                return {"success": False, "already_signed": False,
-                        "error": f"登录失败: {result.get('error', '未知错误')}", "message": ""}
+            # 方案 B: 无 Cookie，直接用密码登录签到
+            if self.password and self.username:
+                return self._login_and_signin()
 
-            self.cookie = result["cookies"]
-            _save_cookie_to_account_config(self.username, self.cookie)
-
-            # 复用 login 的上下文签到（避免再起一个新的 Playwright 实例）
-            return self._do_signin_with_context(
-                browser=login.browser, ctx=login.context
-            )
+            return {"success": False, "already_signed": False,
+                    "error": "无可用凭证（无 Cookie 也无密码）", "message": ""}
 
         except Exception as e:
             return {"success": False, "already_signed": False,
                     "error": f"签到异常: {e}", "message": ""}
+
+    def _login_and_signin(self) -> dict:
+        """用密码登录 OSHWHub 并签到"""
+        from plugins.oshwhub_login import OshwhubPlaywrightLogin
+        login = OshwhubPlaywrightLogin(site_url=self.site_url)
+        result = login.login(self.username, self.password)
+        if not (result.get("logged_in") and result.get("cookies")):
+            login.close()
+            return {"success": False, "already_signed": False,
+                    "error": f"登录失败: {result.get('error', '未知错误')}", "message": ""}
+
+        self.cookie = result["cookies"]
+        _save_cookie_to_account_config(self.username, self.cookie)
+
+        # 复用 login 的上下文签到
+        return self._do_signin_with_context(
+            browser=login.browser, ctx=login.context
+        )
 
     def _do_signin_with_cookie(self, _pw_fn) -> dict:
         """用 Cookie 签到（独立 Playwright 实例）"""
