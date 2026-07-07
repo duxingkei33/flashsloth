@@ -22,8 +22,57 @@ from flashsloth.core.status_cache import (
 from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
 from flashsloth.core.deployer import list_deployers
 
-# ─── Discuz 系平台集合（登录流程相同，仅 site_url 不同）───
-DISCUZ_PLATFORMS = {"amobbs", "discuz", "mydigit"}
+# ─── 引擎类型（数据驱动 — 从探索JSON的 engine 字段推导，铁律#19）───
+_ENGINE_FALLBACK_MAP = {
+    "amobbs": "discuz", "discuz": "discuz", "mydigit": "discuz",
+    "xianyu": "xianyu", "xianyu_v2": "xianyu",
+    "oshwhub": "oshwhub",
+    "csdn": "generic", "wechat": "generic", "bilibili": "generic",
+    "juejin": "generic", "zhihu": "generic", "wordpress": "generic",
+}
+
+def _infer_config_fields_from_cap(cap: dict) -> list:
+    """从探索数据推导配置字段列表"""
+    fields = set()
+    methods = cap.get("login_methods", [])
+    login_url = cap.get("login_url", "")
+    engine = cap.get("engine", "")
+    
+    # Discuz 类平台需要 site_url（相对路径 login_url）
+    if engine == "discuz" or "discuz" in (cap.get("note") or "").lower():
+        fields.add("site_url")
+    
+    # 登录 URL 是相对路径 → 需要 site_url
+    if login_url and not login_url.startswith("http"):
+        fields.add("site_url")
+    
+    # 从登录方法推导
+    for m in methods:
+        method = m.get("method", "")
+        if method == "password":
+            fields.add("username")
+            fields.add("password")
+        elif method == "qrcode":
+            # QR码不需要额外字段（系统自动打开扫码页）
+            pass
+        elif method == "oauth":
+            pass
+        elif method == "phone":
+            fields.add("phone")
+        elif method == "cookie":
+            pass
+    
+    # 默认至少需要 site_url
+    if not fields:
+        fields.add("site_url")
+    
+    return sorted(fields)
+
+def _get_engine_for_platform(platform: str) -> str:
+    """从探索数据推导登录引擎，无数据则回退到映射表"""
+    cap = _load_login_capabilities(platform)
+    engine = cap.get("engine") if cap else None
+    return engine if engine else _ENGINE_FALLBACK_MAP.get(platform, "unknown")
 
 # ─── 平台账号管理 ──────────────────────────────
 @app.route("/accounts")
@@ -613,13 +662,13 @@ def api_platforms_search():
 				"display_name": display_name,
 				"architecture": arch,
 				"note": note[:80],
-				"config_fields": [],
+				"config_fields": _infer_config_fields_from_cap(cap),
 				"login_methods": cap.get("login_methods", []),
-			})
+				})
 			seen.add(pname)
-	except Exception:
-		# 源 2 失败不影响其他源
-		pass
+		except Exception:
+			# 源 2 失败不影响其他源
+			pass
 
 	# ─── 3. forum_registry — 域名级 Discuz 补充 ───
 	try:
@@ -1049,7 +1098,7 @@ def api_platform_login_start(platform):
 	password = data.get("password", "")
 	site_url = data.get("site_url", "")
 
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1060,7 +1109,7 @@ def api_platform_login_start(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("xianyu", "xianyu_v2"):
+	elif _get_engine_for_platform(platform) == "xianyu":
 		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1071,7 +1120,7 @@ def api_platform_login_start(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform == "oshwhub":
+	elif _get_engine_for_platform(platform) == "oshwhub":
 		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1082,7 +1131,7 @@ def api_platform_login_start(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login, close_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1108,7 +1157,7 @@ def api_platform_login_captcha(platform):
 	data = request.get_json() or {}
 	aid = data.get("account_id", 0)
 
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1119,7 +1168,7 @@ def api_platform_login_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("xianyu", "xianyu_v2"):
+	elif _get_engine_for_platform(platform) == "xianyu":
 		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1130,7 +1179,7 @@ def api_platform_login_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform == "oshwhub":
+	elif _get_engine_for_platform(platform) == "oshwhub":
 		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1141,7 +1190,7 @@ def api_platform_login_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1159,28 +1208,28 @@ def api_platform_login_captcha(platform):
 @login_required
 def api_platform_login_screenshot(platform):
 	"""统一登录：获取页面截图"""
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
-	elif platform in ("xianyu", "xianyu_v2"):
+	elif _get_engine_for_platform(platform) == "xianyu":
 		from flashsloth.routes.browser_login import _get_xianyu_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_xianyu_login(f"user_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
-	elif platform == "oshwhub":
+	elif _get_engine_for_platform(platform) == "oshwhub":
 		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_oshwhub_login(f"user_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1201,7 +1250,7 @@ def api_platform_login_submit_captcha(platform):
 	if not captcha_code:
 		return jsonify({"success": False, "error": "请输入验证码"})
 
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1213,10 +1262,10 @@ def api_platform_login_submit_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("xianyu", "xianyu_v2"):
+	elif _get_engine_for_platform(platform) == "xianyu":
 		return jsonify({"success": False, "error": "闲鱼不支持手动验证码输入，请使用扫码登录"})
 
-	elif platform == "oshwhub":
+	elif _get_engine_for_platform(platform) == "oshwhub":
 		from flashsloth.routes.browser_login import _get_oshwhub_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1227,7 +1276,7 @@ def api_platform_login_submit_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1248,7 +1297,7 @@ def api_platform_login_poll(platform):
 	data = request.get_json() or {}
 	aid = data.get("account_id", 0)
 
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1283,7 +1332,7 @@ def api_platform_login_poll(platform):
 
 			return jsonify({"running": True, "message": "登录进行中..."})
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1301,14 +1350,14 @@ def api_platform_login_poll(platform):
 @login_required
 def api_platform_login_refresh_captcha(platform):
 	"""刷新验证码图片"""
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
 			screenshot = inst.take_screenshot()
 			return jsonify({"success": True, "image": screenshot})
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1326,7 +1375,7 @@ def api_platform_login_auto_captcha(platform):
 	handler = get_handler()
 	# 先尝试截图
 	try:
-		if platform in DISCUZ_PLATFORMS:
+		if _get_engine_for_platform(platform) == "discuz":
 			from flashsloth.routes.browser_login import _get_discuz_login
 			with _get_login_lock(platform):
 				inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
@@ -1840,7 +1889,7 @@ def api_login_method_demo(method):
 @login_required
 def api_platform_login_close(platform):
 	"""统一登录：关闭浏览器会话"""
-	if platform in DISCUZ_PLATFORMS:
+	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _close_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1848,7 +1897,7 @@ def api_platform_login_close(platform):
 			_close_discuz_login(sess_id)
 			return jsonify({"success": True})
 
-	elif platform in ("xianyu", "xianyu_v2"):
+	elif _get_engine_for_platform(platform) == "xianyu":
 		from flashsloth.routes.browser_login import _xianyu_login_instances
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1858,7 +1907,7 @@ def api_platform_login_close(platform):
 				inst.close()
 			return jsonify({"success": True})
 
-	elif platform == "oshwhub":
+	elif _get_engine_for_platform(platform) == "oshwhub":
 		from flashsloth.routes.browser_login import _oshwhub_login_instances
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1868,7 +1917,7 @@ def api_platform_login_close(platform):
 				inst.close()
 			return jsonify({"success": True})
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
+	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import close_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
