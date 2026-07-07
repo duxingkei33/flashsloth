@@ -85,6 +85,7 @@ def _seed_forum_exploration(conn):
         "platform_amobbs": ("discuz_amobbs", "amobbs.com"),
         "platform_mydigit": ("discuz_mydigit", "mydigit.cn"),
         "platform_csdn": ("csdn", "csdn.net"),
+        "platform_zhihu": ("zhihu", "zhihu.com"),
     }
     for preset_name, (plat, dom) in preset_map.items():
         preset_path = os.path.join(config_dir, f"{preset_name}.json")
