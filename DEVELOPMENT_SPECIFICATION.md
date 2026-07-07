@@ -1,6 +1,6 @@
 # 🦥 FlashSloth 开发说明书
 
-**版本**: v4.55 | **最后更新**: 2026-07-07 (每小时自动更新)
+**版本**: v4.56 | **最后更新**: 2026-07-07 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -70,6 +70,8 @@
 │  routes/captcha_browser.py — 验证码浏览器路由                    │
 │  routes/comment_monitor.py — 评论监控路由(收件箱+AutoReply)      │
 │  routes/workspace_ui.py — 工作台路由(Provider+流水线+日志API)    │
+│  routes/browser_engine.py — Playwright 浏览器引擎启停控制+API   │
+│  routes/external_services.py — 外部服务注册表+管理入口           │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -102,6 +104,7 @@
 │  core/renderers.py       — 各平台编译产物渲染器(预览HTML)         │
 │  core/compile_rule.py    — 每平台编译规则定义(图片/正文/BBCode)   │
 │  core/provider_registry.py — 动态AI供应商注册表                   │
+│  core/browser_engine.py  — 常驻Playwright浏览器引擎(全局单例)     │
 └──────────────────────────────────────────────────────────────────┘
                               ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -179,6 +182,7 @@
 | 编译规则 | core/compile_rule.py | ImageRule/BodyFormat/BBCode限制 |
 | AI供应商注册表 | core/provider_registry.py | 动态加载provider_registry.json |
 | 流水线调度器 | core/pipeline.py | 5阶段流水线(Collect→Compile→Preview→Draft→Publish) |
+| 浏览器引擎 | core/browser_engine.py | 常驻Playwright浏览器进程(全局单例,10min自动关闭)|
 
 ### 2.3 数据层
 - **数据库**: SQLite (`flashsloth.db`) — WAL 模式 + 外键约束
@@ -402,6 +406,7 @@
 | `sdk/router.py` | 内容路由引擎（RouteRule → source→target） |
 | `sdk/scaffold.py` | 适配器脚手架生成器(一键生成新平台适配器模板) |
 | `sdk/adapters/xianyu_v2.py` | 闲鱼 API v2 适配器（搜索/详情/比价） |
+| `sdk/adapters/xianyu.py` | 闲鱼 PlatformAdapter（Playwright浏览器自动化） |
 | `sdk/adapters/bilibili.py` | B站适配器 |
 | `sdk/adapters/csdn.py` | CSDN 适配器 |
 | `sdk/adapters/zhihu.py` | 知乎适配器 |
@@ -1087,6 +1092,7 @@ routes/accounts.py → core/status_cache.py (内存+SQLite) →
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| v4.56 | 2026-07-07 | 常驻Playwright浏览器引擎(core/browser_engine.py+路由)、外部服务集成(routes/external_services.py)、闲鱼PlatformAdapter Playwright版(sdk/adapters/xianyu.py)、Playwright子进程验证脚本(scripts/playwright_verify.py)。文件统计已更新(core:30, routes:24, sdk/adapters:16, scripts:5) |
 | v4.55 | 2026-07-07 | 新增15个文件到开发说明书：状态检测器/缓存/版块注册中心/编译缓存/渲染器/编译规则/AI供应商注册表/签到基类/Provider基类/论坛签到调度/论坛读取器/评论监控/闲鱼登录器/阿莫登录器/AList存储/闲鱼商品发布框架/SDK脚手架/4个论坛脚本/工作台API/评论监控API/应用工厂 |
 | v4.54 | 2026-07-07 | AI调用日志系统(ai_call_log表+自动记录+/ai/logs页面)，全站移动端CSS增强(768px+480px双断点)，publish_log updated_at列修复 |
 | v4.53 | 2026-07-07 | 手机验证码登录(phone_login+SMS验证码+前端支持)，OSHWHub登录修复(passport.jlc.com) |
@@ -1103,7 +1109,7 @@ routes/accounts.py → core/status_cache.py (内存+SQLite) →
 
 ## 附录：文件完整清单
 
-### core/ (29 个 Python 文件)
+### core/ (30 个 Python 文件)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1111,6 +1117,7 @@ routes/accounts.py → core/status_cache.py (内存+SQLite) →
 | `anti_detect.py` | Playwright 反检测/人类行为模拟 |
 | `approval.py` | 审批流程系统 |
 | `article.py` | 文章数据模型 |
+| `browser_engine.py` | 常驻 Playwright 浏览器引擎(全局单例) |
 | `captcha_handler.py` | 验证码处理器 |
 | `compile_rule.py` | 每平台编译规则定义(图片/正文/BBCode) |
 | `compiled_cache.py` | 编译产物数据库缓存 |
@@ -1138,13 +1145,13 @@ routes/accounts.py → core/status_cache.py (内存+SQLite) →
 | `status_detector.py` | 三层登录状态检测器 |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (22个 Python 文件)
+### routes/ (24个 Python 文件)
 参见系统架构图中 routes/ 层完整清单。
 
 ### plugins/ (30+ 个 Python 文件)
 参见各模块说明中的发布器/签到/登录/Provider/工具插件清单。
 
-### sdk/adapters/ (15个 Python 文件)
+### sdk/adapters/ (16个 Python 文件)
 参见 SDK 平台适配器层清单。
 
 ### templates/ (30个 HTML 模板)
@@ -1181,12 +1188,13 @@ routes/accounts.py → core/status_cache.py (内存+SQLite) →
 | `comment_monitor.html` | 评论监控 |
 | `base.html` | 基础布局模板 |
 
-### scripts/ (4个 Python 脚本)
+### scripts/ (5个 Python 脚本)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 |
 | `sync_registry_keywords.py` | 同步 forum_registry 关键词到 DB |
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
+| `playwright_verify.py` | 子进程 Playwright 账号登录验证 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
 
 ---

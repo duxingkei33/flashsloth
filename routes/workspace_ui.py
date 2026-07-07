@@ -25,6 +25,7 @@ from flashsloth.core.provider import (
 # 导入 Provider 插件（触发 @register_provider 装饰器）
 import flashsloth.plugins.provider_markdown  # noqa: F401
 import flashsloth.plugins.provider_notion    # noqa: F401
+import flashsloth.plugins.provider_taobao    # noqa: F401
 
 
 # 内存任务记录
@@ -157,6 +158,50 @@ def api_workspace_provider_item(name: str, item_id: str):
         })
     except Exception as e:
         return jsonify({"success": False, "error": f"加载失败: {e}"})
+
+
+@app.route("/api/workspace/provider/<name>/config", methods=["GET", "POST"])
+@login_required
+def api_workspace_provider_config(name: str):
+    """获取或保存指定 Provider 的配置"""
+    if request.method == "GET":
+        conn = get_db()
+        pconfig = conn.execute(
+            "SELECT * FROM provider_config WHERE user_id=? AND provider_type=? ORDER BY id DESC LIMIT 1",
+            (current_user.id, name)
+        ).fetchone()
+        conn.close()
+        cfg = {}
+        if pconfig:
+            pc = dict(pconfig)
+            if pc.get("config_json"):
+                cfg = json.loads(pc["config_json"])
+        return jsonify({"success": True, "config": cfg})
+
+    # POST — 保存配置
+    data = request.get_json(force=True, silent=True) or {}
+    cfg = data.get("config", {})
+    if not isinstance(cfg, dict):
+        return jsonify({"success": False, "error": "config 必须为 JSON 对象"})
+
+    conn = get_db()
+    existing = conn.execute(
+        "SELECT id FROM provider_config WHERE user_id=? AND provider_type=? ORDER BY id DESC LIMIT 1",
+        (current_user.id, name)
+    ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE provider_config SET config_json=?, updated_at=datetime('now') WHERE id=?",
+            (json.dumps(cfg), existing["id"]),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO provider_config (user_id, provider_type, config_json) VALUES (?, ?, ?)",
+            (current_user.id, name, json.dumps(cfg)),
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"Provider '{name}' 配置已保存"})
 
 
 # ════════════════════════════════════════════════

@@ -149,6 +149,16 @@
         <div id="wsItemList" style="margin-top:14px;">
             <div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px 0;">选择一个 Provider 查看内容列表</div>
         </div>
+        <!-- Provider 配置面板 -->
+        <div id="wsProviderConfigPanel" style="display:none;margin-top:12px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <span style="font-weight:600;font-size:14px;" id="wsConfigTitle">配置</span>
+                <span onclick="wsToggleConfig(null)" style="cursor:pointer;color:#94a3b8;font-size:12px;">✕ 关闭</span>
+            </div>
+            <div id="wsConfigFields"></div>
+            <button class="btn btn-sm btn-primary" onclick="wsSaveConfig()" style="margin-top:10px;">💾 保存配置</button>
+            <span id="wsConfigStatus" style="font-size:12px;margin-left:8px;color:#999;"></span>
+        </div>
     </div>
 
     <!-- ═══ 2️⃣ 流水线 ═══ -->
@@ -270,9 +280,14 @@ function wsLoadProviders() {
             return;
         }
         bar.innerHTML = items.map(p =>
-            `<div class="ws-provider-btn" data-name="${escapeHtml(p.name)}" onclick="wsSelectProvider('${escapeHtml(p.name)}', this)">
-                <span class="icon">${p.icon || '📄'}</span>
-                ${escapeHtml(p.display_name)}
+            `<div style="display:flex;align-items:center;gap:4px;">
+                <div class="ws-provider-btn" data-name="${escapeHtml(p.name)}" onclick="wsSelectProvider('${escapeHtml(p.name)}', this)">
+                    <span class="icon">${p.icon || '📄'}</span>
+                    ${escapeHtml(p.display_name)}
+                </div>
+                <span class="ws-provider-config-btn" data-name="${escapeHtml(p.name)}" onclick="wsToggleConfig('${escapeHtml(p.name)}')"
+                      style="font-size:12px;cursor:pointer;color:#94a3b8;padding:4px;border-radius:4px;"
+                      title="配置 ${escapeHtml(p.display_name)}">⚙️</span>
             </div>`
         ).join('');
 
@@ -330,6 +345,84 @@ function wsSelectProvider(name, btnEl) {
     })
     .catch(err => {
         list.innerHTML = '<div style="color:#dc2626;text-align:center;padding:20px 0;">加载失败: ' + escapeHtml(err.message) + '</div>';
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// Provider 配置
+// ══════════════════════════════════════════════════════════════
+
+var wsConfigProvider = null;
+var wsConfigFieldDefs = {
+    markdown: [
+        {key: 'watch_dir', label: '监控目录', type: 'text', default: '', hint: '留空用默认 posts/ 目录'}
+    ],
+    notion: [
+        {key: 'token', label: 'Notion Token', type: 'password', default: '', hint: 'Notion API 集成 Token'},
+        {key: 'database_id', label: '数据库 ID', type: 'text', default: '', hint: 'Notion 数据库的 32 位 ID'}
+    ],
+    taobao: [
+        {key: 'cookie', label: '淘宝 Cookie', type: 'password', default: '', hint: '淘宝登录后的 Cookie 字符串'}
+    ]
+};
+
+function wsToggleConfig(name) {
+    const panel = document.getElementById('wsProviderConfigPanel');
+    if (!name || name === wsConfigProvider && panel.style.display !== 'none') {
+        panel.style.display = 'none';
+        wsConfigProvider = null;
+        return;
+    }
+    wsConfigProvider = name;
+    panel.style.display = 'block';
+    document.getElementById('wsConfigTitle').textContent = '⚙️ 配置 ' + name;
+
+    const fields = wsConfigFieldDefs[name] || [];
+    const fieldsEl = document.getElementById('wsConfigFields');
+
+    // 加载当前配置
+    fetch('/api/workspace/provider/' + encodeURIComponent(name) + '/config')
+    .then(r => r.json())
+    .then(data => {
+        const cfg = data.config || {};
+        fieldsEl.innerHTML = fields.map(f =>
+            '<div style="margin-bottom:8px;">' +
+            '<label style="font-size:12px;color:#475569;display:block;margin-bottom:2px;">' + f.label + '</label>' +
+            '<input type="' + f.type + '" id="wsCfg_' + f.key + '" ' +
+            'value="' + escapeHtml(cfg[f.key] || f.default || '') + '" ' +
+            'placeholder="' + escapeHtml(f.hint || '') + '" ' +
+            'style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;width:100%;">' +
+            '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + escapeHtml(f.hint || '') + '</div>' +
+            '</div>'
+        ).join('');
+        if (fields.length === 0) {
+            fieldsEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">该 Provider 无需额外配置</div>';
+        }
+    });
+}
+
+function wsSaveConfig() {
+    const statusEl = document.getElementById('wsConfigStatus');
+    if (!wsConfigProvider) return;
+    const fields = wsConfigFieldDefs[wsConfigProvider] || [];
+    const cfg = {};
+    fields.forEach(f => {
+        const el = document.getElementById('wsCfg_' + f.key);
+        if (el && el.value) cfg[f.key] = el.value;
+    });
+    statusEl.textContent = '⏳ 保存中...';
+    fetch('/api/workspace/provider/' + encodeURIComponent(wsConfigProvider) + '/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({config: cfg}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        statusEl.textContent = data.success ? '✅ 已保存' : '❌ ' + (data.error || '失败');
+        if (data.success) setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    })
+    .catch(err => {
+        statusEl.textContent = '❌ ' + err.message;
     });
 }
 

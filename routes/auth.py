@@ -299,58 +299,11 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ─── Provider 设置 ──────────────────────────────
+# ─── Provider 配置已迁移到工作台 ──────────────
+# Provider 选择和管理现在通过 /workspace 页面完成
 @app.route("/settings")
 @login_required
 def settings_page():
-    """设置页面（GET）"""
-    conn = get_db()
-    pconfig = conn.execute(
-        "SELECT * FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
-        (current_user.id,)
-    ).fetchone()
-    conn.close()
-
-    pconfig = dict(pconfig) if pconfig else {}
-    provider_cfg = {
-        "type": pconfig.get("provider_type", "markdown"),
-        "notion": json.loads(pconfig.get("config_json", "{}")) if pconfig.get("config_json") else {},
-    }
-
+    """设置页面（GET）—— 不再包含Provider设置"""
     return render_template("settings.html",
-                         config={
-                             "provider": provider_cfg,
-                             "builder": {"type": "mkdocs", "auto_deploy": True},
-                         })
-
-
-@app.route("/settings/provider", methods=["POST"])
-@login_required
-def set_provider():
-    ptype = request.form.get("provider_type", "markdown")
-    conn = get_db()
-    # 更新或创建
-    existing = conn.execute(
-        "SELECT id FROM provider_config WHERE user_id=? ORDER BY id DESC LIMIT 1",
-        (current_user.id,)
-    ).fetchone()
-    cfg = {}
-    if ptype == "notion":
-        cfg = {
-            "token": request.form.get("notion_token", ""),
-            "database_id": request.form.get("notion_db_id", ""),
-        }
-    if existing:
-        conn.execute(
-            "UPDATE provider_config SET provider_type=?, config_json=?, updated_at=datetime('now') WHERE id=?",
-            (ptype, json.dumps(cfg), existing["id"]),
-        )
-    else:
-        conn.execute(
-            "INSERT INTO provider_config (user_id, provider_type, config_json) VALUES (?, ?, ?)",
-            (current_user.id, ptype, json.dumps(cfg)),
-        )
-    conn.commit()
-    conn.close()
-    flash("Provider 已更新", "success")
-    return redirect(url_for("index") + "#provider")
+                         config={"builder": {"type": "mkdocs", "auto_deploy": True}})
