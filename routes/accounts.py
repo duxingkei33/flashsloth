@@ -180,11 +180,18 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
     acct: platform_accounts 行 dict
     cfg: 已解密的 config_json dict
     返回结果字典（含 logged_in/status/username_indicators等）
+    
+    ⚠️ 铁律：必须找到真实的用户登录指示器才返回 logged_in=True。
+       account_name 是用户从别名（如 "discuz01"），不是平台用户名，不能作为登录证据。
+       必须检测到至少 2 个独立登录指示器（退出/个人中心/用户名上下文等）才能确认。
     """
     import re
     cookie = cfg.get("cookie", "")
     site_url = cfg.get("site_url", "")
     platform = acct["platform"]
+    account_name = acct.get("account_name", "")
+    # 实际的平台用户名（在 config 中有专门的 username 字段，可能不同于 account_name）
+    platform_username = cfg.get("username", "")
     static_platforms = {"github_pages_blog", "github_pages", "static_site"}
     is_static = platform in static_platforms
 
@@ -267,31 +274,46 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
                 page_url_lower = page.url.lower()
 
                 # 判断是否被重定向到登录页
-                login_keywords_in_url = ["login", "signin", "passport", "oauth", "logon"]
+                login_keywords_in_url = ["login", "signin", "passport", "oauth", "logon", "logging"]
                 redirected_to_login = any(kw in page_url_lower for kw in login_keywords_in_url)
 
-                # 查找用户名/用户信息模式
-                account_name = acct["account_name"]
+                # ⚠️ 铁律：查找真实用户登录指示器
+                # account_name（如 "discuz01"）是用户别名，不是平台用户名，不能作为登录证据
+                # 必须检测强指示器（退出/个人中心/欢迎+真实用户名等）
                 username_indicators = []
-                user_patterns = [
-                    rf'{re.escape(account_name)}',
-                    rf'欢迎[：:  ].*{re.escape(account_name[:max(2, len(account_name)//2)])}',
-                    rf'{re.escape(account_name[:max(2, len(account_name)//2)])}.*欢迎',
-                    rf'你好[：: 　].*{re.escape(account_name[:max(2, len(account_name)//2)])}',
-                    r'user[=_\\s-][A-Za-z0-9_\\u4e00-\\u9fff]+',
-                    r'username[=_\\s-][A-Za-z0-9_\\u4e00-\\u9fff]+',
-                    r'nick[=_\\s-][A-Za-z0-9_\\u4e00-\\u9fff]+',
-                    r'退出\\s*登录',
-                    r'注销',
-                    r'个人中心',
-                    r'我的中心',
-                    r'我的帖子',
-                    r'我的文章',
-                ]
-                for pat in user_patterns:
-                    m = re.search(pat, body_text, re.IGNORECASE)
-                    if m:
-                        username_indicators.append(m.group(0)[:80])
+
+                # 强指示器 1：退出/注销（最可靠的登录证据）
+                if re.search(r'退出\s*登录', body_text, re.IGNORECASE):
+                    username_indicators.append("退出登录")
+                if re.search(r'注销', body_text):
+                    username_indicators.append("注销")
+
+                # 强指示器 2：个人中心/我的帖子等（Discuz 等论坛标准登录后链接）
+                if re.search(r'个人中心', body_text):
+                    username_indicators.append("个人中心")
+                if re.search(r'我的帖子', body_text):
+                    username_indicators.append("我的帖子")
+                if re.search(r'我的文章', body_text):
+                    username_indicators.append("我的文章")
+                if re.search(r'我的中心', body_text):
+                    username_indicators.append("我的中心")
+
+                # 强指示器 3：如果配置了平台用户名，查找欢迎信息中包含该用户名
+                if platform_username and len(platform_username) >= 2:
+                    escaped_uname = re.escape(platform_username)
+                    welcome_pats = [
+                        rf'欢迎[：: 　]*{escaped_uname}',
+                        rf'{escaped_uname}[，,。.]*欢迎',
+                        rf'你好[：: 　]*{escaped_uname}',
+                        rf'个人资料.*{escaped_uname}',
+                        rf'{escaped_uname}.*个人资料',
+                        rf'<title>[^<]*?{escaped_uname}[^<]*?的个人资料',
+                    ]
+                    for pat in welcome_pats:
+                        m = re.search(pat, body_text, re.IGNORECASE)
+                        if m:
+                            username_indicators.append(f"欢迎/用户信息: {m.group(0)[:60]}")
+                            break
 
                 # 提取包含用户名的上下文
                 user_context = ""
@@ -304,10 +326,13 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
                             snippet = body_text[start:end].strip()
                             user_context += f"...{snippet}...\n"
 
-                # ⚠️ 铁律：必须有真实用户信息才算已登录
+                # ⚠️ 铁律：必须满足以下所有条件才算已登录：
+                #   1. 未被重定向到登录页
+                #   2. 至少找到 2 个独立登录指示器（或 1 个强指示器+真实用户名匹配）
+                strong_indicator_count = len(username_indicators)
                 is_logged_in = (
                     not redirected_to_login
-                    and len(username_indicators) > 0
+                    and strong_indicator_count >= 2
                 )
 
                 result["logged_in"] = is_logged_in
@@ -318,11 +343,16 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
 
                 if is_logged_in:
                     if username_indicators:
-                        result["status"] = f"✅ 已登录 — 检测到用户信息: {' | '.join(username_indicators[:3])}"
+                        result["status"] = f"✅ 已登录 — 检测到: {' | '.join(username_indicators[:3])}"
                     else:
                         result["status"] = "✅ 已登录（Cookie 有效）"
                 else:
-                    reason = "重定向到登录页" if redirected_to_login else "未检测到用户信息(用户名/退出/个人中心等关键词)"
+                    reason_parts = []
+                    if redirected_to_login:
+                        reason_parts.append("重定向到登录页")
+                    if not username_indicators or len(username_indicators) < 2:
+                        reason_parts.append(f"登录指示器不足(找到{len(username_indicators)}个，需要≥2)")
+                    reason = "；".join(reason_parts) if reason_parts else "未知原因"
                     if cookie:
                         result["status"] = f"❌ Cookie 已失效（{reason}）"
                     else:
@@ -345,7 +375,7 @@ def _do_playwright_verify(acct: dict, cfg: dict) -> dict:
 @app.route("/api/accounts/<int:aid>/status")
 @login_required
 def api_account_status(aid):
-    """检查账号登录状态 — 三层检测: 缓存 > API轻量 > Playwright兜底"""
+    """检查账号登录状态 — 两层: 缓存 > Playwright直接验证（弃用API轻量检测作为判定依据）"""
     conn = get_db()
     acct = conn.execute(
         "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
@@ -368,40 +398,24 @@ def api_account_status(aid):
             cached["success"] = True
             return jsonify(cached)
     
-    # 第二层：API轻量检测
-    platform = acct["platform"]
-    site_url = cfg.get("site_url", "")
-    cookie = cfg.get("cookie", "")
-    username = cfg.get("username", "")
-    
-    if cookie and site_url:
-        try:
-            api_result = detect_platform(platform, site_url, cookie, username)
-            if api_result.get("logged_in"):
-                api_result["account_name"] = acct["account_name"]
-                api_result["is_active"] = bool(acct["is_active"])
-                api_result["success"] = True
-                set_status(aid, api_result)
-                return jsonify(api_result)
-        except Exception as e:
-            pass  # 降级到 Playwright
-    
-    # 第三层：Playwright兜底
+    # 第二层：Playwright 真实浏览器验证（唯一权威方式）
     result = _do_playwright_verify(acct, cfg)
     
-    # 将 Playwright 结果也写入缓存
-    if result.get("success"):
+    # 将 Playwright 结果写入缓存
+    if result.get("success") or result.get("logged_in") is not None:
         pw_cache = {
             "logged_in": result.get("logged_in", False),
-            "username": "",
+            "username": result.get("username", ""),
             "display_name": result.get("display_name", ""),
-            "points": 0,
-            "level": "",
+            "points": result.get("points", 0),
+            "level": result.get("level", ""),
             "status": result.get("status", ""),
             "method": "playwright_full",
             "verified_at": datetime.now().isoformat(),
             "page_title": result.get("page_title", ""),
             "username_indicators": result.get("username_indicators", []),
+            "page_preview": result.get("page_preview", ""),
+            "page_url": result.get("page_url", ""),
         }
         set_status(aid, pw_cache)
     
