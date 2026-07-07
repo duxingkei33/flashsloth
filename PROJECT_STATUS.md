@@ -59,7 +59,7 @@
 
 **P2 — 优化**
 - [ ] 发布前检查Cookie过期（代码改动，不动DB）
-- [ ] 清理api_platforms_list死代码
+- [x] **清理api_platforms_list死代码** — ✅ 已完成（该变量/函数已不存在于任何代码中，仅剩的TODO记录已标记完成）
 - [ ] forum_registry读DB（JSON/DB双轨）
 
 ---
