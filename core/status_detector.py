@@ -501,12 +501,259 @@ def detect_xianyu(cookie_str: str) -> dict:
     return result
 
 
+def detect_zhihu(cookie_str: str) -> dict:
+    """
+    知乎 API轻量检测
+    用Cookie访问知乎用户API获取用户信息
+    API端点: /api/v4/me 返回用户资料JSON
+    """
+    result = {
+        "logged_in": False,
+        "method": "api_lightweight",
+        "platform": "zhihu",
+        "site_url": "https://www.zhihu.com",
+    }
+
+    if not cookie_str:
+        return result
+
+    try:
+        sess = _make_session()
+        for name, value in _parse_cookie_header(cookie_str).items():
+            sess.cookies.set(name, value)
+
+        # 尝试API v4端点获取用户信息（最快路径）
+        api_url = "https://www.zhihu.com/api/v4/me"
+        api_resp = sess.get(api_url, timeout=15,
+                            headers={"Referer": "https://www.zhihu.com/",
+                                     "X-Requested-With": "XMLHttpRequest"})
+
+        username = ""
+        display_name = ""
+        points = 0
+        level = ""
+        avatar_url = ""
+
+        if api_resp.status_code == 200:
+            # API返回JSON格式用户信息
+            try:
+                data = api_resp.json()
+                username = data.get("url_token", "") or data.get("id", "")
+                display_name = data.get("name", "")
+                avatar_url = data.get("avatar_url", "")
+                # 知乎的赞同数、关注数等
+                follower_count = data.get("follower_count", 0)
+                voteup_count = data.get("voteup_count", 0)
+                points = max(follower_count, voteup_count)
+            except (ValueError, TypeError):
+                pass
+
+        if not username:
+            # 回退：访问知乎首页，从页面JSON数据提取
+            page_resp = sess.get("https://www.zhihu.com/", timeout=15)
+            page_html = page_resp.text
+
+            # 从 initialData JSON 提取
+            m = re.search(r'window\.__INITIAL_STATE__\s*=\s*({.*?});?\s*</script>',
+                          page_html, re.DOTALL)
+            if m:
+                try:
+                    init_state = json.loads(m.group(1))
+                    user_data = init_state.get("user", {}) or init_state.get("people", {})
+                    if isinstance(user_data, dict):
+                        username = user_data.get("url_token", "") or user_data.get("id", "")
+                        display_name = user_data.get("name", "")
+                        avatar_url = user_data.get("avatar_url", "")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        if not username:
+            # 从Cookie提取
+            cookie_dict = _parse_cookie_header(cookie_str)
+            for ck_name in ["z_c0", "d_c0"]:
+                if ck_name in cookie_dict:
+                    # z_c0 是知乎认证Cookie, 有即表示登录
+                    username = cookie_dict.get("uname", "")[:20]
+
+        # 提取头像
+        if not avatar_url and display_name:
+            avatar_url = f"https://www.zhihu.com/{username}/avatar" if username else ""
+
+        logged_in = bool(username) or bool(display_name)
+
+        # 检查是否有退出/注销链接
+        if not logged_in:
+            try:
+                page_resp2 = sess.get("https://www.zhihu.com/settings/profile", timeout=10,
+                                      allow_redirects=True)
+                if page_resp2.ok and "login" not in page_resp2.url.lower():
+                    logged_in = True
+                    # 从设置页提取用户名
+                    m = re.search(r'"name"\s*:\s*"([^"]+)"', page_resp2.text)
+                    if m:
+                        display_name = m.group(1)
+                    m = re.search(r'"url_token"\s*:\s*"([^"]+)"', page_resp2.text)
+                    if m:
+                        username = m.group(1)
+            except Exception:
+                pass
+
+        result["logged_in"] = logged_in
+        result["username"] = username or display_name
+        result["display_name"] = display_name or username
+        result["points"] = points
+        result["points_label"] = "关注者"
+        result["level"] = level
+        result["avatar_url"] = avatar_url
+        result["verified_at"] = datetime.now().isoformat()
+
+        if logged_in:
+            parts = [display_name or username]
+            if points:
+                parts.append(f"关注者:{points}")
+            result["status"] = f"✅ {' | '.join(parts)}（API检测）"
+        else:
+            result["status"] = "❌ Cookie已失效（API检测）"
+
+    except Exception as e:
+        result["error"] = str(e)[:200]
+        result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+
+    return result
+
+
+def detect_juejin(cookie_str: str) -> dict:
+    """
+    掘金 API轻量检测
+    用Cookie访问掘金用户信息API
+    API端点: https://api.juejin.cn/user_api/v1/user/get
+    """
+    result = {
+        "logged_in": False,
+        "method": "api_lightweight",
+        "platform": "juejin",
+        "site_url": "https://juejin.cn",
+    }
+
+    if not cookie_str:
+        return result
+
+    try:
+        sess = _make_session()
+        for name, value in _parse_cookie_header(cookie_str).items():
+            sess.cookies.set(name, value)
+
+        # 掘金用户API（需要认证）
+        api_url = "https://api.juejin.cn/user_api/v1/user/get"
+        api_resp = sess.get(api_url, timeout=15,
+                            headers={"Referer": "https://juejin.cn/",
+                                     "Origin": "https://juejin.cn"})
+
+        username = ""
+        display_name = ""
+        points = 0
+        level = ""
+        avatar_url = ""
+
+        if api_resp.status_code == 200:
+            try:
+                data = api_resp.json()
+                if data.get("err_no") == 0 and data.get("data"):
+                    user = data["data"]
+                    username = user.get("user_name", "") or user.get("user_id", "")
+                    display_name = user.get("user_name", "") or user.get("nickname", "")
+                    avatar_url = user.get("avatar_large", "") or user.get("avatar", "")
+                    # 掘金的影响力、点赞等
+                    power = user.get("power", 0)
+                    level_num = user.get("level", 0)
+                    level = f"Lv.{level_num}" if level_num else ""
+                    # 积分/经验值
+                    points = user.get("score", 0) or power
+            except (ValueError, TypeError):
+                pass
+
+        if not username:
+            # 回退：访问掘金首页，从页面JS数据提取
+            page_resp = sess.get("https://juejin.cn/", timeout=15)
+            page_html = page_resp.text
+
+            # 查找用户信息的 JSON 数据
+            m = re.search(r'<script[^>]*>window\.__NUXT__\s*=\s*({.*?})</script>',
+                          page_html, re.DOTALL)
+            if m:
+                try:
+                    nuxt_state = json.loads(m.group(1))
+                    user_info = nuxt_state
+                    for key in ["user", "auth", "currentUser"]:
+                        if isinstance(nuxt_state.get(key), dict):
+                            user_info = nuxt_state[key]
+                            break
+                    if isinstance(user_info, dict):
+                        username = user_info.get("user_name", "") or user_info.get("userId", "")
+                        display_name = user_info.get("user_name", "") or username
+                        avatar_url = user_info.get("avatar", "") or user_info.get("avatar_large", "")
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        if not username:
+            # 从Cookie提取
+            cookie_dict = _parse_cookie_header(cookie_str)
+            for ck_name in ["sessionid", "USER_SESSION", "monad"]:
+                if ck_name in cookie_dict:
+                    # sessionid 存在说明已登录
+                    username = cookie_dict.get("sessionid", "")[:8]
+
+        logged_in = bool(username) or bool(display_name)
+
+        # 检查是否有退出登录
+        if not logged_in:
+            try:
+                # 尝试访问用户设置页
+                settings_resp = sess.get("https://juejin.cn/user/settings", timeout=10,
+                                         allow_redirects=True)
+                if settings_resp.ok and "login" not in settings_resp.url.lower():
+                    logged_in = True
+                    # 从设置页提取用户名
+                    m = re.search(r'"user_name"\s*:\s*"([^"]+)"', settings_resp.text)
+                    if m:
+                        display_name = m.group(1)
+            except Exception:
+                pass
+
+        result["logged_in"] = logged_in
+        result["username"] = username or display_name
+        result["display_name"] = display_name or username
+        result["points"] = points
+        result["points_label"] = "影响力"
+        result["level"] = level
+        result["avatar_url"] = avatar_url
+        result["verified_at"] = datetime.now().isoformat()
+
+        if logged_in:
+            parts = [display_name or username]
+            if points:
+                parts.append(f"影响力:{points}")
+            if level:
+                parts.append(level)
+            result["status"] = f"✅ {' | '.join(parts)}（API检测）"
+        else:
+            result["status"] = "❌ Cookie已失效（API检测）"
+
+    except Exception as e:
+        result["error"] = str(e)[:200]
+        result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+
+    return result
+
+
 # 检测器注册表
 PLATFORM_DETECTORS = {
     "discuz": detect_discuz,
     "csdn": detect_csdn,
     "oshwhub": detect_oshwhub,
     "xianyu": detect_xianyu,
+    "zhihu": detect_zhihu,
+    "juejin": detect_juejin,
     # 遗留/别名
     "discuz_amobbs": detect_discuz,
     "discuz_mydigit": detect_discuz,
@@ -528,6 +775,10 @@ def detect_platform(platform: str, site_url: str, cookie_str: str, username_hint
             return detect_oshwhub(cookie_str, username_hint)
         elif platform == "xianyu":
             return detect_xianyu(cookie_str)
+        elif platform == "zhihu":
+            return detect_zhihu(cookie_str)
+        elif platform == "juejin":
+            return detect_juejin(cookie_str)
         else:
             return detector(site_url, cookie_str)
     
