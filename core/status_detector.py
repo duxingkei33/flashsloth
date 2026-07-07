@@ -207,6 +207,7 @@ def detect_discuz(site_url: str, cookie_str: str, platform: str = "discuz") -> d
         result["error"] = str(e)[:200]
         result["logged_in"] = False
         result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+        result["_detection_error"] = True
     
     return result
 
@@ -328,10 +329,11 @@ def detect_csdn(cookie_str: str) -> dict:
             result["status"] = f"✅ {' | '.join(parts)}" if parts else "✅ 已登录（API检测）"
         else:
             result["status"] = "❌ Cookie已失效（API检测）"
-        
+    
     except Exception as e:
         result["error"] = str(e)[:200]
         result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+        result["_detection_error"] = True
     
     return result
 
@@ -477,6 +479,7 @@ def detect_oshwhub(cookie_str: str, username_hint: str = "") -> dict:
     except Exception as e:
         result["error"] = str(e)[:200]
         result["status"] = "API check error: " + str(e)[:80]
+        result["_detection_error"] = True
 
     return result
 def detect_xianyu(cookie_str: str) -> dict:
@@ -540,6 +543,7 @@ def detect_xianyu(cookie_str: str) -> dict:
     except Exception as e:
         result["error"] = str(e)[:200]
         result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+        result["_detection_error"] = True
     
     return result
 
@@ -661,6 +665,7 @@ def detect_zhihu(cookie_str: str) -> dict:
     except Exception as e:
         result["error"] = str(e)[:200]
         result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+        result["_detection_error"] = True
 
     return result
 
@@ -785,6 +790,7 @@ def detect_juejin(cookie_str: str) -> dict:
     except Exception as e:
         result["error"] = str(e)[:200]
         result["status"] = f"⚠️ API检测异常: {str(e)[:80]}"
+        result["_detection_error"] = True
 
     return result
 

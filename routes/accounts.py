@@ -385,7 +385,7 @@ def api_account_status(aid):
         try:
             api_result = detect_platform(platform, site_url, cookie, username_hint)
             
-            if api_result.get("logged_in") == False and "异常" not in api_result.get("error", ""):
+            if api_result.get("logged_in") == False and not api_result.get("_detection_error"):
                 # API明确检测到未登录 → 缓存并返回（避免启动浏览器，毫秒级）
                 fail_cache = {
                     "logged_in": False,
