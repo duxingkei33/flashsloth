@@ -42,10 +42,17 @@ def inject_browser_engine_status():
                 "pw_tabs_count": 0,
             }
         engine = get_engine()
-        # 直接读取状态字段，避免调get_status()可能发生的锁死
-        with engine._lock:
-            st = engine._status
-            tabs = len(engine._context.pages) if engine._context else 0
+        # 超时锁读取状态，避免引擎启动卡死时阻塞所有页面
+        locked = engine._lock.acquire(timeout=3.0)
+        if locked:
+            try:
+                st = engine._status
+                tabs = len(engine._context.pages) if engine._context else 0
+            finally:
+                engine._lock.release()
+        else:
+            st = "stopped"
+            tabs = 0
         badge_cls, badge_text = {
             "starting": ("badge-warning", "🖥️ 启动中"),
             "ready": ("badge-success", "🖥️ 已就绪"),
