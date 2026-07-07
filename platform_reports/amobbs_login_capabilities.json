@@ -1,0 +1,26 @@
+{
+  "platform": "amobbs",
+  "explored_at": "2026-07-07T00:00:00+00:00",
+  "login_url": "/member.php?mod=logging&action=login",
+  "login_methods": [
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "description": "输入论坛用户名和密码，系统会自动通过 Playwright 浏览器填写并提交登录。阿莫论坛有特殊点击式验证码，查看截图后手动操作。"
+    },
+    {
+      "method": "qrcode",
+      "label": "扫码/截屏登录",
+      "detected": true,
+      "description": "系统打开论坛登录页面截图，查看后手动在浏览器中登录，系统自动捕获 Cookie。"
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴（调试）",
+      "detected": true,
+      "description": "从浏览器 F12 复制 Cookie 字符串直接粘贴。仅限调试/迁移场景使用。"
+    }
+  ],
+  "note": "阿莫论坛（amobbs.com）：支持密码+点击验证码登录 / 浏览器截图扫码 / Cookie调试。依赖于 site_url 配置的论坛地址。"
+}

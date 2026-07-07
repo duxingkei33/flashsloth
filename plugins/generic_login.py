@@ -71,6 +71,14 @@ LOGIN_PAGE_MAP = {
         "logged_in_indicator": ["首页", "新建群发", "管理", "功能"],
         "auth_cookie_keywords": ["token", "session", "uin", "key", "wxtoken"],
     },
+    "wordpress": {
+        "login_url": "",
+        "username_selector": "input#user_login, input[name='log']",
+        "password_selector": "input#user_pass, input[name='pwd']",
+        "submit_selector": "input#wp-submit, button[type='submit']",
+        "logged_in_indicator": ["仪表盘", "写文章", "Dashboard", "New Post", "wp-admin"],
+        "auth_cookie_keywords": ["wordpress_", "wp_", "auth", "login"],
+    },
 }
 
 

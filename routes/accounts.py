@@ -697,7 +697,7 @@ def api_platform_login_start(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
 		from plugins.generic_login import get_generic_login, close_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -756,7 +756,7 @@ def api_platform_login_captcha(platform):
 				_save_cookie_to_account(aid, result["cookies"])
 			return jsonify(result)
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
 		from plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -795,7 +795,7 @@ def api_platform_login_screenshot(platform):
 			inst = _get_oshwhub_login(f"user_{current_user.id}")
 			return jsonify({"success": True, "image": inst.take_screenshot()})
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
 		from plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
@@ -1098,7 +1098,7 @@ def api_platform_login_close(platform):
 				inst.close()
 			return jsonify({"success": True})
 
-	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu"):
+	elif platform in ("csdn", "wechat", "bilibili", "juejin", "zhihu", "wordpress"):
 		from plugins.generic_login import close_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
