@@ -30,6 +30,7 @@ import flashsloth.plugins.publisher_twitter      # noqa 🐦
 import flashsloth.plugins.publisher_xianyu_v2    # noqa 🐟 MTOP API
 import flashsloth.plugins.publisher_xianyu_products  # noqa 🐟 商品发布
 import flashsloth.plugins.publisher_xianyu_auto_reply  # noqa 🐟 Docker 自动回复
+import flashsloth.plugins.publisher_xianyu_sidecar    # noqa 🐟 Sidecar 适配器
 import flashsloth.plugins.deployer_github_pages  # noqa
 import flashsloth.plugins.storage_alist        # noqa
 import flashsloth.plugins.forum_reader          # noqa

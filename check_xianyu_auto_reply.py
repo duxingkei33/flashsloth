@@ -1,154 +1,151 @@
 #!/usr/bin/env python3
 """
-xianyu-auto-reply 集成验证脚本
+闲鱼自动回复 Sidecar 状态检查脚本
 
-检查:
-  1. xianyu-auto-reply 仓库是否已克隆
-  2. Docker 环境可用性
-  3. FlashSloth 插件注册状态
-  4. 接口适配完成状态
+用法:
+  python3 check_xianyu_auto_reply.py          # 仅检查状态
+  python3 check_xianyu_auto_reply.py --start  # 尝试启动 Docker 并检查
+
+输出 JSON:
+  {"running": true/false, "healthy": true/false, "api": true/false, "error": "..."}
 """
-import os
-import sys
 import json
-
-FLASHSLOTH_ROOT = os.path.dirname(os.path.abspath(__file__))
-XY_REPO_DIR = os.path.join(FLASHSLOTH_ROOT, "xianyu-auto-reply")
-
-checks = {
-    "passed": 0,
-    "failed": 0,
-    "skipped": 0,
-}
-
-def check(name, condition, detail=""):
-    if condition:
-        checks["passed"] += 1
-        print(f"  ✅ {name}")
-    else:
-        checks["failed"] += 1
-        print(f"  ❌ {name}" + (f" — {detail}" if detail else ""))
-
-def skip(name, reason=""):
-    checks["skipped"] += 1
-    print(f"  ⏭️  {name}" + (f" — {reason}" if reason else ""))
-
-
-print("=" * 54)
-print("  🐟 闲鱼自动回复系统 — 集成验证")
-print("=" * 54)
-
-# ─── 1. 仓库状态 ──────────────────────────
-print("\n📦 1. 仓库状态")
-check("仓库目录存在", os.path.isdir(XY_REPO_DIR))
-
-if os.path.isdir(XY_REPO_DIR):
-    check("pyproject.toml 存在",
-          os.path.isfile(os.path.join(XY_REPO_DIR, "backend-web", "pyproject.toml")))
-    check("docker-compose.yml 存在",
-          os.path.isfile(os.path.join(XY_REPO_DIR, "docker-compose.yml")))
-    check("docker-compose.flashsloth.yml 存在",
-          os.path.isfile(os.path.join(XY_REPO_DIR, "docker-compose.flashsloth.yml")))
-    check("docker-setup.sh 存在",
-          os.path.isfile(os.path.join(XY_REPO_DIR, "docker-setup.sh")))
-
-# ─── 2. Docker 环境 ────────────────────────
-print("\n🐳 2. Docker 环境")
-docker_bin = os.path.expanduser("~/.local/bin/docker")
-check("Docker 二进制已下载", os.path.isfile(docker_bin))
-
-# 检查 Docker daemon 是否运行
+import os
 import subprocess
-try:
-    result = subprocess.run([docker_bin, "info"], capture_output=True, text=True, timeout=5)
-    if result.returncode == 0:
-        check("Docker daemon 运行中", True)
+import sys
+import time
+import urllib.request
+import urllib.error
+
+
+XIANYU_DIR = os.path.expanduser("~/.hermes/flashsloth/xianyu-auto-reply")
+HEALTH_URL = "http://localhost:8089/health"
+DOCKER_COMPOSE = "docker compose -f docker-compose.yml -f docker-compose.flashsloth.yml"
+
+
+def check_api() -> dict:
+    """检查 xianyu-auto-reply API 是否可达"""
+    try:
+        req = urllib.request.Request(HEALTH_URL, method="GET")
+        resp = urllib.request.urlopen(req, timeout=5)
+        if resp.status == 200:
+            return {"api": True, "status": "healthy"}
+        return {"api": False, "status": f"HTTP {resp.status}"}
+    except urllib.error.URLError as e:
+        return {"api": False, "status": f"连接失败: {e.reason}"}
+    except Exception as e:
+        return {"api": False, "status": str(e)}
+
+
+def check_docker_containers() -> dict:
+    """检查 Docker 容器运行状态"""
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--filter", "name=xianyu-", "--format", "{{.Names}}\t{{.Status}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return {"docker": False, "containers": [], "error": result.stderr.strip()}
+
+        containers = {}
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            parts = line.split("\t", 1)
+            name = parts[0]
+            status = parts[1] if len(parts) > 1 else "unknown"
+            containers[name] = {"status": status, "healthy": "healthy" in status.lower()}
+
+        return {"docker": True, "containers": containers, "error": ""}
+    except FileNotFoundError:
+        return {"docker": False, "containers": [], "error": "Docker CLI not found"}
+    except subprocess.TimeoutExpired:
+        return {"docker": False, "containers": [], "error": "Docker command timed out"}
+    except Exception as e:
+        return {"docker": False, "containers": [], "error": str(e)}
+
+
+def start_docker_service():
+    """尝试启动 Docker 服务和 xianyu-auto-reply"""
+    print("⏳ 尝试启动 Docker 服务...")
+
+    # 尝试启动 dockerd
+    dockerd_proc = subprocess.Popen(
+        ["sudo", "dockerd", "--iptables=false", "--bip=172.18.0.1/16"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+    # 等待 Docker 就绪
+    for i in range(30):
+        time.sleep(2)
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            print("✅ Docker 服务已启动")
+            break
     else:
-        skip("Docker daemon 未运行", "需要 sudo 启动")
-except FileNotFoundError:
-    skip("Docker 命令未找到", "二进制未安装")
-except Exception:
-    skip("Docker daemon 未运行", "需要 sudo 启动")
+        dockerd_proc.kill()
+        print("❌ Docker 启动超时")
+        return False
 
-# Port availability
-import socket
-def port_open(port):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(2)
-    result = sock.connect_ex(("127.0.0.1", port))
-    sock.close()
-    return result == 0
+    # 启动 xianyu-auto-reply
+    print("⏳ 启动 xianyu-auto-reply 容器...")
+    result = subprocess.run(
+        f"cd {XIANYU_DIR} && {DOCKER_COMPOSE} up -d --build",
+        shell=True, capture_output=True, text=True, timeout=600,
+    )
+    if result.returncode == 0:
+        print("✅ xianyu-auto-reply 启动成功")
+        return True
+    else:
+        print(f"❌ 启动失败: {result.stderr}")
+        return False
 
-if port_open(8089):
-    check("Backend-Web 端口 8089", True)
-else:
-    skip("Backend-Web 端口 8089", "未启动")
 
-if port_open(9000):
-    check("前端端口 9000", True)
-else:
-    skip("前端端口 9000", "未启动")
+def main():
+    result = {
+        "running": False,
+        "healthy": False,
+        "api": False,
+        "containers": {},
+        "error": "",
+    }
 
-# ─── 3. FlashSloth 集成 ─────────────────
-print("\n🔌 3. FlashSloth 集成")
-check("publisher_xianyu_auto_reply.py 安装",
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "plugins", "publisher_xianyu_auto_reply.py")))
-check("external_services 路由注册",
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "routes", "external_services.py")))
-check("admin.py 插件导入",
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "admin.py")))
+    # 检查 Docker 容器
+    docker_status = check_docker_containers()
+    result["containers"] = docker_status.get("containers", {})
 
-# 检查 admin.py 中的导入
-with open(os.path.join(FLASHSLOTH_ROOT, "admin.py")) as f:
-    admin_content = f.read()
-check("publisher_xianyu_auto_reply 导入已注册",
-      "publisher_xianyu_auto_reply" in admin_content)
+    if not docker_status.get("docker"):
+        result["error"] = docker_status.get("error", "Docker 不可用")
+    else:
+        expected = {"xianyu-mysql", "xianyu-redis", "xianyu-backend-web",
+                     "xianyu-websocket", "xianyu-scheduler", "xianyu-frontend"}
+        running = set(docker_status.get("containers", {}).keys())
+        result["running"] = expected.issubset(running)
 
-# 检查 __init__.py
-with open(os.path.join(FLASHSLOTH_ROOT, "routes", "__init__.py")) as f:
-    init_content = f.read()
-check("external_services 路由已注册",
-      "external_services" in init_content)
+    # 检查 API
+    api_status = check_api()
+    result["api"] = api_status.get("api", False)
+    result["healthy"] = api_status.get("api", False)
 
-# ─── 4. 接口适配状态 ──────────────────
-print("\n🔗 4. 接口适配")
-check("商品发布接口 (publish)", True, "已通过 publisher_xianyu_auto_reply.py 实现")
-check("订单查询接口 (query_orders)", True, "已通过 publisher_xianyu_auto_reply.py 实现")
-check("健康检查接口 (health)", True, "已通过 external_services.py 实现")
-check("管理后台链接", True, "已通过 get_admin_urls() 提供")
+    # 尝试启动
+    if "--start" in sys.argv and not result["healthy"]:
+        print("⚠️ 服务未运行，尝试启动...")
+        if start_docker_service():
+            # 再次检查
+            time.sleep(5)
+            docker_status = check_docker_containers()
+            api_status = check_api()
+            result["containers"] = docker_status.get("containers", {})
+            result["running"] = docker_status.get("docker", False)
+            result["api"] = api_status.get("api", False)
+            result["healthy"] = api_status.get("api", False)
 
-# ─── 5. 现有闲鱼适配器 ────────────────
-print("\n🐟 5. 现有闲鱼适配器")
-check("xianyu.py (PlatformAdapter)", 
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "sdk", "adapters", "xianyu.py")))
-check("xianyu_v2.py (MTOP API)", 
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "sdk", "adapters", "xianyu_v2.py")))
-check("publisher_xianyu.py", 
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "plugins", "publisher_xianyu.py")))
-check("publisher_xianyu_v2.py", 
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "plugins", "publisher_xianyu_v2.py")))
-check("publisher_xianyu_products.py", 
-      os.path.isfile(os.path.join(FLASHSLOTH_ROOT, "plugins", "publisher_xianyu_products.py")))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result["healthy"] else 1
 
-# ─── 总结 ──────────────────────────────
-print("\n" + "=" * 54)
-total = checks["passed"] + checks["failed"] + checks["skipped"]
-print(f"  总计: {total} | ✅ {checks['passed']} | ❌ {checks['failed']} | ⏭️  {checks['skipped']}")
 
-if checks["failed"] == 0:
-    print("\n  ✅ 所有关键检查通过！")
-else:
-    print(f"\n  ⚠️  {checks['failed']} 项未通过")
-
-if port_open(8089) or port_open(9000):
-    print("\n  🎯 xianyu-auto-reply 服务正在运行")
-else:
-    print("\n  💡 xianyu-auto-reply 服务未运行")
-    print("     请运行: bash xianyu-auto-reply/docker-setup.sh")
-    print("     然后:   cd xianyu-auto-reply && docker compose up -d --build")
-
-print("\n  📍 管理入口:")
-print("     FlashSloth 后台:     http://localhost:5000")
-print("     xianyu-auto-reply:   http://localhost:9000")
-print("     API 文档:            http://localhost:8089/docs")
-print("=" * 54)
+if __name__ == "__main__":
+    sys.exit(main())
