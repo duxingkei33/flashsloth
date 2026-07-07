@@ -1,8 +1,8 @@
 {
   "bilibili": {
     "login_methods": [
-      "password",
       "qrcode",
+      "password",
       "oauth",
       "cookie"
     ],
@@ -10,8 +10,8 @@
   },
   "csdn": {
     "login_methods": [
-      "password",
       "qrcode",
+      "password",
       "oauth",
       "cookie"
     ],
@@ -19,8 +19,8 @@
   },
   "juejin": {
     "login_methods": [
-      "phone",
       "qrcode",
+      "phone",
       "oauth",
       "cookie"
     ],
@@ -36,8 +36,8 @@
   },
   "wechat_mp": {
     "login_methods": [
-      "password",
       "qrcode",
+      "password",
       "oauth",
       "cookie"
     ],
@@ -53,32 +53,32 @@
   },
   "zhihu": {
     "login_methods": [
-      "phone",
       "qrcode",
+      "phone",
       "cookie"
     ],
     "error": null
   },
   "discuz": {
     "login_methods": [
-      "password",
       "qrcode",
+      "password",
       "cookie"
     ],
     "error": null
   },
   "amobbs": {
     "login_methods": [
-      "password",
       "qrcode",
+      "password",
       "cookie"
     ],
     "error": null
   },
   "mydigit": {
     "login_methods": [
-      "password",
       "qrcode",
+      "password",
       "cookie"
     ],
     "error": null

@@ -638,7 +638,7 @@
                     </table>
                     <div class="mt-2">
                         <button class="btn btn-outline-info btn-sm" style="font-size:0.7rem;"
-                                onclick="refreshLoginCapability('{{ p.platform }}')">
+                                onclick="refreshLoginCapability('{{ p.platform }}', '{{ p.domain }}')">
                             🔄 重新探索登录能力
                         </button>
                     </div>
@@ -646,7 +646,7 @@
                     <div class="text-muted small">
                         尚未探索登录能力
                         <button class="btn btn-sm btn-outline-primary ms-2" style="font-size:0.75rem;"
-                                onclick="refreshLoginCapability('{{ p.platform }}')">
+                                onclick="refreshLoginCapability('{{ p.platform }}', '{{ p.domain }}')">
                             🚀 探索登录能力
                         </button>
                     </div>
@@ -1048,12 +1048,18 @@ function checkUnexploredAccounts() {
 }
 
 // ─── 重新探索登录能力 ─────────────────
-function refreshLoginCapability(platform) {
+function refreshLoginCapability(platform, domain) {
     var msg = '将用 Playwright 重新探索「' + platform + '」的登录能力，是否继续？';
     if (!confirm(msg)) return;
     var btn = event && event.target;
     if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 探索中...'; }
-    fetch('/api/platform/' + platform + '/login-capabilities/refresh', {method: 'POST'})
+    var body = {};
+    if (domain) { body.site_url = domain; }
+    fetch('/api/platform/' + platform + '/login-capabilities/refresh', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.success) {

@@ -48,15 +48,15 @@ class CSDNPublisher(Publisher):
     }
 
     login_methods = [
-        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 1,
-         "fields": ["username", "password"],
-         "description": "输入 CSDN 用户名和密码，Playwright 浏览器自动登录"},
-        {"method": "phone", "label": "手机验证码登录", "icon": "📞", "priority": 1,
-         "fields": ["phone"],
-         "description": "输入手机号，Playwright 自动发送验证码并等待用户输入"},
-        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 2,
+        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 1,
          "fields": [],
          "description": "打开 CSDN 登录页截图，用手机扫码访问后自动捕获 Cookie"},
+        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 2,
+         "fields": ["username", "password"],
+         "description": "输入 CSDN 用户名和密码，Playwright 浏览器自动登录"},
+        {"method": "phone", "label": "手机验证码登录", "icon": "📞", "priority": 3,
+         "fields": ["phone"],
+         "description": "输入手机号，Playwright 自动发送验证码并等待用户输入"},
         {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
          "fields": ["cookie"],
          "description": "登录后从浏览器 F12 → Application → Cookies → csdn.net 复制"},

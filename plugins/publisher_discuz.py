@@ -40,13 +40,13 @@ class DiscuzPublisher(Publisher):
     }
     
     login_methods = [
-        {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 1,
-         "fields": ["site_url", "username", "password"],
-         "description": "输入论坛用户名密码，通过验证码自动登录"},
-        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 2,
+        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 1,
          "fields": ["site_url"],
          "description": "打开论坛登录页截图，用手机扫码访问后自动捕获 Cookie"},
-        {"method": "phone", "label": "手机验证码登录", "icon": "📞", "priority": 2,
+        {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 2,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入论坛用户名密码，通过验证码自动登录"},
+        {"method": "phone", "label": "手机验证码登录", "icon": "📞", "priority": 3,
          "fields": ["site_url", "phone"],
          "description": "输入手机号，Playwright 自动发送验证码并等待用户输入"},
         {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,

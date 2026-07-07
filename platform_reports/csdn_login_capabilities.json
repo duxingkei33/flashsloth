@@ -4,12 +4,6 @@
   "login_url": "https://passport.csdn.net/login",
   "login_methods": [
     {
-      "method": "password",
-      "label": "账号密码登录",
-      "detected": true,
-      "selector": "input[type='password']"
-    },
-    {
       "method": "qrcode",
       "label": "扫码登录",
       "detected": true,
@@ -26,6 +20,12 @@
         }
       ],
       "selector": "img[src*='qrcode']"
+    },
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "selector": "input[type='password']"
     },
     {
       "method": "oauth",
@@ -45,7 +45,7 @@
       "detected": true
     }
   ],
-  "note": "csdn登录页支持账号密码登录/扫码登录/第三方账号登录/Cookie粘贴/第三方(qq/weibo/github/google/wechat_oauth)",
+  "note": "csdn登录页支持扫码登录/账号密码登录/第三方账号登录/Cookie粘贴/第三方(qq/weibo/github/google/wechat_oauth)",
   "raw_detection": {
     "has_password_input": true,
     "has_phone_input": false,
