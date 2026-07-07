@@ -76,6 +76,7 @@ class BrowserEngine:
     _lock = threading.Lock()
     _config = dict(PLAYWRIGHT_DEFAULT_CONFIG)
     _error_msg = ""
+    _monitor_thread = None
 
     # ── 单例 ──────────────────────────────────
 
@@ -112,6 +113,8 @@ class BrowserEngine:
         self._last_activity = 0.0
         self._start_time = 0.0
         self._error_msg = ""
+        self._monitor_thread = None
+        self._monitor_stop = threading.Event()
 
     # ── 配置管理 ──────────────────────────────
 
@@ -252,6 +255,9 @@ class BrowserEngine:
                 self._start_time = time.time()
                 self._error_msg = ""
 
+            # 自动关闭后台监控
+            self._start_monitor()
+
             logger.info(f"BrowserEngine: {browser_type_name} started (headless={cfg.get('headless')})")
             return True
 
@@ -265,6 +271,8 @@ class BrowserEngine:
 
     def stop(self) -> bool:
         """停止浏览器，关闭所有页面和上下文"""
+        self._stop_monitor()
+
         with self._lock:
             old_status = self._status
             self._status = STATUS_STOPPED
@@ -524,6 +532,38 @@ class BrowserEngine:
         """快捷检查引擎是否就绪"""
         with self._lock:
             return self._status == STATUS_READY and self._browser is not None
+
+    # ── 自动关闭监控 ─────────────────────────
+
+    def _start_monitor(self):
+        """启动后台监控线程（自动关闭检测，60秒轮询）"""
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            return
+
+        self._monitor_stop.clear()
+
+        def _monitor_loop():
+            import sys as _sys
+            while not self._monitor_stop.is_set():
+                try:
+                    self.check_activity_timeout()
+                except Exception as e:
+                    _sys.stderr.write("BrowserEngine monitor error: " + str(e) + chr(10))
+                    _sys.stderr.flush()
+                self._monitor_stop.wait(60)
+
+        self._monitor_thread = threading.Thread(
+            target=_monitor_loop, daemon=True,
+            name="browser-engine-monitor"
+        )
+        self._monitor_thread.start()
+
+    def _stop_monitor(self):
+        """停止后台监控线程"""
+        self._monitor_stop.set()
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=3.0)
+            self._monitor_thread = None
 
 
 # ─── 全局便捷函数 ─────────────────────────────
