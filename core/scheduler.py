@@ -3,9 +3,15 @@
 从 admin.py 提取，保持 100% 兼容。
 在设定的签到时间（默认 08:00）起 1 小时窗口内随机执行。
 每5分钟后台刷新所有活跃账号的登录状态缓存。
+
+Bug 修复 (2026-07-07):
+  - 重复签到: 去掉 already_signed=0 过滤，所有 success=1 都计入去重
+  - 增加 _last_run_minute 防同分钟重复触发
 """
 import os, json, time, random, threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+CST = timezone(timedelta(hours=8))
 
 from flashsloth.core.database import get_db
 from flashsloth.core.notifier import notify_info, notify_warn, notify_error
@@ -18,6 +24,10 @@ _scheduler_thread = None
 # 对外导出兼容别名（signin.py 等引用）
 scheduler_running = _scheduler_running
 scheduler_stop = _scheduler_stop
+
+# 同分钟重入保护：记录每个账号最后触发时的分钟数，防止同一分钟重复执行
+_last_run_minute: dict[int, int] = {}
+_last_run_lock = threading.Lock()
 
 
 def start_scheduler():
@@ -135,20 +145,28 @@ def _tick_scheduler():
             if not (target_minute - 1 <= now_minutes <= target_minute + 1):
                 continue
 
-            # 4. 检查当天是否已经签过
+            # 4. 检查当天是否已经签过（所有成功记录，不区分 already_signed）
             from plugins.forum_signin import ensure_signin_log_table
             ensure_signin_log_table()
 
             # 使用一个新连接检查，避免 db 连接冲突
             check_db = get_db()
             log_exists = check_db.execute(
-                "SELECT COUNT(*) FROM signin_log WHERE account_id=? AND date(created_at)=? AND success=1 AND already_signed=0",
+                "SELECT COUNT(*) FROM signin_log WHERE account_id=? AND date(created_at)=? AND success=1",
                 (d["id"], today_str)
             ).fetchone()[0]
             check_db.close()
 
             if log_exists > 0:
+                print(f"[Scheduler] {d['platform']}/{d['account_name']} — 今天已签到，跳过")
                 continue  # 今天已经签过
+
+            # 4b. 同分钟重入保护
+            with _last_run_lock:
+                last_min = _last_run_minute.get(d["id"], -1)
+                if last_min == now_minutes:
+                    continue  # 同一分钟内已经触发过，不再重复
+                _last_run_minute[d["id"]] = now_minutes
 
             # 5. 检查是否有签到插件
             plugin = get_signin_for_account(d)

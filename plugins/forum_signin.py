@@ -87,12 +87,14 @@ def ensure_signin_log_table():
 
 def log_signin(account_id, platform, account_name, site_url,
                success, already_signed, error="", message=""):
+    """记录签到日志到数据库，使用 CST (UTC+8) 时间"""
+    now_cst = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db()
     conn.execute(
-        "INSERT INTO signin_log (account_id, platform, account_name, site_url, success, already_signed, error, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO signin_log (account_id, platform, account_name, site_url, success, already_signed, error, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (account_id, platform, account_name, site_url,
          1 if success else 0, 1 if already_signed else 0,
-         error[:200], message[:200])
+         error[:200], message[:200], now_cst)
     )
     conn.commit()
     conn.close()

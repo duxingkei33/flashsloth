@@ -29,13 +29,11 @@ def signin_page():
    # 统计
    today = datetime.now().strftime("%Y-%m-%d")
    today_count = conn.execute(
-        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1 AND already_signed=0",
-        (today,)
-    ).fetchone()[0]
-   today_total = conn.execute(
         "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1",
         (today,)
     ).fetchone()[0]
+   today_total = today_count
+   # 今日失败 — distinct 账号今日签到失败的
 
    # 今日成功（同 today_total — distinct 账号今日签到成功的数量）
    today_success = today_total
@@ -138,7 +136,7 @@ def api_signin_account(aid):
            result = {"success": False, "already_signed": False,
                      "error": f"签到异常: {e}", "message": ""}
 
-   # 记录日志
+   # 记录日志 — 手动签到强制标记为已有签到记录（already_signed=0），确保计入统计
    site_url = cfg.get("site_url", "")
    from plugins.forum_signin import log_signin, ensure_signin_log_table
    ensure_signin_log_table()
@@ -148,7 +146,7 @@ def api_signin_account(aid):
        account_name=d["account_name"],
        site_url=site_url,
        success=result.get("success", False),
-       already_signed=result.get("already_signed", False),
+       already_signed=0,  # 手动签到强制视为新签到，计入今日统计
        error=result.get("error", ""),
        message=result.get("message", ""),
    )
@@ -256,6 +254,7 @@ def api_signin_run_all():
                          "error": str(e), "message": ""}
 
        site_url = cfg.get("site_url", "")
+       # 记录日志 — 批量签到视为新签到，确保计入统计
        from plugins.forum_signin import log_signin, ensure_signin_log_table
        ensure_signin_log_table()
        log_signin(
@@ -264,7 +263,7 @@ def api_signin_run_all():
            account_name=d["account_name"],
            site_url=site_url,
            success=result.get("success", False),
-           already_signed=result.get("already_signed", False),
+           already_signed=0,  # 批量签到视为新签到
            error=result.get("error", ""),
            message=result.get("message", ""),
        )
@@ -287,13 +286,10 @@ def api_signin_stats():
     conn = get_db()
     today = datetime.now().strftime("%Y-%m-%d")
     today_count = conn.execute(
-        "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1 AND already_signed=0",
-        (today,)
-    ).fetchone()[0]
-    today_success = conn.execute(
         "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=1",
         (today,)
     ).fetchone()[0]
+    today_success = today_count
     today_failure = conn.execute(
         "SELECT COUNT(DISTINCT account_id) FROM signin_log WHERE date(created_at)=? AND success=0",
         (today,)
