@@ -92,6 +92,11 @@ def _get_discuz_login(session_id: str, site_url: str = "", platform: str = "") -
     platform 参数：指定平台名（如 mydigit/discuz/amobbs），用于数据驱动读取 site_url
     """
     with _discuz_lock:
+        # DEBUG: log what's happening
+        logger.info(f"[DEBUG] _get_discuz_login: session_id={session_id}, site_url={site_url}, platform={platform}, existing={session_id in _discuz_login_instances}")
+        if session_id in _discuz_login_instances:
+            existing = _discuz_login_instances[session_id]
+            logger.info(f"[DEBUG] existing instance: site_url={existing.site_url}, page={existing.page is not None}, browser={existing.browser is not None}")
         # 如果已有实例，优先复用（避免因空 site_url 误销毁）
         if session_id in _discuz_login_instances:
             existing = _discuz_login_instances[session_id]

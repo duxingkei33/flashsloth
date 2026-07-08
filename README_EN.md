@@ -276,6 +276,7 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| **v5.21** | 2026-07-08 | Amobbs captcha submit fix — .seccodecheck detection + branch (direct submit when absent) + site_url completion; Playwright element screenshot verified |
 | **v5.20** | 2026-07-08 | Amobbs captcha fix — Playwright element screenshot replaces urllib + frontend base64-first; Mydigit exploration data; Iron Rule #40 triple backup; doc sync watchdog cron |
 | **v5.19** | 2026-07-08 | OSHWHub SSO login fix — real-time login replaces cookie injection + cookies_json structured storage + AntDesign adapter; captcha pre-detection fix |
 | **v5.18** | 2026-07-08 | Data-driven fix — 39 iron rule #19 hardcoded violations fully fixed + E2E verification; forum_registry dynamic loading + renderers dead code cleanup; 3 new platform publishers (Dewu/Smzdm/Xiaohongshu) |

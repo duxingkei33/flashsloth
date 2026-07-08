@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-08 23:00 | PM: duxingkei | 铁律: fs-iron-rules (v40条)
+> 最后更新：2026-07-08 23:30 | PM: duxingkei | 铁律: fs-iron-rules (v42条)
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -7,12 +7,19 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**v5.20** — Amobbs/Mydigit 验证码修复 + 全流程 E2E 验证
+**v5.21** — 文档全面审计 + 铁律#41/#42新增 + 版本同步
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 验证码图片修复 | ✅ | _get_captcha_image() 改用 Playwright 元素截图(带会话Cookie)，不再用 urllib |
-| 前端验证码显示 | ✅ | showCaptchaInput + unifiedRefreshCaptcha 优先 base64，不再用相对 URL |
+| 文档审计 | ✅ | 6个核心文档差异识别 → 更新中 |
+| 铁律 #41 | ✅ | 新增：修改代码后必须同步更新文档 |
+| 铁律 #42 | ✅ | 新增：Bug修复必须记录docs/bug-fixes/ |
+| 文档同步看门狗 | ✅ | 15分钟 cron 已更新 prompt |
+| Bug修复记录 | ✅ | docs/bug-fixes/ 创建，5个核心记录 |
+| ARCHITECTURE.md | ✅ | Phase状态更新+版本号+组件表修正 |
+| README.md/+EN | ✅ | v5.19-v5.20版本记录补充 |
+| PROJECT_PANORAMA_REPORT.md | 🔄 | Claude Code 重写中 |
+| DEVELOPMENT_SPECIFICATION.md | 🔄 | Claude Code 补充中 |
 | Mydigit 探索数据 | ✅ | mydigit_exploration_report.json + mydigit_login_capabilities.json 已创建 |
 | 平台隔离 | ✅ | site_url 数据驱动，不再硬编码 amobbs.com |
 | 铁律 #40 | ✅ | 大改前三位一体备份(tar.gz+tag+push)强制流程 |

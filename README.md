@@ -276,6 +276,7 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.21** | 2026-07-08 | Amobbs验证码提交修复 — .seccodecheck机制检测+分流（无则直接提交）+ site_url补全；验证码图片Playwright元素截图验证通过 |
 | **v5.20** | 2026-07-08 | Amobbs验证码修复 — Playwright元素截图替代urllib + 前端优先base64；Mydigit探索数据创建；铁律#40三位一体备份；文档同步看门狗cron |
 | **v5.19** | 2026-07-08 | OSHWHub SSO登录修复 — 即时登录替代cookie注入 + cookies_json结构化存储 + AntDesign适配；验证码检测前置修复 |
 | **v5.18** | 2026-07-08 | 数据驱动修复 — 39项铁律#19硬编码违规全量修复+E2E验证；forum_registry动态加载+renderers死代码清理；3个新平台发布器（得物/什么值得买/小红书） |

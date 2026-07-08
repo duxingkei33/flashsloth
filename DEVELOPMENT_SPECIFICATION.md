@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.14+P2 | **最后更新**: 2026-07-08 11:00 (每小时自动更新)
+**版本**: v5.21 | **最后更新**: 2026-07-08 22:57
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -655,6 +655,40 @@
   - `POST /api/logs/deploy/clear` — 清空部署日志
   - `POST /api/logs/ai/clear` — 清空 AI 调用日志
 - **Tab 式 UI**: 发布 / 签到 / 部署 / AI 四个 Tab 一键切换，分页+状态徽章+搜索过滤+清空
+
+### 3.28 探索数据 DB 化模块 (`core/platform_exploration_loader.py`) — v5.16 新增
+
+- **功能说明**: 服务启动时自动从 `platform_reports/*_login_capabilities.json` 导入到 `platform_exploration` 表
+- **导入模式**: UPSERT（存在则更新，不存在则插入），支持增量更新
+- **启动顺序**: `import_exploration_to_db()` 必须在 `configure_app()` **之前**调用，否则搜索预热会在空表上运行
+- **搜索 API**: 改为 DB 查询（毫秒级），不再做文件 I/O
+- **JS 缓存破坏**: 所有 `<script>` 标签添加 `?v={{ JS_VERSION }}` 参数，防止浏览器缓存旧版 JS
+- **关联铁律**: #35 探索数据必须在服务启动时导入 DB
+
+### 3.29 凭证守护脚本 (`core/credential_guard.py`) — v4.92 新增
+
+- **功能说明**: 每 30 分钟运行一次的凭证健康守护
+- **检查项目**:
+  1. 清理过期扫码登录 session（超过 300 秒的）
+  2. 检查所有已保存的凭证是否过期（30 天默认有效期）
+  3. 报告凭证健康状态
+  4. 清理孤立 session 资源
+- **配置**: `SESSION_MAX_AGE = 300`, `CREDENTIAL_EXPIRE_DAYS = 30`, `WARN_BEFORE_EXPIRE = 7`
+
+### 3.30 数据驱动引擎路由 — v5.16
+
+- **功能说明**: 替代 `DISCUZ_PLATFORMS` 硬编码列表，从探索数据动态推导登录引擎
+- **核心函数**: `_get_engine_for_platform(platform)` — 从 `platform_exploration` 表查询 `engine` 字段
+- **影响范围**: 13 处路由从硬编码 `platform in DISCUZ_PLATFORMS` 改为 `_get_engine_for_platform() == 'discuz'`
+- **关联铁律**: #28 数据驱动, #36 单登录类多平台隔离
+- **参考**: `references/data-driven-dispatch-patterns.md`
+
+### 3.31 铁律体系 (fs-iron-rules) — v5.21 扩展至 42 条
+
+- **铁律 #40**: 大改前三位一体备份（tar.gz + git tag + git push）
+- **铁律 #41**: 修改代码后必须同步更新文档（v5.21 新增）
+- **铁律 #42**: Bug 修复必须记录 Markdown 到 `docs/bug-fixes/`（v5.21 新增）
+- **文档位置**: `~/.hermes/skills/fs-iron-rules/SKILL.md` + `references/` 目录
 
 ---
 
@@ -1735,4 +1769,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.14+P2 | Python 总行数: 43,413 行 (145 .py, 5 modules) | HTML 总行数: 12,593 行 (36 模板) | 新增: platforms.py扩展 / browser_login增强 / playwright_verify扩展 / e2e_verify_fix | 最后更新: 2026-07-08 11:00*
+*版本: v5.20 | Python 总行数: 43,413 行 (145 .py) | HTML 总行数: 12,593 行 (36 模板) | 新增: 3.28-3.31模块 + 铁律#40-#42 | 最后更新: 2026-07-08 23:30*
