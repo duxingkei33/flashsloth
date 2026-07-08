@@ -278,8 +278,8 @@ class BrowserEngine:
         self._stop_monitor()
 
         with self._lock:
-            old_status = self._status
             self._status = STATUS_STOPPED
+            self._start_time = 0
             self._error_msg = ""
 
         try:
@@ -457,6 +457,13 @@ class BrowserEngine:
             if self._context:
                 try:
                     tabs_count = len(self._context.pages)
+                except Exception:
+                    pass
+
+            # 从 browser 对象获取真实 PID
+            if self._browser:
+                try:
+                    pid = self._browser.process.pid if self._browser.process else None
                 except Exception:
                     pass
 

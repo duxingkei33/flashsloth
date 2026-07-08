@@ -133,8 +133,10 @@ def api_browser_restart():
 
 @app.route("/api/browser/status")
 def api_browser_status():
-    """获取浏览器引擎状态"""
+    """获取浏览器引擎状态（每次请求触发自动关闭检查，双保险机制）"""
     engine = get_engine()
+    # 每次前端轮询都检查超时 — 二次保险（即使后台 daemon monitor 失效）
+    engine.check_activity_timeout()
     status = engine.get_status()
     return jsonify({
         "success": True,
