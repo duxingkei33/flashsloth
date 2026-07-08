@@ -22,7 +22,7 @@ def api_platform_login_start(platform):
 		lock = _get_login_lock(platform)
 		with lock:
 			sess_id = f"user_{current_user.id}_{platform}"
-			inst = _get_discuz_login(sess_id, site_url=site_url)
+			inst = _get_discuz_login(sess_id, site_url=site_url, platform=platform)
 			result = inst.login(username, password)
 			if result.get("logged_in") and result.get("cookies") and aid:
 				_save_cookie_to_account(aid, result["cookies"])
@@ -274,27 +274,19 @@ def api_platform_login_refresh_captcha(platform):
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
-			# 确保页面在登录页（线程切换会导致实例重建）
-			login_url = f"{inst.site_url}/member.php?mod=logging&action=login"
+			# 点击「换一个」链接触发验证码刷新
 			try:
-				inst._ensure_browser()
-				page_url = inst.page.url if inst.page else ""
-				needs_nav = "login" not in page_url or "about:blank" in page_url
-			except Exception:
-				needs_nav = True
-			if needs_nav:
-				inst.page.goto(login_url, wait_until="networkidle", timeout=15000)
-				import time
-				time.sleep(2)
-			else:
-				# 页面在登录页 → 重新加载以获取新验证码
-				inst.page.goto(login_url, wait_until="networkidle", timeout=15000)
-				import time
-				time.sleep(2)
-			# 等待验证码图片加载
-			try:
-				inst.page.wait_for_selector("img[src*='seccode']", timeout=5000)
-			except Exception:
+				refresh_btn = inst.page.query_selector("a:has-text('换一个'), a:has-text('刷新'), a:has-text('换一张')")
+				if refresh_btn and refresh_btn.is_visible():
+					refresh_btn.click()
+					import time
+					time.sleep(1.5)
+				else:
+					captcha_img = inst.page.query_selector("img[src*='seccode'], #seccode_image")
+					if captcha_img:
+						captcha_img.click()
+						time.sleep(1.5)
+			except:
 				pass
 			# 提取验证码
 			captcha_result = inst._get_captcha_image()

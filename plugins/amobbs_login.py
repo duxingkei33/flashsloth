@@ -59,6 +59,8 @@ class AmobbsPlaywrightLogin:
         self.context = None
         self.page = None
         self._captcha_screenshot = None
+        self._username = None
+        self._password = None
 
     @staticmethod
     def _get_default_site_url(platform: str = "") -> str:
@@ -346,7 +348,7 @@ class AmobbsPlaywrightLogin:
             is_logged_in = False
             auth_cookies = [c for c in cookies_list
                            if "auth" in c.get("name", "").lower()
-                           or "sid" in c.get("name", "").lower()]
+                           and not c.get("name", "").startswith("_sid")]
             if auth_cookies:
                 is_logged_in = True
 
@@ -511,7 +513,7 @@ class AmobbsPlaywrightLogin:
                 cookies_list = self.context.cookies() if self.context else []
                 auth_cookies = [c for c in cookies_list
                                if "auth" in c.get("name", "").lower()
-                               or "sid" in c.get("name", "").lower()]
+                               and not c.get("name", "").startswith("_sid")]
 
                 if auth_cookies:
                     cookie_str = "; ".join(
@@ -573,10 +575,10 @@ class AmobbsPlaywrightLogin:
             return ""
 
     def submit_text_captcha(self, captcha_code: str) -> dict:
-        """提交文本验证码 — 填入验证码，提交表单，检查登录结果
+        """提交文本验证码 — 填入验证码，触发核验，提交登录
 
-        Amobbs 等 Discuz 站点使用简单文本验证码（无 .seccodecheck 核验）。
-        部分 Discuz 站点有 .seccodecheck 边框核验，先检测再分流。
+        策略：先尝试预检验证码（amobbs onblur / Discuz .seccodecheck），
+        预检通过 → 提交；预检错误 → 立即返回；预检不确定 → 兜底直接提交表单。
         """
         try:
             self._ensure_browser()
@@ -593,57 +595,85 @@ class AmobbsPlaywrightLogin:
             except:
                 pass
 
-            # 1. 查找验证码输入框并填入代码
+            # 1. 填入验证码
             inp = page.query_selector("input[name='seccodeverify']")
             if not inp or not inp.is_visible():
                 return self.click_captcha_and_submit()
 
             inp.fill("")
             inp.type(captcha_code, delay=80)
-            time.sleep(0.5)
+            time.sleep(0.3)
 
-            # 2. 检测是否有 .seccodecheck 边框核验机制
-            has_seccodecheck = False
+            # 2. 尝试触发验证码预检
+            #    amobbs: onblur="checksec()" → 结果在 span#checkseccodeverify_XXX
+            #    Discuz: .seccodecheck → class 变为 seccodecheck_ok / seccodecheck_err
+            seccode_ok = False
+            seccode_err = False
+
+            # 2a. 触发 onblur (amobbs 风格)
             try:
-                sc_el = page.query_selector(".seccodecheck")
-                if sc_el:
-                    has_seccodecheck = True
+                inp.evaluate("el => { el.focus(); el.blur(); }")
+                time.sleep(2)
             except:
                 pass
 
-            if has_seccodecheck:
-                # 有边框核验 → 点击输入框右侧触发核验
+            # 2b. 点击边框 (Discuz .seccodecheck 风格)
+            try:
                 box = inp.bounding_box()
                 if box:
                     page.mouse.click(
                         box['x'] + box['width'] + 10,
                         box['y'] + box['height'] / 2
                     )
-                time.sleep(1.5)
+                time.sleep(1)
+            except:
+                pass
 
-                # 检查核验结果
+            # 3. 检查预检结果
+            # 3a. amobbs: span#checkseccodeverify_XXX 中的 img src
+            try:
+                check_span = page.query_selector("span[id^='checkseccodeverify']")
+                if check_span:
+                    span_html = check_span.inner_html()
+                    if "check_right" in span_html:
+                        seccode_ok = True
+                    elif "check_error" in span_html:
+                        seccode_err = True
+            except:
+                pass
+
+            # 3b. Discuz: .seccodecheck class
+            if not seccode_ok and not seccode_err:
                 try:
-                    seccode_ok = page.eval_on_selector(
-                        ".seccodecheck",
-                        "el => el.classList.contains('seccodecheck_ok')"
-                    )
-                    if not seccode_ok:
+                    sc_el = page.query_selector(".seccodecheck")
+                    if sc_el:
+                        seccode_ok = page.eval_on_selector(
+                            ".seccodecheck",
+                            "el => el.classList.contains('seccodecheck_ok')"
+                        )
                         seccode_err = page.eval_on_selector(
                             ".seccodecheck",
                             "el => el.classList.contains('seccodecheck_err')"
                         )
-                        if seccode_err:
-                            return {
-                                "success": True, "needs_captcha": True,
-                                "captcha_type": "text",
-                                "message": "验证码错误 ✗，请重新输入",
-                                "error": "验证码错误", "logged_in": False,
-                            }
                 except:
                     pass
-            else:
-                # 无边框核验 — 简单文本验证码，直接提交表单
-                time.sleep(0.3)
+
+            # 3c. 兜底：全文搜索
+            if not seccode_ok and not seccode_err:
+                content = page.content()
+                seccode_ok = "seccodecheck_ok" in content or "check_right" in content
+                seccode_err = "seccodecheck_err" in content or "check_error" in content
+
+            # 预检明确错误 → 立即返回，不浪费提交
+            if seccode_err:
+                return {
+                    "success": True, "needs_captcha": True,
+                    "captcha_type": "text",
+                    "message": "验证码错误 ✗，请重新输入",
+                    "error": "验证码错误", "logged_in": False,
+                }
+
+            # 预检通过 → 继续提交；预检不确定 → 兜底直接提交（由服务器判定）
 
             # 3. 提交登录表单
             try:
@@ -661,11 +691,12 @@ class AmobbsPlaywrightLogin:
             # 4. 等待登录结果
             time.sleep(3)
 
-            # 检查 cookie
+            # 6. 检查登录结果（auth cookie：_auth 后缀，或含 auth 关键词但排除纯 session cookie）
             cookies_list = self.context.cookies() if self.context else []
             auth_cookies = [c for c in cookies_list
-                           if "auth" in c.get("name", "").lower()
-                           or "sid" in c.get("name", "").lower()]
+                           if c.get("name", "").endswith("_auth")
+                           or ("auth" in c.get("name", "").lower()
+                               and not c.get("name", "").startswith("_sid"))]
 
             if auth_cookies:
                 cookie_str = "; ".join(
