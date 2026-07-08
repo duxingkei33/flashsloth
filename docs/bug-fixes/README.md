@@ -7,14 +7,10 @@
 |---|-----|------|:---:|------|
 | 1 | [验证码图片损坏（Amobbs）](captcha-broken-image.md) | v5.20 | 🔴 | captcha/login |
 | 2 | [Cookie 假阳性验证](cookie-false-positive.md) | v5.19b | 🔴 | cookie/status |
-| 3 | [OSHWHub SSO 登录失败](oshwhub-sso-login.md) | v5.19 | 🔴 | login/SSO |
-| 4 | [BrowserEngine 线程死锁](browser-engine-deadlock.md) | v4.64 | 🔴 | browser |
-| 5 | [WSGI Playwright 子进程死锁](wsgi-playwright-deadlock.md) | v4.65 | 🟠 | browser/WSGI |
-| 6 | [QR 码扫码线程安全](qr-thread-safety.md) | v4.76 | 🟠 | qrcode/thread |
-| 7 | [39 项硬编码违规](hardcode-39-violations.md) | v5.18 | 🔴 | 全项目 |
-| 8 | [模板 .pyc 缓存陈旧](stale-pycache.md) | v4.58 | 🟡 | template |
-| 9 | [JS 浏览器缓存陈旧](stale-js-cache.md) | v5.17 | 🟡 | frontend |
-| 10 | [探索数据预热空表](exploration-warmup-empty.md) | v5.16 | 🟡 | exploration |
-| 11 | [签到注册器分裂](signin-registry-split.md) | v4.76 | 🟡 | signin |
-| 12 | [site_url 硬编码回退](site-url-hardcode-fallback.md) | v5.15 | 🟠 | data-driven |
-| 13 | [Amobbs .seccodecheck 机制缺失](captcha-seccodecheck-missing.md) | v5.21 | 🔴 | captcha/login |
+| 3 | [BrowserEngine 线程死锁](browser-engine-deadlock.md) | v4.64 | 🔴 | browser |
+| 4 | [39 项硬编码违规](hardcode-39-violations.md) | v5.18 | 🔴 | 全项目 |
+| 5 | [模板 .pyc 缓存陈旧](stale-pycache.md) | v4.58 | 🟡 | template |
+| 6 | [Amobbs .seccodecheck 机制缺失](captcha-seccodecheck-missing.md) | v5.21 | 🔴 | captcha/login |
+| 7 | [Amobbs 验证码刷新 — Playwright 跨线程](captcha-refresh-cross-thread.md) | v5.21 | 🔴 | captcha/login |
+| 8 | [Amobbs 验证码提交回归 — 预检阻断](captcha-submit-regression.md) | v5.21 | 🔴 | captcha/login |
+| 9 | [Amobbs border click 误触刷新验证码](captcha-border-click.md) | v5.21 | 🔴 | captcha/login |

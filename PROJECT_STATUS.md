@@ -15,7 +15,7 @@
 | 铁律 #41 | ✅ | 新增：修改代码后必须同步更新文档 |
 | 铁律 #42 | ✅ | 新增：Bug修复必须记录docs/bug-fixes/ |
 | 文档同步看门狗 | ✅ | 15分钟 cron 已更新 prompt |
-| Bug修复记录 | ✅ | docs/bug-fixes/ 创建，5个核心记录 |
+| Bug修复记录 | ✅ | docs/bug-fixes/ 创建，9个核心记录 |
 | ARCHITECTURE.md | ✅ | Phase状态更新+版本号+组件表修正 |
 | README.md/+EN | ✅ | v5.19-v5.20版本记录补充 |
 | PROJECT_PANORAMA_REPORT.md | 🔄 | Claude Code 重写中 |
