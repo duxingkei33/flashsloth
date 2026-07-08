@@ -89,6 +89,7 @@ def _save_cookies_to_db(ctx, username_hint: str = ""):
         
         db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
         conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT id, config_json FROM platform_accounts WHERE platform='oshwhub'").fetchone()
         if row:
             cfg = json.loads(row["config_json"])
@@ -104,6 +105,82 @@ def _save_cookies_to_db(ctx, username_hint: str = ""):
         conn.close()
     except Exception as e:
         logger.warning(f"⚠️ 保存 cookie 到 DB 失败: {e}")
+
+
+# ─────────────────────────────────────────────────────────
+# 数据驱动：从探索JSON读取登录状态验证条件（铁律#19）
+# ─────────────────────────────────────────────────────────
+def _load_login_indicators() -> dict:
+    """从探索JSON加载 login_indicator_selectors（数据驱动，不硬编码）"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    report_path = os.path.join(base_dir, "platform_reports",
+                               "oshwhub_exploration_report.json")
+    if not os.path.exists(report_path):
+        logger.warning("⚠️ 探索报告不存在，回退默认严格判断")
+        return {}
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("login_indicator_selectors", {})
+    except Exception as e:
+        logger.warning(f"⚠️ 加载探索报告失败: {e}")
+        return {}
+
+
+def _check_login_indicators(page) -> dict:
+    """根据探索JSON的 indicators 检查登录状态（数据驱动，铁律#19）
+
+    读取 required_indicators_for_success 和 optional_indicators，
+    动态判断 logged_in。若探索数据未配，回退到严格逻辑
+    (avatar + (username or exit/logout))。
+
+    Returns: {"logged_in": bool, "detail": str, "username_text": str}
+    """
+    ind = _load_login_indicators()
+    required = ind.get("required_indicators_for_success", [])
+    optional = ind.get("optional_indicators", [])
+    avatar_sel = ind.get("avatar", "[class*='user-avatar']")
+    username_sels = ind.get("username_display", [
+        "[class*='user-name']", "[class*='nickname']", "[class*='username']",
+        "[class*='display-name']", "[class*='profile-name']",
+    ])
+    logout_texts = ind.get("logout_text", ["退出", "注销"])
+
+    # Check avatar
+    has_avatar = page.locator(avatar_sel).first.count() > 0
+
+    # Check username / display-name
+    has_username = False
+    username_text = ""
+    if username_sels:
+        uname_el = page.locator(", ".join(username_sels)).first
+        has_username = uname_el.count() > 0
+        username_text = (uname_el.text_content() or "").strip() if has_username else ""
+
+    # Check exit/logout text
+    has_exit_or_logout = False
+    if logout_texts:
+        sel_parts = []
+        for t in logout_texts:
+            sel_parts.append(f"a:has-text('{t}')")
+            sel_parts.append(f"button:has-text('{t}')")
+            sel_parts.append(f"span:has-text('{t}')")
+        has_exit_or_logout = page.locator(", ".join(sel_parts)).first.count() > 0
+
+    # Data-driven: if exploration report has required_indicators, use it strictly
+    if required:
+        indicator_map = {"avatar": has_avatar, "退出": has_exit_or_logout, "用户名": has_username}
+        logged_in = all(indicator_map.get(r, False) for r in required)
+    else:
+        # Fallback: old strict logic (avatar + (username or exit/logout))
+        logged_in = has_avatar and (has_username or has_exit_or_logout)
+
+    if logged_in:
+        detail = f"已登录（{username_text}）" if username_text else "已登录"
+    else:
+        detail = "登录失败"
+
+    return {"logged_in": logged_in, "detail": detail, "username_text": username_text}
 
 
 @register
@@ -147,31 +224,11 @@ class OSHWHubArticlePublisher(Publisher):
         if self.username and self.password:
             try:
                 pw, browser, ctx, page, login = _fresh_login_context(self.username, self.password)
-                avatar = page.locator("[class*='user-avatar']").first
-                has_avatar = avatar.count() > 0
-                # Extract username from common display-name selectors
-                username_el = page.locator(
-                    "[class*='user-name'], [class*='nickname'], [class*='username'], "
-                    "[class*='display-name'], [class*='profile-name']"
-                ).first
-                has_username = username_el.count() > 0
-                username_text = (username_el.text_content() or "").strip() if has_username else ""
-                # Check for exit/logout links as additional evidence
-                exit_links = page.locator(
-                    "a:has-text('退出'), a:has-text('注销'), "
-                    "button:has-text('退出'), button:has-text('注销'), "
-                    "span:has-text('退出'), span:has-text('注销')"
-                )
-                has_exit_or_logout = exit_links.count() > 0
-                # Stricter check: must have avatar AND (username or exit/logout button)
-                ok = has_avatar and (has_username or has_exit_or_logout)
+                check = _check_login_indicators(page)
                 browser.close()
                 pw.stop()
-                if ok:
-                    detail = f"已登录（{username_text}）" if username_text else "已登录（头像匹配）"
-                else:
-                    detail = "登录失败"
-                return {"success": ok, "error": "" if ok else "登录失败", "status": detail}
+                ok = check["logged_in"]
+                return {"success": ok, "error": "" if ok else "登录失败", "status": check["detail"]}
             except Exception as e:
                 return {"success": False, "error": str(e)}
         else:
@@ -189,31 +246,11 @@ class OSHWHubArticlePublisher(Publisher):
                 page = ctx.new_page()
                 page.goto(f"{BASE}/", wait_until="domcontentloaded", timeout=20000)
                 page.wait_for_timeout(3000)
-                avatar = page.locator("[class*='user-avatar']").first
-                has_avatar = avatar.count() > 0
-                # Extract username from common display-name selectors
-                username_el = page.locator(
-                    "[class*='user-name'], [class*='nickname'], [class*='username'], "
-                    "[class*='display-name'], [class*='profile-name']"
-                ).first
-                has_username = username_el.count() > 0
-                username_text = (username_el.text_content() or "").strip() if has_username else ""
-                # Check for exit/logout links as additional evidence of logged-in state
-                exit_links = page.locator(
-                    "a:has-text('退出'), a:has-text('注销'), "
-                    "button:has-text('退出'), button:has-text('注销'), "
-                    "span:has-text('退出'), span:has-text('注销')"
-                )
-                has_exit_or_logout = exit_links.count() > 0
-                # Stricter check: must have avatar AND (username or exit/logout button)
-                ok = has_avatar and (has_username or has_exit_or_logout)
+                check = _check_login_indicators(page)
                 browser.close()
                 pw.stop()
-                if ok:
-                    detail = f"已登录（{username_text}）" if username_text else "已登录（头像匹配）"
-                else:
-                    detail = "Cookie 过期或未登录"
-                return {"success": ok, "error": "" if ok else "Cookie 过期", "status": detail}
+                ok = check["logged_in"]
+                return {"success": ok, "error": "" if ok else "Cookie 过期", "status": check["detail"] if ok else "Cookie 过期或未登录"}
             except Exception as e:
                 return {"success": False, "error": str(e)}
 

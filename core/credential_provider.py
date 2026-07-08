@@ -410,11 +410,13 @@ def _platform_scan_actions(page, platform: str):
 
     elif platform == "oshwhub":
         try:
-            # 立创开源硬件平台：passport.jlc.com/login — 先输入账号或点扫码
-            scan_tab = page.query_selector("[class*='qrcode'], [class*='scan'], .qr-login, [data-type='qrcode'], text=扫码, .qrcode-img")
-            if scan_tab and scan_tab.is_visible():
-                scan_tab.click()
-                page.wait_for_timeout(1500)
+            # 立创开源硬件平台：passport.jlc.com/login
+            # 默认 tab 是"扫码登录"（微信二维码在 canvas 中渲染）
+            # 可以通过检测 button:has-text("账号登录") 确认页面已加载完成
+            pw_tab = page.wait_for_selector("button:has-text('账号登录')", timeout=8000)
+            if pw_tab:
+                pw_tab.wait_for_element_state("stable", timeout=5000)
+            page.wait_for_timeout(1000)
         except Exception:
             pass
 
@@ -670,9 +672,13 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
                     # 从 engine 判断：某些平台（如 oshwhub）扫码后可能停留在登录页
                     # 但 auth cookie 已设置 — 仍视为登录成功（铁律#19）
                     if _login_engine == "oshwhub" and has_auth_cookies:
+                        # 保存结构化 cookies_json 保留 domain/path/secure（铁律#19）
+                        # 扁平化字符串丢失 domain 信息，JLC SSO 需要 .jlc.com domain
+                        cookies_json = json.dumps(cookies)
                         sess["_poll_result"] = {
                             "status": "logged_in",
                             "cookies": all_cookies_str,
+                            "cookies_json": cookies_json,
                             "image": sc_b64,
                         }
                     elif has_auth_cookies and not on_login_page:

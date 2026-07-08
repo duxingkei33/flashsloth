@@ -130,16 +130,65 @@ class OshwhubPlaywrightLogin:
             screenshot = self.page.screenshot()
         return base64.b64encode(screenshot).decode()
 
+    # ─────────────────────────────────────────────────────────
+    # 数据驱动：从探索JSON读取表单选择器（铁律#19）
+    # ─────────────────────────────────────────────────────────
+    def _load_form_selectors(self) -> dict:
+        """从探索JSON读取密码登录表单选择器（数据驱动，不硬编码）
+
+        读取 platform_reports/oshwhub_exploration_report.json 中
+        login_methods[password].form_selectors 字段。
+
+        Returns:
+            dict — Ant Design 选择器字典，空 dict 表示无数据
+        """
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        report_path = os.path.join(base_dir, "platform_reports",
+                                   "oshwhub_exploration_report.json")
+        if not os.path.exists(report_path):
+            return {}
+        try:
+            with open(report_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for method in data.get("login_methods", []):
+                if method.get("method") == "password":
+                    fs = method.get("form_selectors", {})
+                    if fs:
+                        return fs
+        except Exception:
+            pass
+        return {}
+
     def _wait_for_login_form(self, timeout: int = 15000) -> bool:
         """等待登录表单渲染完成
 
         oshwhub 使用嘉立创统一登录（passport.jlc.com），
-        Element UI 框架渲染。表单需先点击"账号登录"标签。
+        目前使用 Ant Design 框架渲染表单。
+        优先从探索JSON读取选择器（数据驱动，铁律#19），
+        然后回退到通用选择器。
         """
+        # 数据驱动：从探索JSON读取表单选择器
+        form_selectors = self._load_form_selectors()
+        antd_input = form_selectors.get("input_class", "input.ant-input")
+        antd_container = form_selectors.get("input_container", ".ant-form-item")
+
         try:
             self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
 
-            # Element UI / 通用选择器
+            # ── Ant Design 选择器（数据驱动，铁律#19）──
+            try:
+                el = self.page.wait_for_selector(antd_input, timeout=3000)
+                if el and el.is_visible():
+                    return True
+            except:
+                pass
+
+            # Ant Design form-item 容器检测
+            antd_inputs = self.page.query_selector_all(f"{antd_container} input")
+            if len(antd_inputs) >= 2:
+                return True
+
+            # ── Element UI / 通用选择器（fallback）──
             input_selectors = [
                 "input.el-input__inner",
                 "input[placeholder*='手机号码']",
@@ -332,29 +381,71 @@ class OshwhubPlaywrightLogin:
     def _fill_login_form(self, page, username: str, password: str) -> bool:
         """智能填写登录表单
 
-        JLCPCB 使用 Element UI，表单元素为 .el-input__inner。
-        先点击用户名框，再点击密码框模拟真人操作。
+        优先从探索JSON读取 Ant Design 选择器（数据驱动，铁律#19），
+        然后回退到 Element UI / 通用选择器。
         """
+        # 数据驱动：从探索JSON读取表单选择器
+        form_selectors = self._load_form_selectors()
+        antd_username_sel = form_selectors.get("username", [])
+        antd_password_sel = form_selectors.get("password", [])
+        antd_input_class = form_selectors.get("input_class", "input.ant-input")
+
         # ── 用户名/邮箱/手机号输入框 ──
         username_filled = False
-        # Element UI 的输入框用 .el-input__inner 类
-        # 第一个可见的 .el-input__inner（非密码类型）就是用户名框
-        try:
-            all_inputs = page.query_selector_all("input.el-input__inner")
-            if all_inputs:
-                for inp in all_inputs:
-                    tp = inp.get_attribute("type") or ""
-                    if tp != "password" and inp.is_visible():
-                        inp.click()
-                        _human_delay(0.2, 0.5)
-                        inp.fill("")
-                        _human_delay(0.1, 0.3)
-                        for char in username:
-                            inp.type(char, delay=random.randint(40, 120))
-                        username_filled = True
-                        break
-        except:
-            pass
+
+        # Ant Design 选择器（数据驱动）
+        for sel in antd_username_sel:
+            try:
+                inp = page.query_selector(sel)
+                if inp and inp.is_visible():
+                    inp.click()
+                    _human_delay(0.2, 0.5)
+                    inp.fill("")
+                    _human_delay(0.1, 0.3)
+                    for char in username:
+                        inp.type(char, delay=random.randint(40, 120))
+                    username_filled = True
+                    break
+            except:
+                continue
+
+        if not username_filled:
+            # Ant Design 通用：第一个可见的非密码 input.ant-input
+            try:
+                all_inputs = page.query_selector_all(antd_input_class)
+                if all_inputs:
+                    for inp in all_inputs:
+                        tp = inp.get_attribute("type") or ""
+                        if tp != "password" and inp.is_visible():
+                            inp.click()
+                            _human_delay(0.2, 0.5)
+                            inp.fill("")
+                            _human_delay(0.1, 0.3)
+                            for char in username:
+                                inp.type(char, delay=random.randint(40, 120))
+                            username_filled = True
+                            break
+            except:
+                pass
+
+        if not username_filled:
+            # Element UI
+            try:
+                all_inputs = page.query_selector_all("input.el-input__inner")
+                if all_inputs:
+                    for inp in all_inputs:
+                        tp = inp.get_attribute("type") or ""
+                        if tp != "password" and inp.is_visible():
+                            inp.click()
+                            _human_delay(0.2, 0.5)
+                            inp.fill("")
+                            _human_delay(0.1, 0.3)
+                            for char in username:
+                                inp.type(char, delay=random.randint(40, 120))
+                            username_filled = True
+                            break
+            except:
+                pass
 
         if not username_filled:
             # 尝试通用选择器
@@ -383,12 +474,9 @@ class OshwhubPlaywrightLogin:
 
         # ── 密码输入框 ──
         password_filled = False
-        password_selectors = [
-            "input.el-input__inner[type='password']",
-            "input[type='password']",
-            "input[placeholder*='密码']",
-        ]
-        for sel in password_selectors:
+
+        # Ant Design 选择器（数据驱动）
+        for sel in antd_password_sel:
             try:
                 el = page.query_selector(sel)
                 if el and el.is_visible():
@@ -402,6 +490,27 @@ class OshwhubPlaywrightLogin:
                     break
             except:
                 continue
+
+        if not password_filled:
+            password_selectors = [
+                "input.el-input__inner[type='password']",
+                "input[type='password']",
+                "input[placeholder*='密码']",
+            ]
+            for sel in password_selectors:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        el.click()
+                        _human_delay(0.2, 0.5)
+                        el.fill("")
+                        _human_delay(0.1, 0.3)
+                        for char in password:
+                            el.type(char, delay=random.randint(40, 120))
+                        password_filled = True
+                        break
+                except:
+                    continue
 
         return username_filled and password_filled
 
@@ -450,6 +559,18 @@ class OshwhubPlaywrightLogin:
         except:
             return ""
 
+    def _get_cookies_json(self) -> str:
+        """获取结构化 cookies_json（保留 domain/path/secure，铁律#19）
+
+        JLC SSO 需要 cookies_json 而非扁平字符串，
+        Playwright cookies 对象含 name/value/domain/path/secure/httpOnly/sameSite。
+        """
+        try:
+            cookies_list = self.context.cookies() if self.context else []
+            return json.dumps(cookies_list)
+        except:
+            return ""
+
     def login(self, username: str, password: str,
               captcha_provider: str = "manual") -> dict:
         """执行 Playwright 登录 oshwhub.com
@@ -466,7 +587,9 @@ class OshwhubPlaywrightLogin:
             image: str             — 验证码截图（base64），需要时提供
             captcha_type: str      — "image" | "slider" | "recaptcha" | "none"
             error: str
-            cookies: str           — 登录成功的 cookie 字符串
+            cookies: str           — 登录成功的 cookie 字符串（扁平，向后兼容）
+            cookies_json: str      — 结构化 cookies JSON（保留 domain/path/secure，
+                                      JLC SSO 必需，铁律#19）
         """
         try:
             self._ensure_browser()
@@ -501,6 +624,7 @@ class OshwhubPlaywrightLogin:
                         "success": True, "logged_in": True,
                         "needs_captcha": False,
                         "cookies": self._get_cookie_string(),
+                        "cookies_json": self._get_cookies_json(),
                         "error": "",
                         "message": "already_logged_in",
                     }
@@ -607,6 +731,7 @@ class OshwhubPlaywrightLogin:
                     "logged_in": True,
                     "needs_captcha": False,
                     "cookies": cookie_str,
+                    "cookies_json": self._get_cookies_json(),
                     "error": "",
                     "message": "login_success",
                 }
@@ -627,6 +752,7 @@ class OshwhubPlaywrightLogin:
                         "logged_in": True,
                         "needs_captcha": False,
                         "cookies": self._get_cookie_string(),
+                        "cookies_json": self._get_cookies_json(),
                         "error": "",
                         "message": "login_redirect_success",
                     }
@@ -636,6 +762,7 @@ class OshwhubPlaywrightLogin:
                         "logged_in": True,
                         "needs_captcha": False,
                         "cookies": self._get_cookie_string(),
+                        "cookies_json": self._get_cookies_json(),
                         "error": "",
                         "message": "redirect_no_auth_cookie_but_redirected",
                     }
@@ -763,6 +890,7 @@ class OshwhubPlaywrightLogin:
                     "logged_in": True,
                     "needs_captcha": False,
                     "cookies": self._get_cookie_string(),
+                    "cookies_json": self._get_cookies_json(),
                     "error": "",
                     "message": "captcha_login_success",
                 }

@@ -20,7 +20,8 @@ from playwright.sync_api import sync_playwright
 
 
 def verify_raw(cookie: str, site_url: str, platform_username: str = "",
-               platform: str = "") -> dict:
+               platform: str = "", cookies_json: str = "",
+               storage: dict | None = None) -> dict:
     """使用 Playwright 验证原始凭证的登录状态"""
     result = {
         "success": True,
@@ -64,17 +65,38 @@ def verify_raw(cookie: str, site_url: str, platform_username: str = "",
                 locale="zh-CN",
             )
 
-            # ── 注入 Cookie ──
-            domain = site_url.replace("https://", "").replace("http://", "").split("/")[0]
-            cookies = []
-            for pair in cookie.split(";"):
-                pair = pair.strip()
-                if not pair or "=" not in pair:
-                    continue
-                n, v = pair.split("=", 1)
-                cookies.append({"name": n.strip(), "value": v.strip(),
-                                "domain": f".{domain}", "path": "/"})
-            ctx.add_cookies(cookies)
+            # ── 注入 Cookie（优先使用结构化 cookies_json 保留 domain，铁律#19）──
+            if cookies_json:
+                try:
+                    cookies_list = json.loads(cookies_json)
+                    ctx.add_cookies(cookies_list)
+                except (json.JSONDecodeError, Exception):
+                    # 降级到扁平字符串
+                    pass
+            elif cookie:
+                domain = site_url.replace("https://", "").replace("http://", "").split("/")[0]
+                cookies = []
+                for pair in cookie.split(";"):
+                    pair = pair.strip()
+                    if not pair or "=" not in pair:
+                        continue
+                    n, v = pair.split("=", 1)
+                    cookies.append({"name": n.strip(), "value": v.strip(),
+                                    "domain": f".{domain}", "path": "/"})
+                ctx.add_cookies(cookies)
+
+            # ── 注入 localStorage/sessionStorage（预留）──
+            if storage:
+                try:
+                    page_for_storage = ctx.new_page()
+                    page_for_storage.goto(site_url, wait_until="domcontentloaded", timeout=15000)
+                    for item in storage.get("localStorage", []):
+                        page_for_storage.evaluate(f"localStorage.setItem('{item['key']}', '{item['value']}')")
+                    for item in storage.get("sessionStorage", []):
+                        page_for_storage.evaluate(f"sessionStorage.setItem('{item['key']}', '{item['value']}')")
+                    page_for_storage.close()
+                except Exception:
+                    pass
 
             page = ctx.new_page()
             page.goto(site_url, wait_until="domcontentloaded", timeout=30000)
@@ -231,10 +253,13 @@ if __name__ == "__main__":
         site_url = input_data.get("site_url", "")
         username = input_data.get("username", "")
         platform = input_data.get("platform", "")
+        cookies_json = input_data.get("cookies_json", "")
+        storage = input_data.get("storage")
     except (json.JSONDecodeError, Exception):
         print(json.dumps({"success": False, "error": "Invalid input JSON",
                           "logged_in": False, "status": "❌ 输入参数解析失败"}))
         sys.exit(0)
 
-    result = verify_raw(cookie, site_url, username, platform)
+    result = verify_raw(cookie, site_url, username, platform,
+                        cookies_json=cookies_json, storage=storage)
     print(json.dumps(result, ensure_ascii=False, default=str))
