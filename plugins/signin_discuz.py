@@ -30,7 +30,7 @@ class DiscuzKmisignSignin(SigninBase):
     platform = "discuz"
     config_fields = [
         {"key": "site_url", "label": "论坛地址", "type": "text", "required": True,
-         "placeholder": "https://www.mydigit.cn"},
+         "placeholder": "https://(your-forum-domain).com"},
         {"key": "cookie", "label": "Cookie", "type": "password", "required": True,
          "placeholder": "登录后复制 Cookie"},
     ]

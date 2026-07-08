@@ -15,12 +15,44 @@ from flashsloth.core.credential_crypto import encrypt_config
 _discuz_login_instances: dict[str, "AmobbsPlaywrightLogin"] = {}
 _discuz_lock = threading.Lock()
 
-def _get_discuz_login(session_id: str, site_url: str = "https://www.amobbs.com") -> "AmobbsPlaywrightLogin":
-    """获取/创建 Discuz 系论坛登录实例（按 session_id 区分）"""
+def _get_discuz_login(session_id: str, site_url: str = "") -> "AmobbsPlaywrightLogin":
+    """获取/创建 Discuz 系论坛登录实例（按 session_id 区分）
+
+    数据驱动（铁律#19）：如果 site_url 为空，尝试从账号配置读取。
+    site_url 变化时自动重建实例。
+    """
     with _discuz_lock:
+        if not site_url:
+            # site_url 为空时，尝试从当前账号配置读取
+            from flask_login import current_user
+            from flashsloth.core.database import get_db
+            try:
+                uid = current_user.id
+                conn = get_db()
+                row = conn.execute(
+                    "SELECT config_json FROM platform_accounts WHERE user_id=? AND platform='discuz' LIMIT 1",
+                    (uid,)
+                ).fetchone()
+                if row:
+                    import json as _json
+                    cfg = _json.loads(row["config_json"])
+                    site_url = cfg.get("site_url", "https://www.amobbs.com")
+                conn.close()
+            except Exception:
+                site_url = "https://www.amobbs.com"
+        
         # site_url 变化时重建实例
         if session_id in _discuz_login_instances:
-            return _discuz_login_instances[session_id]
+            existing = _discuz_login_instances[session_id]
+            if existing.site_url.rstrip("/") == site_url.rstrip("/"):
+                return existing
+            # site_url 变了 → 关闭旧实例重建
+            try:
+                existing.close()
+            except Exception:
+                pass
+            del _discuz_login_instances[session_id]
+        
         from plugins.amobbs_login import AmobbsPlaywrightLogin
         inst = AmobbsPlaywrightLogin(site_url=site_url)
         _discuz_login_instances[session_id] = inst

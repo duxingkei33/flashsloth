@@ -61,7 +61,7 @@ class DiscuzPublisher(Publisher):
          ],
          "placeholder": "选择登录方式"},
         {"key": "site_url", "label": "论坛地址", "type": "text", "required": True,
-         "placeholder": "https://www.amobbs.com"},
+         "placeholder": "https://(your-forum-domain).com"},
         {"key": "username", "label": "用户名（密码模式）", "type": "text", "required": False,
          "placeholder": "论坛登录用户名"},
         {"key": "password", "label": "密码（密码模式）", "type": "password", "required": False,

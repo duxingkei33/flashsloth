@@ -45,12 +45,39 @@ def _find_chromium() -> str:
 class AmobbsPlaywrightLogin:
     """阿莫论坛 Playwright 登录器"""
 
-    def __init__(self, site_url: str = "https://www.amobbs.com"):
-        self.site_url = site_url.rstrip("/")
+    def __init__(self, site_url: str = ""):
+        """初始化
+
+        数据驱动：site_url 为空时从探索数据/账号配置读取"""
+        self.site_url = (site_url or "").rstrip("/")
+        if not self.site_url:
+            # 从探索数据获取默认URL
+            self.site_url = self._get_default_site_url()
         self.browser = None
         self.context = None
         self.page = None
         self._captcha_screenshot = None
+
+    @staticmethod
+    def _get_default_site_url() -> str:
+        """数据驱动：从探索数据获取默认站点URL"""
+        import os, json
+        try:
+            reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "platform_reports")
+            for fname in os.listdir(reports_dir):
+                if fname.endswith("_login_capabilities.json") and not fname.startswith("_"):
+                    fpath = os.path.join(reports_dir, fname)
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if data.get("engine") == "discuz":
+                        login_url = data.get("login_url", "")
+                        if login_url and login_url.startswith("http"):
+                            return login_url.rstrip("/member.php?mod=logging&action=login").rstrip("/login")
+            return "https://www.amobbs.com"  # 最终回退
+        except Exception:
+            return "https://www.amobbs.com"
+
+
 
     def _ensure_browser(self):
         """确保浏览器已启动"""

@@ -428,7 +428,7 @@ PLATFORM_REGISTRY: dict[str, dict] = {
         "keyword_handler": _keyword_amobbs,
         "api_handler": _api_amobbs,
         "requires_site_url": True,
-        "site_url_default": "https://www.amobbs.com",
+        "site_url_default": "",  # 数据驱动：从探索JSON加载
         "display_name": "阿莫论坛",
     },
     "wechat": {
