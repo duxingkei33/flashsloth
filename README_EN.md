@@ -18,6 +18,7 @@
 - [x] 📱 Phone SMS login — phone_login + SMS verification code flow + frontend support
 - [x] 🪪 Unified login capability exploration — 7-platform Playwright real detection (password/QR/SMS) + JSON report + dynamic tab rendering
 - [x] 🗂️ Account management modular split — routes/accounts/ package (crud/helpers/login/qrcode/search/status)
+- [x] 🧩 Frontend JS modularization — accounts.html 2900-line inline JS split into 5 independent modules (globals/login/scan/search/utils)
 - [x] 🎯 Login engine data-driven — routes derived dynamically from exploration JSON instead of hardcoded DISCUZ_PLATFORMS list
 - [x] 📡 Scan-methods API data-driven — exploration JSON dynamically derives QR scan methods per platform
 - [x] 🎨 Unified login form — API enhancement (site_url/OAuth/captcha fields) + frontend dynamic rendering
@@ -52,6 +53,9 @@
 - [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category + SDK
 - [x] Xianyu Auto-Reply System Integration — Docker service (product listing/order query)
 - [x] Xianyu Auto-Reply Sidecar Adapter — xianyu-auto-reply REST API + health monitoring
+- [x] 📕 Xiaohongshu (Little Red Book) New Publisher — Playwright full workflow (image-text notes + login verification + image upload)
+- [x] 💰 Smzdm (What's Worth Buying) New Publisher — Playwright publisher (title/body/images/category selection)
+- [x] 🛍️ Dewu (Poizon) New Publisher — Playwright publisher (product listing + login verification + image upload)
 - [x] Gallery Product Listing (Reserved)
 - [x] RSS Feed — Pure Python generation
 - [x] GitHub Pages — git push deployment
@@ -167,7 +171,7 @@
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                Plugin + Adapter Layer (plugins/ + sdk/)            │
-│  publisher_*.py — 16 platform publishers                          │
+│  publisher_*.py — 19 platform publishers (incl. Dewu/Smzdm/Xiaohongshu)   │
 │  signin_*.py   — 3 sign-in plugins                                │
 │  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
@@ -272,6 +276,8 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| **v5.18** | 2026-07-08 | Data-driven fix — 39 iron rule #19 hardcoded violations fully fixed + E2E verification; forum_registry dynamic loading + renderers dead code cleanup; 3 new platform publishers (Dewu/Smzdm/Xiaohongshu) |
+| **v5.17** | 2026-07-08 | Frontend JS modularization — accounts.html 2900-line inline JS split into 5 independent static JS module files (globals/login/scan/search/utils) |
 | **v5.16** | 2026-07-08 | Login engine routing data-driven refactor — exploration JSON drives engine routing + config_fields derivation; accounts.py/accounts.html modular split (templates/accounts/ + routes/accounts/); QR scan thread safety + OSHWHub QR adapter; RSS login exploration + Twitter exploration improvements |
 | **v5.15** | 2026-07-08 | Login data-driven fixes — cache bug + hardcoded URL → exploration data-driven; unified login form API enhancement (site_url/OAuth/captcha) + frontend dynamic rendering |
 | **v5.13** | 2026-07-08 | Account connection status fix — `_detection_error` flag fix + frontend button merge (status check + verify credential unified into 🔍 Status Check) |

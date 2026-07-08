@@ -18,6 +18,7 @@
 - [x] 📱 手机验证码登录 — phone_login + SMS验证码流程+前端支持
 - [x] 🪪 统一登录能力探索 — 7平台Playwright真实检测(密码/QR/手机验证码)+JSON报告+动态Tab渲染
 - [x] 🗂️ 账号管理模块化拆分 — routes/accounts/ 包结构（crud/helpers/login/qrcode/search/status）
+- [x] 🧩 前端JS模块化拆分 — accounts.html内联2900行JS拆为5独立模块（globals/login/scan/search/utils）
 - [x] 🎯 登录引擎数据驱动化 — 从平台探索JSON动态推导登录引擎路由（替代硬编码DISCUZ_PLATFORMS列表）
 - [x] 📡 Scan-methods API数据驱动 — 探索JSON动态推导各平台扫码方式
 - [x] 🎨 统一登录表单 — API增强(site_url/OAuth/验证码字段) + 前端动态渲染
@@ -52,6 +53,9 @@
 - [x] 闲鱼商品发布 — MTOP签名V2 + AI类目推荐 + xianyu_client SDK
 - [x] 闲鱼自动回复系统集成 — Docker 服务对接（商品发布/订单查询）
 - [x] 闲鱼自动回复 Sidecar 适配器 — xianyu-auto-reply REST API 对接+健康监控
+- [x] 📕 小红书新 Publisher — Playwright 全流程发布（图文笔记+登录验证+图片上传）
+- [x] 💰 什么值得买新 Publisher — Playwright 发布器（标题/正文/图片/分类选择）
+- [x] 🛍️ 得物新 Publisher — Playwright 发布器（商品发布+登录验证+图片上传）
 - [x] Gallery 抽按商品发布（预留）
 - [x] RSS订阅 — 纯Python生成
 - [x] GitHub Pages — git push 部署
@@ -167,7 +171,7 @@
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    发布器 + 适配器层 (plugins/ + sdk/)             │
-│  publisher_*.py — 16 个平台发布器                                 │
+│  publisher_*.py — 19 个平台发布器（含得物/什么值得买/小红书）        │
 │  signin_*.py   — 3 个签到插件                                    │
 │  provider_*.py — 3 个 Provider 插件 (Markdown/Notion/淘宝)       │
 │  generic_login.py · bilibili_login.py · xianyu_client/           │
@@ -272,6 +276,8 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.18** | 2026-07-08 | 数据驱动修复 — 39项铁律#19硬编码违规全量修复+E2E验证；forum_registry动态加载+renderers死代码清理；3个新平台发布器（得物/什么值得买/小红书） |
+| **v5.17** | 2026-07-08 | 前端JS模块化 — accounts.html 2900行内联JS拆分为5个独立静态JS模块文件（globals/login/scan/search/utils） |
 | **v5.16** | 2026-07-08 | 登录引擎路由数据驱动重构 — 探索JSON驱动引擎路由+config_fields推导；accounts.py/accounts.html 归一化模块拆分(templates/accounts/ + routes/accounts/)；扫码线程安全+OSHWHub扫码适配；RSS登录探索+Twitter探索完善 |
 | **v5.15** | 2026-07-08 | 登录数据驱动修复 — 缓存bug+硬编码URL→探索数据驱动；统一登录表单API增强(site_url/OAuth/验证码字段) + 前端动态渲染 |
 | **v5.13** | 2026-07-08 | 账号连接状态修复 — `_detection_error` 标志修复 + 前端按钮合并（状态检测+验证凭证统一为「🔍 状态检测」） |
