@@ -1,9 +1,9 @@
 # 🦥 FlashSloth — 项目全景报告
 
-**报告日期**: 2026-07-08
-**当前版本**: v5.20
-**Git**: master, clean, latest commit `64e2728`
-**标签**: v5.20 (最新)
+**报告日期**: 2026-07-09
+**当前版本**: v5.21
+**Git**: master, clean, latest commit `80c25c4`
+**标签**: v5.21 (最新)
 
 ---
 
@@ -72,9 +72,9 @@
 | 探索报告 | 13 平台 |
 | 论坛版块 | 130 (forum_exploration 表) |
 | 用户 | 1 (admin) |
-| 标签 | v4.0 ~ v5.20 |
+| 标签 | v4.0 ~ v5.21 |
 | 代码行 | ~59K |
-| 铁律 | 40 条 (fs-iron-rules skill) |
+| 铁律 | 42 条 (fs-iron-rules skill) |
 
 ---
 
