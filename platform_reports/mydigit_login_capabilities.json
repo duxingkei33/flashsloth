@@ -1,6 +1,7 @@
 {
   "platform": "mydigit",
-  "explored_at": "2026-07-07T17:11:31.647055+00:00",
+  "site_url": "https://www.mydigit.cn",
+  "explored_at": "2026-07-08T12:00:00+08:00",
   "login_url": "/member.php?mod=logging&action=login",
   "login_methods": [
     {

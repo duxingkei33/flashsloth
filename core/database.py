@@ -324,8 +324,42 @@ def init_db():
             is_read INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS platform_exploration (
+            platform TEXT PRIMARY KEY,
+            display_name TEXT DEFAULT '',
+            engine TEXT DEFAULT '',
+            login_url TEXT DEFAULT '',
+            login_methods TEXT DEFAULT '[]',
+            config_fields TEXT DEFAULT '[]',
+            captcha_info TEXT DEFAULT '{}',
+            architecture TEXT DEFAULT '',
+            note TEXT DEFAULT '',
+            raw_detection TEXT DEFAULT '{}',
+            full_data TEXT DEFAULT '{}',
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
+    try:
+        conn.execute("SELECT COUNT(*) FROM platform_exploration")
+    except Exception:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS platform_exploration (
+                platform TEXT PRIMARY KEY,
+                display_name TEXT DEFAULT '',
+                engine TEXT DEFAULT '',
+                login_url TEXT DEFAULT '',
+                login_methods TEXT DEFAULT '[]',
+                config_fields TEXT DEFAULT '[]',
+                captcha_info TEXT DEFAULT '{}',
+                architecture TEXT DEFAULT '',
+                note TEXT DEFAULT '',
+                raw_detection TEXT DEFAULT '{}',
+                full_data TEXT DEFAULT '{}',
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        conn.commit()
 
     # 迁移：添加 forum_exploration 兼容
     try:

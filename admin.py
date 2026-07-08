@@ -53,6 +53,11 @@ from flashsloth.routes import configure_app
 from flashsloth.routes._app import app, login_manager, User
 from flashsloth.core.database import init_db, _get_boot_credentials
 from flashsloth.core.scheduler import start_scheduler
+from flashsloth.core.platform_exploration_loader import import_exploration_to_db
+
+# 先初始化DB和导入探索数据，再 configure_app（预热缓存依赖探索数据）
+init_db()
+import_exploration_to_db()
 
 configure_app()
 
@@ -65,7 +70,6 @@ _start_signin_scheduler = start_scheduler
 
 # ─── 启动 ───────────────────────────────────────
 if __name__ == "__main__":
-    init_db()
     host = os.environ.get("FLASHSLOTH_HOST", "0.0.0.0")
     port = int(os.environ.get("FLASHSLOTH_PORT", "5000"))
     print("=" * 54)

@@ -203,7 +203,7 @@ function batchToggle(enable) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ids: ids, enable: enable})
     })
-    .then(function(r) { return r.json(); })
+    .then(safeJson)
     .then(function(data) {
         if (data.success) {
             alert(data.message);
@@ -225,7 +225,7 @@ function batchDelete() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ids: ids})
     })
-    .then(function(r) { return r.json(); })
+    .then(safeJson)
     .then(function(data) {
         if (data.success) {
             alert(data.message);
@@ -240,7 +240,7 @@ function batchDelete() {
 // ─── 启用/禁用切换 ───
 function toggleAccount(aid, checkbox) {
     fetch('/api/accounts/' + aid + '/toggle', {method: 'POST'})
-    .then(r => r.json())
+    .then(safeJson)
     .then(data => {
         if (data.success) { location.reload(); }
         else { checkbox.checked = !checkbox.checked; alert('操作失败: ' + (data.error || '未知错误')); }
@@ -280,10 +280,11 @@ function _loadAllPlatformsForDropdown() {
     dd.innerHTML = '<div class="plat-loading">⏳ 加载平台列表...</div>';
     dd.style.display = 'block';
 
-    // 跟踪是否已经重试过
-    var hasRetried = false;
+    // 指数退避重试：1s → 2s → 4s
+    var maxRetries = 3;
+    var retryDelay = 1000;
+    var attemptCount = 0;
     var timedOut = false;
-    var timeoutTimer = null;
 
     function showTimeout() {
         timedOut = true;
@@ -292,33 +293,48 @@ function _loadAllPlatformsForDropdown() {
             + '</div>';
     }
 
-    // 5 秒超时检测
-    timeoutTimer = setTimeout(showTimeout, 5000);
+    // 15 秒超时检测（WSL 冷启动可能需要较长时间）
+    var timeoutTimer = setTimeout(showTimeout, 15000);
 
     function doFetch() {
-        fetch('/api/platforms/search?q=')
-        .then(function(r) { return r.json(); })
+        attemptCount++;
+        var controller = new AbortController();
+        // 每个请求单独 10s 超时（AbortController 取消请求）
+        var fetchTimer = setTimeout(function() { controller.abort(); }, 10000);
+
+        fetch('/api/platforms/search?q=', { signal: controller.signal })
+        .then(function(r) {
+            clearTimeout(fetchTimer);
+            return r;
+        })
+        .then(safeJson)
         .then(function(data) {
             clearTimeout(timeoutTimer);
             if (data.success && data.results) {
                 _platformSearchData = data.results;
                 _renderPlatformDropdown(data.results);
             } else {
-                dd.innerHTML = '<div class="plat-empty">加载失败</div>';
+                dd.innerHTML = '<div class="plat-empty">加载失败：服务返回异常</div>';
             }
         })
-        .catch(function() {
-            if (!hasRetried) {
-                // 第 1 次失败 → 等待 1 秒后自动重试
-                hasRetried = true;
-                dd.innerHTML = '<div class="plat-loading">⏳ 重试中...</div>';
-                setTimeout(doFetch, 1000);
+        .catch(function(err) {
+            clearTimeout(fetchTimer);
+            if (timedOut) {
+                // 超时消息已显示，不覆盖
+                return;
+            }
+            if (attemptCount <= maxRetries) {
+                // 指数退避重试
+                var delay = retryDelay * Math.pow(2, attemptCount - 1);
+                dd.innerHTML = '<div class="plat-loading">⏳ 重试中 (' + attemptCount + '/' + maxRetries + ')...</div>';
+                setTimeout(doFetch, delay);
             } else {
                 clearTimeout(timeoutTimer);
-                if (!timedOut) {
-                    dd.innerHTML = '<div class="plat-empty">网络错误，<a href="javascript:_loadAllPlatformsForDropdown()" style="text-decoration:underline;cursor:pointer;color:var(--accent)">点击重试</a></div>';
-                }
-                // 如果已经显示超时消息，则保留超时消息
+                timedOut = true;
+                var errMsg = err.name === 'AbortError' ? '请求超时' : ('错误: ' + (err.message || '网络异常'));
+                dd.innerHTML = '<div class="plat-empty">'
+                    + errMsg + '，<a href="javascript:_loadAllPlatformsForDropdown()" style="text-decoration:underline;cursor:pointer;color:var(--accent)">点击重试</a>'
+                    + '</div>';
             }
         });
     }
@@ -342,7 +358,7 @@ function _doPlatformSearch(q) {
     dd.style.display = 'block';
 
     fetch('/api/platforms/search?q=' + encodeURIComponent(q))
-    .then(function(r) { return r.json(); })
+    .then(safeJson)
     .then(function(data) {
         if (!data.success || !data.results) {
             dd.innerHTML = '<div class="plat-empty">搜索失败</div>';

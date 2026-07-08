@@ -17,11 +17,11 @@ function onAddAccount() {
     document.getElementById('addPlatName').textContent = input.placeholder.replace('✅ ', '');
     document.getElementById('addAccountName').value = '';
     document.getElementById('debugCookieArea').style.display = 'none';
-    document.getElementById('addFormTitle').innerHTML = '➕ 添加账号 — <span>' + escapeHtml(input.placeholder.replace('✅ ', '')) + '</span>';
+    document.getElementById('addFormTitle').innerHTML = '➕ 添加账号 — <span id="addPlatName">' + escapeHtml(input.placeholder.replace('✅ ', '')) + '</span>';
 
     // 从后端动态获取登录能力（异步渲染内容）
     fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
-    .then(function(r) { return r.json(); })
+    .then(safeJson)
     .then(function(data) {
         try {
             _loginGuide = data.guide || null;
@@ -241,7 +241,7 @@ function selectCapabilityLoginMethod(method, methods) {
 
     if (!methods) {
         fetch('/api/platform/' + _loginPlatform + '/login-capabilities')
-        .then(function(r) { return r.json(); })
+        .then(safeJson)
         .then(function(data) {
             _loginGuide = data.guide || null;
             _loginCapData = data;
@@ -479,7 +479,7 @@ function renderLoginTabs(methods) {
 // ====== DOM 加载完成初始化 ======
 document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/platforms/presets')
-    .then(r => r.json())
+    .then(safeJson)
     .then(data => {
         if (data.success) _presetsData = data.presets || {};
     })

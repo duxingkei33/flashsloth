@@ -65,6 +65,13 @@ def configure_app():
         conn.close()
         return User(row) if row else None
 
+    # ─── 模板全局变量：JS 版本号（用于缓存破坏）───
+    # 基于当前时间戳，每次服务重启后刷新缓存
+    _js_version = str(int(time.time()))
+    @app.context_processor
+    def inject_js_version():
+        return {"JS_VERSION": _js_version}
+
     # ─── 导入所有路由模块（触发 @app.route 注册）───
     import flashsloth.routes.auth
     import flashsloth.routes.accounts

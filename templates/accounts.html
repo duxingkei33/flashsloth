@@ -621,6 +621,11 @@
     </div>
     <script>
     function quickAddPlatform(platform) {
+        // 安全守卫：等待外部 JS 加载完成
+        if (typeof onAddAccount === 'undefined' || typeof _platformSearchData === 'undefined') {
+            setTimeout(function() { quickAddPlatform(platform); }, 300);
+            return;
+        }
         // 使用新搜索选择器
         var input = document.getElementById('platformSearchInput');
         input.dataset.selected = platform;
@@ -636,6 +641,14 @@
         onAddAccount();
     }
     </script>
+
+<!-- 账号管理 JS — 提前加载确保函数定义可用 -->
+<script src="/static/js/accounts/globals.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/utils.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/search.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/login.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/scan.js?v={{ JS_VERSION }}"></script>
+
 </div>
 {% endif %}
 
@@ -870,6 +883,14 @@
                     </div>
                     <span style="color:#ccc;font-size:10px;">→</span>
                     <div class="prog-step" data-step="5" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>获取Cookie中</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="6" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>Cookie校验中</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="7" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
                         <span class="prog-icon">⏳</span><span>登录结果</span>
                     </div>
                 </div>
@@ -1370,10 +1391,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- 账号管理 JS — 加载顺序按依赖链 -->
-<script src="/static/js/accounts/globals.js"></script>
-<script src="/static/js/accounts/utils.js"></script>
-<script src="/static/js/accounts/search.js"></script>
-<script src="/static/js/accounts/login.js"></script>
-<script src="/static/js/accounts/scan.js"></script>
 {% endblock %}

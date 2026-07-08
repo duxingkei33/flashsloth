@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-08 11:15 | PM: duxingkei | 铁律: fs-iron-rules
+> 最后更新：2026-07-08 23:00 | PM: duxingkei | 铁律: fs-iron-rules (v40条)
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -7,9 +7,15 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**v5.12** — 扫码登录全流程优化（4阶段全部完成）
+**v5.20** — Amobbs/Mydigit 验证码修复 + 全流程 E2E 验证
 
-| 扫码登录优化 | ✅ | 阶段一截图修复(选择器扩充/校验/缩放)+阶段二前端UI(倒计时/扫码提示/失败提示)+阶段三多方式选择(scan_methods[]/API/前端UI)+阶段四超时机制(配置/PW设置页/worker线程)
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| 验证码图片修复 | ✅ | _get_captcha_image() 改用 Playwright 元素截图(带会话Cookie)，不再用 urllib |
+| 前端验证码显示 | ✅ | showCaptchaInput + unifiedRefreshCaptcha 优先 base64，不再用相对 URL |
+| Mydigit 探索数据 | ✅ | mydigit_exploration_report.json + mydigit_login_capabilities.json 已创建 |
+| 平台隔离 | ✅ | site_url 数据驱动，不再硬编码 amobbs.com |
+| 铁律 #40 | ✅ | 大改前三位一体备份(tar.gz+tag+push)强制流程 |
 
 ---
 
@@ -91,44 +97,41 @@
 
 ---
 
-## ⏰ 34个定时任务管理（7/7更新）
+## ⏰ 定时任务管理（7/8 晚间更新）
 
-### ✅ 运行正常（29个）
+### ✅ 运行中（12个核心 + 6个E2E + 若干脚本）
 | 类别 | 任务 | 状态 |
 |------|------|:----:|
-| **核心执行** | flashsloth-autonomous-dev, evening-report, fs-auto-task-executor | ✅ |
-| **监控三件套** | 🐶 TODO看门狗, 🛡️铁律监督, 🔍审计 | ✅ |
-| **文档自动化** | 📖开发说明书, 📚README同步 | ✅ |
-| **P0持续监控** | Provider工作台, 登录能力探索, Cookie修复, Playwright引擎, 签到统计, Giscus部署 | ✅ 6个 |
-| **TODO开发落地** | TODO-ai-call-log (4/6 🔄Claude编写中), TODO-mobile-responsive (4/6 🔄Claude编写中) | 🅱️ |
-| **平台推进** | 🔧平台适配流水线-B站等 | ✅ |
+| **核心执行** | flashsloth-autonomous-dev, fs-auto-task-executor, evening-report | ✅ |
+| **P0持续修复** | Provider工作台, 登录能力探索, Cookie修复, Playwright引擎, 签到统计, Giscus部署 | ✅ 6个 |
 | **E2E测试** | 01登录/02账号/03发布/04社区/05日志/06杂项 | ✅ 6个每日 |
-| **例行巡检** | weekly-regression(周日), fs-cleanup(周日), code-review(周六) | ✅ |
-| **每日审计** | pm-daily-progress(9/21点), hardcode-audit(3点) | ✅ |
-| **功能开发** | 📄日志统一管理页面(30次,每天9点) | 🅰️ |
-| **脚本任务** | flashsloth-exploration(每小时), AI趋势(早8/晚8), FS每日备份(4:30) | ✅ 4个no_agent |
+| **脚本任务** | AI趋势(早8/晚8), FS每日备份(4:30), 凭证健康检查(30分), FS清理(周日) | ✅ 4个no_agent |
+| **新增** | 📋 FS文档同步+代码审计(15分) | ✅ 新建 |
+| **新增** | 🔧 FS-添加账号修复计划(9/15/21点) | ✅ 新建 |
 
-### ⚠️ 异常/暂停（5个）
-| 任务 | 问题 | 处理 |
-|------|------|:----:|
-| 🔐 凭证守护 | ~~No module named 'flashsloth'~~ ✅ **已修复**（10:45改为inline导入），下个周期验证 | ✅ 本次修复 |
-| 📦 FS每日自动备份 | ~~tar file changed as we read it~~ ✅ **已修复**（10:45改为WARN降级），下个周期验证 | ✅ 本次修复 |
-| AI趋势日报-早8点 | ~~delivery_error~~ 实际 Feishu 适配器仍报 [99992402]，但 origin 交付正常 | 🟡 需你检查飞书 webhook |
-| AI趋势日报-晚8点 | 同上 Feishu 适配器报错 | 🟡 需你检查飞书 webhook |
-| flashsloth-morning-report | 暂停 — DeepSeek API 402 余额不足 (¥36.52) | ⏸ 等你充值 |
+### ⚠️ 剩余暂停（7个）
+| 任务 | 原因 |
+|------|------|
+| 平台适配流水线-B站等 | 等探索完成 |
+| 补探索-得物/什么值得买/小红书 | 等需要时 |
+| 编码适配-小红书/得物/值得买 | 等探索完成 |
+| 新平台适配项目-每日进度 | 等需要时 |
+| flashsloth-exploration(每小时) | 已有2小时版本替代 |
+| flashsloth-morning-report | DeepSeek余额不足 |
+| flashsloth-hardcode-audit-daily | PM自己盯 |
 
-### 🗑️ 已清理（3个）
+### 🗑️ 已清理（多个）
 | 任务 | 删除原因 |
 |------|----------|
-| 🔴 P0-登录弹窗完整验收 | 12/12全部通过，已做完 → **已删除** |
-| 🔴 P0-登录状态深度验证 | Broken pipe假阳性，功能已做好 → **已删除** |
-| TODO-twitter-publisher | 代码已完成，缺你的Twitter API Key → **任务结束** |
-
-### 🆕 PM自主（2个）
-| 任务 | 频率 | 职责 |
-|------|------|------|
-| flashsloth-pm-daily-progress | 每天9/21点 | 自动检查进度派活 |
-| 📦 FS每日自动备份 | 每天4:30 no_agent | 三位一体备份（tar.gz+TAG.txt+git tag），静默成功，失败告警 |
+| 3个看门狗(TODO/铁律/审计) | 功能重复，已合并到文档同步看门狗 |
+| 开发说明书自动生成 | 低优先级 |
+| README中英同步 | 低优先级 |
+| 日志统一管理页面 | 单次任务已完成 |
+| UX体验日报 | delivery error |
+| 扫码登录优化项目 | 已完成 |
+| flashsloth-pm-daily-progress | PM自己盯 |
+| code-review-weekly | 需要时手动触发 |
+| weekly-regression | 需要时手动触发 |
 
 ---
 

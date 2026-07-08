@@ -10,7 +10,7 @@
 
 与 FS 后台验证码系统集成：验证码图片以 base64 返回给前端显示。
 """
-import os, re, time, json, base64
+import os, re, time, json, base64, io, urllib.request, urllib.parse
 from typing import Optional
 
 
@@ -45,35 +45,67 @@ def _find_chromium() -> str:
 class AmobbsPlaywrightLogin:
     """阿莫论坛 Playwright 登录器"""
 
-    def __init__(self, site_url: str = ""):
+    def __init__(self, site_url: str = "", platform: str = ""):
         """初始化
 
-        数据驱动：site_url 为空时从探索数据/账号配置读取"""
+        数据驱动：site_url 为空时从探索数据/账号配置读取
+        platform 参数：指定平台名（如 mydigit/discuz/amobbs），用于从 DB 读取 site_url"""
         self.site_url = (site_url or "").rstrip("/")
+        self.platform = platform
         if not self.site_url:
-            # 从探索数据获取默认URL
-            self.site_url = self._get_default_site_url()
+            # 从探索数据获取默认URL（数据驱动，平台感知）
+            self.site_url = self._get_default_site_url(platform)
         self.browser = None
         self.context = None
         self.page = None
         self._captcha_screenshot = None
 
     @staticmethod
-    def _get_default_site_url() -> str:
-        """数据驱动：从探索数据获取默认站点URL"""
+    def _get_default_site_url(platform: str = "") -> str:
+        """数据驱动：从 DB 探索表的 full_data 获取指定平台的 site_url
+
+        优先从 platform_exploration 表的 full_data.site_url 读取，
+        兜底读取 *_exploration_report.json 文件。
+        Args:
+            platform: 平台名（amobbs/mydigit/discuz 等），空字符串时兜底返回空
+        Returns:
+            site_url 字符串，末尾无斜杠
+        """
         import os, json
+        # 优先从 DB 读取（数据驱动 — 铁律#35）
+        if platform:
+            try:
+                from flashsloth.core.database import get_db
+                db = get_db()
+                row = db.execute(
+                    "SELECT full_data FROM platform_exploration WHERE platform=?",
+                    (platform,)
+                ).fetchone()
+                db.close()
+                if row:
+                    fd = row["full_data"]
+                    if isinstance(fd, str):
+                        fd = json.loads(fd)
+                    if isinstance(fd, dict):
+                        site_url = fd.get("site_url", "")
+                        if site_url:
+                            return site_url.rstrip("/")
+            except Exception:
+                pass
+        # 兜底：从 *_exploration_report.json 读取（兼容旧数据）
         try:
             reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "platform_reports")
-            report_path = os.path.join(reports_dir, "amobbs_exploration_report.json")
+            json_name = platform if platform else "amobbs"
+            report_path = os.path.join(reports_dir, f"{json_name}_exploration_report.json")
             if os.path.exists(report_path):
                 with open(report_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     site_url = data.get("site_url", "")
                     if site_url:
                         return site_url.rstrip("/")
-            return "https://www.amobbs.com"  # 最终回退
         except Exception:
-            return "https://www.amobbs.com"
+            pass
+        return ""  # 空字符串 — 由调用方自行处理
 
 
 
@@ -122,6 +154,42 @@ class AmobbsPlaywrightLogin:
                 self._pw.stop()
         except:
             pass
+
+    def _get_captcha_image(self) -> dict:
+        """提取验证码图片 — 使用 Playwright 元素截图（带会话 Cookie）
+
+        返回:
+            image: str — base64 编码的图片
+            captcha_image_url: str — 原始图片 URL（有的话）
+        """
+        result = {"image": "", "captcha_image_url": ""}
+        try:
+            page = self.page
+            img_selectors = [
+                "img[src*='seccode']",
+                "#seccode_image",
+                "img[id*='seccode']",
+            ]
+            for sel in img_selectors:
+                try:
+                    img_el = page.query_selector(sel)
+                    if img_el:
+                        src = img_el.get_attribute("src") or ""
+                        result["captcha_image_url"] = src
+                        # 使用 Playwright 元素截图（带会话 Cookie，比 urllib 可靠）
+                        screenshot = img_el.screenshot()
+                        result["image"] = base64.b64encode(screenshot).decode()
+                        return result
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # 降级到全页截图
+        try:
+            result["image"] = self.take_screenshot()
+        except Exception:
+            pass
+        return result
 
     def take_screenshot(self, selector: str = None) -> str:
         """截图并返回 base64"""
@@ -195,24 +263,40 @@ class AmobbsPlaywrightLogin:
             except:
                 pass
 
-            # 4. 检查是否需要验证码（在提交之前！）
-            page_content = page.content()
+            # 4. 数据驱动：检查是否需要验证码
+            # 优先从探索数据判断（铁律#28），兜底 DOM 检测
+            _needs_captcha_check = True
+            if self.platform:
+                try:
+                    import sqlite3, json as _json
+                    db = sqlite3.connect('flashsloth.db')
+                    row = db.execute("SELECT captcha_info FROM platform_exploration WHERE platform=?", (self.platform,)).fetchone()
+                    db.close()
+                    if row:
+                        ci = _json.loads(row[0]) if isinstance(row[0], str) else (row[0] or {})
+                        if ci.get('has_captcha') is False:
+                            _needs_captcha_check = False
+                except:
+                    pass
 
-            # 检查文本验证码（seccode）— amobbs 使用 Discuz 文本验证码
-            seccode_input = page.query_selector("input[name='seccodeverify']")
-            seccode_img = page.query_selector("img[src*='seccode'], #seccode_image")
-            # 检查是否有 reCAPTCHA 风格的验证码
-            captcha_iframe = page.query_selector("iframe[src*='recaptcha'], iframe[src*='captcha']")
-            # 检查是否有 check 框（点击验证）
-            captcha_check = page.query_selector(
-                ".mc_captcha, .captcha_check, "
-                "[class*='captcha'], [id*='captcha'], "
-                ".geetest, .nc-container"
-            )
+            if _needs_captcha_check:
+                # 只在探索数据说"需要验证码"时检查页面元素
+                seccode_input = page.query_selector("input[name='seccodeverify']")
+                seccode_img = page.query_selector("img[src*='seccode'], #seccode_image")
+                captcha_iframe = page.query_selector("iframe[src*='recaptcha'], iframe[src*='captcha']")
+                captcha_check = page.query_selector(
+                    ".mc_captcha, .captcha_check, "
+                    "[class*='captcha'], [id*='captcha'], "
+                    ".geetest, .nc-container"
+                )
+            else:
+                seccode_input = seccode_img = captcha_iframe = captcha_check = None
 
             if seccode_img or seccode_input or captcha_iframe or captcha_check:
-                # 需要验证码 — 截取验证码区域的截图（不提交表单！）
-                screenshot_b64 = self.take_screenshot()
+                # 需要验证码 — 从 img src 提取验证码图片（不提交表单！）
+                captcha_result = self._get_captcha_image()
+                screenshot_b64 = captcha_result.get("image", "")
+                captcha_image_url = captcha_result.get("captcha_image_url", "")
 
                 # 判断验证码类型
                 if seccode_img or seccode_input:
@@ -227,25 +311,29 @@ class AmobbsPlaywrightLogin:
                     "logged_in": False,
                     "needs_captcha": True,
                     "image": screenshot_b64,
+                    "captcha_image_url": captcha_image_url,
                     "captcha_type": captcha_type,
                     "error": "",
                     "message": f"需要{captcha_type}验证码，请处理后在后台确认",
                 }
 
-            # 5. 不需要验证码 — 点击登录按钮提交表单
+            # 5. 不需要验证码 — 提交登录表单（确保 formhash CSRF 令牌被提交）
             try:
                 login_btn = page.wait_for_selector(
                     "button[name='loginsubmit'], "
                     "button:has-text('登录'), "
                     "input[name='loginsubmit'], "
                     "em:has-text('登录')",
-                    timeout=5000
+                    timeout=3000
                 )
-                login_btn.click()
+                if login_btn and login_btn.is_visible():
+                    login_btn.click()
+                else:
+                    # 按钮不可见，用 JS 点击按钮（触发 onclick 事件）
+                    page.evaluate("document.querySelector('button[name=loginsubmit]')?.click()")
             except:
-                page.evaluate("""
-                    document.querySelector('form[name="login"]')?.submit()
-                """)
+                # 所有方式失败，直接用 JS 提交表单（包含 formhash）
+                page.evaluate("document.querySelector('form[name=login]')?.submit()")
 
             time.sleep(2)
 
@@ -275,16 +363,31 @@ class AmobbsPlaywrightLogin:
                     "error": "",
                 }
 
-            # 检查错误信息
-            error_match = re.search(
-                r'<div[^>]*class="alert_error"[^>]*>(.*?)</div>',
-                page_content, re.DOTALL
-            )
+            # 检查错误信息 — 数据驱动：先找 Discuz 标准错误 div，再找其他常见错误元素
             error_msg = ""
-            if error_match:
-                error_msg = re.sub(r"<[^>]+>", "", error_match.group(1)).strip()
+            # 尝试多种方式提取错误信息
+            error_selectors = [
+                "div.alert_error", "div.alert-danger", "div.error",
+                "div[class*='error']", "div[class*='alert']",
+                ".show_error", "#error_msg"
+            ]
+            for sel in error_selectors:
+                try:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        error_msg = el.inner_text().strip()
+                        if error_msg:
+                            break
+                except:
+                    continue
             if not error_msg:
-                error_msg = "登录失败，未知原因"
+                # 检查页面是否有登录失败特征
+                if "password" in page_content.lower() and "login" in current_url.lower():
+                    error_msg = "登录失败：密码错误或账号不存在"
+                elif "登录" in page_content:
+                    error_msg = "登录失败：请检查账号密码是否正确"
+                else:
+                    error_msg = "登录失败：页面已跳转，请检查账号密码"
 
             return {
                 "success": False,
@@ -470,110 +573,169 @@ class AmobbsPlaywrightLogin:
             return ""
 
     def submit_text_captcha(self, captcha_code: str) -> dict:
-        """提交文本验证码 — 填入验证码，点击边框区域触发核验 ✓，核验通过后提交登录
+        """提交文本验证码 — 填入验证码，点击输入框边框触发核验 ✓，核验通过后提交登录
 
-        Amobbs 特殊行为：
+        Amobbs 特殊行为（使用 DOM 元素 class 判断验证码核验状态）：
         1. 在验证码输入框填入代码
-        2. 点击边框附近区域触发 ✓ 核验
-        3. ✓ → 提交登录 → 返回 cookie
-        4. ✗ → 返回重试
+        2. 点击输入框边框附近区域触发 ✓ 核验
+        3. 通过 `.seccodecheck` 元素的 class 变化判断 ✓/✗
+        4. ✓ → 提交登录 → 返回 cookie
+        5. ✗ → 返回重试
         """
         try:
             self._ensure_browser()
             page = self.page
 
-            # 0. 展开表单（确保验证码输入框可见）
+            # 0. 展开表单（确保验证码输入框可见）— 快速检查，无等待
             try:
                 captcha_input = page.query_selector("input[name='seccodeverify']")
                 if not captcha_input or not captcha_input.is_visible():
-                    form_toggle = page.wait_for_selector("span.login_slct", timeout=3000)
+                    form_toggle = page.query_selector("span.login_slct")
                     if form_toggle and form_toggle.is_visible():
                         form_toggle.click()
-                        time.sleep(0.5)
             except:
                 pass
 
-            # 1. 查找验证码输入框并填入代码
-            captcha_input_selectors = [
-                "input[name='seccodeverify']",
-                "input#seccodeverify",
-                "input[name*='seccode']",
-                "input[id*='seccode']",
-                "input[placeholder*='验证码']",
-                "input[name*='captcha']",
-                "input[id*='captcha']",
-            ]
-
-            filled = False
-            for sel in captcha_input_selectors:
-                try:
-                    inp = page.wait_for_selector(sel, timeout=2000)
-                    if inp and inp.is_visible():
-                        inp.fill("")
-                        time.sleep(0.3)
-                        inp.type(captcha_code, delay=80)
-                        filled = True
-                        time.sleep(0.5)
-                        break
-                except:
-                    continue
-
-            if not filled:
+            # 1. 查找验证码输入框并填入代码 — 直接只用 input[name='seccodeverify']，无 timeout 循环
+            inp = page.query_selector("input[name='seccodeverify']")
+            if not inp or not inp.is_visible():
                 # 没有找到验证码输入框，尝试直接提交
                 return self.click_captcha_and_submit()
 
-            # 2. 点击输入框附近区域触发 ✓ 核验
-            # 点击验证码图片或验证码输入框边框区域
+            inp.fill("")
+            inp.type(captcha_code, delay=80)
+
+            # 2. 点击验证码输入框右边框区域触发 ✓ 核验 — 直接通过查询到的元素
+            box = inp.bounding_box()
+            if box:
+                page.mouse.click(
+                    box['x'] + box['width'] + 10,
+                    box['y'] + box['height'] / 2
+                )
+
+            # 3. 等待验证码核验结果 — 短 timeout
             try:
-                captcha_img = page.query_selector("img[src*='seccode'], #seccode_image")
-                if captcha_img:
-                    box = captcha_img.bounding_box()
-                    if box:
-                        # 点击图片右侧空白区域（触发 √ 核验）
-                        page.mouse.click(box['x'] + box['width'] + 10, box['y'] + box['height'] / 2)
-                        time.sleep(2)
+                page.wait_for_selector(".seccodecheck", timeout=1000)
             except:
-                # 点击输入框下面的空白区域
-                try:
-                    inp = page.query_selector("input[name='seccodeverify']") or \
-                          page.query_selector("input[id*='captcha']")
-                    if inp:
-                        box = inp.bounding_box()
-                        if box:
-                            page.mouse.click(box['x'] + box['width'] + 5, box['y'] + box['height'] / 2)
-                            time.sleep(2)
-                except:
-                    pass
+                pass
 
-            # 3. 检查 ✓ / ✗
-            time.sleep(1)
+            # 检查 ✓ 核验通过 — .seccodecheck 元素是否有 seccodecheck_ok class
+            try:
+                seccode_ok = page.eval_on_selector(
+                    ".seccodecheck",
+                    "el => el.classList.contains('seccodecheck_ok')"
+                )
+                if seccode_ok:
+                    # ✓ 核验通过 — 提交登录
+                    try:
+                        submit_btn = page.query_selector(
+                            "button[name='loginsubmit'], input[name='loginsubmit'], "
+                            "em:has-text('登录'), button:has-text('登录')"
+                        )
+                        if submit_btn:
+                            submit_btn.click()
+                    except:
+                        page.evaluate("document.forms[0]?.submit()")
+
+                    # 等待页面跳转/Cookie更新 — 先查已有 cookies，没有再等
+                    cookies_list = self.context.cookies() if self.context else []
+                    has_auth = any(
+                        "auth" in c.get("name", "").lower() or "sid" in c.get("name", "").lower()
+                        for c in cookies_list
+                    )
+                    if not has_auth:
+                        try:
+                            page.wait_for_function(
+                                "() => document.cookie.includes('auth') || document.cookie.includes('sid')",
+                                timeout=3000
+                            )
+                        except:
+                            pass
+
+                    # 检查登录结果
+                    cookies_list = self.context.cookies() if self.context else []
+                    auth_cookies = [c for c in cookies_list
+                                   if "auth" in c.get("name", "").lower()
+                                   or "sid" in c.get("name", "").lower()]
+
+                    if auth_cookies:
+                        cookie_str = "; ".join(
+                            f"{c['name']}={c['value']}" for c in cookies_list
+                            if c.get('name') and c.get('value')
+                        )
+                        return {
+                            "success": True,
+                            "logged_in": True,
+                            "needs_captcha": False,
+                            "cookies": cookie_str,
+                            "captcha_verified": True,
+                            "error": "",
+                        }
+
+                    # 登录中但还未完成
+                    return {
+                        "success": True,
+                        "logged_in": False,
+                        "captcha_verified": True,
+                        "needs_captcha": False,
+                        "message": "验证码核验通过 ✓，正在登录...",
+                    }
+            except:
+                pass
+
+            # 检查 ✗ 核验失败 — .seccodecheck 元素是否有 seccodecheck_err class
+            try:
+                seccode_err = page.eval_on_selector(
+                    ".seccodecheck",
+                    "el => el.classList.contains('seccodecheck_err')"
+                )
+                if seccode_err:
+                    return {
+                        "success": True,
+                        "needs_captcha": True,
+                        "captcha_type": "text",
+                        "message": "验证码错误 ✗，请重新输入",
+                        "error": "验证码错误",
+                        "logged_in": False,
+                    }
+            except:
+                pass
+
+            # 兜底：用 page.content() 全文搜索 ✓/✗（仅在 DOM class 检测失败时）
             page_content = page.content()
-
-            # 检查 ✓ (核验通过)
             checkmark_signals = ["✓", "√", "check", "pass", "success", "已验证", "验证通过"]
             cross_signals = ["✗", "×", "fail", "error", "验证失败", "请重新验证"]
 
             has_checkmark = any(s in page_content for s in checkmark_signals)
             has_cross = any(s in page_content for s in cross_signals)
 
-            screenshot_b64 = self.take_screenshot()
-
             if has_checkmark:
-                # ✓ 核验通过 — 提交登录
+                # ✓ 核验通过 — 尝试提交登录
                 try:
-                    submit_btn = page.wait_for_selector(
+                    submit_btn = page.query_selector(
                         "button[name='loginsubmit'], input[name='loginsubmit'], "
-                        "em:has-text('登录'), button:has-text('登录')",
-                        timeout=5000
+                        "em:has-text('登录'), button:has-text('登录')"
                     )
                     if submit_btn:
                         submit_btn.click()
                 except:
                     page.evaluate("document.forms[0]?.submit()")
 
-                time.sleep(3)
+                # 先查已有 cookies
+                cookies_list = self.context.cookies() if self.context else []
+                has_auth = any(
+                    "auth" in c.get("name", "").lower() or "sid" in c.get("name", "").lower()
+                    for c in cookies_list
+                )
+                if not has_auth:
+                    try:
+                        page.wait_for_function(
+                            "() => document.cookie.includes('auth') || document.cookie.includes('sid')",
+                            timeout=3000
+                        )
+                    except:
+                        pass
 
-                # 检查登录结果
                 cookies_list = self.context.cookies() if self.context else []
                 auth_cookies = [c for c in cookies_list
                                if "auth" in c.get("name", "").lower()
@@ -593,29 +755,26 @@ class AmobbsPlaywrightLogin:
                         "error": "",
                     }
 
-                # 登录中但还未完成
                 return {
                     "success": True,
                     "logged_in": False,
                     "captcha_verified": True,
                     "needs_captcha": False,
-                    "image": screenshot_b64,
                     "message": "验证码核验通过 ✓，正在登录...",
                 }
 
             elif has_cross:
-                # ✗ 核验失败
                 return {
                     "success": True,
                     "needs_captcha": True,
                     "captcha_type": "text",
-                    "image": screenshot_b64,
                     "message": "验证码错误 ✗，请重新输入",
                     "error": "验证码错误",
                     "logged_in": False,
                 }
 
-            # 不确定状态 — 截图给用户看
+            # 不确定状态
+            screenshot_b64 = self._get_captcha_image().get("image", "")
             return {
                 "success": True,
                 "needs_captcha": True,

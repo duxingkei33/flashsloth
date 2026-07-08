@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 开发说明书
-**版本**: v5.14+P2 | **最后更新**: 2026-07-08 10:00 (每小时自动更新)
+**版本**: v5.14+P2 | **最后更新**: 2026-07-08 11:00 (每小时自动更新)
 **架构对照**: ✅ 已核对 ARCHITECTURE.md
 
 ---
@@ -29,14 +29,14 @@
 
 **技术栈**: Python 3.11 + Flask + SQLite (WAL 模式) + Playwright + Hermes Agent 部署
 **编码规则**: `routes/accounts.py` 使用 Tab 缩进，其他文件使用 4 空格缩进
-**代码规模**: 45,840 行 Python | 12,478 行 HTML | 142 Python 文件 | 36 模板文件
+**代码规模**: 43,413 行 Python | 12,593 行 HTML | 145 Python 文件 | 36 模板文件
 | 模块目录 | 行数 |
 |---------|:----:|
-| core/ | 11,773 |
-| routes/ | 9,811 |
-| plugins/ | 14,357 |
+| core/ | 11,800 |
+| routes/ | 10,012 |
+| plugins/ | 14,550 |
 | sdk/ | 4,563 |
-| scripts/ | 1,665 |
+| scripts/ | 2,083 |
 | fs_mgr.py + admin.py | 405 |
 
 ---
@@ -66,14 +66,14 @@
 │                   统一工作流引擎                                    │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-|  │  core/ 模块层 (33 文件, 11,717 行)                        |   |
+|  core/ 模块层 (33 文件, 11,800 行)                        |   |
 │  │  ├── gateway.py (1181行) 通知网关核心                      │   │
-│  │  ├── credential_provider.py (962行) 统一扫码登录引擎        │   │
-│  │  ├── status_detector.py (791行) 三层登录状态检测器          │   │
+│  │  ├── credential_provider.py (1087行) 统一扫码登录引擎        │   │
+│  │  ├── status_detector.py (845行) 三层登录状态检测器          │   │
 │  │  ├── ai_provider.py (692行) AI 路由框架                    │   │
-│  │  ├── cookie_validator.py (681行) 统一 Cookie 验证器         │   │
-│  │  ├── browser_engine.py (588行) 常驻 Playwright 浏览器引擎   │   │
-│  │  ├── database.py (565行) 数据库初始化+迁移+种子数据          │   │
+│  │  ├── cookie_validator.py (697行) 统一 Cookie 验证器         │   │
+│  │  ├── browser_engine.py (599行) 常驻 Playwright 浏览器引擎   │   │
+│  │  ├── database.py (587行) 数据库初始化+迁移+种子数据          │   │
 │  │  ├── pipeline.py, compiler.py, deployer.py, scheduler.py  │   │
 │  │  ├── image_pipeline.py, anti_detect.py, notifier.py       │   │
 │  │  ├── approval.py, signin.py, article.py, config.py        │   │
@@ -156,25 +156,25 @@
 
 | 模块 | 文件 | 行数 | 说明 |
 |------|------|:----:|------|
-| routes/auth.py | 认证路由 | 309 | 登录/注册/改密/2FA/短信验证码/首页仪表盘 |
+| routes/auth.py | 认证路由 | 318 | 登录/注册/改密/2FA/短信验证码/首页仪表盘 |
 | routes/accounts.py | 账号路由 | 1649 | 账号 CRUD/状态检测/加密解密/批量操作 |
-| routes/posts.py | 文章路由 | 849 | 文章 CRUD/发布流程/编译/自动编译 |
+| routes/posts.py | 文章路由 | 893 | 文章 CRUD/发布流程/编译/自动编译 |
 | routes/ai.py | AI 路由 | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | routes/signin.py | 签到路由 | 374 | 签到页面/手动签到/统计/调度器控制 |
-| routes/browser_engine.py | 浏览器引擎路由 | 187 | Playwright 启停控制/状态查询/心跳 |
-| routes/browser_login.py | 浏览器登录路由 | 299 | Discuz/Amobbs 通用 Playwright 登录 |
-| routes/captcha_browser.py | 验证码路由 | 329 | Discuz 验证码获取/QR 扫码/登录流程 |
-| routes/comment_monitor.py | 评论监控路由 | 600 | 回复收件箱/配置/AI 自动回复 |
-| routes/exploration.py | 探索路由 | 590 | 论坛版块数据管理/平台能力展示 |
-| routes/forum.py | 论坛阅读路由 | 253 | AI 逛论坛/推荐列表/浏览/回复 |
+| routes/browser_engine.py | 浏览器引擎路由 | 189 | Playwright 启停控制/状态查询/心跳 |
+| routes/browser_login.py | 浏览器登录路由 | 420 | Discuz/Amobbs 通用 Playwright 登录 |
+| routes/captcha_browser.py | 验证码路由 | 345 | Discuz 验证码获取/QR 扫码/登录流程 |
+| routes/comment_monitor.py | 评论监控路由 | 612 | 回复收件箱/配置/AI 自动回复 |
+| routes/exploration.py | 探索路由 | 583 | 论坛版块数据管理/平台能力展示 |
+| routes/forum.py | 论坛阅读路由 | 259 | AI 逛论坛/推荐列表/浏览/回复 |
 | routes/workspace_ui.py | 工作台路由 | 374 | Provider 选择/流水线执行/日志 |
 | routes/gateway.py | 网关路由 | 270 | 通知渠道 CRUD/测试发送 |
 | routes/notifications.py | 通知路由 | 67 | 通知列表/标记已读/未读计数 |
 | routes/approval.py | 审批路由 | 144 | 待审批/历史/通过/拒绝 |
-| routes/price_monitor.py | 价格监控路由 | 122 | 监控管理/刷新历史 |
-| routes/storage_deploy.py | 存储部署路由 | 505 | 存储后端配置/部署器管理 |
-| routes/xianyu_search.py | 闲鱼搜索路由 | 142 | 闲鱼关键词搜索 |
-| routes/platforms.py | 平台预设路由 | 19 | 平台预设配置 |
+| routes/price_monitor.py | 价格监控路由 | 121 | 监控管理/刷新历史 |
+| routes/storage_deploy.py | 存储部署路由 | 513 | 存储后端配置/部署器管理 |
+| routes/xianyu_search.py | 闲鱼搜索路由 | 149 | 闲鱼关键词搜索 |
+| routes/platforms.py | 平台预设路由 | 215 | 平台预设配置（v5.14 大幅扩展） |
 | routes/api_v1.py | API v1 | 532 | 统一 REST API v1 |
 | routes/api_v2.py | API v2 | 205 | Gateway REST API v2 |
 | routes/external_services.py | 外部服务路由 | 89 | 外部服务注册/健康检查 |
@@ -1426,7 +1426,8 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
-| `v5.14+P2` | 2026-07-08 10:00 | **账号管理模块化重构** — `routes/accounts.py` (1980行) 按职责拆分为 `routes/accounts/` 包(7子模块, 2,043行)。新增 publisher_smzdm/dewu/xiaohongshu 三个电商/社区发布器(1,403行)。templates/accounts/ 子模板集拆分。Python 总行数增至45,840。 |
+| `v5.14+P2` | 2026-07-08 11:00 | **自动规格更新** — `routes/platforms.py` 扩展至215行(原19行), `routes/browser_login.py` 扩展至420行(原299), `scripts/playwright_verify.py` 扩展至590行(原303)。新增 `e2e_verify_fix.py` (97行)。总码量: Python 43,413行/145文件, HTML 12,593行/36模板。 |
+| `v5.14+P2` | 2026-07-08 10:00 | **账号管理模块化重构** — `routes/accounts.py` (1980行) 按职责拆分为 `routes/accounts/` 包(7子模块, 2,043行)。新增 publisher_smzdm/dewu/xiaohongshu 三个电商/社区发布器(1,403行)。templates/accounts/ 子模板集拆分。Python 总行数增至43,413。 |
 | `v5.13+P2` | 2026-07-08 09:00 | **P0: 账号连接状态/Cookie验证修复批量2** — `core/status_detector.py` 所有6个检测器异常处理增加 `_detection_error=True` 标志；`routes/accounts.py` Layer2 改用 `_detection_error` 替代字符串匹配；前端 `templates/accounts.html` 合并「状态检测」和「验证凭证」按钮。E2E 验证通过（真Cookie→logged_in=true，假Cookie→logged_in=false）。 |
 | `v5.12+P2` | 2026-07-08 | **部署归一化审计** — `/deployers` 到 `/accounts#deploy` 重定向完成确认。 |
 | `v5.11+P2` | 2026-07-08 | **Provider 抽象框架 E2E验证通过 + signin BrowserEngine 复用** — `core/provider.py` (107行) + `plugins/provider_markdown/notion/taobao.py` + `routes/workspace_ui.py` + `templates/workspace.html` 全部E2E通过。签到模块改从全局 BrowserEngine 获取实例，避免每次独立 `sync_playwright()`。账号页验证凭证按钮+deploy重定向归一化完成。`scripts/refresh_login_capabilities.py` 每15分钟自动探索过时(>12h)平台登录能力。 |
@@ -1473,7 +1474,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 ## 附录：文件完整清单
 
-### core/ (35 个 Python 文件, 11,723 行)
+### core/ (33 个 Python 文件, 11,800 行)
 | 文件 | 说明 |
 |------|------|
 | `__init__.py` | 空包标记 |
@@ -1512,43 +1513,43 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `status_detector.py` | 三层登录状态检测器 (v5.02 修复, v5.13 _detection_error标志) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (31 个 Python 文件, 9,811 行)
+### routes/ (31 个 Python 文件, 10,012 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
-| `_app.py` | 86 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
+| `_app.py` | 90 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
 | `accounts/` | 包 | **账号管理模块化包 (v5.14 从 accounts.py 重构)** |
 | ` ├── __init__.py` | 14 | 包入口，导入子模块 |
-| ` ├── crud.py` | 460 | 账号 CRUD — 增/删/改/批量 |
-| ` ├── search.py` | 457 | 账号搜索/筛选/批量操作 |
+| ` ├── crud.py` | 469 | 账号 CRUD — 增/删/改/批量 |
+| ` ├── search.py` | 446 | 账号搜索/筛选/批量操作 |
 | ` ├── login.py` | 358 | 登录流程处理 |
 | ` ├── qrcode.py` | 445 | QR二维码扫码登录处理 |
 | ` ├── status.py` | 309 | 三层登录状态检测 |
-| ` └── helpers.py` | — | 辅助函数/脱敏 |
+| ` └── helpers.py` | 189 | 辅助函数/脱敏 |
 | `ai.py` | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | `api_v1.py` | 532 | 统一 REST API v1（API Key 鉴权） |
 | `api_v2.py` | 205 | Gateway REST API v2（系统/重启/重载） |
 | `approval.py` | 144 | 审批流程管理 |
-| `auth.py` | 309 | 认证 — 登录/注册/改密/2FA/短信/首页 |
-| `browser_engine.py` | 187 | Playwright 浏览器引擎启停/状态/配置 |
-| `browser_login.py` | 299 | 通用 Discuz 系 + Amobbs Playwright 登录 |
-| `captcha_browser.py` | 329 | 验证码获取/QR扫码/通用全流程登录 |
-| `comment_monitor.py` | 600 | 评论监控收件箱/AI自动回复/配置 |
-| `exploration.py` | 590 | 论坛探索数据管理/平台能力展示 |
+| `auth.py` | 318 | 认证 — 登录/注册/改密/2FA/短信/首页 |
+| `browser_engine.py` | 189 | Playwright 浏览器引擎启停/状态/配置 |
+| `browser_login.py` | 420 | 通用 Discuz 系 + Amobbs Playwright 登录 |
+| `captcha_browser.py` | 345 | 验证码获取/QR扫码/通用全流程登录 |
+| `comment_monitor.py` | 612 | 评论监控收件箱/AI自动回复/配置 |
+| `exploration.py` | 583 | 论坛探索数据管理/平台能力展示 |
 | `external_services.py` | 89 | 外部服务注册/健康检查 |
-| `forum.py` | 253 | AI 逛论坛/推荐/浏览/回复 |
+| `forum.py` | 259 | AI 逛论坛/推荐/浏览/回复 |
 | `gateway.py` | 270 | 通知渠道 CRUD/测试发送 |
 | `logs.py` | 252 | **统一日志管理 — 发布/签到/部署/AI 四表统一管理 (v4.90 新增)** |
 | `notifications.py` | 67 | 通知中心/列表/标记已读 |
-| `platforms.py` | 19 | 平台预设配置 |
-| `posts.py` | 849 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合, v5.06 P0修复) |
-| `price_monitor.py` | 122 | 价格监控管理/刷新 |
+| `platforms.py` | 215 | 平台预设配置（v5.14 大幅扩展） |
+| `posts.py` | 893 | 文章 CRUD/发布/编译/自动编译 (v5.04 Cookie状态整合, v5.06 P0修复, v5.14 扩展) |
+| `price_monitor.py` | 121 | 价格监控管理/刷新 |
 | `signin.py` | 374 | 签到管理/手动签到/统计 |
 | `storage_deploy.py` | 513 | 存储后端配置/部署器管理 — `/deployers` 已重定向到 `/accounts#deploy` (v5.08 deploy归一化, v5.09 路由重定向) |
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
-| `xianyu_search.py` | 142 | 闲鱼商品搜索 |
+| `xianyu_search.py` | 149 | 闲鱼商品搜索 |
 
-### plugins/ (51 个 Python 文件, 14,357 行)
+### plugins/ (51 个 Python 文件, 14,550 行)
 **发布器 (19个)**:
 | 文件 | 说明 |
 |------|------|
@@ -1649,7 +1650,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `adapters/github_pages.py` | GitHub Pages 适配器 (370行) |
 | `adapters/giscus.py` | Giscus 适配器 |
 
-### templates/ (36 个 HTML 模板, 12,478 行)
+### templates/ (36 个 HTML 模板, 12,593 行)
 | 模板 | 说明 |
 |------|------|
 | `index.html` | 仪表盘总览 |
@@ -1690,14 +1691,15 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `verify_2fa.html` | 二步验证 |
 | `logs.html` | **统一日志管理 Tab 页 (v4.90 新增)** |
 
-### scripts/ (9 个 Python 脚本, 1,665 行)
+### scripts/ (9 个 Python 脚本, 2,083 行)
 | 脚本 | 说明 |
 |------|------|
 | `hourly_forum_check.py` | 每小时增量检查论坛版块变更 (542行) |
-| `playwright_verify.py` | 子进程 Playwright 账号登录验证 (303行) |
-| `playwright_verify_raw.py` | **子进程 Playwright 验证脚本(原始参数模式) — 添加账号连接测试 (237行, v5.06 新增, v5.08 扩展)** |
-| `e2e_deploy_check.py` | **部署归一化E2E验证脚本 (90行, v5.08 新增)** |
-| `refresh_login_capabilities.py` | **登录能力探索脚本 — 每15分钟自动探索过时(>12h)平台登录能力，更新 JSON 文件 (293行, v5.09 新增)** |
+| `playwright_verify.py` | 子进程 Playwright 账号登录验证 (590行, v5.14 大量扩展) |
+| `playwright_verify_raw.py` | **子进程 Playwright 验证脚本(原始参数模式) — 添加账号连接测试 (266行, v5.06 新增, v5.08 扩展)** |
+| `e2e_deploy_check.py` | **部署归一化E2E验证脚本 (94行, v5.08 新增)** |
+| `e2e_verify_fix.py` | **E2E 校验修复脚本 (97行, v5.14 新增)** |
+| `refresh_login_capabilities.py` | **登录能力探索脚本 — 每15分钟自动探索过时(>12h)平台登录能力，更新 JSON 文件 (312行, v5.09 新增)** |
 | `sync_registry_keywords.py` | 同步 forum_registry 关键词到 DB |
 | `consolidate_forum_data.py` | 合并 www 前缀数据到非 www 域名 |
 | `compare_forum_data.py` | 对比新旧论坛数据差异 |
@@ -1733,4 +1735,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.14+P2 | Python 总行数: 45,840 行 (142 .py, 5 modules) | HTML 总行数: 12,478 行 (36 模板) | 新增: accounts模块化包 + smzdm/dewu/xiaohongshu发布器 | 最后更新: 2026-07-08 10:00*
+*版本: v5.14+P2 | Python 总行数: 43,413 行 (145 .py, 5 modules) | HTML 总行数: 12,593 行 (36 模板) | 新增: platforms.py扩展 / browser_login增强 / playwright_verify扩展 / e2e_verify_fix | 最后更新: 2026-07-08 11:00*

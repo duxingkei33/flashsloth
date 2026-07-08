@@ -52,7 +52,7 @@ var _platColorsMap = {
 // 从 API 加载平台元数据（图标/颜色映射），失败时保留内置 fallback
 (function loadPlatformMetadata() {
     fetch('/api/platforms/metadata')
-        .then(function(r) { return r.json(); })
+        .then(safeJson)
         .then(function(data) {
             if (data && data.success && data.icons && data.colors) {
                 // 合并 API 返回的数据，保留内置 fallback 中 API 未返回的键
@@ -79,3 +79,10 @@ var _qrSessionId = null;
 var _qrPollTimer = null;
 var _selectedScanMethod = null;
 var _origFormTitle = '➕ 添加账号 — ';
+
+// ====== 安全 JSON 响应解析 ======
+// 所有 fetch().then(r => r.json()) 都应改用此函数，避免非 JSON 响应抛 "Unexpected end of JSON input"
+function safeJson(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status + (r.statusText ? ' ' + r.statusText : ''));
+    return r.json().catch(function() { throw new Error('Unexpected end of JSON input'); });
+}

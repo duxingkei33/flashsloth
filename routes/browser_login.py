@@ -24,7 +24,7 @@ def _dispatch_platform_login(platform: str, action: str, data: dict, aid: int) -
 
     if engine == "discuz":
         site_url = data.get("site_url", "")
-        inst = _get_discuz_login(sess_id, site_url=site_url)
+        inst = _get_discuz_login(sess_id, site_url=site_url, platform=platform)
         if action == "start":
             username = data.get("username", "")
             password = data.get("password", "")
@@ -84,11 +84,12 @@ def _dispatch_platform_login(platform: str, action: str, data: dict, aid: int) -
 _discuz_login_instances: dict[str, "AmobbsPlaywrightLogin"] = {}
 _discuz_lock = threading.Lock()
 
-def _get_discuz_login(session_id: str, site_url: str = "") -> "AmobbsPlaywrightLogin":
+def _get_discuz_login(session_id: str, site_url: str = "", platform: str = "") -> "AmobbsPlaywrightLogin":
     """获取/创建 Discuz 系论坛登录实例（按 session_id 区分）
 
     数据驱动（铁律#19）：如果 site_url 为空，尝试从账号配置读取。
     site_url 变化时自动重建实例。
+    platform 参数：指定平台名（如 mydigit/discuz/amobbs），用于数据驱动读取 site_url
     """
     with _discuz_lock:
         if not site_url:
@@ -105,10 +106,10 @@ def _get_discuz_login(session_id: str, site_url: str = "") -> "AmobbsPlaywrightL
                 if row:
                     import json as _json
                     cfg = _json.loads(row["config_json"])
-                    site_url = cfg.get("site_url", "https://www.amobbs.com")
+                    site_url = cfg.get("site_url", "")
                 conn.close()
             except Exception:
-                site_url = "https://www.amobbs.com"
+                site_url = ""
         
         # site_url 变化时重建实例
         if session_id in _discuz_login_instances:
@@ -123,7 +124,7 @@ def _get_discuz_login(session_id: str, site_url: str = "") -> "AmobbsPlaywrightL
             del _discuz_login_instances[session_id]
         
         from plugins.amobbs_login import AmobbsPlaywrightLogin
-        inst = AmobbsPlaywrightLogin(site_url=site_url)
+        inst = AmobbsPlaywrightLogin(site_url=site_url, platform=platform)
         _discuz_login_instances[session_id] = inst
         return inst
 

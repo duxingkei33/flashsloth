@@ -268,19 +268,48 @@ def api_platform_login_poll(platform):
 @app.route("/api/platform/<platform>/login/refresh_captcha", methods=["POST"])
 @login_required
 def api_platform_login_refresh_captcha(platform):
-	"""刷新验证码图片"""
+	"""刷新验证码图片 — 真正点击验证码图片触发刷新，然后用 _get_captcha_image 提取"""
 	if _get_engine_for_platform(platform) == "discuz":
 		from flashsloth.routes.browser_login import _get_discuz_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = _get_discuz_login(f"user_{current_user.id}_{platform}")
-			screenshot = inst.take_screenshot()
-			return jsonify({"success": True, "image": screenshot})
+			# 1. 点击「换一个」链接触发验证码刷新（不是点图片）
+			try:
+				refresh_btn = inst.page.query_selector("a:has-text('换一个'), a:has-text('刷新'), a:has-text('换一张')")
+				if refresh_btn and refresh_btn.is_visible():
+					refresh_btn.click()
+					import time
+					time.sleep(1.5)
+				else:
+					# 降级：点击验证码图片本身
+					captcha_img = inst.page.query_selector("img[src*='seccode'], #seccode_image")
+					if captcha_img:
+						captcha_img.click()
+						time.sleep(1.5)
+			except:
+				pass
+			# 2. 用 _get_captcha_image 提取新验证码
+			captcha_result = inst._get_captcha_image()
+			return jsonify({
+				"success": True,
+				"image": captcha_result.get("image", ""),
+				"captcha_image_url": captcha_result.get("captcha_image_url", ""),
+			})
 	elif _get_engine_for_platform(platform) == "generic":
 		from flashsloth.plugins.generic_login import get_generic_login
 		lock = _get_login_lock(platform)
 		with lock:
 			inst = get_generic_login(f"generic_{current_user.id}")
+			# 尝试点击验证码图片刷新
+			try:
+				captcha_img = inst.page.query_selector("img[src*='captcha'], img[src*='seccode'], img[id*='captcha']")
+				if captcha_img:
+					captcha_img.click()
+					import time
+					time.sleep(1.5)
+			except:
+				pass
 			screenshot = inst.take_screenshot()
 			return jsonify({"success": True, "image": screenshot})
 	return jsonify({"success": False, "error": "不支持的平台"})
