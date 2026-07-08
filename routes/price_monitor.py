@@ -36,12 +36,11 @@ def price_monitor_page():
 def api_price_monitor_accounts():
     """获取支持价格监控的平台账号"""
     conn = get_db()
-    # 识别支持价格的平台：xianyu / taobao / lcsc
+    # 识别支持价格的平台：依赖 price_capable 字段（数据驱动）
     accounts = conn.execute(
         "SELECT id, platform, account_name, price_capable, config_json "
         "FROM platform_accounts "
-        "WHERE user_id=? AND is_active=1 "
-        "AND (price_capable=1 OR platform IN ('xianyu', 'taobao', 'lcsc', 'oshwhub')) "
+        "WHERE user_id=? AND is_active=1 AND price_capable=1 "
         "ORDER BY platform",
         (current_user.id,)
     ).fetchall()

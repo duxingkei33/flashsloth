@@ -14,6 +14,16 @@ from flask_login import login_required, current_user
 from flashsloth.core.database import get_db
 
 
+def _capability_json_name(platform: str) -> str:
+    """将平台名映射到能力 JSON 文件名（无平台后缀变体到主平台名）"""
+    _cap_map = {
+        "wechat": "wechat_mp",
+        "xianyu_v2": "xianyu", "xianyu_sidecar": "xianyu",
+        "xianyu_auto_reply": "xianyu", "xianyu_products": "xianyu",
+    }
+    return _cap_map.get(platform, platform)
+
+
 def _normalize_domain(domain: str) -> str:
     d = domain.strip().lower()
     if d.startswith("www."):
@@ -86,8 +96,7 @@ def exploration_page():
     for p in all_platforms:
         # 加载登录能力（从 platform_reports JSON）
         _reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
-        _cap_map = {"wechat": "wechat_mp", "xianyu_v2": "xianyu", "xianyu_sidecar": "xianyu", "xianyu_auto_reply": "xianyu", "xianyu_products": "xianyu"}
-        json_name = _cap_map.get(p["platform"], p["platform"])
+        json_name = _capability_json_name(p["platform"])
         cap_path = os.path.join(_reports_dir, f"{json_name}_login_capabilities.json")
         if os.path.exists(cap_path):
             try:
@@ -332,6 +341,11 @@ def api_custom_explore():
     from flashsloth.core.explorer import save_exploration_results, explore_discuz_forums, _detect_platform_type
     from flashsloth.core.anti_detect import human_wait_page_ready
 
+    # 探索器注册表 — 数据驱动，新增平台类型只需在此添加条目
+    _EXPLORER_MAP = {
+        "discuz": explore_discuz_forums,
+    }
+
     engine = BrowserEngine.get_instance()
     ctx = engine.create_isolated_context()
     if ctx is None:
@@ -344,8 +358,9 @@ def api_custom_explore():
         human_wait_page_ready(page)
         ptype = _detect_platform_type(page)
         sections = []
-        if ptype == "discuz":
-            sections = explore_discuz_forums(page, f"https://{domain}", domain)
+        explorer_fn = _EXPLORER_MAP.get(ptype)
+        if explorer_fn:
+            sections = explorer_fn(page, f"https://{domain}", domain)
         conn = get_db()
         save_exploration_results(conn, platform if platform != "auto" else ptype, domain, sections)
         conn.close()
@@ -462,13 +477,25 @@ def api_auto_explore(domain):
     root = os.path.dirname(os.path.dirname(__file__))
     config_dir = os.path.join(root, "config")
 
-    # 尝试匹配已知预设
-    preset_map = {
-        "amobbs.com": ("platform_amobbs", "discuz_amobbs"),
-        "mydigit.cn": ("platform_mydigit", "discuz_mydigit"),
-        "csdn.net": ("platform_csdn", "csdn"),
-        "oshwhub.com": ("platform_oshwhub", "oshwhub"),
-    }
+    # 自动从 config/ 目录扫描 platform_*.json 文件构建映射
+    # 数据驱动：新增 JSON 文件即可自动发现，无需修改代码
+    preset_map = {}
+    config_dir = os.path.join(root, "config")
+    if os.path.isdir(config_dir):
+        for fname in sorted(os.listdir(config_dir)):
+            if not fname.startswith("platform_") or not fname.endswith(".json"):
+                continue
+            fpath = os.path.join(config_dir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as _f:
+                    _data = json.load(_f)
+                _domain = _data.get("domain") or _data.get("platform_domain", "")
+                if _domain:
+                    _preset_name = fname.replace(".json", "")
+                    _plat = _data.get("platform", _domain.split(".")[0])
+                    preset_map[_domain] = (_preset_name, _plat)
+            except (json.JSONDecodeError, IOError):
+                continue
 
     if domain in preset_map:
         preset_name, plat = preset_map[domain]

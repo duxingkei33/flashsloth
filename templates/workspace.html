@@ -233,6 +233,7 @@
             <label>发到</label>
             <select id="wsPlatform">
                 <option value="">— 选择平台 —</option>
+                {# 平台列表动态加载 - 由 /api/accounts/deploy/platforms 驱动 #}
                 <option value="wordpress">WordPress</option>
                 <option value="wechat">微信公众号</option>
                 <option value="juejin">掘金</option>
@@ -240,6 +241,26 @@
                 <option value="zhihu">知乎</option>
                 <option value="discuz">Discuz! 论坛</option>
             </select>
+            <script>
+            // 数据驱动：从 API 动态加载平台列表
+            fetch('/api/accounts/deploy/platforms')
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.platforms && data.platforms.length > 6) {
+                        var sel = document.getElementById('wsPlatform');
+                        // 保留前6个已有选项，追加新平台
+                        var existing = Array.from(sel.options).map(o => o.value);
+                        data.platforms.forEach(function(p) {
+                            if (existing.indexOf(p.id) === -1 && p.id !== '') {
+                                var opt = document.createElement('option');
+                                opt.value = p.id;
+                                opt.textContent = p.name;
+                                sel.appendChild(opt);
+                            }
+                        });
+                    }
+                }).catch(function(){});
+            </script>
         </div>
         <div style="margin-top:14px;">
             <button class="ws-btn-run" id="wsRunBtn" onclick="wsRunPipeline()">▶ 运行流水线</button>

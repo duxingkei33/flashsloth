@@ -33,107 +33,128 @@ def _seed_forum_exploration(conn):
     global_count = conn.execute("SELECT COUNT(*) FROM forum_exploration").fetchone()[0]
     count = 0
     if global_count <= 20:
-        # ─── 从 platform_reports/ 加载论坛板块数据 ───
-        platform_map = {
-            "amobbs_com_forums": ("discuz_amobbs", "amobbs.com", "阿莫电子论坛"),
-            "mydigit_cn_forums": ("discuz_mydigit", "mydigit.cn", "数码之家"),
-        }
+        # ─── 从 platform_reports/ 加载论坛板块数据（数据驱动）───
+        # 自动扫描 *_forums.json 文件，按命名规则提取平台信息
+        # 文件名格式: {domain_with_underscores}_forums.json
+        # 域名 = 将下划线替换为点号，平台 = discuz_{domain第一部分}
 
         count = 0
-        for prefix, (platform_name, domain, display) in platform_map.items():
-            json_path = os.path.join(reports_dir, f"{prefix}.json")
-            if not os.path.exists(json_path):
-                print(f"  [种子] 跳过 {prefix}：文件不存在")
-                continue
-
-            with open(json_path) as f:
-                data = json.load(f)
-
-            forums = data.get("forums", {})
-            inserted = 0
-            for fid, info in forums.items():
-                can_post = info.get("can_post", False)
-                if not can_post:
+        if os.path.isdir(reports_dir):
+            for fname in sorted(os.listdir(reports_dir)):
+                if not fname.endswith("_forums.json"):
                     continue
-                name = info.get("name", f"fid={fid}")
-                keywords = json.dumps([name], ensure_ascii=False)
-                extra = json.dumps({
-                    "href": info.get("href", ""),
-                    "postable": True,
-                }, ensure_ascii=False)
+                prefix = fname[: -len("_forums.json")]  # e.g. "amobbs_com"
+                # 域名: 下划线 → 点号
+                domain = prefix.replace("_", ".")
+                # 平台名: discuz_{第一个带点前的部分}
+                base = prefix.split("_")[0] if "_" in prefix else prefix
+                platform_name = f"discuz_{base}" if base != domain else f"discuz_{base}"
+                display = f"{base.title()} 论坛"
 
-                try:
-                    conn.execute(
-                        """INSERT OR IGNORE INTO forum_exploration 
-                           (platform, platform_domain, section_id, section_name, can_post, keywords, extra_info)
-                           VALUES (?, ?, ?, ?, 1, ?, ?)""",
-                        (platform_name, domain, fid, name, keywords, extra)
-                    )
-                    inserted += 1
-                except Exception as e:
-                    print(f"  [种子] 插入失败 {domain}/{fid}: {e}")
+                json_path = os.path.join(reports_dir, fname)
+                if not os.path.exists(json_path):
+                    print(f"  [种子] 跳过 {prefix}：文件不存在")
+                    continue
 
-            conn.commit()
-            count += inserted
-            print(f"  [种子] {display} ({domain}): 已导入 {inserted} 个版块")
+                with open(json_path) as f:
+                    data = json.load(f)
+
+                forums = data.get("forums", {})
+                inserted = 0
+                for fid, info in forums.items():
+                    can_post = info.get("can_post", False)
+                    if not can_post:
+                        continue
+                    name = info.get("name", f"fid={fid}")
+                    keywords = json.dumps([name], ensure_ascii=False)
+                    extra = json.dumps({
+                        "href": info.get("href", ""),
+                        "postable": True,
+                    }, ensure_ascii=False)
+
+                    try:
+                        conn.execute(
+                            """INSERT OR IGNORE INTO forum_exploration 
+                               (platform, platform_domain, section_id, section_name, can_post, keywords, extra_info)
+                               VALUES (?, ?, ?, ?, 1, ?, ?)""",
+                            (platform_name, domain, fid, name, keywords, extra)
+                        )
+                        inserted += 1
+                    except Exception as e:
+                        print(f"  [种子] 插入失败 {domain}/{fid}: {e}")
+
+                conn.commit()
+                count += inserted
+                print(f"  [种子] {display} ({domain}): 已导入 {inserted} 个版块")
         print(f"  [种子] 论坛板块导入完成，共 {count} 条")
     else:
         print(f"  [种子] 已有 {global_count} 条探索数据，跳过 forum_sections 导入（预设配置仍会加载）")
 
-    # ─── 从 config/platform_*.json 加载增强数据（预设配置）───
-    preset_map = {
-        "platform_amobbs": ("discuz_amobbs", "amobbs.com"),
-        "platform_mydigit": ("discuz_mydigit", "mydigit.cn"),
-        "platform_csdn": ("csdn", "csdn.net"),
-        "platform_zhihu": ("zhihu", "zhihu.com"),
-    }
-    for preset_name, (plat, dom) in preset_map.items():
-        preset_path = os.path.join(config_dir, f"{preset_name}.json")
-        if not os.path.exists(preset_path):
-            continue
-        try:
-            with open(preset_path) as f:
-                preset = json.load(f)
-        except Exception as e:
-            print(f"  [种子] 跳过 preset {preset_name}: {e}")
-            continue
-        
-        # 从预设配置更新关键词（修复：sections可能是list，无需tags_of_interest存在）
-        raw_sections = preset.get("sections", [])
-        if isinstance(raw_sections, dict):
-            raw_sections = list(raw_sections.values())
-        if raw_sections and isinstance(raw_sections, list):
-            updated = 0
-            for section in raw_sections:
-                sid = str(section.get("id", section.get("section_id", "")))
-                kw = section.get("keywords", [])
-                if isinstance(kw, str):
-                    kw = [kw]
-                if not kw:
-                    kw = [section.get("name", sid)]
-                extra_tags = json.dumps(kw, ensure_ascii=False)
-                r = conn.execute(
-                    "UPDATE forum_exploration SET keywords=? WHERE platform_domain=? AND section_id=?",
-                    (extra_tags, dom, sid)
-                )
-                if r.rowcount > 0:
-                    updated += 1
-            if updated:
-                conn.commit()
-                print(f"  [种子] {preset_name}: 更新了 {updated} 个版块的关键词")
-        
-        # 存储平台能力到预设
-        caps = preset.get("capabilities", {})
-        if caps:
+    # ─── 从 config/platform_*.json 加载增强数据（预设配置，数据驱动）───
+    # 自动扫描 config/ 目录下 platform_*.json 文件
+    # 每个 JSON 文件内部有 platform 和 site_url 字段
+    if os.path.isdir(config_dir):
+        for preset_name in sorted(os.listdir(config_dir)):
+            if not preset_name.startswith("platform_") or not preset_name.endswith(".json"):
+                continue
+            preset_path = os.path.join(config_dir, preset_name)
+            prefix = preset_name[: -len(".json")]  # e.g. "platform_amobbs"
             try:
-                conn.execute(
-                    "INSERT OR REPLACE INTO platform_config (platform, platform_domain, config_json) VALUES (?, ?, ?)",
-                    (plat, dom, json.dumps(caps, ensure_ascii=False))
-                )
-                conn.commit()
-                print(f"  [种子] {preset_name}: 存储了平台能力配置")
+                with open(preset_path) as f:
+                    preset = json.load(f)
             except Exception as e:
-                print(f"  [种子] {preset_name} 存储配置失败: {e}")
+                print(f"  [种子] 跳过 preset {preset_name}: {e}")
+                continue
+
+            # 从 JSON 数据中提取 platform 和 domain（优先从 JSON 字段，fallback 到文件名）
+            plat = preset.get("platform", "")
+            raw_url = preset.get("site_url", "")
+            dom = raw_url.replace("https://", "").replace("http://", "").split("/")[0].strip().lower() if raw_url else ""
+            if not plat:
+                # Fallback: 从文件名的 "platform_{name}" 推断
+                name_from_file = prefix[len("platform_"):]
+                plat = name_from_file
+            if not dom:
+                # Fallback: name_from_file + ".com"
+                name_from_file = prefix[len("platform_"):]
+                dom = f"{name_from_file}.com"
+
+            # 从预设配置更新关键词（修复：sections可能是list，无需tags_of_interest存在）
+            raw_sections = preset.get("sections", [])
+            if isinstance(raw_sections, dict):
+                raw_sections = list(raw_sections.values())
+            if raw_sections and isinstance(raw_sections, list):
+                updated = 0
+                for section in raw_sections:
+                    sid = str(section.get("id", section.get("section_id", "")))
+                    kw = section.get("keywords", [])
+                    if isinstance(kw, str):
+                        kw = [kw]
+                    if not kw:
+                        kw = [section.get("name", sid)]
+                    extra_tags = json.dumps(kw, ensure_ascii=False)
+                    r = conn.execute(
+                        "UPDATE forum_exploration SET keywords=? WHERE platform_domain=? AND section_id=?",
+                        (extra_tags, dom, sid)
+                    )
+                    if r.rowcount > 0:
+                        updated += 1
+                if updated:
+                    conn.commit()
+                    print(f"  [种子] {preset_name}: 更新了 {updated} 个版块的关键词")
+
+            # 存储平台能力到预设
+            caps = preset.get("capabilities", {})
+            if caps:
+                try:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO platform_config (platform, platform_domain, config_json) VALUES (?, ?, ?)",
+                        (plat, dom, json.dumps(caps, ensure_ascii=False))
+                    )
+                    conn.commit()
+                    print(f"  [种子] {preset_name}: 存储了平台能力配置")
+                except Exception as e:
+                    print(f"  [种子] {preset_name} 存储配置失败: {e}")
     
     # OSHWHub项目类型
     oshwhub_types = [

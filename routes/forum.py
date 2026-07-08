@@ -10,6 +10,9 @@ from flashsloth.core.publisher import list_publishers
 
 from flashsloth.plugins.forum_reader import DiscuzForumReader, InterestFilter
 
+# 论坛类平台名称集合（数据驱动：可从配置扩展）
+_FORUM_PLATFORMS = {"discuz", "amobbs", "mydigit"}
+
 _interest_filter = InterestFilter()
 
 @app.route("/forum-reader")
@@ -23,11 +26,12 @@ def forum_reader():
        "ORDER BY score DESC, created_at DESC LIMIT 100",
        (current_user.id,)
    ).fetchall()
-   # 获取用户已配置的 Discuz! 类平台账号
-   discuz_accounts = conn.execute(
-       "SELECT * FROM platform_accounts WHERE user_id=? AND platform='discuz' AND is_active=1",
+   # 获取用户已配置的论坛类平台账号
+   all_active = conn.execute(
+       "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
        (current_user.id,)
    ).fetchall()
+   discuz_accounts = [a for a in all_active if a["platform"] in _FORUM_PLATFORMS]
    # 统计未读
    unread = conn.execute(
        "SELECT COUNT(*) FROM forum_recommendations WHERE user_id=? AND is_read=0",
@@ -97,19 +101,20 @@ def api_forum_browse():
 
    # 存入数据库
    conn = get_db()
+   platform_name = acct["platform"]  # 数据驱动：使用实际平台名
    new_count = 0
    for t in top_threads:
        # 去重
        existing = conn.execute(
            "SELECT id FROM forum_recommendations WHERE user_id=? AND platform=? AND tid=? AND url=?",
-           (current_user.id, "discuz", t["tid"], t["url"])
+           (current_user.id, platform_name, t["tid"], t["url"])
        ).fetchone()
        if existing:
            continue
        conn.execute(
            "INSERT INTO forum_recommendations (user_id, platform, forum_name, title, url, tid, fid, "
            "author, content, tags, score, summary, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-           (current_user.id, "discuz", t.get("forum_name", ""), t["title"], t["url"],
+           (current_user.id, platform_name, t.get("forum_name", ""), t["title"], t["url"],
             t["tid"], t.get("fid", ""), t.get("author", ""),
             t.get("content", "")[:500], json.dumps(t.get("ai_tags", [])),
             t["ai_score"], t.get("ai_summary", ""), "keyword")
@@ -172,19 +177,20 @@ def api_forum_replies():
 
    # 存入数据库（标记为我的帖子回复）
    conn = get_db()
+   platform_name = acct["platform"] if acct else "discuz"
    new_count = 0
    for r in replies:
        existing = conn.execute(
-           "SELECT id FROM forum_recommendations WHERE user_id=? AND platform='discuz' "
+           "SELECT id FROM forum_recommendations WHERE user_id=? AND platform=? "
            "AND url=? AND source='reply'",
-           (current_user.id, r["url"])
+           (current_user.id, platform_name, r["url"])
        ).fetchone()
        if existing:
            continue
        conn.execute(
            "INSERT INTO forum_recommendations (user_id, platform, title, url, "
            "reply_author, reply_content, source, is_my_thread) VALUES (?, ?, ?, ?, ?, ?, 'reply', 1)",
-           (current_user.id, f"discuz ({r.get('author','')})", f"回复: {r.get('content','')[:80]}",
+           (current_user.id, platform_name, f"回复: {r.get('content','')[:80]}",
             r["url"], r.get("author", ""), r.get("content", "")[:200])
        )
        new_count += 1

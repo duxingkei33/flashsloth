@@ -144,6 +144,8 @@ function getMethodIcon(method) {
         'cookie': '🍪',
         'wechat': '💬',
         'app': '📲',
+        // Note: 图标映射应由后端 API /api/platforms/metadata 驱动
+        // 此 JS 中的映射作为前端渲染回退（减少 API 调用）
     };
     return icons[method] || '🔑';
 }

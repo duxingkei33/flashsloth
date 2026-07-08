@@ -28,23 +28,26 @@ def render_preview(platform: str, body: str) -> str:
 
 
 def _get_renderer(platform: str):
-    """根据平台名选择渲染器"""
-    renderers = {
-        "discuz": _render_bbcode,
-        "amobbs": _render_bbcode,
-        "mydigit": _render_bbcode,
-        "oshwhub": _render_markdown,
-        "csdn": _render_markdown,
-        "juejin": _render_markdown,
-        "github_pages": _render_markdown,
-        "wordpress": _render_html,
-        "wechat": _render_html,
-        "zhihu": _render_richtext,
-        "bilibili": _render_richtext,
-        "twitter": _render_plain_text,
-        "youtube": _render_plain_text,
-        "xianyu": _render_html,
+    """根据平台名选择渲染器 — 数据驱动：从 compile_rule 的 format_type 自动映射"""
+    # format_type → 渲染函数映射
+    _type_renderers = {
+        "bbcode": _render_bbcode,
+        "markdown": _render_markdown,
+        "html": _render_html,
+        "richtext": _render_richtext,
+        "text": _render_plain_text,
     }
+    try:
+        from core.compile_rule import get_rule
+    except ImportError:
+        from flashsloth.core.compile_rule import get_rule
+    rule = get_rule(platform)
+    if rule:
+        return _type_renderers.get(rule.body.format_type)
+    return None
+        "dewu": _render_html,
+    }
+    # TODO: 从编译规则(CompileRule)动态推导渲染器类型
     return renderers.get(platform)
 
 

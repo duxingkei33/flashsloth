@@ -125,6 +125,15 @@ function startQrCodePolling() {
                 setTimeout(function() {
                     document.getElementById('loginScreenshotArea').style.display = 'none';
                 }, 2000);
+            } else if (data.status === 'cookie_unverified') {
+                // Cookie 已检测到但验证未通过 — 展示给用户确认
+                setFieldValue('cfg_cookie', data.cookies || '');
+                showLoginStatus('warning', '⚠️ ' + (data.message || 'Cookie 验证未通过，请确认是否已登录'));
+                document.getElementById('btnStartLogin').textContent = '📋 Cookie已获取，点击保存';
+                document.getElementById('btnStartLogin').disabled = false;
+                _isLoginRunning = false;
+                clearInterval(_qrPollTimer);
+                _qrPollTimer = null;
             } else if (data.needs_captcha && data.image) {
                 showCaptchaInput(data.image, true);
                 showCaptchaFeedback('需要新验证码', true);

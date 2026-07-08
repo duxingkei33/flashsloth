@@ -14,7 +14,7 @@ def xianyu_search_page():
     """闲鱼搜索页面"""
     conn = get_db()
     accounts = conn.execute(
-        "SELECT * FROM platform_accounts WHERE user_id=? AND platform='xianyu' AND is_active=1",
+        "SELECT * FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%' AND is_active=1",
         (current_user.id,)
     ).fetchall()
     conn.close()
@@ -43,13 +43,13 @@ def api_xianyu_search():
     conn = get_db()
     if account_id:
         acct = conn.execute(
-            "SELECT * FROM platform_accounts WHERE id=? AND user_id=? AND platform='xianyu'",
+            "SELECT * FROM platform_accounts WHERE id=? AND user_id=? AND platform LIKE '%xianyu%'",
             (account_id, current_user.id)
         ).fetchone()
     else:
         # 取第一个活跃账号
         acct = conn.execute(
-            "SELECT * FROM platform_accounts WHERE user_id=? AND platform='xianyu' AND is_active=1",
+            "SELECT * FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%' AND is_active=1",
             (current_user.id,)
         ).fetchone()
     conn.close()
@@ -102,7 +102,7 @@ def api_xianyu_detail(item_id):
     """闲鱼商品详情 API"""
     conn = get_db()
     acct = conn.execute(
-        "SELECT * FROM platform_accounts WHERE user_id=? AND platform='xianyu' AND is_active=1",
+        "SELECT * FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%' AND is_active=1",
         (current_user.id,)
     ).fetchone()
     conn.close()

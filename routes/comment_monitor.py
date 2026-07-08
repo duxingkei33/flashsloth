@@ -9,6 +9,10 @@ from datetime import datetime
 
 
 # ─── 初始化 DB 表（幂等）────────────────────────
+# 论坛类平台名称集合（数据驱动：可从配置扩展）
+_FORUM_PLATFORMS = {"discuz", "amobbs", "mydigit"}
+
+
 def _ensure_tables():
     conn = get_db()
     conn.executescript("""
@@ -69,21 +73,26 @@ def comment_monitor():
     _ensure_tables()
     conn = get_db()
 
-    # 1. 论坛账号列表（带监控配置）
-    discuz_accounts = conn.execute(
+    # 1. 论坛账号列表（带监控配置）— 数据驱动：匹配所有 discuz 系列平台
+    all_active = conn.execute(
         "SELECT * FROM platform_accounts "
-        "WHERE user_id=? AND platform='discuz' AND is_active=1 "
+        "WHERE user_id=? AND is_active=1 "
         "ORDER BY account_name",
         (current_user.id,)
     ).fetchall()
+    discuz_accounts = [a for a in all_active if "discuz" in a["platform"].lower()]
 
     # 2. 监控配置
-    configs_raw = conn.execute(
-        "SELECT * FROM comment_monitor_config "
-        "WHERE account_id IN (SELECT id FROM platform_accounts "
-        "WHERE user_id=? AND platform='discuz' AND is_active=1)",
-        (current_user.id,)
-    ).fetchall()
+    forum_ids = tuple(a["id"] for a in discuz_accounts)
+    if forum_ids:
+        placeholders = ",".join("?" * len(forum_ids))
+        configs_raw = conn.execute(
+            f"SELECT * FROM comment_monitor_config "
+            f"WHERE account_id IN ({placeholders})",
+            forum_ids
+        ).fetchall()
+    else:
+        configs_raw = []
     configs = {r["account_id"]: dict(r) for r in configs_raw}
 
     # 3. 按板块分组的帖子回复统计
@@ -137,7 +146,9 @@ def _get_grouped_stats(conn):
     """, (user_id, is_admin)).fetchall()
 
     # 已发布但无回复的帖子
-    no_reply = conn.execute("""
+    _forum_list = tuple(_FORUM_PLATFORMS)
+    _placeholders = ",".join("?" * len(_forum_list))
+    no_reply = conn.execute(f"""\
         SELECT DISTINCT
             pl.article_id,
             a.title AS article_title,
@@ -153,12 +164,12 @@ def _get_grouped_stats(conn):
         LEFT JOIN platform_accounts pa ON pl.account_id=pa.id
         WHERE (a.user_id=? OR ?)
           AND pl.success=1
-          AND pa.platform='discuz'
+          AND pa.platform IN ({_placeholders})
           AND pl.article_id NOT IN (
               SELECT DISTINCT article_id FROM comment_replies
           )
         ORDER BY pl.created_at DESC
-    """, (user_id, is_admin)).fetchall()
+    """, (user_id, is_admin) + _forum_list).fetchall()
 
     # 合并
     all_posts = []
@@ -239,11 +250,12 @@ def api_check_single(aid):
 def api_check_all():
     """检查当前用户所有论坛账号的回复"""
     conn = get_db()
-    accounts = conn.execute(
-        "SELECT id FROM platform_accounts "
-        "WHERE user_id=? AND platform='discuz' AND is_active=1",
+    all_active = conn.execute(
+        "SELECT * FROM platform_accounts "
+        "WHERE user_id=? AND is_active=1",
         (current_user.id,)
     ).fetchall()
+    accounts = [dict(a) for a in all_active if a["platform"] in _FORUM_PLATFORMS]
     conn.close()
 
     total_new = 0

@@ -51,6 +51,10 @@ def from_json_filter(val):
 
 
 # ─── 全局模板上下文（含请求级缓存，减少重复DB查询） ───
+# 闲鱼/市场类搜索平台的名称集合（数据驱动：可从配置扩展）
+_XIANYU_SEARCH_PLATFORMS = ("xianyu", "xianyu_v2", "xianyu_sidecar",
+                            "xianyu_auto_reply", "xianyu_products")
+
 _HAS_XIANYU_CACHE: dict[int, bool] = {}
 _HAS_XIANYU_TTL: dict[int, float] = {}
 
@@ -70,11 +74,11 @@ def inject_global_context():
             else:
                 from flashsloth.core.database import get_db
                 conn = get_db()
-                row = conn.execute(
-                    "SELECT COUNT(*) as c FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%'",
+                rows = conn.execute(
+                    "SELECT platform FROM platform_accounts WHERE user_id=?",
                     (uid,)
-                ).fetchone()
-                val = (row and row["c"] > 0) if row else False
+                ).fetchall()
+                val = any("xianyu" in r["platform"].lower() for r in rows)
                 conn.close()
                 _HAS_XIANYU_CACHE[uid] = val
                 _HAS_XIANYU_TTL[uid] = now

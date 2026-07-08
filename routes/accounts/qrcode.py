@@ -100,8 +100,15 @@ def _qr_worker(platform: str, login_url: str, sess_id: str, result_queue: _qr_qu
         _page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
         _page.wait_for_timeout(3000)
 
-        # 对于 Bilibili：需要点击登录按钮弹出二维码面板
-        if platform == "bilibili":
+        # 平台特定扫码前操作：根据 engine 判断是否需要点击登录按钮（铁律#19）
+        _login_engine = None
+        try:
+            from flashsloth.routes.accounts.helpers import _load_login_capabilities
+            cap = _load_login_capabilities(platform)
+            _login_engine = cap.get("engine") if cap else None
+        except Exception:
+            pass
+        if _login_engine in ("bilibili", "juejin"):
             try:
                 login_btn = _page.query_selector(".header-login-entry")
                 if login_btn and login_btn.is_visible():
@@ -178,23 +185,11 @@ def api_qrcode_login_start(platform):
     site_url = data.get("site_url", "")
     method = data.get("method", "")  # scan_methods[].id — 可选
 
-    # 确定登录 URL
+    # 确定登录 URL（数据驱动 — 从探索JSON读取，铁律#19）
     login_url = data.get("login_url", site_url or "")
     if not login_url:
-        login_page_map = {
-            "discuz": "/member.php?mod=logging&action=login",
-            "amobbs": "/member.php?mod=logging&action=login",
-            "csdn": "https://passport.csdn.net/login",
-            "oshwhub": "https://passport.jlc.com/login",
-            "xianyu": "https://www.goofish.com/",
-            "xianyu_v2": "https://www.goofish.com/",
-            "wechat": "https://mp.weixin.qq.com/",
-            "zhihu": "https://www.zhihu.com/signin",
-            "bilibili": "https://www.bilibili.com/",
-            "juejin": "https://juejin.cn/",
-            "wordpress": f"{site_url.rstrip('/')}/wp-login.php" if site_url else "",
-        }
-        login_url = login_page_map.get(platform, site_url or "")
+        from flashsloth.routes.accounts.helpers import _get_login_url_for_platform
+        login_url = _get_login_url_for_platform(platform, site_url)
     if not login_url:
         return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
 
@@ -232,6 +227,7 @@ def api_qrcode_login_start(platform):
             "status": "waiting",
             "user_id": current_user.id,
             "account_id": aid,
+            "site_url": site_url,
             "_engine_session": True,
         }
         return jsonify({
@@ -258,23 +254,11 @@ def api_scan_login_start(platform):
     scan_type = data.get("scan_type", "auto")
     method = data.get("method", "")  # scan_methods[].id — 可选，用于前端选择
 
-    # 确定登录 URL
+    # 确定登录 URL（数据驱动 — 从探索JSON读取，铁律#19）
     login_url = data.get("login_url", site_url or "")
     if not login_url:
-        login_page_map = {
-            "discuz": "/member.php?mod=logging&action=login",
-            "amobbs": "/member.php?mod=logging&action=login",
-            "csdn": "https://passport.csdn.net/login",
-            "oshwhub": "https://passport.jlc.com/login",
-            "xianyu": "https://www.goofish.com/",
-            "xianyu_v2": "https://www.goofish.com/",
-            "wechat": "https://mp.weixin.qq.com/",
-            "zhihu": "https://www.zhihu.com/signin",
-            "bilibili": "https://www.bilibili.com/",
-            "juejin": "https://juejin.cn/",
-            "wordpress": f"{site_url.rstrip('/')}/wp-login.php" if site_url else "",
-        }
-        login_url = login_page_map.get(platform, site_url or "")
+        from flashsloth.routes.accounts.helpers import _get_login_url_for_platform
+        login_url = _get_login_url_for_platform(platform, site_url)
     if not login_url:
         return jsonify({"success": False, "error": "未知登录地址，请提供 site_url"})
 
@@ -336,19 +320,41 @@ def api_qrcode_login_poll(platform, session_id):
         engine_result = ScanLoginEngine.poll_scan_login(session_id, user_id=current_user.id)
         status = engine_result.get("status", "error")
 
-        # 登录成功时保存 Cookie 到账号
+        # 登录成功时：先校验 Cookie 有效性，通过才保存
         if status == "logged_in":
             cookies_str = engine_result.get("cookies", "")
             aid = sess.get("account_id")
-            if aid:
-                _save_cookie_to_account(aid, cookies_str)
-            return jsonify({
-                "success": True,
-                "status": "logged_in",
-                "cookies": cookies_str,
-                "image": engine_result.get("image", ""),
-                "message": "✅ 登录成功！Cookie 已自动获取",
-            })
+
+            # 完整校验 Cookie（API 级验证）
+            from flashsloth.core.cookie_validator import verify_cookie
+            site_url = sess.get("site_url", "")
+            v_result = verify_cookie(platform, cookies_str, input_type="string",
+                                      site_url=site_url, phase="api")
+
+            if v_result.get("valid"):
+                # 校验通过 → 保存 Cookie
+                if aid:
+                    _save_cookie_to_account(aid, cookies_str)
+                return jsonify({
+                    "success": True,
+                    "status": "logged_in",
+                    "cookies": cookies_str,
+                    "image": engine_result.get("image", ""),
+                    "message": "✅ 登录成功！Cookie 已验证有效",
+                    "verified": True,
+                    "detail": v_result.get("detail", {}),
+                })
+            else:
+                # 校验未通过 → 不保存，让用户确认或继续等待
+                return jsonify({
+                    "success": True,
+                    "status": "cookie_unverified",
+                    "cookies": cookies_str,
+                    "image": engine_result.get("image", ""),
+                    "message": "⚠️ 检测到 Cookie 但验证未通过: " + v_result.get("message", "未知原因"),
+                    "verified": False,
+                    "detail": v_result.get("detail", {}),
+                })
         elif status == "waiting":
             return jsonify({
                 "success": True,

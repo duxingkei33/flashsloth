@@ -104,6 +104,27 @@
         {"name": "Twitter / X", "url": "https://twitter.com", "desc": "社交媒体平台（通过 API 发布）"},
         {"name": "X.com", "url": "https://x.com", "desc": "Twitter X 域名"}
       ]
+    },
+    "xiaohongshu": {
+      "display": "小红书",
+      "icon": "📕",
+      "sites": [
+        {"name": "小红书", "url": "https://www.xiaohongshu.com", "desc": "生活方式社区笔记发布"}
+      ]
+    },
+    "smzdm": {
+      "display": "什么值得买",
+      "icon": "💰",
+      "sites": [
+        {"name": "什么值得买", "url": "https://www.smzdm.com", "desc": "消费导购平台好价文章"}
+      ]
+    },
+    "dewu": {
+      "display": "得物",
+      "icon": "👟",
+      "sites": [
+        {"name": "得物", "url": "https://www.dewu.com", "desc": "潮流网购社区"}
+      ]
     }
   }
 }

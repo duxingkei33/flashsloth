@@ -134,7 +134,8 @@
 
         <div class="gw-form-row">
             <label for="gwPlatform">平台类型</label>
-            <select id="gwPlatform" onchange="onPlatformChange()">
+            <select id="gwPlatform" onchange="onPlatformChange()"
+                    data-qr-platforms='{{ ["feishu","wecom","wechat","dingtalk"]|tojson }}'>  {# TODO: 从 provider 配置字段动态推导 #}
                 <option value="">— 选择平台 —</option>
                 {% for p in providers %}
                 <option value="{{ p.name }}" data-fields='{{ p.config_fields|tojson }}'
@@ -299,7 +300,17 @@ function showQrConfig(platform) {
     const qrArea = document.getElementById('gwQrConfig');
     if (!qrArea) return;
 
-    const qrPlatforms = ['feishu', 'wecom', 'wechat', 'dingtalk'];
+    // qrPlatforms 从 API /api/gateway/providers 动态加载
+    var qrPlatforms = [];
+    try {
+        var sel = document.getElementById('gwPlatform');
+        if (sel && sel.getAttribute('data-qr-platforms')) {
+            qrPlatforms = JSON.parse(sel.getAttribute('data-qr-platforms'));
+        }
+    } catch(e) {}
+    if (!qrPlatforms.length) {
+        qrPlatforms = ['feishu', 'wecom', 'wechat', 'dingtalk'];
+    }
     if (qrPlatforms.includes(platform)) {
         qrArea.style.display = 'block';
         document.getElementById('gwQrPlatform').textContent =

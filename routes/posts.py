@@ -857,7 +857,7 @@ def api_check_pending():
            "updated": False,
        }
 
-       if platform == "discuz" and tid:
+       if tid:
            cfg_str = log.get("config_json", "{}")
            cfg = json.loads(cfg_str) if cfg_str else {}
            if not cfg:
@@ -866,24 +866,26 @@ def api_check_pending():
                continue
 
            try:
-               publisher = get_publisher("discuz", cfg)
-               verify = publisher._verify_thread_exists(tid)
-               if verify["status"] == "published":
-                   conn.execute(
-                       "UPDATE publish_log SET status='published', message='published' WHERE id=?",
-                       (log["id"],)
-                   )
-                   result["new_status"] = "published"
-                   result["updated"] = True
-                   result["title"] = verify.get("title", "")
-                   result["url"] = verify.get("url", log.get("url", ""))
-                   updated_count += 1
+               publisher = get_publisher(platform, cfg)
+               verify_thread = getattr(publisher, '_verify_thread_exists', None)
+               if verify_thread:
+                   verify = verify_thread(tid)
+                   if verify["status"] == "published":
+                       conn.execute(
+                           "UPDATE publish_log SET status='published', message='published' WHERE id=?",
+                           (log["id"],)
+                       )
+                       result["new_status"] = "published"
+                       result["updated"] = True
+                       result["title"] = verify.get("title", "")
+                       result["url"] = verify.get("url", log.get("url", ""))
+                       updated_count += 1
+                   else:
+                       result["error"] = verify.get("title", "仍为待审核状态")
                else:
-                   result["error"] = verify.get("title", "仍为待审核状态")
+                   result["error"] = f"平台 {platform} 暂不支持自动检查"
            except Exception as e:
                result["error"] = f"检查异常: {e}"
-       else:
-           result["error"] = f"平台 {platform} 暂不支持自动检查"
 
        results.append(result)
 

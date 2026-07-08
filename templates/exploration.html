@@ -606,7 +606,9 @@
                             <td class="value">
                                 {% for st in qr_method.sub_types %}
                                 <span class="cap-tag" style="background:#f0fff4;color:#166534;">
-                                    {{ '💬' if st.id == 'wechat' else '📲' if st.id == 'app' else '📱' }}
+                                    {# 扫码子类型图标 - 从数据驱动，默认用通用扫码图标 #}
+                                    {% set _st_icon = {'wechat': '💬', 'app': '📲'}.get(st.id, '📱') %}
+                                    {{ _st_icon }}
                                     {{ st.label }}
                                 </span>
                                 {% endfor %}

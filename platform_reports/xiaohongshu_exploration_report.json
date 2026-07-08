@@ -4,8 +4,8 @@
   "domain": "xiaohongshu.com",
   "category": "social",
   "architecture": "custom",
-  "explored_at": "2026-07-08 06:23:32",
-  "last_updated": "2026-07-08 06:23:32",
+  "explored_at": "2026-07-08 08:56:21",
+  "last_updated": "2026-07-08 08:56:21",
   "explored_with_login": true,
   "has_account": false,
   "has_publisher": false,
@@ -26,7 +26,8 @@
           "img[src*='data:image/png;base64,iVBORw0K']",
           "img[src*='data:image/png;base64,iVBORw0K']",
           "img[src*='data:image/png;base64,iVBORw0K']",
-          "img[src*='https://sns-webpic-qc.xhscdn.c']"
+          "img[src*='https://sns-webpic-qc.xhscdn.c']",
+          "img[src*='https://sns-avatar-qc.xhscdn.c']"
         ]
       }
     ],
@@ -43,7 +44,7 @@
     "third_party": {
       "wechat": true,
       "weibo": false,
-      "qq": true,
+      "qq": false,
       "github": false,
       "apple": false,
       "others": []
@@ -54,7 +55,8 @@
         "img[src*='data:image/png;base64,iVBORw0K']",
         "img[src*='data:image/png;base64,iVBORw0K']",
         "img[src*='data:image/png;base64,iVBORw0K']",
-        "img[src*='https://sns-webpic-qc.xhscdn.c']"
+        "img[src*='https://sns-webpic-qc.xhscdn.c']",
+        "img[src*='https://sns-avatar-qc.xhscdn.c']"
       ],
       "qr_container_sel": ""
     },

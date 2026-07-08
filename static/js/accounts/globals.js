@@ -15,6 +15,9 @@ let _loginOAuthProvider = null;
 let _platformSearchTimer = null;
 let _platformSearchData = [];
 let _platformSearchIdx = -1;
+
+// ====== 平台图标/颜色映射（数据驱动，带本地 fallback）======
+// 启动时从 API /api/platforms/metadata 加载，失败时使用内置 fallback
 var _platIconsMap = {
     'discuz': '💬', 'amobbs': '💬', 'mydigit': '💬',
     'oshwhub': '🔧', 'oshwhub_eda': '⚡',
@@ -45,6 +48,33 @@ var _platColorsMap = {
     'qqzone': '#e3f2fd', 'weibo': '#fce4ec', 'toutiao': '#fff3e0',
     'default': '#f0f4ff'
 };
+
+// 从 API 加载平台元数据（图标/颜色映射），失败时保留内置 fallback
+(function loadPlatformMetadata() {
+    fetch('/api/platforms/metadata')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.success && data.icons && data.colors) {
+                // 合并 API 返回的数据，保留内置 fallback 中 API 未返回的键
+                var apiIcons = data.icons || {};
+                var apiColors = data.colors || {};
+                for (var k in apiIcons) {
+                    if (apiIcons.hasOwnProperty(k)) {
+                        _platIconsMap[k] = apiIcons[k];
+                    }
+                }
+                for (var k in apiColors) {
+                    if (apiColors.hasOwnProperty(k)) {
+                        _platColorsMap[k] = apiColors[k];
+                    }
+                }
+            }
+        })
+        .catch(function() {
+            // API 加载失败 → 保留内置 fallback 不变
+        });
+})();
+
 var _qrSessionId = null;
 var _qrPollTimer = null;
 var _selectedScanMethod = null;

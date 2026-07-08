@@ -494,52 +494,65 @@ class Compiler:
                 elif f.field_name in ("content", "message", "body"):
                     fields[f.field_name] = converted_body
 
-            # 🔥 智能版块/分类匹配：支持所有平台
-            if "fid" not in fields and "type_id" not in fields:
-                try:
-                    from flashsloth.core.forum_registry import (
-                        match_forum, get_forum_name, match_platform_type
-                    )
+            # 🔥 智能版块/分类匹配：支持所有平台（数据驱动）
+            from flashsloth.core.forum_registry import (
+                match_forum, get_forum_name, match_platform_type
+            )
+
+            # 平台 → 域名映射（数据驱动）
+            # 命名规则: discuz_{domain_first_part} → {domain_first_part}.com
+            # 已知平台手动指定域名，新增平台自动 fallback
+            _DOMAIN_MAP = {
+                "discuz_amobbs": "amobbs.com",
+                "discuz_mydigit": "mydigit.cn",
+                "oshwhub": "oshwhub.com",
+                "csdn": "csdn.net",
+            }
+
+            domain = _DOMAIN_MAP.get(platform)
+            if domain is None:
+                # Fallback 1: discuz_* → assume *.com
+                if platform.startswith("discuz_"):
+                    base = platform[len("discuz_"):]
+                    domain = f"{base}.com"
+                # Fallback 2: 其他未知 Discuz → 由上层指定，跳过匹配
+                elif platform == "discuz":
+                    domain = None
                     
-                    # 平台 → 域名映射
-                    domain_map = {
-                        "discuz_amobbs": "amobbs.com",
-                        "discuz_mydigit": "mydigit.cn",
-                        "discuz": None,  # 未知 Discuz → 由上层指定
-                        "oshwhub": "oshwhub.com",
-                        "csdn": "csdn.net",
-                    }
-                    
-                    domain = domain_map.get(platform)
-                    
-                    # 如果是 Discuz 论坛 → 匹配 FID
-                    if domain in ("amobbs.com", "mydigit.cn"):
-                        fid = match_forum(domain, ir.tags, title, converted_body)
-                        if fid:
-                            fields["fid"] = fid
-                            fields["_forum_domain"] = domain
-                            name = get_forum_name(domain, fid)
-                            warnings.append(f"智能匹配版块: {domain} → {name}(fid={fid})")
-                    
-                    # 如果是 OSHWHub → 匹配项目类型
-                    elif domain == "oshwhub.com":
-                        type_info = match_platform_type("oshwhub.com", ir.tags, title, converted_body)
-                        if type_info:
-                            fields["project_type"] = type_info.get("type_id")
-                            fields["project_endpoint"] = type_info.get("endpoint")
-                            fields["type_id"] = type_info.get("type_id")
-                            warnings.append(f"智能匹配项目类型: OSHWHub → {type_info.get('type_name')}")
-                    
-                    # 如果是 CSDN → 匹配文章类型
-                    elif domain == "csdn.net":
-                        type_info = match_platform_type("csdn.net", ir.tags, title, converted_body)
-                        if type_info:
-                            fields["article_type"] = type_info.get("type_id")
-                            fields["type_id"] = type_info.get("type_id")
-                            warnings.append(f"智能匹配文章类型: CSDN → {type_info.get('type_name')}")
-                            
-                except ImportError:
-                    pass  # forum_registry 不可用时跳过
+            # 板块/类型匹配调度（数据驱动，替代 if/elif 硬编码）
+            _MATCH_HANDLERS = {
+                "amobbs.com": lambda d: (_match_forum_result(d, match_forum(d, ir.tags, title, converted_body))),
+                "mydigit.cn": lambda d: (_match_forum_result(d, match_forum(d, ir.tags, title, converted_body))),
+                "oshwhub.com": lambda d: (_match_oshwhub_type(d, match_platform_type(d, ir.tags, title, converted_body))),
+                "csdn.net": lambda d: (_match_csdn_type(d, match_platform_type(d, ir.tags, title, converted_body))),
+            }
+
+            def _match_forum_result(domain, fid):
+                nonlocal fields, warnings
+                if fid:
+                    fields["fid"] = fid
+                    fields["_forum_domain"] = domain
+                    name = get_forum_name(domain, fid)
+                    warnings.append(f"智能匹配版块: {domain} → {name}(fid={fid})")
+
+            def _match_oshwhub_type(domain, type_info):
+                nonlocal fields, warnings
+                if type_info:
+                    fields["project_type"] = type_info.get("type_id")
+                    fields["project_endpoint"] = type_info.get("endpoint")
+                    fields["type_id"] = type_info.get("type_id")
+                    warnings.append(f"智能匹配项目类型: OSHWHub → {type_info.get('type_name')}")
+
+            def _match_csdn_type(domain, type_info):
+                nonlocal fields, warnings
+                if type_info:
+                    fields["article_type"] = type_info.get("type_id")
+                    fields["type_id"] = type_info.get("type_id")
+                    warnings.append(f"智能匹配文章类型: CSDN → {type_info.get('type_name')}")
+
+            handler = _MATCH_HANDLERS.get(domain)
+            if handler:
+                handler(domain)
 
             results[platform] = CompiledContent(
                 platform=platform,

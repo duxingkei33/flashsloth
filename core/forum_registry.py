@@ -44,6 +44,7 @@ def _load_from_db() -> dict:
 
     # 非论坛平台：这些是内容平台，它们的 forum_exploration 记录
     # 只是项目类型/文章类型，不应进入 FORUM_DATA
+    # TODO: 从 platform_presets.json 的 category 字段动态推导
     _NON_FORUM_DOMAINS = {"oshwhub.com", "csdn.net"}
 
     try:

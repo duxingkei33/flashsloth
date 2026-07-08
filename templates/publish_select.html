@@ -147,8 +147,10 @@
                         </div>
                     </div>
 
-                    {% if a.platform == 'discuz' %}
-                    <div style="margin-top:6px;">
+                    {# 版块选择器 - 由 forum_registry 动态控制，当前仅论坛平台需要 #}
+                    {% set _has_forum = a.platform in ('discuz', 'amobbs', 'mydigit') %}
+                    {% if _has_forum %}
+                    <div style="margin-top:6px;" data-platform="{{ a.platform }}">
                         <label style="font-size:13px;color:#666;">选择版块：</label>
                         <select name="forum_fid_{{ a.id }}" class="forum-select"
                                 style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;margin-top:4px;"

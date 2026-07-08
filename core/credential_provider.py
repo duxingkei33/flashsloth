@@ -371,6 +371,7 @@ def _platform_scan_actions(page, platform: str):
     不同的平台可能需要不同的前置操作才能显示二维码：
     - bilibili: 需要先点击登录入口按钮
     - juejin: 可能需要点击"扫码登录"标签
+    - amobbs: 需要检测并加载点触式验证码
     
     Args:
         page: Playwright page 对象
@@ -417,147 +418,115 @@ def _platform_scan_actions(page, platform: str):
         except Exception:
             pass
 
+    elif platform == "amobbs":
+        try:
+            # 阿莫论坛有点触式验证码（点击式边框验证码），扫码前需加载验证码区域
+            page.wait_for_timeout(2000)
 
-# ─── 平台扫码类型标注（多方式选择版）─────────────────────
-# 每个平台可定义多种扫码方式，前端提供选择。
+            # 检测验证码区域并点击使其可见/加载
+            captcha_el = page.query_selector(
+                "div.captcha, img.captcha, "
+                "img[src*='seccode'], #seccode_image, "
+                ".mc_captcha, .captcha_check, "
+                "[class*='captcha'], [id*='captcha']"
+            )
+            if captcha_el and captcha_el.is_visible():
+                captcha_el.click()
+                page.wait_for_timeout(1500)
+        except Exception:
+            pass
+
+    # mydigit（数码之家）也是 Discuz 论坛，登录页结构同 amobbs，
+    # 但其 has_qrcode_img=true 且无验证码问题，页面加载后二维码自然可见，无需特殊操作。
+
+
+# ─── 平台扫码类型标注（数据驱动版）─────────────────────
+# 从 platform_reports/*_login_capabilities.json 的 login_methods 字段
+# 动态生成扫码信息。不再使用硬编码 PLATFORM_SCAN_INFO 字典。
 # 为向后兼容，保留顶层 scan_app/hint/type（来自第一个 method）。
 
-PLATFORM_SCAN_INFO = {
-    "bilibili": {
-        "login_url": "https://www.bilibili.com/",
-        "scan_app": "B站官方App",
-        "hint": "请打开B站App，使用扫一扫功能扫描此二维码",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "bilibili_app",
-                "name": "B站官方App扫码",
-                "scan_app": "B站官方App",
-                "hint": "请打开B站App，使用扫一扫功能扫描此二维码",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "wechat": {
-        "login_url": "https://mp.weixin.qq.com/",
-        "scan_app": "微信",
-        "hint": "请打开微信扫一扫扫描此二维码",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "wechat_scan",
-                "name": "微信扫码",
-                "scan_app": "微信",
-                "hint": "请打开微信扫一扫扫描此二维码",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "discuz": {
-        "login_url": "",
-        "scan_app": "微信/手机浏览器",
-        "hint": "部分Discuz论坛支持扫码登录，请用微信或手机浏览器扫描",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "discuz_scan",
-                "name": "微信/浏览器扫码",
-                "scan_app": "微信/手机浏览器",
-                "hint": "部分Discuz论坛支持扫码登录，请用微信或手机浏览器扫描",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "juejin": {
-        "login_url": "https://juejin.cn/",
-        "scan_app": "掘金App/微信",
-        "hint": "请打开掘金App扫一扫，或使用微信扫描",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "juejin_app",
-                "name": "掘金App扫码",
-                "scan_app": "掘金App",
-                "hint": "请打开掘金App扫一扫，或使用微信扫描",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "zhihu": {
-        "login_url": "https://www.zhihu.com/signin",
-        "scan_app": "知乎App",
-        "hint": "请打开知乎App，使用扫一扫功能扫描此二维码",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "zhihu_app",
-                "name": "知乎App扫码",
-                "scan_app": "知乎App",
-                "hint": "请打开知乎App，使用扫一扫功能扫描此二维码",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "oshwhub": {
-        "login_url": "https://passport.jlc.com/login",
-        "scan_app": "微信/手机浏览器",
-        "hint": "请用微信或手机浏览器扫描此二维码登录立创开源硬件平台",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "oshwhub_scan",
-                "name": "微信/浏览器扫码",
-                "scan_app": "微信/手机浏览器",
-                "hint": "请用微信或手机浏览器扫描此二维码登录立创开源硬件平台",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "xianyu": {
-        "login_url": "https://www.goofish.com/",
-        "scan_app": "闲鱼App/淘宝App",
-        "hint": "请打开闲鱼或淘宝App扫描此二维码",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "xianyu_app",
-                "name": "闲鱼App扫码",
-                "scan_app": "闲鱼App",
-                "hint": "请打开闲鱼App扫描此二维码",
-                "type": "qrcode",
-            },
-            {
-                "id": "taobao_app",
-                "name": "淘宝App扫码",
-                "scan_app": "淘宝App",
-                "hint": "请打开淘宝App扫描此二维码",
-                "type": "qrcode",
-            },
-        ],
-    },
-    "csdn": {
-        "login_url": "https://passport.csdn.net/login",
-        "scan_app": "CSDN官方App/微信",
-        "hint": "请打开CSDN App扫一扫，或使用微信扫描此二维码",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "csdn_app",
-                "name": "CSDN App扫码",
-                "scan_app": "CSDN官方App",
-                "hint": "请打开CSDN App使用扫一扫功能",
-                "type": "qrcode",
-            },
-            {
-                "id": "wechat",
-                "name": "微信扫码",
-                "scan_app": "微信",
-                "hint": "请打开微信扫一扫扫描此二维码",
-                "type": "qrcode",
-            },
-        ],
-    },
+# 平台名 → JSON 文件名映射（处理别名）
+_PLATFORM_CAP_FILE_MAP = {
+    "wechat": "wechat_mp",
+    "xianyu_v2": "xianyu",
+    "xianyu_sidecar": "xianyu",
+    "xianyu_auto_reply": "xianyu",
+    "xianyu_products": "xianyu",
+    "discuz_amobbs": "amobbs",
+    "discuz_mydigit": "mydigit",
 }
+
+
+def _load_scan_info_for_platform(platform: str) -> dict:
+    """从探索数据动态生成平台的扫码信息
+
+    遍历 *_login_capabilities.json 中 login_methods 的 qrcode 条目，
+    从其 sub_types 生成 scan_methods 列表。若无探索数据则返回空字典。
+
+    返回值格式（兼容旧 PLATFORM_SCAN_INFO）:
+        {
+            "login_url": "...",
+            "scan_app": "...",
+            "hint": "...",
+            "type": "qrcode",
+            "scan_methods": [...]
+        }
+    """
+    json_name = _PLATFORM_CAP_FILE_MAP.get(platform, platform)
+    reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "platform_reports")
+    cap_path = os.path.join(reports_dir, f"{json_name}_login_capabilities.json")
+
+    if not os.path.exists(cap_path):
+        return {}
+
+    try:
+        with open(cap_path, "r", encoding="utf-8") as f:
+            cap_data = json.load(f)
+    except Exception:
+        return {}
+
+    login_url = cap_data.get("login_url", "")
+    login_methods = cap_data.get("login_methods", [])
+
+    # 找到 method=="qrcode" 且 detected 的条目
+    for m in login_methods:
+        if m.get("method") != "qrcode" or not m.get("detected"):
+            continue
+
+        scan_methods = []
+        sub_types = m.get("sub_types", [])
+        if sub_types:
+            for st in sub_types:
+                if st.get("detected"):
+                    label = st.get("label", "扫码登录")
+                    scan_methods.append({
+                        "id": st.get("id", "qrcode"),
+                        "name": label,
+                        "scan_app": label,
+                        "hint": f"请使用{label}功能扫描此二维码",
+                        "type": "qrcode",
+                    })
+        else:
+            # 无 sub_types → 生成一个默认扫码方式
+            scan_methods.append({
+                "id": "qrcode",
+                "name": "扫码登录",
+                "scan_app": "扫码",
+                "hint": "请使用扫码功能扫描此二维码",
+                "type": "qrcode",
+            })
+
+        if scan_methods:
+            return {
+                "login_url": login_url,
+                "scan_app": scan_methods[0].get("scan_app", "扫码"),
+                "hint": scan_methods[0].get("hint", "请扫码完成登录"),
+                "type": "qrcode",
+                "scan_methods": scan_methods,
+            }
+
+    # 有探索数据但没有 qrcode method → 返回空
+    return {}
 
 
 # ─── Worker 线程 ───────────────────────────────────────
@@ -660,6 +629,16 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
         # 轮询循环 — 每 3 秒检查一次是否退出或需要检查登录态
         # timeout_minutes 分钟超时自动清理：防止前端未调 close 导致资源泄漏（铁律 R7）
         _timeout_seconds = timeout_minutes * 60
+
+        # 从探索数据读取 engine，替代硬编码平台特判（铁律#19）
+        _login_engine = None
+        try:
+            from flashsloth.routes.accounts.helpers import _load_login_capabilities
+            cap = _load_login_capabilities(platform)
+            _login_engine = cap.get("engine") if cap else None
+        except Exception:
+            pass
+
         while True:
             if time.time() - _worker_started > _timeout_seconds:
                 break
@@ -688,9 +667,9 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
                     sc_result = _screenshot_scan_code(_page, sess.get("_scan_type", "auto"))
                     sc_b64 = sc_result.get("image", "")
 
-                    # OSHWHub(passport.jlc.com) QR scan may stay on login page
-                    # but still have auth cookies set — treat as logged_in
-                    if platform == "oshwhub" and has_auth_cookies:
+                    # 从 engine 判断：某些平台（如 oshwhub）扫码后可能停留在登录页
+                    # 但 auth cookie 已设置 — 仍视为登录成功（铁律#19）
+                    if _login_engine == "oshwhub" and has_auth_cookies:
                         sess["_poll_result"] = {
                             "status": "logged_in",
                             "cookies": all_cookies_str,
@@ -840,7 +819,7 @@ class ScanLoginEngine:
                         }
 
                     _scan_login_sessions[sess_id]["status"] = "waiting"
-                    scan_info = PLATFORM_SCAN_INFO.get(platform, {})
+                    scan_info = _load_scan_info_for_platform(platform)
                     return {
                         "success": True,
                         "session_id": sess_id,

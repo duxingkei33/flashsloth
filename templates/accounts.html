@@ -347,38 +347,8 @@
     <button onclick="clearSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
 </div>
 
-<!-- ====== 平台图标映射 (优化4) ====== -->
-{% set platform_icons = {
-    'discuz': '💬', 'amobbs': '💬', 'mydigit': '💬',
-    'oshwhub': '🔧', 'oshwhub_eda': '⚡',
-    'csdn': '📝', 'cnblogs': '📖',
-    'zhihu': '❓', 'bilibili': '📺', 'juejin': '🥇',
-    'wechat': '💬', 'wechat_mp': '📢',
-    'xianyu': '🐟', 'xianyu_v2': '🐟', 'taobao': '🛒',
-    'wordpress': '🔗', 'github_pages': '📄', 'github_pages_blog': '📄',
-    'static_site': '🌐', 'github': '🐙',
-    'douyin': '🎵', 'kuaishou': '📱', 'xiaohongshu': '📕',
-    'tieba': '📋', 'jianshu': '✍️', 'medium': '✏️',
-    'segmentfault': '💻', 'v2ex': '🔶', 'hackernews': '🔴',
-    'qqzone': '💫', 'weibo': '📢', 'toutiao': '📰',
-    'default': '🔑'
-} %}
-
-{% set platform_colors = {
-    'discuz': '#e8f5e9', 'amobbs': '#e3f2fd', 'mydigit': '#fce4ec',
-    'oshwhub': '#fff3e0', 'oshwhub_eda': '#fff8e1',
-    'csdn': '#e8eaf6', 'cnblogs': '#f3e5f5',
-    'zhihu': '#e0f2f1', 'bilibili': '#fce4ec', 'juejin': '#e8f5e9',
-    'wechat': '#e8f5e9', 'wechat_mp': '#e3f2fd',
-    'xianyu': '#fff3e0', 'xianyu_v2': '#fff3e0', 'taobao': '#fce4ec',
-    'wordpress': '#e8eaf6', 'github_pages': '#f5f5f5', 'github_pages_blog': '#f5f5f5',
-    'static_site': '#f5f5f5', 'github': '#f5f5f5',
-    'douyin': '#fce4ec', 'kuaishou': '#fff3e0', 'xiaohongshu': '#fce4ec',
-    'tieba': '#e3f2fd', 'jianshu': '#f3e5f5', 'medium': '#f5f5f5',
-    'segmentfault': '#e8f5e9', 'v2ex': '#fff8e1', 'hackernews': '#fce4ec',
-    'qqzone': '#e3f2fd', 'weibo': '#fce4ec', 'toutiao': '#fff3e0',
-    'default': '#f0f4ff'
-} %}
+<!-- ====== 平台图标映射 (数据驱动, from route) ====== -->
+<!-- platform_icons 和 platform_colors 由路由传入，不再硬编码 -->
 
 <!-- ====== 有账号的平台卡片 (优化5: 卡片模式) ====== -->
 {% set platform_accounts = grouped %}
@@ -514,7 +484,7 @@
             <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="Playwright真实浏览器 → 注入Cookie → 打开目标平台 → 检测退出/注销按钮+用户名/积分的全量登录态验证。比API轻量检测准确可靠。">🔍 状态检测</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
             <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
-            {% if p.name in ('xianyu', 'xianyu_v2') %}
+            {% if p.name.startswith('xianyu') %}
             <a href="http://localhost:{{ '9000' if p.name == 'xianyu' else '9001' }}" target="_blank" class="btn btn-sm btn-success" title="跳转至闲鱼自动回复后台（xianyu-auto-reply Docker 服务）">🐟 闲鱼后台</a>
             {% endif %}
             <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"

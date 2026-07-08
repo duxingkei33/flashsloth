@@ -808,29 +808,34 @@ PLATFORM_DETECTORS = {
     "discuz_mydigit": detect_discuz,
 }
 
+# 检测器参数签名配置 — 每个平台调用检测器时的参数映射
+# 用于替代 if/elif 硬编码链，新增平台只需在 PLATFORM_DETECTORS + _DETECTOR_CALLBACKS 中配置
+# 参数: (callable, args_spec)
+# args_spec: 由 site_url, cookie_str, username_hint, platform 中的若干字段组成
+_DETECTOR_CALLBACKS = {
+    "discuz": lambda s, c, u, p: detect_discuz(s, c, p),
+    "csdn": lambda s, c, u, p: detect_csdn(c),
+    "oshwhub": lambda s, c, u, p: detect_oshwhub(c, u),
+    "xianyu": lambda s, c, u, p: detect_xianyu(c),
+    "zhihu": lambda s, c, u, p: detect_zhihu(c),
+    "juejin": lambda s, c, u, p: detect_juejin(c),
+    "discuz_amobbs": lambda s, c, u, p: detect_discuz(s, c, p),
+    "discuz_mydigit": lambda s, c, u, p: detect_discuz(s, c, p),
+}
+
 
 def detect_platform(platform: str, site_url: str, cookie_str: str, username_hint: str = "") -> dict:
     """
     通用平台检测入口 — 根据平台类型选择合适的检测器
     返回统一格式的检测结果
+
+    数据驱动：不再有 if/elif 硬编码链，而是通过 _DETECTOR_CALLBACKS 映射
+    新增平台只需在 PLATFORM_DETECTORS + _DETECTOR_CALLBACKS 中添加条目
     """
-    detector = PLATFORM_DETECTORS.get(platform)
-    if detector:
-        if platform == "discuz":
-            return detect_discuz(site_url, cookie_str, platform)
-        elif platform == "csdn":
-            return detect_csdn(cookie_str)
-        elif platform == "oshwhub":
-            return detect_oshwhub(cookie_str, username_hint)
-        elif platform == "xianyu":
-            return detect_xianyu(cookie_str)
-        elif platform == "zhihu":
-            return detect_zhihu(cookie_str)
-        elif platform == "juejin":
-            return detect_juejin(cookie_str)
-        else:
-            return detector(site_url, cookie_str)
-    
+    callback = _DETECTOR_CALLBACKS.get(platform)
+    if callback:
+        return callback(site_url, cookie_str, username_hint, platform)
+
     # 未知平台，返回空结果
     return {
         "logged_in": False,

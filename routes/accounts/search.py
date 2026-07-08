@@ -162,6 +162,7 @@ def api_platform_login_capabilities(platform):
             "success": True,
             "platform": platform,
             "login_url": login_url,
+            "engine": cap.get("engine", ""),
             "site_url_default": login_url if login_url.startswith("http") else "",
             "login_methods": enhanced_methods,
             "captcha_info": captcha_info,
@@ -201,23 +202,12 @@ def api_platform_login_capabilities_refresh(platform):
 	if site_url_from_body and not site_url_from_body.startswith(("http://", "https://")):
 		site_url_from_body = "https://" + site_url_from_body
 
-	# 硬编码兜底（仅当无动态 site_url 时）
-	login_url_map = {
-		"csdn": "https://passport.csdn.net/login",
-		"zhihu": "https://www.zhihu.com/signin",
-		"bilibili": "https://www.bilibili.com/",
-		"juejin": "https://juejin.cn/",
-		"wechat": "https://mp.weixin.qq.com/",
-		"wechat_mp": "https://mp.weixin.qq.com/",
-		"oshwhub": "https://passport.jlc.com/login",
-		"xianyu": "https://www.goofish.com/",
-		"xianyu_v2": "https://www.goofish.com/",
-		"xianyu_sidecar": "https://www.goofish.com/",
-		"xianyu_auto_reply": "https://www.goofish.com/",
-		"xianyu_products": "https://www.goofish.com/",
-	}
-	# 优先级：POST body site_url > 硬编码映射 > 失败
-	url = site_url_from_body or login_url_map.get(platform) or login_url_map.get(json_name)
+	# 从探索数据读取登录URL（铁律#19：数据驱动）
+	url = site_url_from_body
+	if not url:
+		cap = _load_login_capabilities(platform)
+		if cap:
+			url = cap.get("login_url", "")
 	if not url:
 		return jsonify({"success": False, "error": f"未知登录地址，请先通过 Playwright 探索或提供 site_url"})
 
@@ -352,20 +342,8 @@ def api_login_scan_methods(platform):
     """返回指定平台支持的扫码登录方式列表
 
     数据驱动（铁律#19）：
-    1. 优先从 PLATFORM_SCAN_INFO 读取（含 scan_app/hint 等丰富信息）
-    2. 如果不在其中，自动从探索数据 *_login_capabilities.json 动态推导
-    3. 都没有则返回空列表（不报错）
+    直接从探索数据 *_login_capabilities.json 动态推导扫码方式
     """
-    from flashsloth.core.credential_provider import PLATFORM_SCAN_INFO
-    info = PLATFORM_SCAN_INFO.get(platform)
-    if info:
-        return jsonify({
-            "success": True,
-            "platform": platform,
-            "login_url": info.get("login_url", ""),
-            "methods": info.get("scan_methods", []),
-        })
-
     # 数据驱动：从探索 JSON 动态推导扫码方式
     cap = _load_login_capabilities(platform)
     if cap:

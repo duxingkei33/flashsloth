@@ -13,6 +13,13 @@ from flashsloth.core.credential_crypto import decrypt_config, encrypt_config
 from flashsloth.core.status_cache import get_status, set_status, get_all_cached, get_cache_stats
 from flashsloth.core.status_detector import detect_platform, PLATFORM_DETECTORS
 from flashsloth.core.deployer import list_deployers
+from flashsloth.routes.platforms import PLATFORM_ICONS, PLATFORM_COLORS
+
+def _get_platform_icons():
+    return PLATFORM_ICONS
+
+def _get_platform_colors():
+    return PLATFORM_COLORS
 
 SENSITIVE_FIELDS = {"password", "cookie", "app_secret", "api_key", "token", "access_token", "refresh_token"}
 MASKED_VALUE = "••••••••"
@@ -52,7 +59,9 @@ def accounts():
                         cached_statuses=cached_statuses,
                         deployers=deployer_list,
                         configs=deploy_configs,
-                        logs=deploy_logs)
+                        logs=deploy_logs,
+                        platform_icons=_get_platform_icons(),
+                        platform_colors=_get_platform_colors())
 
 
 @app.route("/api/accounts/config/<int:aid>")

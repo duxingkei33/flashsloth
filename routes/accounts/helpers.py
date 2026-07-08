@@ -3,14 +3,7 @@ import json
 import os
 import threading
 
-# ─── 引擎类型（数据驱动 — 从探索JSON的 engine 字段推导，铁律#19）───
-_ENGINE_FALLBACK_MAP = {
-    "amobbs": "discuz", "discuz": "discuz", "mydigit": "discuz",
-    "xianyu": "xianyu", "xianyu_v2": "xianyu",
-    "oshwhub": "oshwhub",
-    "csdn": "generic", "wechat": "generic", "bilibili": "generic",
-    "juejin": "generic", "zhihu": "generic", "wordpress": "generic",
-}
+# ─── note: engine 全部来自探索JSON的 engine 字段，无硬编码回退（铁律#19）───
 
 # 平台名 → JSON文件名 映射（处理名称不一致）
 _PLATFORM_CAP_MAP = {
@@ -92,10 +85,42 @@ def _infer_config_fields_from_cap(cap: dict) -> list:
 
 
 def _get_engine_for_platform(platform: str) -> str:
-    """从探索数据推导登录引擎，无数据则回退到映射表"""
+    """从探索数据推导登录引擎，无数据返回 unknown"""
     cap = _load_login_capabilities(platform)
     engine = cap.get("engine") if cap else None
-    return engine if engine else _ENGINE_FALLBACK_MAP.get(platform, "unknown")
+    return engine if engine else "unknown"
+
+
+def _get_login_url_for_platform(platform: str, site_url: str = "") -> str:
+    """从探索数据读取指定平台的登录URL（数据驱动，铁律#19）
+
+    逻辑：
+    1. 调用 _load_login_capabilities(platform) 从探索JSON读取
+    2. 如果有 login_url 字段且非空，直接返回（优先数据驱动）
+    3. 如果 login_url 为空但有 site_url，将 site_url 作为基础，
+       拼接认知的登录路径（如 Discuz 类：/member.php?mod=logging&action=login）
+    4. 如果都没有，返回空字符串
+
+    铁律约束：
+    - 不保留任何fallback硬编码URL
+    - 只能从探索JSON读取数据
+    - 数据源没有的 = 不展示，不猜测
+    """
+    cap = _load_login_capabilities(platform)
+    if not cap:
+        return ""
+
+    login_url = cap.get("login_url", "")
+    if login_url:
+        return login_url
+
+    # login_url 为空但有 site_url → 尝试从 engine 类型推导
+    if site_url:
+        engine = cap.get("engine", "")
+        if engine == "discuz":
+            return site_url.rstrip("/") + "/member.php?mod=logging&action=login"
+
+    return ""
 
 
 def _load_login_capabilities(platform: str) -> dict | None:

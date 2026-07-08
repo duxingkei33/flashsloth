@@ -1,5 +1,5 @@
 """FlashSloth Captcha Routes — 验证码/Discuz登录/QR登录"""
-import json, time, os, re, threading, random, base64, hashlib
+import json, time, os, re, threading, random, base64, hashlib, logging
 import requests
 
 from flask import render_template, request, redirect, url_for, flash, jsonify
@@ -7,6 +7,9 @@ from flask_login import login_required, current_user
 from flashsloth.core.database import get_db
 from flashsloth.core.captcha_handler import get_handler, CaptchaProvider
 from flashsloth.routes._app import app
+from flashsloth.routes.accounts.helpers import _get_engine_for_platform
+
+logger = logging.getLogger(__name__)
 
 
 # ─── 辅助函数 ─────────────────────────────────────
@@ -29,6 +32,13 @@ def discuz_get_captcha():
     conn.close()
     if not acct:
         return jsonify({"success": False, "error": "账号不存在"})
+
+    # 数据驱动（铁律#19）：检查平台是否 discuz 引擎
+    engine = _get_engine_for_platform(acct["platform"])
+    if engine != "discuz":
+        logger.warning(f"[ENGINE MISMATCH] /api/discuz/captcha 被非 discuz 平台调用: platform={acct['platform']}, engine={engine}")
+        return jsonify({"success": False, "error": f"平台 {acct['platform']} 不是 Discuz 引擎（{engine}），请使用通用验证码接口"})
+
     cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
     site_url = cfg.get("site_url", "").rstrip("/")
     if not site_url:
@@ -106,6 +116,12 @@ def discuz_login_with_captcha():
     conn.close()
     if not acct:
         return jsonify({"success": False, "error": "账号不存在"})
+
+    # 数据驱动（铁律#19）：检查平台是否 discuz 引擎
+    engine = _get_engine_for_platform(acct["platform"])
+    if engine != "discuz":
+        logger.warning(f"[ENGINE MISMATCH] /api/discuz/login 被非 discuz 平台调用: platform={acct['platform']}, engine={engine}")
+        return jsonify({"success": False, "error": f"平台 {acct['platform']} 不是 Discuz 引擎（{engine}），请使用通用验证码接口"})
 
     cfg = json.loads(acct["config_json"]) if acct["config_json"] else {}
     username = cfg.get("username", "")
