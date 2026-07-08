@@ -7,22 +7,27 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**v5.21** — 文档全面审计 + 铁律#41/#42新增 + 版本同步
+**v5.21** — Amobbs 验证码四大修复 + 文档全面审计 + 铁律#41/#42
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 文档审计 | ✅ | 6个核心文档差异识别 → 更新中 |
+| 文档审计 | ✅ | 6个核心文档差异已同步 |
 | 铁律 #41 | ✅ | 新增：修改代码后必须同步更新文档 |
 | 铁律 #42 | ✅ | 新增：Bug修复必须记录docs/bug-fixes/ |
 | 文档同步看门狗 | ✅ | 15分钟 cron 已更新 prompt |
 | Bug修复记录 | ✅ | docs/bug-fixes/ 创建，9个核心记录 |
+| Bug #6: .seccodecheck 缺失 | ✅ | Amobbs 无 .seccodecheck → 直接提交表单 |
+| Bug #7: 验证码刷新跨线程 | ✅ | Playwright sync 跨线程自动重建 |
+| Bug #8: 验证码提交回归 | ✅ | 三态策略(ok/err/兜底) + auth_cookie 过滤 |
+| Bug #9: border click 误触 | ✅ | 仅 .seccodecheck 存在时执行 border click |
 | ARCHITECTURE.md | ✅ | Phase状态更新+版本号+组件表修正 |
-| README.md/+EN | ✅ | v5.19-v5.20版本记录补充 |
+| README.md/+EN | ✅ | v5.19-v5.21版本记录完整 |
 | PROJECT_PANORAMA_REPORT.md | 🔄 | Claude Code 重写中 |
-| DEVELOPMENT_SPECIFICATION.md | 🔄 | Claude Code 补充中 |
+| DEVELOPMENT_SPECIFICATION.md | ✅ | v5.21 已同步（含登录流程/Cookie验证/铁律适配） |
 | Mydigit 探索数据 | ✅ | mydigit_exploration_report.json + mydigit_login_capabilities.json 已创建 |
 | 平台隔离 | ✅ | site_url 数据驱动，不再硬编码 amobbs.com |
 | 铁律 #40 | ✅ | 大改前三位一体备份(tar.gz+tag+push)强制流程 |
+| ⚠️ admin.py 未提交 | ⚠️ | `threaded=True→False` 未提交未推送（与Bug#7相关） |
 
 ---
 

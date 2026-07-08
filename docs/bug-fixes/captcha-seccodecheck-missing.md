@@ -1,4 +1,4 @@
-# Bug #13: Amobbs 验证码提交 — .seccodecheck 机制缺失
+# Bug #6: Amobbs 验证码提交 — .seccodecheck 机制缺失
 
 **版本**: v5.21 | **严重度**: 🔴 | **模块**: captcha/login | **日期**: 2026-07-08
 

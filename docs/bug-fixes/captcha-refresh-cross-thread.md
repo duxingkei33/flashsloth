@@ -1,4 +1,4 @@
-# Bug Fix: Amobbs 验证码刷新损坏 — Playwright sync 跨线程访问
+# Bug #7: Amobbs 验证码刷新损坏 — Playwright sync 跨线程访问
 
 **日期**: 2026-07-08  
 **版本**: v5.21  

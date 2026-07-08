@@ -1,4 +1,4 @@
-# Bug #4: BrowserEngine 线程死锁
+# Bug #3: BrowserEngine 线程死锁
 
 | 属性 | 值 |
 |------|-----|
