@@ -64,15 +64,13 @@ class AmobbsPlaywrightLogin:
         import os, json
         try:
             reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "platform_reports")
-            for fname in os.listdir(reports_dir):
-                if fname.endswith("_login_capabilities.json") and not fname.startswith("_"):
-                    fpath = os.path.join(reports_dir, fname)
-                    with open(fpath, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    if data.get("engine") == "discuz":
-                        login_url = data.get("login_url", "")
-                        if login_url and login_url.startswith("http"):
-                            return login_url.rstrip("/member.php?mod=logging&action=login").rstrip("/login")
+            report_path = os.path.join(reports_dir, "amobbs_exploration_report.json")
+            if os.path.exists(report_path):
+                with open(report_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    site_url = data.get("site_url", "")
+                    if site_url:
+                        return site_url.rstrip("/")
             return "https://www.amobbs.com"  # 最终回退
         except Exception:
             return "https://www.amobbs.com"
@@ -183,47 +181,42 @@ class AmobbsPlaywrightLogin:
                 return {"success": False, "logged_in": False,
                         "error": f"找不到密码输入框: {e}"}
 
-            # 3. 点击登录按钮（触发验证码）
+            # 3. 展开表单（Discuz 登录表单默认折叠，验证码输入框不可见）
+            #    需要点击「用户名」标签（span.login_slct）展开完整表单
             try:
-                login_btn = page.wait_for_selector(
-                    "button[name='loginsubmit'], "
-                    "button:has-text('登录'), "
-                    "input[name='loginsubmit'], "
-                    "em:has-text('登录')",
-                    timeout=5000
-                )
-                login_btn.click()
+                captcha_input_check = page.query_selector("input[name='seccodeverify']")
+                if not captcha_input_check or not captcha_input_check.is_visible():
+                    form_toggle = page.wait_for_selector("span.login_slct", timeout=3000)
+                    if form_toggle and form_toggle.is_visible():
+                        form_toggle.click()
+                        time.sleep(0.5)
             except:
-                # 可能已自动触发，尝试直接提交
-                page.evaluate("""
-                    document.querySelector('form[name="login"]')?.submit()
-                """)
+                pass
 
-            time.sleep(2)
-
-            # 4. 检查是否需要验证码
+            # 4. 检查是否需要验证码（在提交之前！）
             page_content = page.content()
 
-            # 检查是否有 seccode（文本验证码）
+            # 检查文本验证码（seccode）— amobbs 使用 Discuz 文本验证码
+            seccode_input = page.query_selector("input[name='seccodeverify']")
             seccode_img = page.query_selector("img[src*='seccode'], #seccode_image")
             # 检查是否有 reCAPTCHA 风格的验证码
             captcha_iframe = page.query_selector("iframe[src*='recaptcha'], iframe[src*='captcha']")
-            # 检查是否有 check 框（amobbs 特有的点击验证）
+            # 检查是否有 check 框（点击验证）
             captcha_check = page.query_selector(
                 ".mc_captcha, .captcha_check, "
                 "[class*='captcha'], [id*='captcha'], "
                 ".geetest, .nc-container"
             )
 
-            if seccode_img or captcha_iframe or captcha_check:
-                # 需要验证码 — 截取验证码区域的截图
+            if seccode_img or seccode_input or captcha_iframe or captcha_check:
+                # 需要验证码 — 截取验证码区域的截图（不提交表单！）
                 screenshot_b64 = self.take_screenshot()
 
                 # 判断验证码类型
-                if captcha_check:
-                    captcha_type = "checkbox"
-                elif seccode_img:
+                if seccode_img or seccode_input:
                     captcha_type = "text"
+                elif captcha_check:
+                    captcha_type = "checkbox"
                 else:
                     captcha_type = "recaptcha"
 
@@ -237,10 +230,27 @@ class AmobbsPlaywrightLogin:
                     "message": f"需要{captcha_type}验证码，请处理后在后台确认",
                 }
 
-            # 5. 不需要验证码 — 检查是否已登录
+            # 5. 不需要验证码 — 点击登录按钮提交表单
+            try:
+                login_btn = page.wait_for_selector(
+                    "button[name='loginsubmit'], "
+                    "button:has-text('登录'), "
+                    "input[name='loginsubmit'], "
+                    "em:has-text('登录')",
+                    timeout=5000
+                )
+                login_btn.click()
+            except:
+                page.evaluate("""
+                    document.querySelector('form[name="login"]')?.submit()
+                """)
+
             time.sleep(2)
+
+            # 6. 检查登录结果
             current_url = page.url
-            cookies_list = context_cookies = self.context.cookies() if self.context else []
+            cookies_list = self.context.cookies() if self.context else []
+            page_content = page.content()
 
             # 检查登录成功标志
             is_logged_in = False
@@ -249,7 +259,6 @@ class AmobbsPlaywrightLogin:
                            or "sid" in c.get("name", "").lower()]
             if auth_cookies:
                 is_logged_in = True
-            # 禁止 cookie 数量判据（铁律 v4.55）
 
             if is_logged_in:
                 cookie_str = "; ".join(
@@ -470,6 +479,17 @@ class AmobbsPlaywrightLogin:
         try:
             self._ensure_browser()
             page = self.page
+
+            # 0. 展开表单（确保验证码输入框可见）
+            try:
+                captcha_input = page.query_selector("input[name='seccodeverify']")
+                if not captcha_input or not captcha_input.is_visible():
+                    form_toggle = page.wait_for_selector("span.login_slct", timeout=3000)
+                    if form_toggle and form_toggle.is_visible():
+                        form_toggle.click()
+                        time.sleep(0.5)
+            except:
+                pass
 
             # 1. 查找验证码输入框并填入代码
             captcha_input_selectors = [

@@ -1,0 +1,60 @@
+{
+  "platform": "amobbs",
+  "explored_at": "2026-07-08T11:10:00+08:00",
+  "site_url": "https://www.amobbs.com",
+  "login_url": "https://www.amobbs.com/member.php?mod=logging&action=login",
+  "engine": "discuz",
+  "framework": "Discuz X3",
+  "login_page_type": "discuz_standard",
+  "form_expansion": {
+    "required": false,
+    "note": "seccodeverify 输入框加载时已可见，不需要额外展开操作",
+    "login_slct_toggle": "存在但即使不点击，验证码输入框也已可见"
+  },
+  "login_methods": [
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "description": "输入论坛用户名和密码。阿莫论坛使用Discuz文本验证码（seccode），需手动输入4位字符。",
+      "form_selectors": {
+        "username": ["input[name='username']", "input#ls_username"],
+        "password": ["input[name='password']", "input#ls_password"],
+        "captcha_image": ["img[src*='seccode']"],
+        "captcha_input": ["input[name='seccodeverify']"],
+        "captcha_refresh": "a:has-text('换一个')",
+        "submit": ["button[name='loginsubmit']", "button:has-text('登录')"],
+        "form_toggle": "span.login_slct",
+        "security_question": "select[name='loginfield']"
+      },
+      "captcha": {
+        "type": "text",
+        "description": "Discuz 文本验证码，4位字符。无验证码提交时服务器返回「验证码填写错误」，页面停留在登录页不跳转",
+        "image_selector": "img[src*='seccode']",
+        "input_selector": "input[name='seccodeverify']",
+        "refresh_selector": "a:has-text('换一个')",
+        "error_on_missing": "验证码填写错误",
+        "submit_requires_captcha": true,
+        "note": "必须填验证码才能提交，否则服务器返回验证码错误"
+      },
+      "security_question": {
+        "exists": true,
+        "visible": false,
+        "note": "用户可能未设置安全提问，选择器隐藏。如果设置了需要显示后再选择"
+      }
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴（调试）",
+      "detected": true,
+      "description": "从浏览器 F12 复制 Cookie 字符串直接粘贴。仅限调试/迁移场景使用。"
+    }
+  ],
+  "login_indicator_selectors": {
+    "after_login_url_pattern": "member.php",
+    "auth_cookie_names": ["auth", "sid"],
+    "welcome_text": ["退出", "个人中心"],
+    "error_text_patterns": ["验证码填写错误", "密码错误", "用户名不存在", "登录失败"]
+  },
+  "note": "阿莫论坛（amobbs.com）：经典 Discuz X3 论坛。验证码输入框加载时已可见。必须填验证码才能提交，否则返回「验证码填写错误」。验证码为文本seccode，4位字符，位置在密码框下方。登录页包含用户名/密码/验证码/登录按钮。有安全提问功能但默认隐藏。"
+}
