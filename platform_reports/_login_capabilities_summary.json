@@ -1,13 +1,13 @@
 {
   "amobbs": {
     "login_methods": [
-      "qrcode",
       "password",
       "cookie"
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T17:11:31.644793+00:00"
+    "explored_at": "2026-07-08T07:50:00",
+    "login_url": "/member.php?mod=logging&action=login"
   },
   "bilibili": {
     "login_methods": [
@@ -19,7 +19,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T18:11:50.806584+00:00"
+    "explored_at": "2026-07-07T18:11:50.806584+00:00",
+    "login_url": "https://www.bilibili.com/"
   },
   "csdn": {
     "login_methods": [
@@ -30,7 +31,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T21:54:35.540683+00:00"
+    "explored_at": "2026-07-07T21:54:35.540683+00:00",
+    "login_url": "https://passport.csdn.net/login"
   },
   "dewu": {
     "login_methods": [
@@ -42,7 +44,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-08T00:19:00+00:00"
+    "explored_at": "2026-07-08T00:19:00+00:00",
+    "login_url": "https://www.dewu.com/"
   },
   "discuz": {
     "login_methods": [
@@ -52,7 +55,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T17:11:31.646398+00:00"
+    "explored_at": "2026-07-07T17:11:31.646398+00:00",
+    "login_url": "/member.php?mod=logging&action=login"
   },
   "douban": {
     "login_methods": [
@@ -62,7 +66,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T17:11:31.646823+00:00"
+    "explored_at": "2026-07-07T17:11:31.646823+00:00",
+    "login_url": "https://accounts.douban.com/passport/login"
   },
   "juejin": {
     "login_methods": [
@@ -72,7 +77,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T21:54:51.649330+00:00"
+    "explored_at": "2026-07-07T21:54:51.649330+00:00",
+    "login_url": "https://juejin.cn/"
   },
   "mydigit": {
     "login_methods": [
@@ -82,7 +88,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T17:11:31.647055+00:00"
+    "explored_at": "2026-07-07T17:11:31.647055+00:00",
+    "login_url": "/member.php?mod=logging&action=login"
   },
   "oshwhub": {
     "login_methods": [
@@ -92,15 +99,17 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T21:55:06.886427+00:00"
+    "explored_at": "2026-07-07T21:55:06.886427+00:00",
+    "login_url": "https://passport.jlc.com/login"
   },
   "rss": {
     "login_methods": [
       "cookie"
     ],
-    "detail": "BASIC",
+    "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T23:24:00+00:00"
+    "explored_at": "2026-07-07T23:24:00+00:00",
+    "login_url": null
   },
   "smzdm": {
     "login_methods": [
@@ -111,7 +120,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-08T00:35:09+00:00"
+    "explored_at": "2026-07-08T00:35:09+00:00",
+    "login_url": "https://www.smzdm.com/"
   },
   "twitter": {
     "login_methods": [
@@ -121,7 +131,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T20:28:00+08:00"
+    "explored_at": "2026-07-07T20:28:00+08:00",
+    "login_url": "https://developer.twitter.com/en/portal/dashboard"
   },
   "wechat_mp": {
     "login_methods": [
@@ -132,7 +143,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T21:55:01.696318+00:00"
+    "explored_at": "2026-07-07T21:55:01.696318+00:00",
+    "login_url": "https://mp.weixin.qq.com/"
   },
   "wordpress": {
     "login_methods": [
@@ -141,15 +153,17 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T17:11:31.647430+00:00"
+    "explored_at": "2026-07-07T17:11:31.647430+00:00",
+    "login_url": "/wp-login.php"
   },
   "xianyu_auto_reply": {
     "login_methods": [
       "cookie"
     ],
-    "detail": "BASIC",
+    "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T23:24:00+00:00"
+    "explored_at": "2026-07-07T23:24:00+00:00",
+    "login_url": "https://www.goofish.com/"
   },
   "xianyu": {
     "login_methods": [
@@ -158,7 +172,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T21:55:31.218102+00:00"
+    "explored_at": "2026-07-07T21:55:31.218102+00:00",
+    "login_url": "https://www.goofish.com/"
   },
   "xianyu_products": {
     "login_methods": [
@@ -168,7 +183,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T17:11:31.648083+00:00"
+    "explored_at": "2026-07-07T17:11:31.648083+00:00",
+    "login_url": "https://www.goofish.com/"
   },
   "xiaohongshu": {
     "login_methods": [
@@ -179,7 +195,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T23:41:43+00:00"
+    "explored_at": "2026-07-07T23:41:43+00:00",
+    "login_url": "https://www.xiaohongshu.com/login"
   },
   "zhihu": {
     "login_methods": [
@@ -189,6 +206,7 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T21:54:42.708193+00:00"
+    "explored_at": "2026-07-07T21:54:42.708193+00:00",
+    "login_url": "https://www.zhihu.com/signin"
   }
 }
