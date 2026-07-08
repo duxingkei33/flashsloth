@@ -617,15 +617,18 @@ class AmobbsPlaywrightLogin:
             except:
                 pass
 
-            # 2b. 点击边框 (Discuz .seccodecheck 风格)
+            # 2b. 点击边框 (Discuz .seccodecheck 风格) — 仅当 .seccodecheck 存在
+            #     ⚠️ amobbs 无 .seccodecheck，点击边框会误触"换一个"链接导致验证码刷新
             try:
-                box = inp.bounding_box()
-                if box:
-                    page.mouse.click(
-                        box['x'] + box['width'] + 10,
-                        box['y'] + box['height'] / 2
-                    )
-                time.sleep(1)
+                sc_check = page.query_selector(".seccodecheck")
+                if sc_check:
+                    box = inp.bounding_box()
+                    if box:
+                        page.mouse.click(
+                            box['x'] + box['width'] + 10,
+                            box['y'] + box['height'] / 2
+                        )
+                    time.sleep(1)
             except:
                 pass
 
