@@ -1,6 +1,7 @@
 {
   "platform": "amobbs",
   "explored_at": "2026-07-08T07:50:00",
+  "site_url": "https://www.amobbs.com",
   "login_url": "/member.php?mod=logging&action=login",
   "login_methods": [
     {

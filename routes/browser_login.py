@@ -87,41 +87,55 @@ _discuz_lock = threading.Lock()
 def _get_discuz_login(session_id: str, site_url: str = "", platform: str = "") -> "AmobbsPlaywrightLogin":
     """获取/创建 Discuz 系论坛登录实例（按 session_id 区分）
 
-    数据驱动（铁律#19）：如果 site_url 为空，尝试从账号配置读取。
+    数据驱动（铁律#19）：如果 site_url 为空，尝试从探索数据或已有实例读取。
     site_url 变化时自动重建实例。
     platform 参数：指定平台名（如 mydigit/discuz/amobbs），用于数据驱动读取 site_url
     """
     with _discuz_lock:
-        if not site_url:
-            # site_url 为空时，尝试从当前账号配置读取
-            from flask_login import current_user
-            from flashsloth.core.database import get_db
-            try:
-                uid = current_user.id
-                conn = get_db()
-                row = conn.execute(
-                    "SELECT config_json FROM platform_accounts WHERE user_id=? AND platform='discuz' LIMIT 1",
-                    (uid,)
-                ).fetchone()
-                if row:
-                    import json as _json
-                    cfg = _json.loads(row["config_json"])
-                    site_url = cfg.get("site_url", "")
-                conn.close()
-            except Exception:
-                site_url = ""
-        
-        # site_url 变化时重建实例
+        # 如果已有实例，优先复用（避免因空 site_url 误销毁）
         if session_id in _discuz_login_instances:
             existing = _discuz_login_instances[session_id]
+            if not site_url:
+                # 没传 site_url → 直接复用已有实例（最常见：refresh_captcha/poll 等后续操作）
+                return existing
             if existing.site_url.rstrip("/") == site_url.rstrip("/"):
                 return existing
-            # site_url 变了 → 关闭旧实例重建
+            # site_url 明确变了 → 关闭旧实例重建
             try:
                 existing.close()
             except Exception:
                 pass
             del _discuz_login_instances[session_id]
+        
+        if not site_url:
+            # 无已有实例 + 无 site_url → 从探索数据读取（数据驱动）
+            try:
+                from flashsloth.core.database import get_db
+                conn = get_db()
+                if platform:
+                    row = conn.execute(
+                        "SELECT full_data FROM platform_exploration WHERE platform=?",
+                        (platform,)
+                    ).fetchone()
+                    if row:
+                        import json as _json
+                        fd = _json.loads(row["full_data"]) if isinstance(row["full_data"], str) else (row["full_data"] or {})
+                        site_url = fd.get("site_url", "")
+                if not site_url:
+                    # 兜底：尝试从 platform_accounts 读取
+                    from flask_login import current_user
+                    uid = current_user.id
+                    row = conn.execute(
+                        "SELECT config_json FROM platform_accounts WHERE user_id=? AND platform=? LIMIT 1",
+                        (uid, platform or "discuz")
+                    ).fetchone()
+                    if row:
+                        import json as _json
+                        cfg = _json.loads(row["config_json"])
+                        site_url = cfg.get("site_url", "")
+                conn.close()
+            except Exception:
+                site_url = ""
         
         from plugins.amobbs_login import AmobbsPlaywrightLogin
         inst = AmobbsPlaywrightLogin(site_url=site_url, platform=platform)

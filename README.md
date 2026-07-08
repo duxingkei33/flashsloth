@@ -276,6 +276,8 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.20** | 2026-07-08 | Amobbs验证码修复 — Playwright元素截图替代urllib + 前端优先base64；Mydigit探索数据创建；铁律#40三位一体备份；文档同步看门狗cron |
+| **v5.19** | 2026-07-08 | OSHWHub SSO登录修复 — 即时登录替代cookie注入 + cookies_json结构化存储 + AntDesign适配；验证码检测前置修复 |
 | **v5.18** | 2026-07-08 | 数据驱动修复 — 39项铁律#19硬编码违规全量修复+E2E验证；forum_registry动态加载+renderers死代码清理；3个新平台发布器（得物/什么值得买/小红书） |
 | **v5.17** | 2026-07-08 | 前端JS模块化 — accounts.html 2900行内联JS拆分为5个独立静态JS模块文件（globals/login/scan/search/utils） |
 | **v5.16** | 2026-07-08 | 登录引擎路由数据驱动重构 — 探索JSON驱动引擎路由+config_fields推导；accounts.py/accounts.html 归一化模块拆分(templates/accounts/ + routes/accounts/)；扫码线程安全+OSHWHub扫码适配；RSS登录探索+Twitter探索完善 |

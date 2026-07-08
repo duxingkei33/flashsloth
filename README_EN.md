@@ -276,6 +276,8 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| **v5.20** | 2026-07-08 | Amobbs captcha fix — Playwright element screenshot replaces urllib + frontend base64-first; Mydigit exploration data; Iron Rule #40 triple backup; doc sync watchdog cron |
+| **v5.19** | 2026-07-08 | OSHWHub SSO login fix — real-time login replaces cookie injection + cookies_json structured storage + AntDesign adapter; captcha pre-detection fix |
 | **v5.18** | 2026-07-08 | Data-driven fix — 39 iron rule #19 hardcoded violations fully fixed + E2E verification; forum_registry dynamic loading + renderers dead code cleanup; 3 new platform publishers (Dewu/Smzdm/Xiaohongshu) |
 | **v5.17** | 2026-07-08 | Frontend JS modularization — accounts.html 2900-line inline JS split into 5 independent static JS module files (globals/login/scan/search/utils) |
 | **v5.16** | 2026-07-08 | Login engine routing data-driven refactor — exploration JSON drives engine routing + config_fields derivation; accounts.py/accounts.html modular split (templates/accounts/ + routes/accounts/); QR scan thread safety + OSHWHub QR adapter; RSS login exploration + Twitter exploration improvements |

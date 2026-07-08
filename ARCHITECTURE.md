@@ -1,6 +1,6 @@
 # FlashSloth — 个人数字资产全聚合平台
 
-> 原名：FlashSloth
+> 原名：FlashSloth | 版本：v5.20 | 更新：2026-07-08
 > 定位：个人数字资产全聚合平台
 > 愿景：一个后台管理你在互联网上的所有数字资产 — 文章、视频、商品、账号
 
@@ -202,47 +202,55 @@ API Key + Timestamp + Signature:
 | 通知网关 22 Provider | `core/gateway.py` | ✅ 已建 (v4.39) | 邮件/Telegram/Discord/Slack/钉钉/企业微信/飞书等 |
 | 网关配置Web UI | `templates/gateway.html` + `routes/gateway.py` | ✅ 已建 (v4.39) | Web可视化配置+测试 |
 | 通知系统 | `core/notifier.py` + `routes/notifications.py` | ✅ 已建 | 统一通知API+轮询 |
-| 视频编译器 | `core/video_compiler.py` | 🔜 新建 | 剧本→转码→字幕→打包 |
-| 商品编译器 | `core/product_compiler.py` | 🔜 新建 | 商品描述→图片→定价 |
-| 视频数据模型 | `core/video.py` | 🔜 新建 | `Video` dataclass |
-| 商品数据模型 | `core/product.py` | 🔜 新建 | `Product` dataclass |
+| 统一扫码登录引擎 | `core/credential_provider.py` | ✅ 已建 (v4.92) | ScanLoginEngine + QR码轮询 |
+| 统一Cookie验证器 | `core/cookie_validator.py` | ✅ 已建 (v4.92) | 消除4处散落校验代码 |
+| 三层状态检测 | `core/status_detector.py` + `core/status_cache.py` | ✅ 已建 | API轻量→Playwright快速→全量 |
+| 探索数据DB化 | `core/platform_exploration_loader.py` | ✅ 已建 (v5.16) | JSON→SQLite迁移，启动时自动导入 |
 | API网关路由 | `routes/api_v2.py` | ✅ 已建 | 所有对外REST API |
 | 闲鱼V2 MTOP发布器 | `plugins/publisher_xianyu_v2.py` | ✅ 已建 (v4.39) | MTOP签名API+AI类目+CDN图片 |
 | 闲鱼客户端SDK | `plugins/xianyu_client/` | ✅ 已建 (v4.39) | 纯Python MTOP签名包 |
 | 闲鱼API v2 | `sdk/adapters/xianyu_v2.py` | ✅ 已建 | 搜索/详情/比价 |
+| 视频编译器 | `core/video_compiler.py` | ⏸ 远期规划 | 剧本→转码→字幕→打包 |
+| 商品编译器 | `core/product_compiler.py` | ⏸ 远期规划 | 商品描述→图片→定价 |
+| 视频数据模型 | `core/video.py` | ⏸ 远期规划 | `Video` dataclass |
+| 商品数据模型 | `core/product.py` | ⏸ 远期规划 | `Product` dataclass |
 
 ---
 
 ## 五、里程碑路线图
 
-### Phase 0 — 基础设施（2周）
+### Phase 0 — 基础设施（✅ 已完成）
 ```
-□ Gateway API 网关 (routes/api_v2.py + 认证)
-□ 系统状态/重启/重载/日志 (Web界面)
-□ 通知系统 (core/notifier.py)
-□ API Key管理页面
-```
-
-### Phase 1 — 购物模块（1-2周）
-```
-□ 闲鱼搜索→商品卡片→比价 (Web UI)
-□ 价格监控→通知推送
-□ 商品数据模型 (core/product.py)
+[x] Gateway API 网关 (routes/api_v2.py + 认证)
+[x] 系统状态/重启/重载/日志 (Web界面)
+[x] 通知系统 (core/notifier.py)
+[x] API Key管理页面
+[x] 统一扫码登录引擎 (v4.92)
+[x] 统一Cookie验证器 (v4.92)
+[x] 三层状态检测系统
+[x] 探索数据JSON→DB迁移 (v5.16)
 ```
 
-### Phase 2 — 视频模块（2-3周）
+### Phase 1 — 购物模块（⏸ 远期规划）
 ```
-□ 视频数据模型 (core/video.py)
-□ B站发布器增强→Playwright上传
-□ 视频编译流水线 (core/video_compiler.py)
-□ 多平台分发
+[ ] 闲鱼搜索→商品卡片→比价 (Web UI 已有基础)
+[ ] 价格监控→通知推送
+[ ] 商品数据模型 (core/product.py)
+```
+
+### Phase 2 — 视频模块（⏸ 远期规划）
+```
+[ ] 视频数据模型 (core/video.py)
+[ ] B站发布器增强→Playwright上传
+[ ] 视频编译流水线 (core/video_compiler.py)
+[ ] 多平台分发
 ```
 
 ### Phase 3 — AI增强（持续）
 ```
-□ renhua人话集成到编译器输出
-□ AI自动写文章/帖子/回复
-□ AI逛闲鱼→发现好商品→推荐
-□ 个人写作风格学习
-□ 语音/对话式操作
+[x] renhua人话集成到编译器输出
+[x] AI自动写文章/帖子/回复
+[ ] AI逛闲鱼→发现好商品→推荐
+[ ] 个人写作风格学习
+[ ] 语音/对话式操作
 ```

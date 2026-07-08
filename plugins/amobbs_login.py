@@ -573,215 +573,144 @@ class AmobbsPlaywrightLogin:
             return ""
 
     def submit_text_captcha(self, captcha_code: str) -> dict:
-        """提交文本验证码 — 填入验证码，点击输入框边框触发核验 ✓，核验通过后提交登录
+        """提交文本验证码 — 填入验证码，提交表单，检查登录结果
 
-        Amobbs 特殊行为（使用 DOM 元素 class 判断验证码核验状态）：
-        1. 在验证码输入框填入代码
-        2. 点击输入框边框附近区域触发 ✓ 核验
-        3. 通过 `.seccodecheck` 元素的 class 变化判断 ✓/✗
-        4. ✓ → 提交登录 → 返回 cookie
-        5. ✗ → 返回重试
+        Amobbs 等 Discuz 站点使用简单文本验证码（无 .seccodecheck 核验）。
+        部分 Discuz 站点有 .seccodecheck 边框核验，先检测再分流。
         """
         try:
             self._ensure_browser()
             page = self.page
 
-            # 0. 展开表单（确保验证码输入框可见）— 快速检查，无等待
+            # 0. 展开表单（确保验证码输入框可见）
             try:
                 captcha_input = page.query_selector("input[name='seccodeverify']")
                 if not captcha_input or not captcha_input.is_visible():
                     form_toggle = page.query_selector("span.login_slct")
                     if form_toggle and form_toggle.is_visible():
                         form_toggle.click()
+                        time.sleep(0.3)
             except:
                 pass
 
-            # 1. 查找验证码输入框并填入代码 — 直接只用 input[name='seccodeverify']，无 timeout 循环
+            # 1. 查找验证码输入框并填入代码
             inp = page.query_selector("input[name='seccodeverify']")
             if not inp or not inp.is_visible():
-                # 没有找到验证码输入框，尝试直接提交
                 return self.click_captcha_and_submit()
 
             inp.fill("")
             inp.type(captcha_code, delay=80)
+            time.sleep(0.5)
 
-            # 2. 点击验证码输入框右边框区域触发 ✓ 核验 — 直接通过查询到的元素
-            box = inp.bounding_box()
-            if box:
-                page.mouse.click(
-                    box['x'] + box['width'] + 10,
-                    box['y'] + box['height'] / 2
-                )
-
-            # 3. 等待验证码核验结果 — 短 timeout
+            # 2. 检测是否有 .seccodecheck 边框核验机制
+            has_seccodecheck = False
             try:
-                page.wait_for_selector(".seccodecheck", timeout=1000)
+                sc_el = page.query_selector(".seccodecheck")
+                if sc_el:
+                    has_seccodecheck = True
             except:
                 pass
 
-            # 检查 ✓ 核验通过 — .seccodecheck 元素是否有 seccodecheck_ok class
-            try:
-                seccode_ok = page.eval_on_selector(
-                    ".seccodecheck",
-                    "el => el.classList.contains('seccodecheck_ok')"
-                )
-                if seccode_ok:
-                    # ✓ 核验通过 — 提交登录
-                    try:
-                        submit_btn = page.query_selector(
-                            "button[name='loginsubmit'], input[name='loginsubmit'], "
-                            "em:has-text('登录'), button:has-text('登录')"
-                        )
-                        if submit_btn:
-                            submit_btn.click()
-                    except:
-                        page.evaluate("document.forms[0]?.submit()")
-
-                    # 等待页面跳转/Cookie更新 — 先查已有 cookies，没有再等
-                    cookies_list = self.context.cookies() if self.context else []
-                    has_auth = any(
-                        "auth" in c.get("name", "").lower() or "sid" in c.get("name", "").lower()
-                        for c in cookies_list
+            if has_seccodecheck:
+                # 有边框核验 → 点击输入框右侧触发核验
+                box = inp.bounding_box()
+                if box:
+                    page.mouse.click(
+                        box['x'] + box['width'] + 10,
+                        box['y'] + box['height'] / 2
                     )
-                    if not has_auth:
-                        try:
-                            page.wait_for_function(
-                                "() => document.cookie.includes('auth') || document.cookie.includes('sid')",
-                                timeout=3000
-                            )
-                        except:
-                            pass
+                time.sleep(1.5)
 
-                    # 检查登录结果
-                    cookies_list = self.context.cookies() if self.context else []
-                    auth_cookies = [c for c in cookies_list
-                                   if "auth" in c.get("name", "").lower()
-                                   or "sid" in c.get("name", "").lower()]
-
-                    if auth_cookies:
-                        cookie_str = "; ".join(
-                            f"{c['name']}={c['value']}" for c in cookies_list
-                            if c.get('name') and c.get('value')
+                # 检查核验结果
+                try:
+                    seccode_ok = page.eval_on_selector(
+                        ".seccodecheck",
+                        "el => el.classList.contains('seccodecheck_ok')"
+                    )
+                    if not seccode_ok:
+                        seccode_err = page.eval_on_selector(
+                            ".seccodecheck",
+                            "el => el.classList.contains('seccodecheck_err')"
                         )
+                        if seccode_err:
+                            return {
+                                "success": True, "needs_captcha": True,
+                                "captcha_type": "text",
+                                "message": "验证码错误 ✗，请重新输入",
+                                "error": "验证码错误", "logged_in": False,
+                            }
+                except:
+                    pass
+            else:
+                # 无边框核验 — 简单文本验证码，直接提交表单
+                time.sleep(0.3)
+
+            # 3. 提交登录表单
+            try:
+                submit_btn = page.query_selector(
+                    "button[name='loginsubmit'], input[name='loginsubmit'], "
+                    "em:has-text('登录'), button:has-text('登录')"
+                )
+                if submit_btn and submit_btn.is_visible():
+                    submit_btn.click()
+                else:
+                    page.evaluate("document.querySelector('form[name=login]')?.submit()")
+            except:
+                page.evaluate("document.querySelector('form[name=login]')?.submit()")
+
+            # 4. 等待登录结果
+            time.sleep(3)
+
+            # 检查 cookie
+            cookies_list = self.context.cookies() if self.context else []
+            auth_cookies = [c for c in cookies_list
+                           if "auth" in c.get("name", "").lower()
+                           or "sid" in c.get("name", "").lower()]
+
+            if auth_cookies:
+                cookie_str = "; ".join(
+                    f"{c['name']}={c['value']}" for c in cookies_list
+                    if c.get('name') and c.get('value')
+                )
+                return {
+                    "success": True, "logged_in": True,
+                    "needs_captcha": False, "cookies": cookie_str,
+                    "captcha_verified": True, "error": "",
+                }
+
+            # 5. 检查登录失败原因
+            current_url = page.url
+            page_content = page.content()
+
+            # 还在登录页 → 验证码错误或密码错误
+            if "login" in current_url.lower():
+                if "验证码" in page_content and ("错误" in page_content or "不正确" in page_content):
+                    return {
+                        "success": True, "needs_captcha": True,
+                        "captcha_type": "text",
+                        "message": "验证码错误，请重新输入",
+                        "error": "验证码错误", "logged_in": False,
+                    }
+                # 检查 Discuz 错误提示
+                error_el = page.query_selector(
+                    "div.alert_error, div.show_error, #error_msg, "
+                    "div[class*='error']"
+                )
+                if error_el and error_el.is_visible():
+                    err_text = error_el.inner_text().strip()
+                    if err_text:
                         return {
-                            "success": True,
-                            "logged_in": True,
-                            "needs_captcha": False,
-                            "cookies": cookie_str,
-                            "captcha_verified": True,
-                            "error": "",
+                            "success": True, "needs_captcha": True,
+                            "captcha_type": "text",
+                            "message": err_text,
+                            "error": err_text, "logged_in": False,
                         }
 
-                    # 登录中但还未完成
-                    return {
-                        "success": True,
-                        "logged_in": False,
-                        "captcha_verified": True,
-                        "needs_captcha": False,
-                        "message": "验证码核验通过 ✓，正在登录...",
-                    }
-            except:
-                pass
-
-            # 检查 ✗ 核验失败 — .seccodecheck 元素是否有 seccodecheck_err class
-            try:
-                seccode_err = page.eval_on_selector(
-                    ".seccodecheck",
-                    "el => el.classList.contains('seccodecheck_err')"
-                )
-                if seccode_err:
-                    return {
-                        "success": True,
-                        "needs_captcha": True,
-                        "captcha_type": "text",
-                        "message": "验证码错误 ✗，请重新输入",
-                        "error": "验证码错误",
-                        "logged_in": False,
-                    }
-            except:
-                pass
-
-            # 兜底：用 page.content() 全文搜索 ✓/✗（仅在 DOM class 检测失败时）
-            page_content = page.content()
-            checkmark_signals = ["✓", "√", "check", "pass", "success", "已验证", "验证通过"]
-            cross_signals = ["✗", "×", "fail", "error", "验证失败", "请重新验证"]
-
-            has_checkmark = any(s in page_content for s in checkmark_signals)
-            has_cross = any(s in page_content for s in cross_signals)
-
-            if has_checkmark:
-                # ✓ 核验通过 — 尝试提交登录
-                try:
-                    submit_btn = page.query_selector(
-                        "button[name='loginsubmit'], input[name='loginsubmit'], "
-                        "em:has-text('登录'), button:has-text('登录')"
-                    )
-                    if submit_btn:
-                        submit_btn.click()
-                except:
-                    page.evaluate("document.forms[0]?.submit()")
-
-                # 先查已有 cookies
-                cookies_list = self.context.cookies() if self.context else []
-                has_auth = any(
-                    "auth" in c.get("name", "").lower() or "sid" in c.get("name", "").lower()
-                    for c in cookies_list
-                )
-                if not has_auth:
-                    try:
-                        page.wait_for_function(
-                            "() => document.cookie.includes('auth') || document.cookie.includes('sid')",
-                            timeout=3000
-                        )
-                    except:
-                        pass
-
-                cookies_list = self.context.cookies() if self.context else []
-                auth_cookies = [c for c in cookies_list
-                               if "auth" in c.get("name", "").lower()
-                               or "sid" in c.get("name", "").lower()]
-
-                if auth_cookies:
-                    cookie_str = "; ".join(
-                        f"{c['name']}={c['value']}" for c in cookies_list
-                        if c.get('name') and c.get('value')
-                    )
-                    return {
-                        "success": True,
-                        "logged_in": True,
-                        "needs_captcha": False,
-                        "cookies": cookie_str,
-                        "captcha_verified": True,
-                        "error": "",
-                    }
-
-                return {
-                    "success": True,
-                    "logged_in": False,
-                    "captcha_verified": True,
-                    "needs_captcha": False,
-                    "message": "验证码核验通过 ✓，正在登录...",
-                }
-
-            elif has_cross:
-                return {
-                    "success": True,
-                    "needs_captcha": True,
-                    "captcha_type": "text",
-                    "message": "验证码错误 ✗，请重新输入",
-                    "error": "验证码错误",
-                    "logged_in": False,
-                }
-
-            # 不确定状态
-            screenshot_b64 = self._get_captcha_image().get("image", "")
+            # 页面已跳转(非登录页)但无 auth cookie
             return {
-                "success": True,
-                "needs_captcha": True,
-                "captcha_type": "unknown",
-                "image": screenshot_b64,
-                "message": "无法确定验证码状态，请查看截图",
-                "logged_in": False,
+                "success": True, "logged_in": False,
+                "captcha_verified": True, "needs_captcha": False,
+                "message": "登录处理中，请稍候...",
             }
 
         except Exception as e:
