@@ -2,7 +2,7 @@
 
 **报告日期**: 2026-07-09
 **当前版本**: v5.21
-**Git**: master, **dirty** (admin.py uncommitted), latest commit `2d51e68`
+**Git**: master, **dirty** (admin.py uncommitted), latest commit `85e942f`
 **标签**: v5.21 (最新)
 
 ---
