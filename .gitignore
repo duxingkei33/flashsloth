@@ -45,3 +45,5 @@ venv/
 .fs.pid
 *.db
 xianyu-auto-reply
+test_*.py
+trace_*.py
