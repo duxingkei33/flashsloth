@@ -2,7 +2,7 @@
 
 **报告日期**: 2026-07-09
 **当前版本**: v5.21
-**Git**: master, clean, latest commit `80c25c4`
+**Git**: master, **dirty** (admin.py uncommitted), latest commit `2d51e68`
 **标签**: v5.21 (最新)
 
 ---
@@ -621,10 +621,11 @@ FlashSloth 项目遵循 **40 条铁律**，统一维护在 `fs-iron-rules` skill
 
 ---
 
-## 附录 A: 版本变更历史 (v4.60 → v5.20)
+## 附录 A: 版本变更历史 (v4.60 → v5.21)
 
 | 版本 | 日期 | 关键变更 |
 |------|------|---------|
+| **v5.21** | 2026-07-08 | Amobbs 验证码四大修复 (.seccodecheck分流/跨线程刷新/提交回归/border click误触) + 铁律 #41(文档同步) #42(Bug记录) + docs/bug-fixes/ 创建 + 文档全面审计 |
 | **v5.20** | 2026-07-08 | Amobbs 验证码修复 (Playwright 元素截图+前端 base64) + 铁律 #40 + Mydigit 探索数据 |
 | v5.19 | 2026-07-07 | OSHWHub SSO 登录修复 + 验证码检测前置 |
 | v5.18 | 2026-07-06 | 39 项铁律 #19 硬编码违规全量修复 + 3 新 Publisher (得物/什么值得买/小红书) |
