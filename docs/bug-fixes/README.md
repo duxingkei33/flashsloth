@@ -17,3 +17,4 @@
 | 10 | [探索数据预热空表](exploration-warmup-empty.md) | v5.16 | 🟡 | exploration |
 | 11 | [签到注册器分裂](signin-registry-split.md) | v4.76 | 🟡 | signin |
 | 12 | [site_url 硬编码回退](site-url-hardcode-fallback.md) | v5.15 | 🟠 | data-driven |
+| 13 | [Amobbs .seccodecheck 机制缺失](captcha-seccodecheck-missing.md) | v5.21 | 🔴 | captcha/login |

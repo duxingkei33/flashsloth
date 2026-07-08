@@ -83,34 +83,46 @@ def _dispatch_platform_login(platform: str, action: str, data: dict, aid: int) -
 
 _discuz_login_instances: dict[str, "AmobbsPlaywrightLogin"] = {}
 _discuz_lock = threading.Lock()
+_discuz_thread_owners: dict[str, int] = {}  # session_id -> thread_id
 
 def _get_discuz_login(session_id: str, site_url: str = "", platform: str = "") -> "AmobbsPlaywrightLogin":
-    """获取/创建 Discuz 系论坛登录实例（按 session_id 区分）
+    """获取/创建 Discuz 系论坛登录实例（按 session_id 区分，线程安全）
 
     数据驱动（铁律#19）：如果 site_url 为空，尝试从探索数据或已有实例读取。
     site_url 变化时自动重建实例。
     platform 参数：指定平台名（如 mydigit/discuz/amobbs），用于数据驱动读取 site_url
+    
+    线程安全：sync_playwright 不支持跨线程访问。如果当前线程与实例创建线程不同，
+    关闭旧实例并在当前线程重建（保持相同的 site_url）。
     """
+    current_tid = threading.get_ident()
     with _discuz_lock:
-        # DEBUG: log what's happening
-        logger.info(f"[DEBUG] _get_discuz_login: session_id={session_id}, site_url={site_url}, platform={platform}, existing={session_id in _discuz_login_instances}")
+        # 如果已有实例，检查线程是否匹配
         if session_id in _discuz_login_instances:
             existing = _discuz_login_instances[session_id]
-            logger.info(f"[DEBUG] existing instance: site_url={existing.site_url}, page={existing.page is not None}, browser={existing.browser is not None}")
-        # 如果已有实例，优先复用（避免因空 site_url 误销毁）
-        if session_id in _discuz_login_instances:
-            existing = _discuz_login_instances[session_id]
-            if not site_url:
-                # 没传 site_url → 直接复用已有实例（最常见：refresh_captcha/poll 等后续操作）
+            owner_tid = _discuz_thread_owners.get(session_id)
+            if owner_tid and owner_tid != current_tid:
+                # 线程切换 → 关闭旧实例，在当前线程重建
+                logger.info(f"[_get_discuz_login] Thread switch detected: {owner_tid} -> {current_tid}, rebuilding instance")
+                try:
+                    existing.close()
+                except Exception:
+                    pass
+                del _discuz_login_instances[session_id]
+                _discuz_thread_owners.pop(session_id, None)
+            elif not site_url:
+                # 同线程 + 没传 site_url → 直接复用
                 return existing
-            if existing.site_url.rstrip("/") == site_url.rstrip("/"):
+            elif existing.site_url.rstrip("/") == site_url.rstrip("/"):
                 return existing
-            # site_url 明确变了 → 关闭旧实例重建
-            try:
-                existing.close()
-            except Exception:
-                pass
-            del _discuz_login_instances[session_id]
+            else:
+                # site_url 明确变了 → 关闭旧实例重建
+                try:
+                    existing.close()
+                except Exception:
+                    pass
+                del _discuz_login_instances[session_id]
+                _discuz_thread_owners.pop(session_id, None)
         
         if not site_url:
             # 无已有实例 + 无 site_url → 从探索数据读取（数据驱动）
@@ -127,7 +139,6 @@ def _get_discuz_login(session_id: str, site_url: str = "", platform: str = "") -
                         fd = _json.loads(row["full_data"]) if isinstance(row["full_data"], str) else (row["full_data"] or {})
                         site_url = fd.get("site_url", "")
                 if not site_url:
-                    # 兜底：尝试从 platform_accounts 读取
                     from flask_login import current_user
                     uid = current_user.id
                     row = conn.execute(
@@ -145,6 +156,7 @@ def _get_discuz_login(session_id: str, site_url: str = "", platform: str = "") -
         from plugins.amobbs_login import AmobbsPlaywrightLogin
         inst = AmobbsPlaywrightLogin(site_url=site_url, platform=platform)
         _discuz_login_instances[session_id] = inst
+        _discuz_thread_owners[session_id] = current_tid
         return inst
 
 def _close_discuz_login(session_id: str):
