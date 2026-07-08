@@ -89,6 +89,25 @@ def explore_platform(platform: str) -> dict:
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(3000)
 
+        # 尝试点击可能的登录方式切换 tab — 某些平台默认隐藏密码登录
+        _tab_clicked = False
+        for tab_text in ["账号登录", "账号", "密码登录", "账户密码", "手机号登录"]:
+            try:
+                tab_btn = page.query_selector(
+                    f"button:has-text('{tab_text}'), "
+                    f"a:has-text('{tab_text}'), "
+                    f"span:has-text('{tab_text}'), "
+                    f"li:has-text('{tab_text}'), "
+                    f"[class*='tab']:has-text('{tab_text}')"
+                )
+                if tab_btn:
+                    tab_btn.click()
+                    page.wait_for_timeout(1500)
+                    _tab_clicked = True
+                    break
+            except Exception:
+                pass
+
         # 截图
         screenshot_dir = os.path.join(REPORTS_DIR, "screenshots")
         os.makedirs(screenshot_dir, exist_ok=True)

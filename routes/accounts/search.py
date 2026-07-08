@@ -181,7 +181,7 @@ def api_platform_login_capabilities(platform):
             "guide": guide,
             "note": f"来自 {platform} publisher 的预设登录方式",
         })
-    return jsonify({"success": False, "error": f"平台 {platform} 无登录能力数据"})
+    return jsonify({"success": True, "platform": platform, "login_methods": [], "note": "待适配"})
 
 
 @app.route("/api/platform/<platform>/login-capabilities/refresh", methods=["POST"])

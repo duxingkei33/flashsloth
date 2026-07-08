@@ -294,7 +294,7 @@ def verify_account(aid: int) -> dict:
         # 注入旧 cookie 永远不可能成功，必须做即时密码登录替代
         report = _load_platform_report(acct.get("platform", ""))
         sso_info = report.get("sso_ecosystem", {})
-        if sso_info.get("requires_structured_cookies") or sso_info.get("requires_structured_cookies", False):
+        if sso_info.get("requires_structured_cookies"):
             return _verify_sso_via_login(acct, cfg, result, report)
 
         # ── Playwright 验证（非 SSO 平台：cookie 注入路径）──
@@ -304,6 +304,7 @@ def verify_account(aid: int) -> dict:
                 args=[
                     "--disable-gpu", "--disable-dev-shm-usage",
                     "--no-sandbox", "--disable-setuid-sandbox",
+                    "--ignore-certificate-errors",
                 ],
             )
             ctx = browser.new_context(
@@ -492,8 +493,11 @@ def verify_account(aid: int) -> dict:
                         # 通用：检查是否有任何 indicator 包含该关键词
                         if req not in str(indicators):
                             required_found = False
-                is_logged_in = not redirected_to_login and required_found
                 has_exit_or_logout = "退出" in str(indicators) or "注销" in str(indicators)
+                # ⚠️ 铁律：即使有数据驱动配置，也必须同时满足硬要求（退出/注销+未重定向）
+                # 当 required_indicators_for_success 为空时，required_found 无意义，
+                # has_exit_or_logout 作为兜底硬要求
+                is_logged_in = not redirected_to_login and required_found and has_exit_or_logout
             else:
                 # ── 无探索报告配置时：fallback 到原严格逻辑 ──
                 has_exit_or_logout = any(kw in str(indicators) for kw in ["退出", "注销"])

@@ -495,6 +495,84 @@
 </div>
 {% endif %}
 {% endfor %}
+
+{# ====== 孤儿账号：没有对应 publisher 的账号（数据驱动）====== #}
+{% set known_platforms = platforms|map(attribute='name')|list %}
+{% for pname, accts in platform_accounts.items() %}
+{% if pname not in known_platforms and accts %}
+{% set has_any.value = true %}
+{% set acct_total.value = acct_total.value + accts|length %}
+<div class="card" style="margin-bottom:16px;overflow:visible;" data-platform="{{ pname }}">
+    <div class="plat-header">
+        <h2>
+            <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(pname, platform_icons['default']) }}</span>
+            {{ pname }}
+            <span class="plat-count">({{ accts|length }} 个账号)</span>
+        </h2>
+    </div>
+    {% for a in accts %}
+    {% set cfg = a.config_json|from_json if a.config_json else {} %}
+    {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
+    {% set is_online = cached.get('logged_in', None) if cached else None %}
+    {% set last_check_ts = cached.get('_cache_timestamp', 0) if cached else 0 %}
+    {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
+    <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
+         data-platform="{{ pname }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none else 'unknown')) }}"
+         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}"
+         data-site-url="{{ cfg.get('site_url', '')|lower }}" data-last-check="{{ last_check_ts }}">
+        <div class="check-wrap">
+            <input type="checkbox" class="acct-checkbox" value="{{ a.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;cursor:pointer;">
+        </div>
+        <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(pname, platform_icons['default']) }}</span>
+        <div class="acct-info">
+            <div class="name-row">
+                <span class="acct-name">{{ a.account_name }}</span>
+                <span class="plat-tag">{{ pname }}</span>
+                {% set site_url = cfg.get('site_url', '') %}
+                {% if site_url %}
+                <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;" title="{{ site_url }}">🌐</a>
+                {% endif %}
+            </div>
+            <div class="detail-row">
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;flex-shrink:0;" title="{{ '点击禁用' if a.is_active else '点击启用' }}">
+                    <input type="checkbox" {{ 'checked' if a.is_active else '' }} onchange="toggleAccount({{ a.id }}, this)" style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if a.is_active else '#999' }};">{{ '启用' if a.is_active else '禁用' }}</span>
+                </label>
+                <span class="status-group">
+                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none and cached.get('_cache_source') else 'unknown')) }}">
+                        {% if is_online and cached.get('username') %}✅ {{ cached.get('username') }}{% if cached.get('points') %} {{ cached.get('points_label','积分') }}:{{ cached.get('points') }}{% endif %}
+                        {% elif is_online %}✅ 已登录
+                        {% elif is_online == False %}❌ {{ cached.get('status', '未登录') }}
+                        {% elif cached.get('_cache_source') and is_online is none %}⏳ 待确认（API检测通过）
+                        {% else %}{{ '⏳ 启用' if a.is_active else '⛔ 停用' }}{% endif %}
+                    </span>
+                    <span id="lastCheck_{{ a.id }}" class="time-tag">
+                        {% if cached.get('_cache_source') %}
+                            {% set age = cached.get('_cache_age_seconds', 999) %}
+                            {% if age < 60 %}<span style="color:#22c55e;">⏳ {{ age }}秒前</span>
+                            {% elif age < 300 %}<span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
+                            {% else %}<span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>{% endif %}
+                        {% elif cached.get('verified_at') %}<span style="color:#888;">🕐 {{ cached.get('verified_at')[:16] }}</span>
+                        {% else %}<span style="color:#ccc;">未检测</span>{% endif %}
+                    </span>
+                </span>
+                <span id="userInfo_{{ a.id }}" style="font-size:11px;color:#666;display:flex;align-items:center;gap:4px;">
+                    {% if is_online and cached.get('username') %}<span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>{% endif %}
+                </span>
+                <span style="font-size:12px;color:#999;" title="{{ '有Cookie' if has_cookie else '无Cookie' }}">{% if has_cookie %}🍪{% else %}—{% endif %}</span>
+            </div>
+        </div>
+        <div class="acct-actions">
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info">🔍 状态检测</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning">🌐 浏览器登录</button>
+            <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除「{{ a.account_name }}」？')">🗑 删除</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
 </div>
 
 {% if not has_any.value %}

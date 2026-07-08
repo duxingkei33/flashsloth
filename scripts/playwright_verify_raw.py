@@ -57,6 +57,7 @@ def verify_raw(cookie: str, site_url: str, platform_username: str = "",
                 args=[
                     "--disable-gpu", "--disable-dev-shm-usage",
                     "--no-sandbox", "--disable-setuid-sandbox",
+                    "--ignore-certificate-errors",
                 ],
             )
             ctx = browser.new_context(

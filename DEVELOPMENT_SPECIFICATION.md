@@ -38,7 +38,6 @@
 | sdk/ | 4,563 |
 | scripts/ | 1,665 |
 | fs_mgr.py + admin.py | 405 |
-| admin.py | 81 (入口点) |
 
 ---
 
@@ -191,8 +190,27 @@
 
 ## 三、模块详细说明
 
-### 3.1 账号管理模块 (`routes/accounts.py` + `templates/accounts.html`)
+### 3.1 账号管理模块 (`routes/accounts/` 包 + `templates/accounts/` 模板集)
 
+- **模块架构**: `routes/accounts.py` 已重构为 `routes/accounts/` 包（v5.14），7个子模块按职责分离
+- **子模块**:
+  | 子模块 | 行数 | 功能 |
+  |-------|:----:|------|
+  | `routes/accounts/__init__.py` | 14 | 包入口，注册所有子路由 |
+  | `routes/accounts/crud.py` | 460 | 账号增删改查核心操作 |
+  | `routes/accounts/search.py` | 457 | 搜索/筛选/批量操作 |
+  | `routes/accounts/login.py` | 358 | 登录流程处理 |
+  | `routes/accounts/qrcode.py` | 445 | QR码扫码登录处理 |
+  | `routes/accounts/status.py` | 309 | 登录状态检测 |
+  | `routes/accounts/helpers.py` | — | 辅助函数/脱敏 |
+- **子模板** (`templates/accounts/`):
+  | 模板 | 说明 |
+  |------|------|
+  | `head.html` | 页面头部/脚本 |
+  | `modal.html` | 新增/编辑账号弹窗 |
+  | `cards.html` | 账号卡片列表 |
+  | `deploy.html` | 部署配置内联面板 |
+  | `deploy_js.html` | 部署相关 JavaScript |
 - **功能说明**: 多平台账号的统一管理界面，支持添加、编辑、删除、启用/禁用、配置查看、登录状态检测
 - **页面端点**:
   - `GET /accounts` — 账号管理页面（按平台分组展示，含缓存状态）
@@ -235,6 +253,9 @@
 | `WordPress` | `WordPressPublisher` | — | REST API 发布 |
 | `RSS` | `RSSPublisher` | — | RSS 源生成 |
 | `GitHub Pages` | `GitHubPagesBlogPublisher` | 无需登录 | 本地 Markdown 写入 + git push |
+| `什么值得买` | `SmzdmPublisher` | 密码/手机验证码/OAuth/Cookie | Playwright 浏览器自动化，Tencent Cloud WAF (JS Challenge + 拖拽验证码) |
+| `得物` | `DewuPublisher` | 密码/验证码/第三方/扫码 | 阿里云 FeiLin 滑块验证码，账号验证+占位发布 |
+| `小红书` | `XiaohongshuPublisher` | Cookie | 图片+文字笔记类型，Vue.js 编辑器 |
 
 **通用发布流程**: `publish(Article)` → `process_images(Article)` → `check_cookie()` (v5.04 新增: 发布前检查Cookie有效性) → 平台特定 HTTP/Playwright → 返回 `{success, url, id, error}`
 - **check_cookie()**: Publisher基类新增方法(v5.04)，发布前自动验证已保存Cookie是否过期；`publish_select`页面展示Cookie状态(有效/过期/不存在)，到期提醒用户刷新
@@ -1405,6 +1426,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| `v5.14+P2` | 2026-07-08 10:00 | **账号管理模块化重构** — `routes/accounts.py` (1980行) 按职责拆分为 `routes/accounts/` 包(7子模块, 2,043行)。新增 publisher_smzdm/dewu/xiaohongshu 三个电商/社区发布器(1,403行)。templates/accounts/ 子模板集拆分。Python 总行数增至45,840。 |
 | `v5.13+P2` | 2026-07-08 09:00 | **P0: 账号连接状态/Cookie验证修复批量2** — `core/status_detector.py` 所有6个检测器异常处理增加 `_detection_error=True` 标志；`routes/accounts.py` Layer2 改用 `_detection_error` 替代字符串匹配；前端 `templates/accounts.html` 合并「状态检测」和「验证凭证」按钮。E2E 验证通过（真Cookie→logged_in=true，假Cookie→logged_in=false）。 |
 | `v5.12+P2` | 2026-07-08 | **部署归一化审计** — `/deployers` 到 `/accounts#deploy` 重定向完成确认。 |
 | `v5.11+P2` | 2026-07-08 | **Provider 抽象框架 E2E验证通过 + signin BrowserEngine 复用** — `core/provider.py` (107行) + `plugins/provider_markdown/notion/taobao.py` + `routes/workspace_ui.py` + `templates/workspace.html` 全部E2E通过。签到模块改从全局 BrowserEngine 获取实例，避免每次独立 `sync_playwright()`。账号页验证凭证按钮+deploy重定向归一化完成。`scripts/refresh_login_capabilities.py` 每15分钟自动探索过时(>12h)平台登录能力。 |
@@ -1490,12 +1512,19 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `status_detector.py` | 三层登录状态检测器 (v5.02 修复, v5.13 _detection_error标志) |
 | `storage.py` | 存储抽象层 (LocalStorage, AlistStorage) |
 
-### routes/ (25 个 Python 文件, 9,459 行)
+### routes/ (31 个 Python 文件, 9,811 行)
 | 文件 | 行数 | 说明 |
 |------|:----:|------|
 | `__init__.py` | 94 | 路由中心 — 应用工厂，导入所有路由模块 |
 | `_app.py` | 86 | Flask 共享实例 + Jinja2 过滤器 + 全局模板上下文 |
-| `accounts.py` | 1980 | 账号管理 — CRUD/状态检测/加密/批量操作 (v5.03 弹窗规范化, v5.06 P0验证链接修复, v5.08 deploy归一化内联UI, v5.13 前端按钮合并+_detection_error修复) |
+| `accounts/` | 包 | **账号管理模块化包 (v5.14 从 accounts.py 重构)** |
+| ` ├── __init__.py` | 14 | 包入口，导入子模块 |
+| ` ├── crud.py` | 460 | 账号 CRUD — 增/删/改/批量 |
+| ` ├── search.py` | 457 | 账号搜索/筛选/批量操作 |
+| ` ├── login.py` | 358 | 登录流程处理 |
+| ` ├── qrcode.py` | 445 | QR二维码扫码登录处理 |
+| ` ├── status.py` | 309 | 三层登录状态检测 |
+| ` └── helpers.py` | — | 辅助函数/脱敏 |
 | `ai.py` | 674 | AI 供应商管理/配置/生成/余额查询/日志 |
 | `api_v1.py` | 532 | 统一 REST API v1（API Key 鉴权） |
 | `api_v2.py` | 205 | Gateway REST API v2（系统/重启/重载） |
@@ -1519,8 +1548,8 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `workspace_ui.py` | 374 | 工作台/Provider选择/流水线/日志 |
 | `xianyu_search.py` | 142 | 闲鱼商品搜索 |
 
-### plugins/ (48 个 Python 文件, 12,877 行)
-**发布器 (16个)**:
+### plugins/ (51 个 Python 文件, 14,357 行)
+**发布器 (19个)**:
 | 文件 | 说明 |
 |------|------|
 | `publisher_discuz.py` | Discuz! 论坛发布器 |
@@ -1539,6 +1568,9 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `publisher_wordpress.py` | WordPress 发布器 |
 | `publisher_rss.py` | RSS 发布器 |
 | `publisher_github_pages.py` | GitHub Pages 博客发布器 |
+| `publisher_smzdm.py` | **什么值得买发布器 (768行, v5.14 新增)** |
+| `publisher_dewu.py` | **得物发布器 (332行, v5.14 新增)** |
+| `publisher_xiaohongshu.py` | **小红书发布器 (303行, v5.14 新增)** |
 
 **签到 (4个)**:
 | 文件 | 说明 |
@@ -1617,7 +1649,7 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `adapters/github_pages.py` | GitHub Pages 适配器 (370行) |
 | `adapters/giscus.py` | Giscus 适配器 |
 
-### templates/ (31 个 HTML 模板, 13,613 行)
+### templates/ (36 个 HTML 模板, 12,478 行)
 | 模板 | 说明 |
 |------|------|
 | `index.html` | 仪表盘总览 |
@@ -1625,6 +1657,12 @@ Cookie 自动捕获 → save_credential() → 加密存储
 | `register.html` | 注册页 |
 | `base.html` | 基础布局模板 |
 | `accounts.html` | 账号管理 (3185行) |
+| `accounts/` | **账号管理子模板集 (v5.14 从 accounts.html 拆分)** |
+| ` ├── head.html` | 页面头部/脚本 |
+| ` ├── modal.html` | 新增/编辑账号弹窗 |
+| ` ├── cards.html` | 账号卡片列表 |
+| ` ├── deploy.html` | 部署配置内联面板 |
+| ` └── deploy_js.html` | 部署相关 JavaScript |
 | `account_edit.html` | 账号编辑弹窗 |
 | `signin.html` | 签到管理 |
 | `gateway.html` | 通知网关配置 |
@@ -1695,4 +1733,4 @@ Cookie 自动捕获 → save_credential() → 加密存储
 ---
 
 *本文件由 AI 自动生成，以代码实际内容为准。*
-*版本: v5.13+P2 | Python 总行数: 40,837 行 (core+routes+plugins+scripts+sdk) | HTML 总行数: 13,613 行 (31 模板) | 新增: Provider框架 E2E + signin BrowserEngine复用 + _detection_error修复 | 最后更新: 2026-07-08 09:00*
+*版本: v5.14+P2 | Python 总行数: 45,840 行 (142 .py, 5 modules) | HTML 总行数: 12,478 行 (36 模板) | 新增: accounts模块化包 + smzdm/dewu/xiaohongshu发布器 | 最后更新: 2026-07-08 10:00*

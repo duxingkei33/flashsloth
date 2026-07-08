@@ -119,12 +119,11 @@ function startQrCodePolling() {
                 _qrPollTimer = null;
                 _isLoginRunning = false;
                 setFieldValue('cfg_cookie', data.cookies);
-                showLoginStatus('success', '✅ ' + (data.message || '登录成功！Cookie 已自动获取'));
+                _loginResultCookie = data.cookies;
+                showLoginStatus('info', '⏳ Cookie已获取，正在校验...');
                 document.getElementById('btnStartLogin').textContent = '✅ 已登录';
                 document.getElementById('btnStartLogin').disabled = true;
-                setTimeout(function() {
-                    document.getElementById('loginScreenshotArea').style.display = 'none';
-                }, 2000);
+                doVerifyAndEnableConfirm(data.cookies, 0);
             } else if (data.status === 'cookie_unverified') {
                 // Cookie 已检测到但验证未通过 — 展示给用户确认
                 setFieldValue('cfg_cookie', data.cookies || '');
@@ -260,6 +259,8 @@ function onEditAccount(aid) {
 }
 
 var _origFormTitle = '➕ 添加账号 — ';
+var _loginReadyToSave = false;  // 登录成功 + Cookie校验通过后设为true，允许「确认添加」
+var _loginResultCookie = '';   // 登录成功后的cookie，暂存等待确认
 
 // ====== 统一浏览器登录 + 验证码 + 扫码 + 轮询 ======
 
@@ -273,7 +274,7 @@ function unifiedLoginStart() {
         showLoginStatus('info', '⏳ 正在打开登录页并发送验证码...');
         var btn = document.getElementById('btnStartLogin'); btn.disabled = true; btn.textContent = '⏳ 发送中...';
         fetch('/api/platform/'+_loginPlatform+'/login/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:aid,method:'phone',phone:phone,site_url:siteUrl})}).then(function(r){return r.json()}).then(function(data){
-            if (data.logged_in && data.cookies) { setFieldValue('cfg_cookie',data.cookies); showLoginStatus('success','✅ 登录成功！Cookie 已自动获取'); setTimeout(unifiedSaveOnly,500); }
+            if (data.logged_in && data.cookies) { setFieldValue('cfg_cookie',data.cookies);_loginResultCookie=data.cookies;showLoginStatus('info','⏳ Cookie已获取，正在校验...');doVerifyAndEnableConfirm(data.cookies,aid); }
             else if (data.needs_captcha && data.image) { showLoginScreenshot(data.image); showLoginStatus('warning','📱 验证码已发送，请输入验证码后点击「提交验证码」'); document.getElementById('btnCaptchaLogin').style.display='inline-block'; document.getElementById('btnCaptchaLogin').textContent='📱 提交验证码'; document.getElementById('btnRefreshScreenshot').style.display='inline-block'; }
             else { showLoginStatus('error','❌ '+(data.error||'操作失败')); btn.disabled=false; btn.textContent='📱 发送验证码'; _isLoginRunning=false; }
         }).catch(function(e){showLoginStatus('error','❌ 网络错误: '+e.message);btn.disabled=false;btn.textContent='📱 发送验证码';_isLoginRunning=false;});
@@ -284,7 +285,7 @@ function unifiedLoginStart() {
     hideCaptchaInput();resetProgressBar();setStepActive(1,'启动浏览器并打开登录页...');showLoginStatus('info','⏳ 正在启动浏览器登录...');
     var btn=document.getElementById('btnStartLogin');btn.disabled=true;btn.textContent='⏳ 启动中...';
     fetch('/api/platform/'+_loginPlatform+'/login/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:aid,username:username,password:password,site_url:siteUrl})}).then(function(r){return r.json()}).then(function(data){
-        if(data.logged_in&&data.cookies){setStepDone(1,'登录页已打开');setStepDone(2,'已填写账号密码');setStepDone(3,'无需验证码');setStepDone(5,'✅ 登录成功！Cookie 已自动获取');setFieldValue('cfg_cookie',data.cookies);showLoginStatus('success','✅ 登录成功！Cookie 已自动获取');setTimeout(unifiedSaveOnly,500);}
+        if(data.logged_in&&data.cookies){setStepDone(1,'登录页已打开');setStepDone(2,'已填写账号密码');setStepDone(3,'无需验证码');setStepDone(4,'无需验证码');setStepActive(5,'Cookie校验中...');setFieldValue('cfg_cookie',data.cookies);_loginResultCookie=data.cookies;showLoginStatus('info','⏳ Cookie已获取，正在校验...');doVerifyAndEnableConfirm(data.cookies,aid);}
         else if(data.needs_captcha&&data.image){setStepDone(1,'登录页已打开');setStepDone(2,'已填写账号密码');setStepDone(3,'检测到验证码');showCaptchaInput(data.image,data.captcha_type==='checkbox'||data.captcha_type==='text');var msg='🔒 需要验证码';if(data.captcha_type==='text')msg='🔢 请输入图片中的验证码';else if(data.captcha_type==='checkbox')msg='☑️ 请处理复选框验证码';else if(data.captcha_type==='recaptcha')msg='🔒 Google reCAPTCHA';showLoginStatus('warning',msg);}
         else if(data.success&&data.needs_captcha){setStepDone(1,'登录页已打开');setStepDone(2,'已填写账号密码');setStepDone(3,'检测到验证码');showCaptchaInput(data.image||'',true);showLoginStatus('warning','🔒 需要验证码处理');}
         else{setStepFailed(3,data.error||'登录失败');showLoginStatus('error','❌ '+(data.error||'登录失败'));btn.disabled=false;btn.textContent='🚀 开始浏览器登录';_isLoginRunning=false;}
@@ -294,7 +295,7 @@ function unifiedLoginCaptcha() {
     var btn = document.getElementById('btnCaptchaLogin');btn.disabled=true;btn.textContent='⏳ 处理中...';showLoginStatus('info','⏳ 正在点击验证码并提交登录...');
     var aid = parseInt(document.getElementById('editAccountId').value)||0;
     fetch('/api/platform/'+_loginPlatform+'/login/captcha',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:aid})}).then(function(r){return r.json()}).then(function(data){
-        if(data.logged_in&&data.cookies){setFieldValue('cfg_cookie',data.cookies);showLoginStatus('success','✅ 登录成功！Cookie 已自动获取');btn.disabled=true;setTimeout(unifiedSaveOnly,500);}
+        if(data.logged_in&&data.cookies){setFieldValue('cfg_cookie',data.cookies);_loginResultCookie=data.cookies;showLoginStatus('info','⏳ Cookie已获取，正在校验...');btn.disabled=true;doVerifyAndEnableConfirm(data.cookies,aid);}
         else if(data.needs_captcha&&data.image){showCaptchaInput(data.image,data.captcha_type==='checkbox');showLoginStatus('warning','🔒 请输入验证码');btn.disabled=false;btn.textContent='✅ 点验证码并登录';}
         else if(data.image){showLoginScreenshot(data.image);showLoginStatus('warning',data.message||'🔒 请重试');btn.disabled=false;btn.textContent='✅ 点验证码并登录';}
         else{showLoginStatus('error','❌ '+(data.error||'验证码处理失败'));btn.disabled=false;btn.textContent='✅ 点验证码并登录';}
@@ -306,7 +307,7 @@ function unifiedSubmitCaptcha() {
     var btn=document.getElementById('btnSubmitCaptcha');btn.disabled=true;btn.textContent='⏳ 提交中...';showCaptchaFeedback('正在提交验证码...',false);
     var aid=parseInt(document.getElementById('editAccountId').value)||0;setStepActive(5,'提交验证码核验中...');
     fetch('/api/platform/'+_loginPlatform+'/login/submit_captcha',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:aid,captcha_code:code})}).then(function(r){return r.json()}).then(function(data){
-        if(data.logged_in&&data.cookies){setStepDone(4,'验证码通过');setStepDone(5,'✅ 登录成功！');setFieldValue('cfg_cookie',data.cookies);showLoginStatus('success','✅ 登录成功！Cookie 已自动获取');showCaptchaFeedback('登录成功！',false);hideCaptchaInput();setTimeout(unifiedSaveOnly,800);}
+        if(data.logged_in&&data.cookies){setStepDone(4,'验证码通过');setStepActive(5,'Cookie校验中...');setFieldValue('cfg_cookie',data.cookies);_loginResultCookie=data.cookies;showLoginStatus('info','⏳ Cookie已获取，正在校验...');hideCaptchaInput();doVerifyAndEnableConfirm(data.cookies,aid);}
         else if(data.needs_captcha&&data.image){setStepActive(3,'需要新验证码');showCaptchaInput(data.image,true);showCaptchaFeedback((data.error||'验证码错误')+'，请重新输入',true);showLoginStatus('warning','🔒 '+(data.error||'验证码错误，请重试'));btn.disabled=false;btn.textContent='✅ 提交验证码';}
         else if(data.captcha_verified&&!data.logged_in){setStepDone(4,'验证码核验通过 ✓，等待登录...');setStepActive(5,'登录提交中...');showCaptchaFeedback('✅ 验证码通过，正在登录...',false);showLoginStatus('info','⏳ 验证码通过，正在自动登录...');btn.textContent='⏳ 登录中...';setTimeout(function(){unifiedPollLoginResult(aid)},2000);}
         else{setStepFailed(5,data.error||'验证码处理失败');showCaptchaFeedback(data.error||'处理失败',true);showLoginStatus('error','❌ '+(data.error||'验证码处理失败'));btn.disabled=false;btn.textContent='✅ 提交验证码';}
@@ -314,7 +315,7 @@ function unifiedSubmitCaptcha() {
 }
 function unifiedPollLoginResult(aid) {
     fetch('/api/platform/'+_loginPlatform+'/login/poll_result',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:aid})}).then(function(r){return r.json()}).then(function(data){
-        if(data.logged_in&&data.cookies){setStepDone(4,'验证码通过');setStepDone(5,'✅ 登录成功！');setFieldValue('cfg_cookie',data.cookies);showLoginStatus('success','✅ 登录成功！Cookie 已自动获取');hideCaptchaInput();setTimeout(unifiedSaveOnly,800);}
+        if(data.logged_in&&data.cookies){setStepDone(4,'验证码通过');setStepActive(5,'Cookie校验中...');setFieldValue('cfg_cookie',data.cookies);_loginResultCookie=data.cookies;showLoginStatus('info','⏳ Cookie已获取，正在校验...');hideCaptchaInput();doVerifyAndEnableConfirm(data.cookies,aid);}
         else if(data.needs_captcha&&data.image){showCaptchaInput(data.image,true);showCaptchaFeedback('需要新验证码',true);showLoginStatus('warning','🔒 需要新验证码');document.getElementById('btnSubmitCaptcha').disabled=false;document.getElementById('btnSubmitCaptcha').textContent='✅ 提交验证码';}
         else if(data.running){setTimeout(function(){unifiedPollLoginResult(aid)},2000);}
         else{setStepFailed(5,data.error||'登录超时');showCaptchaFeedback(data.error||'登录超时',true);document.getElementById('btnSubmitCaptcha').disabled=false;document.getElementById('btnSubmitCaptcha').textContent='✅ 提交验证码';}
@@ -335,6 +336,52 @@ function unifiedAutoCaptcha() {
         else{showCaptchaFeedback(data.error||'识别失败，请手动输入',true);}
         btn.disabled=false;btn.textContent='🤖 自动识别';
     }).catch(function(){showCaptchaFeedback('自动识别失败，请手动输入',true);btn.disabled=false;btn.textContent='🤖 自动识别';});
+}
+// ====== Cookie校验 + 启用确认添加 ======
+function doVerifyAndEnableConfirm(cookie, aid) {
+    // 使用已有的 /api/accounts/test-connection 校验 Cookie（不保存到DB）
+    var siteUrl = getFieldValue('cfg_site_url');
+    var username = getFieldValue('cfg_username');
+    fetch('/api/accounts/test-connection', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            platform: _loginPlatform,
+            config: {cookie: cookie, site_url: siteUrl, username: username}
+        })
+    }).then(function(r){return r.json()}).then(function(data){
+        if (data.logged_in === true) {
+            // ✅ Cookie校验通过 — 显示成功，等待用户确认
+            setStepDone(5, '✅ ' + (data.status || 'Cookie校验通过'));
+            _loginReadyToSave = true;
+            _loginResultCookie = cookie;
+            var saveBtn = document.getElementById('btnSaveOnly');
+            saveBtn.textContent = '✅ 确认添加';
+            saveBtn.className = 'btn btn-success';
+            saveBtn.style.fontWeight = 'bold';
+            saveBtn.style.fontSize = '15px';
+            var statusMsg = '✅ Cookie校验通过';
+            if (data.username) statusMsg += ' — 用户名: ' + data.username;
+            if (data.points) statusMsg += ' (' + (data.points_label||'积分') + ': ' + data.points + ')';
+            showLoginStatus('success', statusMsg + '。请点击「确认添加」保存账号');
+            document.getElementById('btnStartLogin').disabled = true;
+            document.getElementById('btnStartLogin').textContent = '✅ 已登录';
+        } else {
+            // ❌ Cookie校验失败 — 显示错误但保留Cookie，用户可重试
+            setStepFailed(5, (data.status || 'Cookie校验失败'));
+            showLoginStatus('error', '❌ Cookie校验失败: ' + (data.status || data.error || '未知错误'));
+            _loginReadyToSave = false;
+            // 允许用户重试校验
+            var retryBtn = document.getElementById('btnStartLogin');
+            retryBtn.disabled = false;
+            retryBtn.textContent = '🔄 重试验证';
+            _isLoginRunning = false;
+        }
+    }).catch(function(e){
+        setStepFailed(5, '校验请求失败: ' + e.message);
+        showLoginStatus('error', '❌ Cookie校验请求失败: ' + e.message);
+        _isLoginRunning = false;
+    });
 }
 function unifiedRefreshScreenshot() {
     var platform=_loginPlatform;

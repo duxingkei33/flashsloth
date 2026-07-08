@@ -99,6 +99,7 @@ class BilibiliPlaywrightLogin:
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
+                "--ignore-certificate-errors",
             ],
         )
         self.context = self.browser.new_context(

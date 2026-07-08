@@ -43,7 +43,8 @@ function onAddAccount() {
 
             var methods = data.login_methods || [];
             if (methods.length === 0) {
-                renderFromLoginMethods([]);
+                // 返回空方法列表 → 显示「待适配」状态
+                renderWaitingForAdaptation(data);
                 return;
             }
 
@@ -58,23 +59,47 @@ function onAddAccount() {
             }
         } catch(e) {
             console.error('渲染登录能力失败:', e);
-            renderFromLoginMethods([]);
+            renderWaitingForAdaptation(null);
         }
     })
     .catch(function() {
         _loginGuide = null;
-        let methods = [];
-        try {
-            var plat = _loginPlatform;
-            for (var i = 0; i < _platformSearchData.length; i++) {
-                if (_platformSearchData[i].name === plat) {
-                    methods = _platformSearchData[i].login_methods || [];
-                    break;
-                }
-            }
-        } catch(e) {}
-        renderFromLoginMethods(methods);
+        renderWaitingForAdaptation(null);
     });
+}
+
+// ====== 待适配状态渲染 ======
+function renderWaitingForAdaptation(data) {
+    const tabsDiv = document.getElementById('loginMethodTabs');
+    const contentDiv = document.getElementById('loginMethodContent');
+    tabsDiv.innerHTML = '';
+    var note = (data && data.note) || '该平台已探索但尚未适配登录方式';
+
+    contentDiv.innerHTML = '<div style="padding:20px;text-align:center;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;">'
+        + '<div style="font-size:32px;margin-bottom:8px;">🔧</div>'
+        + '<div style="font-size:15px;font-weight:600;color:#996600;margin-bottom:10px;">' + escapeHtml(note) + '</div>'
+        + '<div style="font-size:12px;color:#888;line-height:1.6;">'
+        + '该平台已有探索数据，但尚未适配完整的登录方式。<br>'
+        + '您仍然可以通过「Cookie粘贴」方式添加账号。<br>'
+        + '如需适配登录，请联系管理员或提交 PR。</div>'
+        + '</div>';
+
+    document.getElementById('btnStartLogin').style.display = 'none';
+    document.getElementById('btnCaptchaLogin').style.display = 'none';
+    document.getElementById('btnRefreshScreenshot').style.display = 'none';
+    document.getElementById('loginScreenshotArea').style.display = 'none';
+    document.getElementById('btnTestConnectionAdd').style.display = 'none';
+    document.getElementById('loginStatusMsg').style.display = 'none';
+
+    // 显示 Cookie 输入框（通用备选方案）
+    var cookieHtml = '<div style="margin-top:12px;padding:12px;background:#f8f9ff;border:1px solid #d0d5f0;border-radius:8px;">'
+        + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">🍪 Cookie粘贴（备选方案）</div>'
+        + '<div class="form-group"><label>Cookie <span style="color:#999;font-size:12px;">（从浏览器 F12 复制）</span></label>'
+        + '<textarea name="cfg_cookie" rows="3" placeholder="粘贴完整的 Cookie 字符串"'
+        + ' style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-family:monospace;font-size:11px;"></textarea></div>'
+        + '<div style="font-size:11px;color:#888;margin-top:4px;">💡 手动登录该平台后，从浏览器开发者工具复制 Cookie 粘贴到这里保存</div>'
+        + '</div>';
+    contentDiv.innerHTML += cookieHtml;
 }
 
 // ====== 回退渲染 ======

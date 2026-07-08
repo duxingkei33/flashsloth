@@ -12,6 +12,8 @@ _PLATFORM_CAP_MAP = {
     "xianyu_sidecar": "xianyu",
     "xianyu_auto_reply": "xianyu",
     "xianyu_products": "xianyu",
+    "discuz_amobbs": "amobbs",
+    "discuz_mydigit": "mydigit",
 }
 
 _REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "platform_reports")

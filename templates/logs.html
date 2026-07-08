@@ -274,7 +274,7 @@ function renderRow(tab, log) {
         : '<span style="color:#999;">-</span>';
       return '<tr>' +
         '<td style="white-space:nowrap;">' + esc(log.platform || '-') + '</td>' +
-        '<td style="white-space:nowrap;">' + esc(log.account || '-') + '</td>' +
+        '<td style="white-space:nowrap;">' + esc(log.account_name || '-') + '</td>' +
         '<td>' + statusHtml + '</td>' +
         '<td>' + urlHtml + '</td>' +
         '<td class="cell-truncate" title="' + esc(log.error || '') + '" style="color:' + (log.error ? '#dc3545' : '#999') + ';font-size:12px;">' + (log.error ? esc(log.error).slice(0, 80) : '-') + '</td>' +
@@ -287,12 +287,12 @@ function renderRow(tab, log) {
       const statusHtml = log.success
         ? '<span class="badge-success">✅ 成功</span>'
         : '<span class="badge-danger">❌ 失败</span>';
-      const signedHtml = log.signed
+      const signedHtml = log.already_signed
         ? '<span class="badge-info">已签到</span>'
         : '<span class="badge-warning">未签到</span>';
       return '<tr>' +
         '<td style="white-space:nowrap;">' + esc(log.platform || '-') + '</td>' +
-        '<td style="white-space:nowrap;">' + esc(log.account || '-') + '</td>' +
+        '<td style="white-space:nowrap;">' + esc(log.account_name || '-') + '</td>' +
         '<td>' + statusHtml + '</td>' +
         '<td>' + signedHtml + '</td>' +
         '<td class="cell-truncate-wide" title="' + esc(log.message || '') + '" style="font-size:12px;">' + esc(log.message || '-') + '</td>' +
@@ -415,13 +415,13 @@ function loadStats() {
       if (!data.success) return;
       const stats = data.stats || {};
       const countEl = document.getElementById('count-publish');
-      if (countEl) countEl.textContent = stats.publish_log || 0;
+      if (countEl) countEl.textContent = stats.publish || 0;
       const countSe = document.getElementById('count-signin');
-      if (countSe) countSe.textContent = stats.signin_log || 0;
+      if (countSe) countSe.textContent = stats.signin || 0;
       const countAi = document.getElementById('count-ai');
-      if (countAi) countAi.textContent = stats.ai_call_log || 0;
+      if (countAi) countAi.textContent = stats.ai || 0;
       const countDep = document.getElementById('count-deploy');
-      if (countDep) countDep.textContent = stats.deploy_log || 0;
+      if (countDep) countDep.textContent = stats.deploy || 0;
     })
     .catch(function() {});
 }

@@ -127,7 +127,8 @@ class GenericPlaywrightLogin:
             self.browser = self._pw.chromium.launch(
                 headless=True,
                 args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                      '--disable-blink-features=AutomationControlled'],
+                      '--disable-blink-features=AutomationControlled',
+                      '--ignore-certificate-errors'],
             )
             self.context = self.browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -182,7 +183,8 @@ class GenericPlaywrightLogin:
             _browser = _pw.chromium.launch(
                 headless=True,
                 args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                      '--disable-blink-features=AutomationControlled'],
+                      '--disable-blink-features=AutomationControlled',
+                      '--ignore-certificate-errors'],
             )
             _context = _browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -292,7 +294,8 @@ class GenericPlaywrightLogin:
             _browser = _pw.chromium.launch(
                 headless=True,
                 args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                      '--disable-blink-features=AutomationControlled'],
+                      '--disable-blink-features=AutomationControlled',
+                      '--ignore-certificate-errors'],
             )
             _context = _browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

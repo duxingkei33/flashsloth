@@ -1,5 +1,5 @@
 # 🦥 FlashSloth 项目状态
-> 最后更新：2026-07-08 07:55 | PM: duxingkei | 铁律: fs-iron-rules
+> 最后更新：2026-07-08 11:15 | PM: duxingkei | 铁律: fs-iron-rules
 
 > ⚠️ 本文档通过梳理全部聊天记录 + 最新需求对齐生成
 
@@ -7,7 +7,9 @@
 统一多平台内容发布与管理平台（个人数字资产中心），保持轻量、稳定、不膨胀。
 
 ## 📍 当前阶段
-**v5.11** — signin BrowserEngine复用 + 验证凭证按钮 + deploy页面重定向
+**v5.12** — 扫码登录全流程优化（4阶段全部完成）
+
+| 扫码登录优化 | ✅ | 阶段一截图修复(选择器扩充/校验/缩放)+阶段二前端UI(倒计时/扫码提示/失败提示)+阶段三多方式选择(scan_methods[]/API/前端UI)+阶段四超时机制(配置/PW设置页/worker线程)
 
 ---
 
@@ -106,12 +108,14 @@
 | **功能开发** | 📄日志统一管理页面(30次,每天9点) | 🅰️ |
 | **脚本任务** | flashsloth-exploration(每小时), AI趋势(早8/晚8), FS每日备份(4:30) | ✅ 4个no_agent |
 
-### ⚠️ 异常/暂停（3个）
+### ⚠️ 异常/暂停（5个）
 | 任务 | 问题 | 处理 |
 |------|------|:----:|
-| AI趋势日报-早8点 | ~~delivery_error~~ ✅ **已修复**（deliver → origin），明早8点恢复 | ✅ 我修的 |
-| AI趋势日报-晚8点 | ~~delivery_error~~ ✅ **已修复**（同上），明晚8点恢复 | ✅ 我修的 |
-| flashsloth-morning-report | 暂停 — DeepSeek API 402 余额不足 | ⏸ 等你充值 |
+| 🔐 凭证守护 | ~~No module named 'flashsloth'~~ ✅ **已修复**（10:45改为inline导入），下个周期验证 | ✅ 本次修复 |
+| 📦 FS每日自动备份 | ~~tar file changed as we read it~~ ✅ **已修复**（10:45改为WARN降级），下个周期验证 | ✅ 本次修复 |
+| AI趋势日报-早8点 | ~~delivery_error~~ 实际 Feishu 适配器仍报 [99992402]，但 origin 交付正常 | 🟡 需你检查飞书 webhook |
+| AI趋势日报-晚8点 | 同上 Feishu 适配器报错 | 🟡 需你检查飞书 webhook |
+| flashsloth-morning-report | 暂停 — DeepSeek API 402 余额不足 (¥36.52) | ⏸ 等你充值 |
 
 ### 🗑️ 已清理（3个）
 | 任务 | 删除原因 |
