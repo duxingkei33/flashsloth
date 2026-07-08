@@ -17,6 +17,10 @@
 - [x] 📱 QR code scan login — Remote browser screenshot + 10s polling cookie capture
 - [x] 📱 Phone SMS login — phone_login + SMS verification code flow + frontend support
 - [x] 🪪 Unified login capability exploration — 7-platform Playwright real detection (password/QR/SMS) + JSON report + dynamic tab rendering
+- [x] 🗂️ Account management modular split — routes/accounts/ package (crud/helpers/login/qrcode/search/status)
+- [x] 🎯 Login engine data-driven — routes derived dynamically from exploration JSON instead of hardcoded DISCUZ_PLATFORMS list
+- [x] 📡 Scan-methods API data-driven — exploration JSON dynamically derives QR scan methods per platform
+- [x] 🎨 Unified login form — API enhancement (site_url/OAuth/captcha fields) + frontend dynamic rendering
 - [x] 🍪 Cookie paste (debug mode)
 - [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
 - [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
@@ -31,7 +35,9 @@
 - [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
 - [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives + enhanced CSDN/OSHWHub/Zhihu test_connection (real username extraction + strong exit indicators + detailed failure messages)
 - [x] 🚀 Auto-start Playwright on login — Launches Playwright BrowserEngine on login (configurable auto_start)
-- [x] 🔌 Verify credential button — One-click credential verification for saved accounts (test_connection → verify credential label unified)
+- [x] 🔌 Verify credential button — One-click credential verification for saved accounts
+- [x] 🧩 QR scan thread safety — scan retry anti-reentry + OSHWHub QR scan adapter
+- [x] 🗂️ Template modularization — accounts/ sub-template directory (head/cards/deploy/deploy_js/modal)
 
 ### 📝 Multi-Platform Publishing
 - [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
@@ -60,7 +66,9 @@
 
 ### 🔍 Platform Exploration
 - [x] Discuz forum auto-exploration (Playwright)
-- [x] Login capability exploration — 7-platform auto-detection (password/QR/SMS) + JSON reports
+- [x] Login capability exploration — 19-platform Playwright real detection (password/QR/SMS) + JSON reports + dynamic tab rendering
+- [x] 🤖 Login engine routing data-driven — all platform login APIs read engine field from exploration JSON, new platforms need no backend route changes
+- [x] 🆕 Unified login form API — site_url defaults/OAuth provider interactive buttons/captcha info banner
 - [x] Hourly incremental polling + anti-detection rate limiting (dual-cache memory+DB persistence for cross-process)
 - [x] Forum section keyword matching + exploration data management page
 - [x] Platform publish capability display + tag section management
@@ -140,11 +148,11 @@
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Gateway API Layer (routes/)                     │
-│  routes/accounts.py · gateway.py · ai.py · signin.py              │
-│  exploration.py · posts.py · api_v2.py · browser_login.py         │
-│  approval.py · notifications.py · price_monitor.py                │
-│  workspace_ui.py · browser_engine.py · external_services.py       │
-│  storage_deploy.py · auth.py                                      │
+│  routes/accounts/ (package: crud/login/qrcode/search/status)     │
+│  gateway.py · ai.py · signin.py · exploration.py · posts.py     │
+│  api_v2.py · browser_login.py · approval.py · notifications.py  │
+│  price_monitor.py · workspace_ui.py · browser_engine.py         │
+│  external_services.py · storage_deploy.py · auth.py              │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -170,7 +178,7 @@
 │                    Public Infrastructure                            │
 │  SQLite (flashsloth.db + status_cache.db)                         │
 │  .fs_key encryption key · config/ · templates/ · static/          │
-│  platform_reports/ (15 reports + 33 JSON data files)              │
+│  platform_reports/ (19+ reports + JSON data files)                │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md        │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -255,6 +263,7 @@ frpc -c frpc.toml
 |------|----------|-------------|
 | Auto Sign-In | Every minute | Daemon thread executes within configured time window, account_id offset to avoid concurrent sign-ins |
 | Forum Exploration | Hourly | `scripts/hourly_forum_check.py` — incremental Discuz section check |
+| Login Capability Refresh | Every 15 min | Auto-poll all platforms + JSON sync update |
 | Price Refresh | Per config | LCSC component price refresh |
 
 ---
@@ -263,9 +272,12 @@ frpc -c frpc.toml
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| **v5.16** | 2026-07-08 | Login engine routing data-driven refactor — exploration JSON drives engine routing + config_fields derivation; accounts.py/accounts.html modular split (templates/accounts/ + routes/accounts/); QR scan thread safety + OSHWHub QR adapter; RSS login exploration + Twitter exploration improvements |
+| **v5.15** | 2026-07-08 | Login data-driven fixes — cache bug + hardcoded URL → exploration data-driven; unified login form API enhancement (site_url/OAuth/captcha) + frontend dynamic rendering |
+| **v5.13** | 2026-07-08 | Account connection status fix — `_detection_error` flag fix + frontend button merge (status check + verify credential unified into 🔍 Status Check) |
 | **v5.11** | 2026-07-08 | P0 Provider abstraction framework E2E verified; sign-in BrowserEngine reuse; verify credential button; deploy page redirect (/deployers→/accounts#deploy); 15-min login capability auto-refresh; WordPress exploration report |
 | **v5.10** | 2026-07-08 | test_connection enhancement — CSDN/OSHWHub/Zhihu publisher real username extraction + strong exit indicators + detailed failure messages; forum registry loads extra_info+tags_of_interest |
-| **v5.08** | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
+| v5.08 | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
 | v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |
 | v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
 | v5.04 | 2026-07-08 | Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend status display |

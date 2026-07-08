@@ -17,6 +17,10 @@
 - [x] 📱 QR码扫码登录 — 远程浏览器截图+10秒轮询自动捕获Cookie
 - [x] 📱 手机验证码登录 — phone_login + SMS验证码流程+前端支持
 - [x] 🪪 统一登录能力探索 — 7平台Playwright真实检测(密码/QR/手机验证码)+JSON报告+动态Tab渲染
+- [x] 🗂️ 账号管理模块化拆分 — routes/accounts/ 包结构（crud/helpers/login/qrcode/search/status）
+- [x] 🎯 登录引擎数据驱动化 — 从平台探索JSON动态推导登录引擎路由（替代硬编码DISCUZ_PLATFORMS列表）
+- [x] 📡 Scan-methods API数据驱动 — 探索JSON动态推导各平台扫码方式
+- [x] 🎨 统一登录表单 — API增强(site_url/OAuth/验证码字段) + 前端动态渲染
 - [x] 🍪 Cookie粘贴（调试模式）
 - [x] 🖼️ 登录方式演示说明卡（小程序风格步骤指引）
 - [x] 🔒 凭证加密存储（Fernet AES-128-CBC + HMAC-SHA256）
@@ -31,7 +35,9 @@
 - [x] 🎨 账号页UI增强 — 搜索优化/平台颜色标签/快捷添加/时间标签/批量进度条
 - [x] 🛡️ Cookie验证严格模式 — DiscuzPublisher严格登录态检测(退出按钮+2指示器) + test-connection Playwright子进程降级消除假阳性 + CSDN/OSHWHub/知乎发布器增强版test_connection(真实用户名提取+强退出指标+详细失败信息)
 - [x] 🚀 登录自动启动Playwright — 登录时自动启动 Playwright BrowserEngine（auto_start 可配置）
-- [x] 🔌 验证凭证按钮 — 已保存账号「验证凭证」一键验证登录状态（test_connection → 验证凭证 文案统一）
+- [x] 🔌 验证凭证按钮 — 已保存账号「验证凭证」一键验证登录状态
+- [x] 🧩 扫码线程安全 — 扫码重试防重入+OSHWHub扫码适配
+- [x] 🗂️ 模板模块化 — accounts/ 子模板目录（head/cards/deploy/deploy_js/modal）
 
 ### 📝 多平台发布
 - [x] Discuz! 论坛（amobbs/mydigit 等）— 发帖+存草稿+签到
@@ -60,7 +66,9 @@
 
 ### 🔍 平台探索
 - [x] Discuz 版块自动探索（Playwright）
-- [x] 登录能力探索 — 7平台密码/QR/手机验证码自动检测+JSON报告
+- [x] 登录能力探索 — 19平台Playwright真实检测(密码/QR/手机验证码)+JSON报告+动态Tab渲染
+- [x] 🤖 登录引擎路由数据驱动 — 所有平台登录API从探索JSON动态读取engine字段，新增平台无需改后端路由代码
+- [x] 🆕 统一登录表单API — site_url默认值/OAuth提供商交互按钮/验证码信息横幅
 - [x] 每小时增量轮询 + 防风限流（双缓存内存+DB持久化跨进程共享）
 - [x] 版块关键词匹配 + 探索数据管理页面
 - [x] 平台发布能力展示 + 标签栏目管理
@@ -140,11 +148,11 @@
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
 │                   Gateway API 层 (routes/)                        │
-│  routes/accounts.py · gateway.py · ai.py · signin.py             │
-│  exploration.py · posts.py · api_v2.py · browser_login.py        │
-│  approval.py · notifications.py · price_monitor.py               │
-│  workspace_ui.py · browser_engine.py · external_services.py      │
-│  storage_deploy.py · auth.py                                      │
+│  routes/accounts/ (包: crud/login/qrcode/search/status/helpers)  │
+│  gateway.py · ai.py · signin.py · exploration.py · posts.py     │
+│  api_v2.py · browser_login.py · approval.py · notifications.py  │
+│  price_monitor.py · workspace_ui.py · browser_engine.py         │
+│  external_services.py · storage_deploy.py · auth.py              │
 └──────────────────────────────────────────────────────────────────┘
                              ↕
 ┌──────────────────────────────────────────────────────────────────┐
@@ -170,7 +178,7 @@
 │                   公共基础设施层                                    │
 │  SQLite (flashsloth.db + status_cache.db)                        │
 │  .fs_key 加密密钥 · config/ · templates/ · static/               │
-│  platform_reports/ (15 探索报告 + 33 JSON 数据文件)               │
+│  platform_reports/ (19+ 探索报告 + JSON 数据文件)                 │
 │  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md       │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -255,6 +263,7 @@ frpc -c frpc.toml
 |------|------|------|
 | 自动签到 | 每分钟检查 | 守护线程在签到时间窗口内随机执行，基于account_id偏移避免同时签到 |
 | 论坛探索 | 每小时 | `scripts/hourly_forum_check.py` 增量检查 Discuz 版块变更 |
+| 登录能力刷新 | 每15分钟 | 自动轮询全平台登录能力+JSON同步更新 |
 | 价格刷新 | 按配置 | LCSC 元器件价格定时刷新 |
 
 ---
@@ -263,9 +272,12 @@ frpc -c frpc.toml
 
 | 版本 | 日期 | 主要改动 |
 |------|------|----------|
+| **v5.16** | 2026-07-08 | 登录引擎路由数据驱动重构 — 探索JSON驱动引擎路由+config_fields推导；accounts.py/accounts.html 归一化模块拆分(templates/accounts/ + routes/accounts/)；扫码线程安全+OSHWHub扫码适配；RSS登录探索+Twitter探索完善 |
+| **v5.15** | 2026-07-08 | 登录数据驱动修复 — 缓存bug+硬编码URL→探索数据驱动；统一登录表单API增强(site_url/OAuth/验证码字段) + 前端动态渲染 |
+| **v5.13** | 2026-07-08 | 账号连接状态修复 — `_detection_error` 标志修复 + 前端按钮合并（状态检测+验证凭证统一为「🔍 状态检测」） |
 | **v5.11** | 2026-07-08 | P0 Provider抽象框架E2E验证通过；签到BrowserEngine复用；验证凭证按钮；deploy页面重定向(/deployers→/accounts#deploy)；登录能力每15分钟自动刷新；WordPress探索报告 |
 | **v5.10** | 2026-07-08 | test_connection强化 — CSDN/OSHWHub/知乎发布器真实用户名提取+强退出指标+详细失败信息；论坛注册表加载extra_info+tags_of_interest |
-| **v5.08** | 2026-07-08 | deploy归一化 — 账号页#deploy内联区块+test_connection统一格式+登录自动启动Playwright(可配置auto_start)+平台探索数据更新(得物/什么值得买/小红书) |
+| v5.08 | 2026-07-08 | deploy归一化 — 账号页#deploy内联区块+test_connection统一格式+登录自动启动Playwright(可配置auto_start)+平台探索数据更新(得物/什么值得买/小红书) |
 | v5.07 | 2026-07-08 | Cookie验证严格模式 — Discuz login假阳性修复 + test-connection Playwright子进程降级 + 版块注册表双轨验证 + 探索报告更新 |
 | v5.05 | 2026-07-08 | 51CTO平台探索 — WAF+SMS-only评估 + 探索雷达v2（得物/什么值得买/小红书）+ category分类字段 |
 | v5.04 | 2026-07-08 | 发布前Cookie过期预检 — Publisher基类check_cookie() + publish_select前端状态展示 |
