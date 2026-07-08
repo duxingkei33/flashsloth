@@ -142,7 +142,7 @@ class GenericPlaywrightLogin:
             raise
 
     def _cleanup_playwright(self):
-        """安全清理 Playwright 资源"""
+        """安全清理 Playwright 资源（含 asyncio 循环）"""
         for attr in ['page', 'context', 'browser', '_pw']:
             obj = getattr(self, attr, None)
             if obj is not None:
@@ -157,6 +157,19 @@ class GenericPlaywrightLogin:
                 except Exception:
                     pass
                 setattr(self, attr, None)
+        # 强制关闭残留的 asyncio 事件循环
+        try:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.stop()
+                loop.close()
+            except:
+                pass
+            asyncio.set_event_loop(asyncio.new_event_loop())
+        except:
+            pass
 
     def login(self, platform: str, username: str = "", password: str = "",
               site_url: str = "") -> dict:

@@ -85,4 +85,4 @@ if __name__ == "__main__":
         print("  🔑 已有账号，请使用注册的账号登录")
     print("=" * 54)
     start_scheduler()
-    app.run(host=host, port=port, debug=False, threaded=True)
+    app.run(host=host, port=port, debug=False, threaded=False)

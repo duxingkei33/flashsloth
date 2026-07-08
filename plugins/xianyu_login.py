@@ -131,13 +131,32 @@ class XianyuPlaywrightLogin:
         self._account: str = ""
 
     def _ensure_browser(self):
-        """确保浏览器已启动"""
+        """确保浏览器已启动，处理 asyncio 循环冲突"""
         if self.browser and self.page:
             try:
                 self.page.title()
                 return
             except Exception:
                 pass
+
+        # 彻底清理旧实例
+        self.close()
+        self.browser = None
+        self.context = None
+        self.page = None
+        # 强制关闭残留的 asyncio 事件循环
+        try:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.stop()
+                loop.close()
+            except:
+                pass
+            asyncio.set_event_loop(asyncio.new_event_loop())
+        except:
+            pass
 
         from playwright.sync_api import sync_playwright
 
