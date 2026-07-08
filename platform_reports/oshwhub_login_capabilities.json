@@ -1,52 +1,65 @@
 {
   "platform": "oshwhub",
-  "explored_at": "2026-07-07T21:55:06.886427+00:00",
+  "explored_at": "2026-07-08T10:15:00+08:00",
+  "updated_at": "2026-07-08T11:00:00+08:00",
+  "site_url": "https://oshwhub.com",
   "login_url": "https://passport.jlc.com/login",
+  "engine": "oshwhub",
+  "framework": "Ant Design (Next.js)",
   "login_methods": [
     {
       "method": "qrcode",
       "label": "扫码登录",
       "detected": true,
       "sub_types": [
-        {
-          "id": "wechat",
-          "label": "微信扫码",
-          "detected": true
-        }
+        {"id": "wechat", "label": "微信扫码", "detected": true}
       ],
-      "selector": "img[src*='qrcode']"
+      "selector": "canvas[class*='qrcode']",
+      "tab_click": "扫码登录"
+    },
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "selector": "input[type='password']",
+      "tab_click": "账号登录",
+      "required_fields": ["site_url", "username", "password"],
+      "note": "OshwhubPlaywrightLogin 选择器需更新为 Ant Design"
+    },
+    {
+      "method": "phone",
+      "label": "手机号登录",
+      "detected": true,
+      "selector": "input[type='tel']",
+      "tab_click": "手机号登录",
+      "required_fields": ["site_url", "phone"]
     },
     {
       "method": "oauth",
       "label": "第三方账号登录",
       "detected": true,
-      "providers": [
-        "qq",
-        "wechat_oauth"
-      ]
+      "providers": ["qq", "wechat_oauth"]
     },
     {
       "method": "cookie",
       "label": "Cookie粘贴",
-      "detected": true
+      "detected": true,
+      "cookie_domain": ".oshwhub.com",
+      "note": "需结构化 cookies_json，扁平字符串丢失 domain 信息"
     }
   ],
-  "note": "oshwhub登录页支持扫码登录/第三方账号登录/第三方(qq,wechat_oauth)",
   "raw_detection": {
-    "has_password_input": false,
+    "has_password_input": true,
     "has_phone_input": true,
     "has_code_button": false,
     "has_qrcode_img": false,
     "has_wechat": true,
     "has_app_qr": false,
-    "third_party_providers": [
-      "qq",
-      "wechat_oauth"
-    ],
+    "third_party_providers": ["qq", "wechat_oauth"],
     "page_title": "嘉立创集团用户登录中心",
-    "page_url": "https://passport.jlc.com/login"
-  },
-  "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/oshwhub_login.png",
-  "engine": "oshwhub"
+    "page_url": "https://passport.jlc.com/login",
+    "password_found_by_tab_click": true,
+    "tab_structure": ["扫码登录", "账号登录", "手机号登录"],
+    "framework": "Ant Design"
+  }
 }

@@ -1,0 +1,95 @@
+{
+  "platform": "oshwhub",
+  "explored_at": "2026-07-08T10:15:00+08:00",
+  "updated_at": "2026-07-08T11:00:00+08:00",
+  "site_url": "https://oshwhub.com",
+  "login_url": "https://passport.jlc.com/login",
+  "engine": "oshwhub",
+  "framework": "Ant Design (Next.js)",
+  "login_methods": [
+    {
+      "method": "qrcode",
+      "label": "扫码登录",
+      "detected": true,
+      "default_tab": true,
+      "sub_types": [
+        {"id": "wechat", "label": "微信扫码", "detected": true}
+      ],
+      "selector": "canvas[class*='qrcode']",
+      "tab_click": "扫码登录"
+    },
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "tab_click": "账号登录",
+      "form_selectors": {
+        "username_input": "input[placeholder*='手机号码'], input[placeholder*='邮箱'], input[placeholder*='账号']",
+        "password_input": "input[type='password']",
+        "submit_button": "button[type='submit']:has-text('登录'), button:has-text('登录')"
+      },
+      "note": "需要先点击「账号登录」tab 切换，默认显示扫码登录",
+      "captcha": "可能需要图形验证码或阿里云滑块验证码"
+    },
+    {
+      "method": "phone",
+      "label": "手机号登录",
+      "detected": true,
+      "tab_click": "手机号登录",
+      "form_selectors": {
+        "phone_input": "input[type='tel']",
+        "code_input": "input[placeholder*='验证码']",
+        "get_code_button": "button:has-text('获取验证码')"
+      }
+    },
+    {
+      "method": "oauth",
+      "label": "第三方账号登录",
+      "providers": ["qq", "wechat_oauth"]
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "note": "需要结构化 cookies_json（含 domain/path/secure），扁平 cookie 字符串会丢失 domain 信息导致 SSO 失败",
+      "cookie_domain": ".oshwhub.com",
+      "cookie_path": "/",
+      "related_domains": ["passport.jlc.com", "oshwhub.com"]
+    }
+  ],
+  "account_status": {
+    "status_check_url": "https://oshwhub.com",
+    "login_indicators": [
+      {"type": "css", "selector": "[class*='user-avatar']", "description": "用户头像"},
+      {"type": "text", "keyword": "退出", "description": "退出按钮"},
+      {"type": "text", "keyword": "个人中心", "description": "个人中心链接"},
+      {"type": "css", "selector": "[class*='user-name'], [class*='nickname']", "description": "用户名显示"}
+    ]
+  },
+  "notes": [
+    "site_url 应填 https://oshwhub.com，不是 passport.jlc.com/login",
+    "passport.jlc.com/login 是嘉立创统一登录页，登录后 SSO 跳转到 oshwhub.com",
+    "Cookie 需要结构化 JSON 存储（含 domain/path/secure），扁平字符串丢失 domain 信息",
+    "登录页面使用 Ant Design 框架（.ant-* 类名），不是 Element UI（.el-*）",
+    "OshwhubPlaywrightLogin 类中 _wait_for_login_form / _fill_login_form 的选择器需要更新"
+  ],
+  "raw_detection": {
+    "has_password_input": true,
+    "has_phone_input": true,
+    "has_code_button": false,
+    "has_qrcode_img": false,
+    "has_wechat": true,
+    "has_app_qr": false,
+    "third_party_providers": ["qq", "wechat_oauth"],
+    "page_title": "嘉立创集团用户登录中心",
+    "page_url": "https://passport.jlc.com/login",
+    "password_found_by_tab_click": true,
+    "tab_structure": ["扫码登录", "账号登录", "手机号登录"],
+    "framework": "Ant Design",
+    "form_selectors_actual": {
+      "tabs": "button:has-text('账号登录'), button:has-text('扫码登录'), button:has-text('手机号登录')",
+      "username": "input[placeholder*='手机号码'], input[placeholder*='邮箱'], input[placeholder*='账号']",
+      "password": "input[type='password']",
+      "submit": "button.ant-btn-primary:has-text('登录'), button[type='submit']"
+    }
+  }
+}
