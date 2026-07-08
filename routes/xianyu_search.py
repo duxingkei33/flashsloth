@@ -7,6 +7,10 @@ from flask_login import login_required, current_user
 
 from flashsloth.core.database import get_db
 
+# 闲鱼/市场类平台名称集合（数据驱动：可从配置扩展）
+_XIANYU_PLATFORMS = ("xianyu", "xianyu_v2", "xianyu_sidecar",
+                     "xianyu_auto_reply", "xianyu_products")
+
 
 @app.route("/xianyu/search")
 @login_required
@@ -14,9 +18,10 @@ def xianyu_search_page():
     """闲鱼搜索页面"""
     conn = get_db()
     accounts = conn.execute(
-        "SELECT * FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%' AND is_active=1",
+        "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
         (current_user.id,)
     ).fetchall()
+    accounts = [a for a in accounts if a["platform"] in _XIANYU_PLATFORMS]
     conn.close()
     return render_template("xianyu_search.html", accounts=[dict(a) for a in accounts])
 
@@ -43,15 +48,16 @@ def api_xianyu_search():
     conn = get_db()
     if account_id:
         acct = conn.execute(
-            "SELECT * FROM platform_accounts WHERE id=? AND user_id=? AND platform LIKE '%xianyu%'",
+            "SELECT * FROM platform_accounts WHERE id=? AND user_id=?",
             (account_id, current_user.id)
         ).fetchone()
     else:
         # 取第一个活跃账号
-        acct = conn.execute(
-            "SELECT * FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%' AND is_active=1",
+        all_active = conn.execute(
+            "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
             (current_user.id,)
-        ).fetchone()
+        ).fetchall()
+        acct = next((a for a in all_active if a["platform"] in _XIANYU_PLATFORMS), None)
     conn.close()
 
     if not acct:
@@ -101,10 +107,11 @@ def api_xianyu_search():
 def api_xianyu_detail(item_id):
     """闲鱼商品详情 API"""
     conn = get_db()
-    acct = conn.execute(
-        "SELECT * FROM platform_accounts WHERE user_id=? AND platform LIKE '%xianyu%' AND is_active=1",
+    all_active = conn.execute(
+        "SELECT * FROM platform_accounts WHERE user_id=? AND is_active=1",
         (current_user.id,)
-    ).fetchone()
+    ).fetchall()
+    acct = next((a for a in all_active if a["platform"] in _XIANYU_PLATFORMS), None)
     conn.close()
 
     if not acct:

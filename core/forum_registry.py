@@ -42,10 +42,10 @@ def _load_from_db() -> dict:
     if not os.path.exists(_db_path):
         return {}
 
-    # 非论坛平台：这些是内容平台，它们的 forum_exploration 记录
+    # 非论坛平台：推导自 PLATFORM_CATEGORIES
+    # 这些是内容平台，它们的 forum_exploration 记录
     # 只是项目类型/文章类型，不应进入 FORUM_DATA
-    # TODO: 从 platform_presets.json 的 category 字段动态推导
-    _NON_FORUM_DOMAINS = {"oshwhub.com", "csdn.net"}
+    _NON_FORUM_DOMAINS = set(PLATFORM_CATEGORIES.keys())
 
     try:
         conn = sqlite3.connect(_db_path)
@@ -186,33 +186,47 @@ def reload_registry(mode: Optional[str] = None) -> None:
 
 
 # ============================================================
-# 2. 非论坛平台分类 (OSHWHub, CSDN)
+# 2. 非论坛平台分类 (OSHWHub, CSDN) — 从 config 文件加载
 # ============================================================
 
-PLATFORM_CATEGORIES = {
-    "oshwhub.com": {
-        "project_types": [
-            {"id": "project", "name": "工程", "endpoint": "/project/create", "desc": "开源硬件工程"},
-            {"id": "article", "name": "文章", "endpoint": "/article/create", "desc": "技术文章/教程"},
-        ],
-        "tags": [
-            "5G/5G技术", "智能硬件", "课设/毕设", "DIY设计", "汽车电子",
-            "消费电子", "工业电子", "家用电子", "医疗电子", "开源复刻",
-            "电力电子", "电路仿真", "测量仪表", "电工电子", "电路模块",
-            "星火计划2026", "星火计划2025", "星火计划2024", "星火计划2023",
-            "训练营", "征集令", "立创大赛", "电子设计大赛", "蓝桥杯大赛",
-            "3D打印", "CNC加工", "FPC软板", "方案验证板", "功能模块", "成品/套件",
-        ],
-    },
-    "csdn.net": {
-        "content_types": [
-            {"id": "original", "name": "原创"},
-            {"id": "reprint", "name": "转载"},
-            {"id": "translation", "name": "翻译"},
-        ],
-        "editor_url": "https://editor.csdn.net/md/",
+_PLATFORM_CATEGORIES_DATA: dict = {}
+
+def _load_platform_categories() -> dict:
+    """从 config/platform_categories.json 加载，不存在则使用内置默认值"""
+    _config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
+    _cat_path = os.path.join(_config_dir, "platform_categories.json")
+    if os.path.exists(_cat_path):
+        try:
+            with open(_cat_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # 内置默认值
+    return {
+        "oshwhub.com": {
+            "project_types": [
+                {"id": "project", "name": "工程", "endpoint": "/project/create", "desc": "开源硬件工程"},
+                {"id": "article", "name": "文章", "endpoint": "/article/create", "desc": "技术文章/教程"},
+            ],
+            "tags": [
+                "5G/5G技术", "智能硬件", "课设/毕设", "DIY设计", "汽车电子",
+                "消费电子", "工业电子", "家用电子", "医疗电子", "开源复刻",
+                "电力电子", "电路仿真", "测量仪表", "电工电子", "电路模块",
+                "星火计划2026", "星火计划2025", "星火计划2024", "星火计划2023",
+                "训练营", "征集令", "立创大赛", "电子设计大赛", "蓝桥杯大赛",
+                "3D打印", "CNC加工", "FPC软板", "方案验证板", "功能模块", "成品/套件",
+            ],
+        },
+        "csdn.net": {
+            "content_types": [
+                {"id": "original", "name": "原创"},
+                {"id": "reprint", "name": "转载"},
+                {"id": "translation", "name": "翻译"},
+            ],
+            "editor_url": "https://editor.csdn.net/md/",
+        }
     }
-}
+PLATFORM_CATEGORIES = _load_platform_categories()
 
 
 # ============================================================
@@ -329,12 +343,12 @@ def match_forum(domain: str, tags: list, title: str = "", body: str = "") -> Opt
         best = max(scores, key=lambda k: (scores[k], -len(forums[k].get("name", ""))))
         return best
 
-    # 无匹配 → 返回默认版块
-    defaults = {
-        "amobbs.com": "3020",    # STM32/8
-        "mydigit.cn": "59",       # 电子学堂
-    }
-    return defaults.get(domain)
+    # 无匹配 → 返回默认版块（取第一个可用版块）
+    if domain in FORUM_DATA:
+        first_fid = next(iter(FORUM_DATA[domain]), None)
+        if first_fid:
+            return first_fid
+    return None
 
 
 def get_forum_name(domain: str, fid: str) -> str:
@@ -390,7 +404,9 @@ def get_platform_info(domain: str) -> dict:
         info["type"] = "discuz_forum"
         info["forums"] = FORUM_DATA[domain]
         info["postable_count"] = len(FORUM_DATA[domain])
-        info["default_fid"] = {"amobbs.com": "3020", "mydigit.cn": "59"}.get(domain)
+        # 默认版块取第一个可用版块
+        first_fid = next(iter(FORUM_DATA[domain]), None)
+        info["default_fid"] = first_fid
 
     if domain in PLATFORM_CATEGORIES:
         info["type"] = "content_platform"

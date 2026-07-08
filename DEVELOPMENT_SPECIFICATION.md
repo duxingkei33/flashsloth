@@ -38,10 +38,7 @@
 | sdk/ | 4,563 |
 | scripts/ | 1,665 |
 | fs_mgr.py + admin.py | 405 |
-|| sdk/ | 4,563 |
-|| scripts/ | 1,665 |
-|| fs_mgr.py | 321 (全生命周期管理) |
-|| admin.py | 81 (入口点) |
+| admin.py | 81 (入口点) |
 
 ---
 

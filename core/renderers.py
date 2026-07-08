@@ -45,10 +45,6 @@ def _get_renderer(platform: str):
     if rule:
         return _type_renderers.get(rule.body.format_type)
     return None
-        "dewu": _render_html,
-    }
-    # TODO: 从编译规则(CompileRule)动态推导渲染器类型
-    return renderers.get(platform)
 
 
 def _escape_html(text: str) -> str:
