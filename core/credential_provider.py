@@ -407,6 +407,16 @@ def _platform_scan_actions(page, platform: str):
         except Exception:
             pass
 
+    elif platform == "oshwhub":
+        try:
+            # 立创开源硬件平台：passport.jlc.com/login — 先输入账号或点扫码
+            scan_tab = page.query_selector("[class*='qrcode'], [class*='scan'], .qr-login, [data-type='qrcode'], text=扫码, .qrcode-img")
+            if scan_tab and scan_tab.is_visible():
+                scan_tab.click()
+                page.wait_for_timeout(1500)
+        except Exception:
+            pass
+
 
 # ─── 平台扫码类型标注（多方式选择版）─────────────────────
 # 每个平台可定义多种扫码方式，前端提供选择。
@@ -570,22 +580,29 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
     """
     _ctx = None
     _page = None
+    _browser = None
+    _pw_obj = None
+    _pw_instance = None
     _worker_started = time.time()
 
     try:
         import base64
-        from flashsloth.core.browser_engine import BrowserEngine
+        from playwright.sync_api import sync_playwright
 
-        _engine = BrowserEngine.get_instance()
-        if not _engine.is_ready():
-            ok = _engine.start()
-            if not ok:
-                raise RuntimeError(f"BrowserEngine failed to start (status={_engine.get_status()['status']})")
-        _engine.keep_alive()
-
-        _ctx = _engine.create_isolated_context()
-        if not _ctx:
-            raise RuntimeError("BrowserEngine failed to create isolated context")
+        # 工作者线程自建 Playwright 实例，避免跨线程问题
+        _pw_instance = sync_playwright()
+        _pw_obj = _pw_instance.__enter__()
+        _browser = _pw_obj.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                  '--disable-blink-features=AutomationControlled'],
+        )
+        _ctx = _browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800},
+            locale="zh-CN",
+        )
         _page = _ctx.new_page()
 
         # 导航到登录页
@@ -706,12 +723,17 @@ def _scan_login_worker(platform: str, login_url: str, scan_type: str,
     except Exception as e:
         result_queue.put({"success": False, "error": str(e)[:100]})
     finally:
-        for obj in [_page, _ctx]:
+        for obj in [_page, _ctx, _browser, _pw_obj]:
             try:
                 if obj and hasattr(obj, 'close'):
                     obj.close()
             except Exception:
                 pass
+        try:
+            if _pw_instance:
+                _pw_instance.__exit__(None, None, None)
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════

@@ -14,12 +14,23 @@ _LOGIN_LOCK = threading.Lock()
 
 
 def get_generic_login(session_id: str = "default") -> "GenericPlaywrightLogin":
-    """获取/创建通用登录实例（单例，线程安全）"""
+    """获取/创建通用登录实例（线程安全：跨线程自动重建）"""
+    import threading
+    current_thread = threading.current_thread().ident
     with _LOGIN_LOCK:
-        if session_id not in _LOGIN_INSTANCES:
-            inst = GenericPlaywrightLogin()
-            _LOGIN_INSTANCES[session_id] = inst
-        return _LOGIN_INSTANCES[session_id]
+        existing = _LOGIN_INSTANCES.get(session_id)
+        if existing and getattr(existing, '_thread_id', None) == current_thread:
+            return existing
+        # 线程不同或不存在 → 重建
+        if existing:
+            try:
+                existing.close()
+            except Exception:
+                pass
+        inst = GenericPlaywrightLogin()
+        inst._thread_id = current_thread
+        _LOGIN_INSTANCES[session_id] = inst
+        return inst
 
 
 def close_generic_login(session_id: str = "default"):
@@ -87,36 +98,68 @@ class GenericPlaywrightLogin:
     """通用 Playwright 登录器"""
 
     def __init__(self):
+        self._lock = threading.Lock()
         self.browser = None
         self.context = None
         self.page = None
+        self._pw = None
         self.platform_config = {}
         self.is_running = False
 
     def _ensure_browser(self):
-        """确保浏览器已启动"""
-        if self.browser and self.browser.is_connected():
-            return
+        """确保浏览器已启动（线程安全：每请求独立实例）"""
+        # 已在当前线程创建 → 复用
+        if self.browser and self.page and self._pw:
+            try:
+                self.browser.is_connected()
+                return
+            except Exception:
+                pass
+        
+        # 关闭旧实例（如果有）
+        self._cleanup_playwright()
+        
+        # 创建新实例（当前线程）
         from playwright.sync_api import sync_playwright
+        try:
+            pw = sync_playwright()
+            self._pw = pw.__enter__()
+            self.browser = self._pw.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                      '--disable-blink-features=AutomationControlled'],
+            )
+            self.context = self.browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800},
+                locale="zh-CN",
+            )
+            self.page = self.context.new_page()
+        except Exception:
+            self._cleanup_playwright()
+            raise
 
-        pw = sync_playwright()
-        self._pw = pw.__enter__()
-        self.browser = self._pw.chromium.launch(
-            headless=True,
-            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                  '--disable-blink-features=AutomationControlled'],
-        )
-        self.context = self.browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-            locale="zh-CN",
-        )
-        self.page = self.context.new_page()
+    def _cleanup_playwright(self):
+        """安全清理 Playwright 资源"""
+        for attr in ['page', 'context', 'browser', '_pw']:
+            obj = getattr(self, attr, None)
+            if obj is not None:
+                try:
+                    if attr == '_pw':
+                        obj.__exit__(None, None, None)
+                    elif attr == 'browser':
+                        if obj.is_connected():
+                            obj.close()
+                    elif attr in ('context', 'page'):
+                        obj.close()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
 
     def login(self, platform: str, username: str = "", password: str = "",
               site_url: str = "") -> dict:
-        """启动浏览器登录流程"""
+        """启动浏览器登录流程（线程安全：每请求独立 Playwright 实例）"""
         self.platform_config = LOGIN_PAGE_MAP.get(platform, {})
         if not self.platform_config and not site_url:
             return {"success": False, "error": f"平台 {platform} 无默认登录页，请提供 site_url"}
@@ -128,9 +171,33 @@ class GenericPlaywrightLogin:
         if not login_url:
             return {"success": False, "error": "无法确定登录地址"}
 
+        # 每请求创建独立的 Playwright 实例，避免跨线程问题
+        from playwright.sync_api import sync_playwright
+        _pw = None
+        _browser = None
+        _context = None
+        _page = None
         try:
-            self._ensure_browser()
-            page = self.page
+            _pw = sync_playwright().__enter__()
+            _browser = _pw.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                      '--disable-blink-features=AutomationControlled'],
+            )
+            _context = _browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800},
+                locale="zh-CN",
+            )
+            _page = _context.new_page()
+
+            # 更新 self 供内部方法引用（take_screenshot / _check_logged_in / submit_captcha）
+            self.browser = _browser
+            self.context = _context
+            self.page = _page
+            self._pw = _pw
+            page = self.page  # 局部变量简化引用
 
             # 导航到登录页
             page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
@@ -471,24 +538,7 @@ class GenericPlaywrightLogin:
 
     def close(self):
         """关闭浏览器"""
-        try:
-            if self.page:
-                self.page.close()
-        except Exception:
-            pass
-        try:
-            if self.context:
-                self.context.close()
-        except Exception:
-            pass
-        try:
-            if self.browser and self.browser.is_connected():
-                self.browser.close()
-        except Exception:
-            pass
-        self.page = None
-        self.context = None
-        self.browser = None
+        self._cleanup_playwright()
         self.is_running = False
 
     def submit_text_captcha(self, captcha_code: str, platform: str = "") -> dict:

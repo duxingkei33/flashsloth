@@ -108,8 +108,8 @@
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T23:24:00+00:00",
-    "login_url": null
+    "explored_at": "2026-07-08T08:20:00+00:00",
+    "login_url": ""
   },
   "smzdm": {
     "login_methods": [
@@ -125,14 +125,17 @@
   },
   "twitter": {
     "login_methods": [
+      "password",
+      "phone",
+      "oauth_apple",
+      "oauth_google",
       "oauth1",
-      "bearer",
-      "cookie"
+      "bearer"
     ],
     "detail": "FULL",
     "error": null,
-    "explored_at": "2026-07-07T20:28:00+08:00",
-    "login_url": "https://developer.twitter.com/en/portal/dashboard"
+    "explored_at": "2026-07-08T08:25:00+08:00",
+    "login_url": "https://x.com/login"
   },
   "wechat_mp": {
     "login_methods": [
