@@ -125,5 +125,6 @@
     "has_app_qr": false,
     "third_party_providers": []
   },
-  "explored_at": "2026-07-07T17:11:31.646823+00:00"
+  "explored_at": "2026-07-07T17:11:31.646823+00:00",
+  "engine": "generic"
 }

@@ -61,5 +61,6 @@
     "page_url": "https://www.bilibili.com/"
   },
   "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/bilibili_login.png"
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/bilibili_login.png",
+  "engine": "generic"
 }

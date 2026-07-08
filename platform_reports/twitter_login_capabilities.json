@@ -9,8 +9,16 @@
       "icon": "🔑",
       "detected": true,
       "description": "需要 Twitter Developer Portal 创建应用并申请 API Key/Secret 和 Access Token",
-      "fields": ["api_key", "api_secret", "access_token", "access_token_secret"],
-      "required_permissions": ["Read", "Write"],
+      "fields": [
+        "api_key",
+        "api_secret",
+        "access_token",
+        "access_token_secret"
+      ],
+      "required_permissions": [
+        "Read",
+        "Write"
+      ],
       "note": "可在 https://developer.twitter.com/en/portal/dashboard 的 Projects & Apps → 项目 → Keys and Tokens 中获取"
     },
     {
@@ -19,7 +27,9 @@
       "icon": "🔒",
       "detected": true,
       "description": "仅用于验证连接和查询账户信息，不能发推和上传图片",
-      "fields": ["bearer_token"],
+      "fields": [
+        "bearer_token"
+      ],
       "note": "Bearer Token 在 Developer Portal 的 Keys and Tokens 页面中获取"
     },
     {
@@ -45,12 +55,16 @@
   },
   "raw_detection": {
     "auth_type": "api_oauth",
-    "api_version": ["v2", "v1.1"],
+    "api_version": [
+      "v2",
+      "v1.1"
+    ],
     "library": "tweepy>=4.14",
     "image_limit": 4,
     "tweet_length_limit": 280,
     "premium_tweet_length": 4000,
     "max_thread_length": 50
   },
-  "error": null
+  "error": null,
+  "engine": "generic"
 }

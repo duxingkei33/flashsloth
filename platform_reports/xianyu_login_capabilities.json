@@ -32,5 +32,6 @@
     "page_url": "https://www.goofish.com/"
   },
   "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/xianyu_login.png"
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/xianyu_login.png",
+  "engine": "xianyu"
 }

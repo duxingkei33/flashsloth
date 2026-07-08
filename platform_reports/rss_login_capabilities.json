@@ -12,5 +12,6 @@
   "note": "RSS订阅无需登录，通过URL订阅即可",
   "raw_detection": {},
   "error": null,
-  "screenshot": ""
+  "screenshot": "",
+  "engine": "generic"
 }

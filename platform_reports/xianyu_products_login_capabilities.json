@@ -72,5 +72,6 @@
       "alipay",
       "taobao"
     ]
-  }
+  },
+  "engine": "xianyu"
 }

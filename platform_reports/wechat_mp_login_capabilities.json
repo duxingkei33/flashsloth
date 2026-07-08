@@ -55,5 +55,6 @@
     "page_url": "https://mp.weixin.qq.com/"
   },
   "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/wechat_mp_login.png"
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/wechat_mp_login.png",
+  "engine": "generic"
 }

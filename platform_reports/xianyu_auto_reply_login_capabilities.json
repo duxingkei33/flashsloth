@@ -12,5 +12,6 @@
   "note": "闲鱼自动回复：通过Cookie导入认证",
   "raw_detection": {},
   "error": null,
-  "screenshot": ""
+  "screenshot": "",
+  "engine": "xianyu"
 }

@@ -458,21 +458,6 @@ PLATFORM_SCAN_INFO = {
             },
         ],
     },
-    "amobbs": {
-        "login_url": "",
-        "scan_app": "微信/手机浏览器",
-        "hint": "请用微信或手机浏览器扫描此二维码登录阿莫论坛",
-        "type": "qrcode",
-        "scan_methods": [
-            {
-                "id": "amobbs_scan",
-                "name": "微信/浏览器扫码",
-                "scan_app": "微信/手机浏览器",
-                "hint": "请用微信或手机浏览器扫描此二维码登录阿莫论坛",
-                "type": "qrcode",
-            },
-        ],
-    },
     "juejin": {
         "login_url": "https://juejin.cn/",
         "scan_app": "掘金App/微信",

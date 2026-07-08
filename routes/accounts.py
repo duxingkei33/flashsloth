@@ -664,12 +664,11 @@ def api_platforms_search():
 				"note": note[:80],
 				"config_fields": _infer_config_fields_from_cap(cap),
 				"login_methods": cap.get("login_methods", []),
-				})
+			})
 			seen.add(pname)
-		except Exception:
-			# 源 2 失败不影响其他源
-			pass
-
+	except Exception:
+		# 源 2 失败不影响其他源
+		pass
 	# ─── 3. forum_registry — 域名级 Discuz 补充 ───
 	try:
 		from flashsloth.core.forum_registry import FORUM_DATA

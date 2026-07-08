@@ -26,5 +26,6 @@
     "has_wechat": false,
     "has_app_qr": false,
     "third_party_providers": []
-  }
+  },
+  "engine": "generic"
 }

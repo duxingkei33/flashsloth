@@ -51,5 +51,6 @@
     "page_url": "https://www.zhihu.com/signin"
   },
   "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/zhihu_login.png"
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/zhihu_login.png",
+  "engine": "generic"
 }

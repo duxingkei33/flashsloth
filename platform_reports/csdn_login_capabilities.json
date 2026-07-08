@@ -57,5 +57,6 @@
     "page_url": "https://passport.csdn.net/login"
   },
   "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/csdn_login.png"
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/csdn_login.png",
+  "engine": "generic"
 }

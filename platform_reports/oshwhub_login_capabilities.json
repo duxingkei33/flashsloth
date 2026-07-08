@@ -47,5 +47,6 @@
     "page_url": "https://passport.jlc.com/login"
   },
   "error": null,
-  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/oshwhub_login.png"
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/oshwhub_login.png",
+  "engine": "oshwhub"
 }
