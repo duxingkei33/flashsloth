@@ -11,6 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd)"
 VENV_DIR="${PROJECT_DIR}/.venv"
+[ -d "${VENV_DIR}" ] || VENV_DIR="${PROJECT_DIR}/venv"
 DATA_DIR="${HOME}/.hermes/flashsloth_data"
 
 echo "═══════════════════════════════════════════════"
