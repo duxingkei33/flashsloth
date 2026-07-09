@@ -322,7 +322,18 @@ class AmobbsPlaywrightLogin:
                 seccode_input = seccode_img = captcha_iframe = captcha_check = None
 
             if seccode_img or seccode_input or captcha_iframe or captcha_check:
-                # 需要验证码 — 从 img src 提取验证码图片（不提交表单！）
+                # 需要验证码 — amobbs 特殊规则：第一个验证码故意设计成大概率错误
+                # 必须先点击"换一个"跳到第2个才开始输入
+                # （来源：amobbs 登录页提示文字）
+                if self.platform == "amobbs" and seccode_input:
+                    try:
+                        refresh_link = page.query_selector("a:has-text('换一个')")
+                        if refresh_link and refresh_link.is_visible():
+                            refresh_link.click()
+                            time.sleep(1.5)
+                    except:
+                        pass
+                # 从 img src 提取验证码图片（不提交表单！）
                 captcha_result = self._get_captcha_image()
                 screenshot_b64 = captcha_result.get("image", "")
                 captcha_image_url = captcha_result.get("captcha_image_url", "")
@@ -633,19 +644,32 @@ class AmobbsPlaywrightLogin:
 
             # 2. 尝试触发验证码预检
             #    amobbs: onblur="checksec()" → 结果在 span#checkseccodeverify_XXX
+            #    重要：amobbs 提示 "输入完成后，点击一个动画外的空白地方"
+            #    不能点击输入框边框（会误触"换一个"链接）
             #    Discuz: .seccodecheck → class 变为 seccodecheck_ok / seccodecheck_err
             seccode_ok = False
             seccode_err = False
 
-            # 2a. 触发 onblur (amobbs 风格)
+            # 2a. 触发 onblur (amobbs 风格) — 先 focus 再 blur 触发 checksec()
             try:
                 inp.evaluate("el => { el.focus(); el.blur(); }")
                 time.sleep(2)
             except:
                 pass
 
-            # 2b. 点击边框 (Discuz .seccodecheck 风格) — 仅当 .seccodecheck 存在
-            #     ⚠️ amobbs 无 .seccodecheck，点击边框会误触"换一个"链接导致验证码刷新
+            # 2b. 点击空白处触发验证 (amobbs 风格)
+            #     amobbs 要求 "点击一个动画外的空白地方"
+            #     安全点击位置：输入框下方 30px，远离"换一个"链接
+            if not page.query_selector(".seccodecheck"):
+                try:
+                    box = inp.bounding_box()
+                    if box:
+                        page.mouse.click(box['x'] + 30, box['y'] + box['height'] + 30)
+                        time.sleep(1.5)
+                except:
+                    pass
+
+            # 2c. 点击边框 (Discuz .seccodecheck 风格) — 仅当 .seccodecheck 存在
             try:
                 sc_check = page.query_selector(".seccodecheck")
                 if sc_check:
