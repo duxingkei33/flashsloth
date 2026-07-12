@@ -1,0 +1,70 @@
+{
+  "platform": "zhihu",
+  "display_name": "知乎",
+  "type": "sns",
+  "site_url": "https://www.zhihu.com",
+  "editor_url": "https://zhuanlan.zhihu.com/write",
+  "explored_at": "2026-07-07T06:38:40Z",
+  "explored_with_login": false,
+  "login_page_url": "https://www.zhihu.com/signin",
+  "login_methods": [
+    {"method": "phone", "label": "手机验证码登录", "priority": 1, "fields": ["phone"], "note": "主要方式, 需要 NECaptcha"},
+    {"method": "qrcode", "label": "微信/App扫码登录", "priority": 1, "fields": [], "note": "支持微信扫码和App扫码"},
+    {"method": "password", "label": "密码登录", "priority": 2, "fields": ["username", "password"], "note": "非默认展示，有忘记密码按钮"},
+    {"method": "cookie", "label": "Cookie粘贴", "priority": 99, "fields": ["cookie"], "note": "从浏览器F12复制"}
+  ],
+  "content_types": ["column_article"],
+  "signin": {
+    "supported": false,
+    "type": "unknown",
+    "url": ""
+  },
+  "publish": {
+    "draft_supported": true,
+    "schedule_supported": false,
+    "cover_supported": true,
+    "tags_supported": false,
+    "image_upload_method": "playwright_editor_upload",
+    "image_cdn": "picx.zhimg.com"
+  },
+  "upload_limits": {
+    "max_title_length": 200,
+    "image_supported": true,
+    "image_formats": ["jpg", "jpeg", "png", "gif", "webp"],
+    "image_max_size_mb": 0,
+    "daily_upload_limit": 0,
+    "caption_required": true
+  },
+  "content_limits": {
+    "min_content_length": 0,
+    "max_content_length": 0,
+    "format": "rich_text",
+    "editor_type": "draft_js",
+    "review_required": true
+  },
+  "capabilities": {
+    "publish": true,
+    "publish_draft": true,
+    "upload_image": true,
+    "signin": false,
+    "read_comments": false,
+    "write_comments": false,
+    "fetch_content": false,
+    "browse": false
+  },
+  "publisher_status": "ready",
+  "publisher_file": "plugins/publisher_zhihu.py",
+  "publisher_lines": 317,
+  "publisher_implemented_methods": ["test_connection", "publish", "upload_image"],
+  "adapter_status": "not_implemented",
+  "login_plugin_status": "login_capabilities_done",
+  "needs_credentials": true,
+  "credentials_required": ["phone", "password"],
+  "recommended_login": "qrcode",
+  "notes": [
+    "登录页只有手机号输入(无密码字段)，密码登录需切换Tab",
+    "NetEase CAPTCHA (NECaptchaValidate) 为隐藏字段，自动触发",
+    "编辑器需要登录后才能探索，目前仅基于已知publisher代码",
+    "API端点因未登录无法获取，需登录后拦截网络请求发现"
+  ]
+}

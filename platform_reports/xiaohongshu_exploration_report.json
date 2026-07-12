@@ -1,0 +1,135 @@
+{
+  "platform": "xiaohongshu",
+  "display_name": "小红书",
+  "domain": "xiaohongshu.com",
+  "category": "social",
+  "architecture": "custom",
+  "explored_at": "2026-07-08 12:20:55",
+  "last_updated": "2026-07-08 12:20:55",
+  "explored_with_login": true,
+  "has_account": false,
+  "has_publisher": false,
+  "login": {
+    "login_url": "https://www.xiaohongshu.com/explore",
+    "methods": [
+      {
+        "method": "captcha",
+        "name": "验证码登录",
+        "fields": [
+          ""
+        ]
+      },
+      {
+        "method": "qrcode",
+        "name": "扫码登录",
+        "selectors": [
+          "img[src*='data:image/png;base64,iVBORw0K']",
+          "img[src*='data:image/png;base64,iVBORw0K']",
+          "img[src*='data:image/png;base64,iVBORw0K']",
+          "img[src*='https://sns-webpic-qc.xhscdn.c']",
+          "img[src*='https://sns-webpic-qc.xhscdn.c']"
+        ]
+      }
+    ],
+    "captcha": {
+      "has_captcha": true,
+      "types": [
+        "slider",
+        "sms_code"
+      ],
+      "selectors": [
+        "[class*='slider']"
+      ]
+    },
+    "third_party": {
+      "wechat": true,
+      "weibo": false,
+      "qq": true,
+      "github": false,
+      "apple": false,
+      "others": []
+    },
+    "qr_code": {
+      "has_qrcode": true,
+      "selectors": [
+        "img[src*='data:image/png;base64,iVBORw0K']",
+        "img[src*='data:image/png;base64,iVBORw0K']",
+        "img[src*='data:image/png;base64,iVBORw0K']",
+        "img[src*='https://sns-webpic-qc.xhscdn.c']",
+        "img[src*='https://sns-webpic-qc.xhscdn.c']"
+      ],
+      "qr_container_sel": ""
+    },
+    "fields": [
+      {
+        "type": "text",
+        "name": "blur",
+        "id": "",
+        "placeholder": "输入手机号",
+        "autocomplete": ""
+      },
+      {
+        "type": "captcha",
+        "name": "",
+        "id": "",
+        "placeholder": "输入验证码",
+        "autocomplete": "false"
+      },
+      {
+        "type": "text",
+        "name": "hp-inputsearch-input",
+        "id": "",
+        "placeholder": "登录探索更多内容",
+        "autocomplete": "off"
+      },
+      {
+        "type": "text",
+        "name": "",
+        "id": "search-input",
+        "placeholder": "登录探索更多内容",
+        "autocomplete": "off"
+      }
+    ],
+    "buttons": {
+      "login_button": "text=登录|SPAN.login-btn",
+      "register_button": "",
+      "other_buttons": [
+        "text=|DIV.icon-btn-wrapper.close-button",
+        "text=创作中心|BUTTON.reds-button-new.channel-btn.large.text.c",
+        "text=业务合作|BUTTON.reds-button-new.channel-btn.large.text.c",
+        "text=|DIV.floating-btn-sets",
+        "text=|DIV.btn-wrapper",
+        "text=|DIV.btn-wrapper",
+        "text=|BUTTON.reds-button-new.dragger.large.icon.has-i",
+        "text=|BUTTON.reds-button-new.share-icon.large.icon.ha",
+        "text=|BUTTON.reds-button-new.close-icon.large.icon.ha",
+        "text=|BUTTON.reds-button-new.close-icon.large.icon.ha"
+      ]
+    },
+    "cookie_hints": [
+      "sid",
+      "session",
+      "token",
+      "web_session"
+    ]
+  },
+  "publish": {
+    "editor_url": "https://www.xiaohongshu.com/explore/editor",
+    "editor_requires_login": false,
+    "editor_type": "",
+    "api_endpoints": [
+      "https://as.xiaohongshu.com/api/sec/v1/ds?appId=xhs-pc-web"
+    ],
+    "image_upload": {
+      "url": "",
+      "method": ""
+    }
+  },
+  "technical": {
+    "has_rate_limit": false,
+    "has_anti_bot": false,
+    "has_dynamic_content": false,
+    "framework": "Vue.js",
+    "note": "生活方式社区，自建架构"
+  }
+}

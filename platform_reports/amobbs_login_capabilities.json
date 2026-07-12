@@ -1,0 +1,37 @@
+{
+  "platform": "amobbs",
+  "explored_at": "2026-07-08T07:50:00",
+  "site_url": "https://www.amobbs.com",
+  "login_url": "/member.php?mod=logging&action=login",
+  "login_methods": [
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "description": "输入论坛用户名和密码。阿莫论坛有点击式验证码，需要手动处理。",
+      "selector": "input[type='password']"
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴（调试）",
+      "detected": true,
+      "description": "从浏览器 F12 复制 Cookie 字符串直接粘贴。仅限调试/迁移场景使用。"
+    }
+  ],
+  "note": "阿莫论坛（amobbs.com）：经典 Discuz 论坛，支持密码+验证码登录 / Cookie调试。无第三方登录、无扫码登录。验证码为点击式边框验证码。",
+  "raw_detection": {
+    "has_password_input": true,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": false,
+    "has_qrcode_div": false,
+    "has_wechat": false,
+    "has_app_qr": false,
+    "has_captcha": true,
+    "captcha_type": "click_captcha",
+    "captcha_description": "阿莫论坛使用点击式边框验证码，需点击验证码图片上的指定文字",
+    "third_party_providers": [],
+    "page_title": "登录 - amobbs.com 阿莫电子技术论坛"
+  },
+  "engine": "discuz"
+}

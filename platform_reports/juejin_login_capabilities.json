@@ -1,0 +1,56 @@
+{
+  "platform": "juejin",
+  "explored_at": "2026-07-07T21:54:51.649330+00:00",
+  "login_url": "https://juejin.cn/",
+  "login_methods": [
+    {
+      "method": "qrcode",
+      "label": "扫码登录",
+      "detected": true,
+      "sub_types": [
+        {
+          "id": "wechat",
+          "label": "微信扫码",
+          "detected": true
+        }
+      ],
+      "selector": "img[src*='qrcode']"
+    },
+    {
+      "method": "oauth",
+      "label": "第三方账号登录",
+      "detected": true,
+      "providers": [
+        "weibo",
+        "github",
+        "google",
+        "wechat_oauth"
+      ]
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "detected": true
+    }
+  ],
+  "note": "juejin登录页支持扫码登录/第三方账号登录/第三方(weibo,github,google,wechat_oauth)",
+  "raw_detection": {
+    "has_password_input": false,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": false,
+    "has_wechat": true,
+    "has_app_qr": false,
+    "third_party_providers": [
+      "weibo",
+      "github",
+      "google",
+      "wechat_oauth"
+    ],
+    "page_title": "稀土掘金",
+    "page_url": "https://juejin.cn/"
+  },
+  "error": null,
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/juejin_login.png",
+  "engine": "generic"
+}

@@ -1,0 +1,68 @@
+{
+  "platform": "csdn",
+  "platform_domain": "csdn.net",
+  "display_name": "CSDN",
+  "icon": "📝",
+  "site_url": "https://www.csdn.net",
+  "content_type": "article",
+  "capabilities": {
+    "publish": {
+      "type": "article",
+      "content_types": [
+        "article",
+        "reprint",
+        "translation"
+      ],
+      "max_title_length": 100,
+      "min_title_length": 5,
+      "supports_markdown": true,
+      "supports_richtext": true,
+      "code_highlighting": true,
+      "math_formula": true,
+      "mermaid": true,
+      "cover_image": true,
+      "scheduled_publish": true,
+      "ai_assistant": true,
+      "auto_save_seconds": 120
+    },
+    "upload_limits": {
+      "max_image_size_mb": 10,
+      "max_attachment_size_mb": 50,
+      "max_images_per_article": 100,
+      "image_types": [
+        "jpg",
+        "png",
+        "gif",
+        "webp",
+        "svg",
+        "bmp"
+      ]
+    },
+    "signin": {
+      "type": "playwright_daily",
+      "url": "https://i.csdn.net/#/user-center/draw",
+      "daily_bonus": true
+    },
+    "restrictions": {
+      "min_level_for_original": 1,
+      "vip_required": false,
+      "audit_required": true,
+      "review_time": "usually < 30min"
+    }
+  },
+  "tags_of_interest": [
+    "AI",
+    "Python",
+    "大模型",
+    "深度学习",
+    "机器学习",
+    "LLM",
+    "嵌入式",
+    "C++",
+    "Java",
+    "前端",
+    "后端",
+    "架构",
+    "算法"
+  ]
+}

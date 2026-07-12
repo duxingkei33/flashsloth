@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <rect width="480" height="280" fill="#f8f9ff" rx="8"/>
+  
+  <!-- 标题 -->
+  <text x="240" y="30" text-anchor="middle" font-size="15" font-weight="700" fill="#4361ee">🍪 Cookie 粘贴流程</text>
+  
+  <!-- 步骤1：浏览器F12 -->
+  <rect x="20" y="50" width="135" height="190" rx="10" fill="#fff" stroke="#e0e0e0" stroke-width="1.5"/>
+  <rect x="20" y="50" width="135" height="34" rx="10" fill="#f72585"/>
+  <rect x="20" y="74" width="135" height="10" fill="#f72585"/>
+  <text x="87" y="72" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">① 浏览器 F12</text>
+  
+  <!-- 浏览器窗口 -->
+  <rect x="30" y="95" width="115" height="80" rx="5" fill="#f5f5f5" stroke="#ddd" stroke-width="1"/>
+  <rect x="30" y="95" width="115" height="14" rx="5" fill="#e8e8e8"/>
+  <rect x="30" y="105" width="115" height="4" fill="#e8e8e8"/>
+  <circle cx="38" cy="102" r="3" fill="#ff5f56"/>
+  <circle cx="47" cy="102" r="3" fill="#ffbd2e"/>
+  <circle cx="56" cy="102" r="3" fill="#27c93f"/>
+  
+  <!-- DevTools 区域 -->
+  <rect x="30" y="112" width="115" height="63" rx="3" fill="#1e1e1e"/>
+  <text x="40" y="128" font-size="8" fill="#ccc">Application</text>
+  <text x="40" y="140" font-size="8" fill="#999">└ Cookies</text>
+  <text x="40" y="152" font-size="8" fill="#999">  ├ example.com</text>
+  <text x="40" y="164" font-size="8" fill="#4ec9b0">  └ PHPSESSID=abc123</text>
+  
+  <text x="87" y="195" text-anchor="middle" font-size="10" fill="#999">F12 → Application</text>
+  <text x="87" y="208" text-anchor="middle" font-size="10" fill="#999">→ Cookies → 复制</text>
+  
+  <rect x="50" y="218" width="75" height="18" rx="4" fill="#fff3cd" stroke="#ffe58f" stroke-width="1"/>
+  <text x="87" y="231" text-anchor="middle" font-size="9" fill="#996600">📋 全选复制</text>
+  
+  <!-- 箭头1 -->
+  <text x="168" y="145" font-size="22" fill="#4361ee" text-anchor="middle">→</text>
+  
+  <!-- 步骤2：粘贴到输入框 -->
+  <rect x="185" y="50" width="130" height="190" rx="10" fill="#fff" stroke="#e0e0e0" stroke-width="1.5"/>
+  <rect x="185" y="50" width="130" height="34" rx="10" fill="#7209b7"/>
+  <rect x="185" y="74" width="130" height="10" fill="#7209b7"/>
+  <text x="250" y="72" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">② 粘贴 Cookie</text>
+  
+  <!-- 输入框示意 -->
+  <rect x="195" y="95" width="110" height="30" rx="5" fill="#fff" stroke="#4361ee" stroke-width="2"/>
+  <text x="200" y="114" font-size="9" fill="#4361ee">PHPSESSID=abc...</text>
+  
+  <rect x="195" y="135" width="110" height="60" rx="5" fill="#f9f9f9" stroke="#ddd" stroke-width="1"/>
+  <text x="200" y="152" font-size="8" fill="#999">PHPSESSID=abc123;</text>
+  <text x="200" y="164" font-size="8" fill="#999">uid=999;</text>
+  <text x="200" y="176" font-size="8" fill="#999">auth_token=xyz...</text>
+  
+  <rect x="195" y="205" width="110" height="18" rx="4" fill="#d4edda" stroke="#c3e6cb" stroke-width="1"/>
+  <text x="250" y="218" text-anchor="middle" font-size="9" fill="#155724">💾 点击保存</text>
+  
+  <text x="250" y="238" text-anchor="middle" font-size="9" fill="#999">支持文本和Netscape</text>
+  
+  <!-- 箭头2 -->
+  <text x="328" y="145" font-size="22" fill="#4361ee" text-anchor="middle">→</text>
+  
+  <!-- 步骤3：验证 -->
+  <rect x="345" y="50" width="120" height="190" rx="10" fill="#fff" stroke="#e0e0e0" stroke-width="1.5"/>
+  <rect x="345" y="50" width="120" height="34" rx="10" fill="#22c55e"/>
+  <rect x="345" y="74" width="120" height="10" fill="#22c55e"/>
+  <text x="405" y="72" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">③ 验证状态</text>
+  
+  <!-- 成功图标 -->
+  <circle cx="405" cy="120" r="22" fill="#d4edda"/>
+  <text x="405" y="127" text-anchor="middle" font-size="24" fill="#22c55e">✓</text>
+  
+  <text x="405" y="162" text-anchor="middle" font-size="11" fill="#22c55e" font-weight="600">测试连接</text>
+  <text x="405" y="178" text-anchor="middle" font-size="11" fill="#22c55e" font-weight="600">验证登录态</text>
+  
+  <rect x="365" y="195" width="80" height="22" rx="4" fill="#d4edda" stroke="#c3e6cb" stroke-width="1"/>
+  <text x="405" y="210" text-anchor="middle" font-size="10" fill="#155724">✅ 验证通过</text>
+  
+  <text x="405" y="235" text-anchor="middle" font-size="9" fill="#999">Cookie 需手动续期</text>
+  
+  <!-- 底部提示 -->
+  <rect x="20" y="252" width="445" height="20" rx="5" fill="#fff3cd"/>
+  <text x="242" y="266" text-anchor="middle" font-size="10" fill="#996600">💡 备选方案：Cookie 过期后需重新通过 F12 复制新 Cookie</text>
+</svg>

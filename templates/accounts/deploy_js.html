@@ -1,0 +1,430 @@
+<script>
+// ====== 全局状态 ======
+var selectedPlatform = null;
+var selectedComment = null;
+var commentSystems = [];
+var plugins = [];
+var blogPlatforms = [];
+
+// ====== 加载数据 ======
+function loadSiteConfig() {
+    fetch('/api/deploy/site-config')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.config) {
+                var cfg = data.config;
+                selectedPlatform = cfg.platform || 'github_pages';
+                selectedComment = cfg.comment_system || '';
+
+                var commentCfg = {};
+                var pluginCfg = {};
+                try { commentCfg = JSON.parse(cfg.comment_config || '{}'); } catch(e) {}
+                try { pluginCfg = JSON.parse(cfg.plugins_config || '{}'); } catch(e) {}
+
+                window._savedCommentConfig = commentCfg;
+                window._savedPluginConfig = pluginCfg;
+            }
+        })
+        .catch(function() {})
+        .finally(function() {
+            loadPlatforms();
+        });
+}
+
+function loadPlatforms() {
+    fetch('/api/deploy/platforms')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                blogPlatforms = data.platforms;
+                renderPlatforms(data.platforms);
+                loadComments();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadComments() {
+    fetch('/api/deploy/comments')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                commentSystems = data.systems;
+                renderComments(data.systems);
+                loadPlugins();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadPlugins() {
+    fetch('/api/deploy/plugins')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                plugins = data.plugins;
+                renderPlugins(data.plugins);
+            }
+        })
+        .catch(function() {});
+}
+
+// ====== 渲染平台 ======
+function renderPlatforms(platforms) {
+    var grid = document.getElementById('platformGrid');
+    grid.innerHTML = '';
+    platforms.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'platform-card' + (selectedPlatform === p.id ? ' selected' : '');
+        card.dataset.platform = p.id;
+        card.onclick = function() { selectPlatform(p.id); };
+
+        var recHtml = '';
+        if (p.recommended_comments && p.recommended_comments.length > 0) {
+            recHtml = '<span class="recommended-tag">推荐 ' + p.recommended_comments[0] + '</span>';
+        }
+
+        card.innerHTML = '<div class="plat-icon">' + p.icon + '</div>'
+            + '<div class="plat-name">' + p.name + recHtml + '</div>'
+            + '<div class="plat-desc">' + p.desc + '</div>'
+            + '<div class="plat-file">' + p.config_file + '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function selectPlatform(pid) {
+    selectedPlatform = pid;
+    document.querySelectorAll('.platform-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.platform === pid);
+    });
+    var p = blogPlatforms.find(function(bp) { return bp.id === pid; });
+    if (p && p.recommended_comments && p.recommended_comments.length > 0) {
+        var rec = p.recommended_comments[0];
+        document.querySelectorAll('.comment-option').forEach(function(c) {
+            if (c.dataset.comment === rec) {
+                c.style.boxShadow = '0 0 0 2px #ffd700';
+            } else {
+                c.style.boxShadow = '';
+            }
+        });
+    }
+}
+
+// ====== 渲染评论系统 ======
+function renderComments(systems) {
+    var container = document.getElementById('commentSelect');
+    container.innerHTML = '';
+
+    var noneOption = document.createElement('div');
+    noneOption.className = 'comment-option' + (selectedComment === '' ? ' selected' : '');
+    noneOption.dataset.comment = '';
+    noneOption.onclick = function() { selectComment(this); };
+    noneOption.innerHTML = '<div class="co-icon">🚫</div>'
+        + '<div class="co-name">无评论</div>'
+        + '<div class="co-desc">关闭评论功能</div>';
+    container.appendChild(noneOption);
+
+    systems.forEach(function(s) {
+        var opt = document.createElement('div');
+        opt.className = 'comment-option' + (selectedComment === s.id ? ' selected' : '');
+        opt.dataset.comment = s.id;
+        opt.onclick = function() { selectComment(this); };
+        opt.innerHTML = '<div class="co-icon">' + s.icon + '</div>'
+            + '<div class="co-name">' + s.name + '</div>'
+            + '<div class="co-desc">' + s.desc + '</div>';
+        container.appendChild(opt);
+    });
+}
+
+function selectComment(el) {
+    document.querySelectorAll('.comment-option').forEach(function(c) { c.classList.remove('selected'); });
+    el.classList.add('selected');
+    selectedComment = el.dataset.comment;
+
+    var fieldsContainer = document.getElementById('commentConfigFields');
+    var guideLink = document.getElementById('commentGuideLink');
+    var guideHref = document.getElementById('commentGuideHref');
+
+    if (!selectedComment) {
+        fieldsContainer.classList.remove('show');
+        fieldsContainer.innerHTML = '';
+        guideLink.style.display = 'none';
+        return;
+    }
+
+    var sys = commentSystems.find(function(s) { return s.id === selectedComment; });
+    if (!sys) { fieldsContainer.classList.remove('show'); return; }
+
+    if (sys.url) {
+        guideHref.href = sys.url;
+        guideLink.style.display = 'block';
+    } else {
+        guideLink.style.display = 'none';
+    }
+
+    fieldsContainer.innerHTML = '<label style="font-weight:600;font-size:13px;margin-bottom:6px;display:block;">'
+        + sys.icon + ' ' + sys.name + ' 配置</label>';
+    var saved = window._savedCommentConfig || {};
+    (sys.fields || []).forEach(function(f) {
+        var group = document.createElement('div');
+        group.style.marginBottom = '8px';
+        var label = document.createElement('label');
+        label.style.fontSize = '12px';
+        label.style.fontWeight = '600';
+        label.style.display = 'block';
+        label.style.marginBottom = '2px';
+        label.textContent = f.label;
+        if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+        group.appendChild(label);
+
+        if (f.type === 'select' && f.options) {
+            var sel = document.createElement('select');
+            sel.className = 'comment-field';
+            sel.dataset.fieldKey = f.key;
+            sel.style.width = '100%';
+            sel.style.padding = '6px 8px';
+            sel.style.border = '1px solid #ddd';
+            sel.style.borderRadius = '4px';
+            sel.style.fontSize = '12px';
+            f.options.forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.label || o.value;
+                if (o.value === (saved[f.key] || f.default)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            group.appendChild(sel);
+        } else {
+            var input = document.createElement('input');
+            input.type = f.type === 'number' ? 'number' : 'text';
+            input.className = 'comment-field';
+            input.dataset.fieldKey = f.key;
+            input.placeholder = f.placeholder || '';
+            input.value = saved[f.key] || f.default || '';
+            input.style.width = '100%';
+            input.style.padding = '6px 8px';
+            input.style.border = '1px solid #ddd';
+            input.style.borderRadius = '4px';
+            input.style.fontSize = '12px';
+            if (f.required) input.required = true;
+            group.appendChild(input);
+        }
+        fieldsContainer.appendChild(group);
+    });
+
+    if (sys.url) {
+        var tip = document.createElement('p');
+        tip.style.fontSize = '11px';
+        tip.style.color = '#888';
+        tip.style.marginTop = '6px';
+        tip.innerHTML = '💡 如需扫码授权登录，请点击上方引导链接打开 ' + sys.name + ' 官方配置页';
+        fieldsContainer.appendChild(tip);
+    }
+
+    fieldsContainer.classList.add('show');
+}
+
+// ====== 渲染插件 ======
+function renderPlugins(plugins) {
+    var grid = document.getElementById('pluginGrid');
+    grid.innerHTML = '';
+    var saved = window._savedPluginConfig || {};
+
+    plugins.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'plugin-card';
+        card.dataset.plugin = p.id;
+
+        var enabled = saved[p.id] && saved[p.id].enabled === '1';
+        card.innerHTML = '<div class="plugin-header">'
+            + '<span class="plugin-icon">' + p.icon + '</span>'
+            + '<span class="plugin-name">' + p.name + '</span>'
+            + '<label class="toggle-switch">'
+            + '<input type="checkbox" data-plugin="' + p.id + '" ' + (enabled ? 'checked' : '')
+            + ' onchange="togglePlugin(this, \'' + p.id + '\')">'
+            + '<span class="toggle-slider"></span>'
+            + '</label>'
+            + '</div>'
+            + '<div class="plugin-desc">' + p.desc + '</div>'
+            + '<div class="plugin-fields' + (enabled ? ' show' : '') + '" id="pluginFields_' + p.id + '">';
+
+        (p.fields || []).forEach(function(f) {
+            var val = (saved[p.id] || {})[f.key] || f.default || '';
+            if (f.type === 'select' && f.options) {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<select data-plugin="' + p.id + '" data-field="' + f.key + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;">';
+                f.options.forEach(function(o) {
+                    card.innerHTML += '<option value="' + o.value + '"' + (val === o.value ? ' selected' : '') + '>' + (o.label || o.value) + '</option>';
+                });
+                card.innerHTML += '</select></div>';
+            } else if (f.type === 'textarea') {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<textarea data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;min-height:60px;font-family:monospace;">' + val + '</textarea></div>';
+            } else {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" value="' + val + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+            }
+        });
+
+        card.innerHTML += '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function togglePlugin(cb, pluginId) {
+    var fields = document.getElementById('pluginFields_' + pluginId);
+    if (fields) {
+        fields.classList.toggle('show', cb.checked);
+    }
+}
+
+// ====== 收集+保存配置 ======
+function collectCommentConfig() {
+    if (!selectedComment) return {};
+    var fields = document.querySelectorAll('.comment-field');
+    var cfg = {};
+    fields.forEach(function(f) {
+        cfg[f.dataset.fieldKey] = f.value;
+    });
+    return cfg;
+}
+
+function collectPluginConfig() {
+    var cfg = {};
+    document.querySelectorAll('.plugin-card').forEach(function(card) {
+        var pid = card.dataset.plugin;
+        var enabled = card.querySelector('input[type="checkbox"]');
+        if (!enabled || !enabled.checked) return;
+        cfg[pid] = { enabled: '1' };
+        card.querySelectorAll('input[data-field], select[data-field], textarea[data-field]').forEach(function(f) {
+            cfg[pid][f.dataset.field] = f.value;
+        });
+    });
+    return cfg;
+}
+
+function saveSiteConfig() {
+    var btn = document.querySelector('.config-actions .btn-success');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    var status = document.getElementById('configSaveStatus');
+    status.className = 'config-status';
+    status.style.display = 'none';
+
+    var payload = {
+        platform: selectedPlatform || 'github_pages',
+        comment_system: selectedComment || '',
+        comment_config: collectCommentConfig(),
+        plugins_config: collectPluginConfig(),
+    };
+
+    fetch('/api/deploy/site-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            status.className = 'config-status success';
+            status.textContent = '✅ ' + (data.message || '站点配置已保存');
+            status.style.display = 'block';
+        } else {
+            status.className = 'config-status error';
+            status.textContent = '❌ ' + (data.error || '保存失败');
+            status.style.display = 'block';
+        }
+    })
+    .catch(function(err) {
+        status.className = 'config-status error';
+        status.textContent = '❌ 请求失败: ' + err.message;
+        status.style.display = 'block';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '💾 保存站点配置';
+        setTimeout(function() {
+            status.style.display = 'none';
+        }, 3000);
+    });
+}
+
+// ====== 原有动态字段（保持兼容） ======
+function toggleFields(sel) {
+    var container = document.getElementById('dynamicFields');
+    var option = sel.options[sel.selectedIndex];
+    if (!option || !option.value) {
+        container.style.display = 'none';
+        return;
+    }
+    try {
+        var fields = JSON.parse(option.getAttribute('data-fields') || '[]');
+        container.innerHTML = '';
+        if (fields.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        fields.forEach(function(f) {
+            var group = document.createElement('div');
+            group.className = 'form-group';
+            var label = document.createElement('label');
+            label.textContent = f.label || f.key;
+            if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+            group.appendChild(label);
+
+            if (f.type === 'select') {
+                var select = document.createElement('select');
+                select.name = 'cfg_' + f.key;
+                select.required = f.required;
+                if (f.options) {
+                    f.options.forEach(function(o) {
+                        var opt = document.createElement('option');
+                        opt.value = o.value;
+                        opt.textContent = o.label || o.value;
+                        select.appendChild(opt);
+                    });
+                }
+                group.appendChild(select);
+            } else {
+                var input = document.createElement('input');
+                input.type = f.type === 'password' ? 'password' : 'text';
+                input.name = 'cfg_' + f.key;
+                input.placeholder = f.placeholder || '';
+                input.value = f.default || '';
+                input.style.width = '400px';
+                if (f.required) input.required = true;
+                group.appendChild(input);
+            }
+            container.appendChild(group);
+        });
+        container.style.display = 'flex';
+    } catch(e) {
+        container.style.display = 'none';
+    }
+}
+
+// 锚点跳转时自动加载
+function initDeploy() {
+    loadSiteConfig();
+}
+var _deployInitialized = false;
+if (window.location.hash === '#deploy') {
+    _deployInitialized = true;
+    initDeploy();
+}
+window.addEventListener('hashchange', function() {
+    if (window.location.hash === '#deploy' && !_deployInitialized) {
+        _deployInitialized = true;
+        initDeploy();
+    }
+});
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.hash === '#deploy' && !_deployInitialized) {
+        _deployInitialized = true;
+        initDeploy();
+    }
+});
+</script>

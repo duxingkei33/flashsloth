@@ -9,7 +9,77 @@ AI Provider — 统一AI能力框架
 from typing import Optional, Callable
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-import json, os
+import json, os, sqlite3, time as time_module
+from datetime import datetime
+
+
+# ═══════════════════════════════════════════════
+# AI 调用日志
+# ═══════════════════════════════════════════════
+
+_AI_LOG_DB: Optional[str] = None
+
+def _get_ai_log_db() -> str:
+    global _AI_LOG_DB
+    if _AI_LOG_DB is None:
+        _AI_LOG_DB = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "flashsloth.db"
+        )
+    return _AI_LOG_DB
+
+def _init_ai_call_log_table():
+    try:
+        conn = sqlite3.connect(_get_ai_log_db())
+        conn.execute("""CREATE TABLE IF NOT EXISTS ai_call_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            capability TEXT NOT NULL,
+            provider TEXT NOT NULL DEFAULT '',
+            model TEXT NOT NULL DEFAULT '',
+            prompt_tokens INTEGER DEFAULT 0,
+            response_tokens INTEGER DEFAULT 0,
+            cost REAL DEFAULT 0.0,
+            success INTEGER DEFAULT 1,
+            error TEXT DEFAULT '',
+            response_summary TEXT DEFAULT '',
+            prompt_preview TEXT DEFAULT '',
+            user_id INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        )""")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+def log_ai_call(capability: str, provider: str = "", model: str = "",
+                prompt: str = "", response: str = "",
+                prompt_tokens: int = 0, response_tokens: int = 0,
+                cost: float = 0.0, success: bool = True, error: str = "",
+                user_id: int = 0):
+    try:
+        _init_ai_call_log_table()
+        conn = sqlite3.connect(_get_ai_log_db())
+        # 尝试获取当前用户（可能不在 Flask 上下文中）
+        uid = user_id
+        if not uid:
+            try:
+                from flask_login import current_user
+                if current_user and current_user.is_authenticated:
+                    uid = current_user.id
+            except Exception:
+                uid = 1  # fallback 到 admin
+        conn.execute(
+            """INSERT INTO ai_call_log
+               (capability, provider, model, prompt_tokens, response_tokens,
+                cost, success, error, response_summary, prompt_preview, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (capability, provider, model, prompt_tokens, response_tokens,
+             cost, 1 if success else 0, error or "",
+             (response or "")[:200], (prompt or "")[:200], uid)
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════
@@ -40,6 +110,9 @@ class AIResponse:
     model: str = ""               # 实际使用的模型
     provider: str = ""            # 实际使用的Provider
     error: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_cost: float = 0.0
     raw: dict = field(default_factory=dict)
 
 
@@ -202,6 +275,30 @@ class OpenAIProvider(AIProvider):
                 return AIResponse(content=content, model=request.model or "gpt-4o", provider="openai")
             return AIResponse(success=False, error=str(data), provider="openai")
 
+    def test_connection(self) -> dict:
+        """测试 OpenAI 连接"""
+        try:
+            import requests
+            base = self.api_base or "https://api.openai.com/v1"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": "Say OK if connected"}],
+                    "max_tokens": 16,
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if resp.ok:
+                content = data["choices"][0]["message"]["content"]
+                return {"success": True, "content": content, "model": "gpt-4o-mini", "provider": "openai"}
+            error_msg = data.get("error", {}).get("message", str(data))
+            return {"success": False, "error": f"API错误: {error_msg}"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}"}
+
 
 @register_ai_provider
 class DoubaoProvider(AIProvider):
@@ -237,8 +334,9 @@ class DeepSeekProvider(AIProvider):
 
     def generate(self, request: AIRequest) -> AIResponse:
         import requests
+        base = self.api_base or "https://api.deepseek.com/v1"
         resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
+            f"{base}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": request.model or "deepseek-chat",
@@ -256,6 +354,93 @@ class DeepSeekProvider(AIProvider):
             content = data["choices"][0]["message"]["content"]
             return AIResponse(content=content, provider="deepseek", model=request.model or "deepseek-chat")
         return AIResponse(success=False, error=str(data), provider="deepseek")
+
+    def test_connection(self) -> dict:
+        """测试 DeepSeek 连接"""
+        try:
+            import requests
+            base = self.api_base or "https://api.deepseek.com/v1"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": '回复"OK"表示连接正常'}],
+                    "max_tokens": 16,
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if resp.ok:
+                content = data["choices"][0]["message"]["content"]
+                return {"success": True, "content": content, "model": "deepseek-chat", "provider": "deepseek"}
+            error_msg = data.get("error", {}).get("message", str(data))
+            return {"success": False, "error": f"API错误: {error_msg}"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}"}
+
+
+@register_ai_provider
+class ZhipuProvider(AIProvider):
+    """智谱 GLM — 国产大模型，支持写作/翻译"""
+    name = "zhipu"
+    display_name = "智谱 (GLM)"
+    description = "智谱 GLM-4 — 国产高性价比写作/翻译"
+    icon = "🔬"
+    capabilities = ["writing", "translate"]
+    models = ["glm-4", "glm-4-flash", "glm-4v"]
+    config_fields = [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": True},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": False,
+         "placeholder": "https://open.bigmodel.cn/api/paas/v4"},
+    ]
+
+    def generate(self, request: AIRequest) -> AIResponse:
+        import requests
+        base = self.api_base or "https://open.bigmodel.cn/api/paas/v4"
+        resp = requests.post(
+            f"{base}/chat/completions",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={
+                "model": request.model or "glm-4-flash",
+                "messages": [
+                    {"role": "system", "content": f"你是一个{'翻译' if request.capability == 'translate' else '文章写作'}助手"},
+                    {"role": "user", "content": request.prompt},
+                ],
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+            },
+            timeout=120,
+        )
+        data = resp.json()
+        if resp.ok:
+            content = data["choices"][0]["message"]["content"]
+            return AIResponse(content=content, provider="zhipu", model=request.model or "glm-4-flash")
+        return AIResponse(success=False, error=str(data), provider="zhipu")
+
+    def test_connection(self) -> dict:
+        """测试智谱 GLM 连接"""
+        try:
+            import requests
+            base = self.api_base or "https://open.bigmodel.cn/api/paas/v4"
+            resp = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={
+                    "model": "glm-4-flash",
+                    "messages": [{"role": "user", "content": "回复OK表示连接正常"}],
+                    "max_tokens": 16,
+                },
+                timeout=15,
+            )
+            data = resp.json()
+            if resp.ok:
+                content = data["choices"][0]["message"]["content"]
+                return {"success": True, "content": content, "model": "glm-4-flash", "provider": "zhipu"}
+            error_msg = data.get("error", {}).get("message", str(data))
+            return {"success": False, "error": f"API错误: {error_msg}"}
+        except Exception as e:
+            return {"success": False, "error": f"连接异常: {e}"}
 
 
 def get_ai_provider(name: str, config: Optional[dict] = None) -> Optional[AIProvider]:
@@ -356,53 +541,111 @@ class AIRouter:
         """获取Provider配置"""
         return self._provider_configs.get(provider, {})
 
+    def _is_provider_usable(self, provider_name: str) -> bool:
+        """检查Provider是否已配置（有api_key）"""
+        cfg = self._provider_configs.get(provider_name, {})
+        return bool(cfg.get("api_key"))
+
+    def _get_effective_model(self, config: dict, provider_name: str = "") -> str:
+        """获取有效模型：config中指定'auto'则用provider默认，否则用配置值"""
+        model = config.get("model", "")
+        if not model or model == "auto":
+            # 尝试从provider_configs取默认模型
+            if provider_name:
+                pcfg = self._provider_configs.get(provider_name, {})
+                if pcfg.get("model"):
+                    return pcfg["model"]
+            # 从注册表取第一个模型
+            cls = _registry.get(provider_name)
+            if cls and cls.models:
+                return cls.models[0]
+        return model
+
     def call(self, capability: str, prompt: str, **kwargs) -> AIResponse:
         """
         调用AI能力（单次）。
         
-        内部自动选择Provider：按配置的主Provider → fallback顺序。
+        支持配置格式:
+          - {"provider": "auto", "model": "auto", "mode": "auto"}  → 自动发现
+          - {"provider": "deepseek", "model": "deepseek-chat", "mode": "chat"} → 指定
+          - {"provider": "disabled"}  → 禁用
         """
         config = self._capability_configs.get(capability, {})
 
-        # 主Provider模式
-        if "provider" in config:
-            provider_name = config["provider"]
-            provider_cfg = {**self._provider_configs.get(provider_name, {}), **kwargs}
-            provider = get_ai_provider(provider_name, provider_cfg)
-            if provider:
-                request = AIRequest(capability=capability, prompt=prompt,
-                                    model=kwargs.get("model") or config.get("model", ""),
-                                    **{k: v for k, v in kwargs.items() if k in ["temperature", "max_tokens", "images"]})
-                return provider.generate(request)
+        # 检查是否禁用
+        if config.get("provider") == "disabled":
+            return AIResponse(success=False, error=f"能力「{capability}」已被禁用")
 
-        # 多个Provider：fallback模式
-        providers_list = config.get("providers", [])
-        if providers_list:
-            for pcfg in providers_list:
-                provider = get_ai_provider(pcfg["name"], self._provider_configs.get(pcfg["name"], {}))
+        provider_name = config.get("provider", "auto")
+        mode = config.get("mode", "auto")
+
+        # ── 自动模式：遍历支持此能力的Provider ──
+        if provider_name == "auto" or not provider_name:
+            for pname in get_providers_for_capability(capability):
+                if not self._is_provider_usable(pname):
+                    continue
+                provider = get_ai_provider(pname, self._provider_configs.get(pname, {}))
                 if provider:
                     try:
-                        request = AIRequest(capability=capability, prompt=prompt,
-                                            model=pcfg.get("model", ""), **kwargs)
+                        effective_model = self._get_effective_model(config, pname)
+                        request = AIRequest(
+                            capability=capability, prompt=prompt,
+                            model=kwargs.get("model") or effective_model,
+                            **{k: v for k, v in kwargs.items()
+                               if k in ["temperature", "max_tokens", "images"]},
+                        )
+                        # 附加mode信息
+                        if mode and mode != "auto":
+                            request.context["mode"] = mode
                         result = provider.generate(request)
                         if result.success:
+                            log_ai_call(
+                                capability=capability, provider=pname,
+                                model=request.model, prompt=prompt,
+                                response=result.content,
+                                prompt_tokens=result.prompt_tokens,
+                                response_tokens=result.completion_tokens,
+                                cost=result.total_cost,
+                            )
                             return result
                     except Exception:
                         continue
+            return AIResponse(success=False, error=f"自动路由：没有可用的{capability}能力Provider")
 
-        # 自动发现：尝试所有支持此能力的Provider
-        for pname in get_providers_for_capability(capability):
-            provider = get_ai_provider(pname, self._provider_configs.get(pname, {}))
-            if provider:
-                try:
-                    request = AIRequest(capability=capability, prompt=prompt, **kwargs)
-                    result = provider.generate(request)
-                    if result.success:
-                        return result
-                except Exception:
-                    continue
+        # ── 指定Provider模式 ──
+        provider_cfg = {**self._provider_configs.get(provider_name, {}), **kwargs}
+        provider = get_ai_provider(provider_name, provider_cfg)
+        if provider:
+            effective_model = self._get_effective_model(config, provider_name)
+            request = AIRequest(
+                capability=capability, prompt=prompt,
+                model=kwargs.get("model") or effective_model,
+                **{k: v for k, v in kwargs.items() if k in ["temperature", "max_tokens", "images"]},
+            )
+            if mode and mode != "auto":
+                request.context["mode"] = mode
+            try:
+                result = provider.generate(request)
+                log_ai_call(
+                    capability=capability, provider=provider_name,
+                    model=request.model, prompt=prompt,
+                    response=result.content if result.success else "",
+                    prompt_tokens=result.prompt_tokens,
+                    response_tokens=result.completion_tokens,
+                    cost=result.total_cost,
+                    success=result.success,
+                    error=result.error if not result.success else "",
+                )
+                return result
+            except Exception as e:
+                log_ai_call(
+                    capability=capability, provider=provider_name,
+                    model=request.model, prompt=prompt,
+                    success=False, error=str(e),
+                )
+                return AIResponse(success=False, error=f"Provider「{provider_name}」调用异常: {e}")
 
-        return AIResponse(success=False, error=f"没有可用的{capability}能力Provider")
+        return AIResponse(success=False, error=f"Provider「{provider_name}」不可用或未配置")
 
     def call_parallel(self, capability: str, prompts: list[str], **kwargs) -> list[AIResponse]:
         """
@@ -440,24 +683,10 @@ def get_router() -> AIRouter:
 # 默认配置
 DEFAULT_CONFIG = {
     "capabilities": {
-        "writing": {
-            "provider": "deepseek",
-            "model": "deepseek-chat",
-            "fallback": "openai",
-        },
-        "image_gen": {
-            "providers": [
-                {"name": "openai", "model": "dall-e-3", "weight": 2},
-            ],
-            "mode": "fallback",
-        },
-        "translate": {
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-        },
-        "audio_gen": {
-            "provider": "openai",
-            "model": "tts-1",
-        },
+        "writing":      {"provider": "auto", "model": "auto", "mode": "auto"},
+        "translate":    {"provider": "auto", "model": "auto", "mode": "auto"},
+        "image_gen":    {"provider": "auto", "model": "auto", "mode": "auto"},
+        "audio_gen":    {"provider": "auto", "model": "auto", "mode": "auto"},
+        "video_gen":    {"provider": "auto", "model": "auto", "mode": "auto"},
     }
 }

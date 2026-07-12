@@ -1,0 +1,139 @@
+<!-- ====== 添加账号弹窗 ====== -->
+<div id="addFormBox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:550px;width:90%;max-height:85vh;overflow-y:auto;">
+        <h2 id="addFormTitle" style="margin-bottom:16px;font-size:18px;">➕ 添加账号 — <span id="addPlatName"></span></h2>
+
+        <form method="post" action="/accounts/add" id="accountForm" onsubmit="return validateAccountForm()">
+            <input type="hidden" name="platform" id="addPlatInput">
+            <input type="hidden" name="edit_id" id="editAccountId" value="">
+            <div class="form-group">
+                <label>账号别名 <span style="color:#999;font-size:12px;">（留空自动生成）</span></label>
+                <input type="text" name="account_name" id="addAccountName" placeholder="留空自动生成：discuz01、oshwhub01"
+                       style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
+            </div>
+            <div id="addPresetHints" style="margin-bottom:10px;"></div>
+
+            <!-- 登录方法选择 Tab -->
+            <div id="loginMethodTabs" style="display:flex;gap:4px;margin-bottom:8px;border-bottom:2px solid #eee;padding-bottom:8px;flex-wrap:wrap;"></div>
+
+            <!-- 登录方式说明演示卡 -->
+            <div id="loginMethodDemo" style="display:none;margin-bottom:12px;padding:12px;background:linear-gradient(135deg,#f8f9ff,#eef1ff);border:1px solid #d0d5f0;border-radius:10px;font-size:13px;">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <div id="loginDemoTitle" style="font-weight:600;font-size:14px;margin-bottom:8px;"></div>
+                        <div id="loginDemoSteps" style="color:#555;line-height:1.7;margin-bottom:6px;"></div>
+                        <div id="loginDemoNote" style="font-size:11px;color:#888;background:#fff;padding:6px 10px;border-radius:6px;border:1px dashed #ddd;"></div>
+                    </div>
+                    <div id="loginDemoImageArea" style="flex-shrink:0;width:200px;border-radius:8px;overflow:hidden;border:1px solid #d0d5f0;background:#fff;">
+                        <img id="loginDemoImage" src="" alt="登录流程示意图" style="width:100%;display:block;">
+                    </div>
+                </div>
+            </div>
+
+            <div id="loginMethodContent"></div>
+
+            <!-- 预览截图区域 -->
+            <div id="loginScreenshotArea" style="display:none;margin-top:10px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:350px;">
+                <img id="loginScreenshotImg" src="" style="width:100%;display:block;">
+            </div>
+            <!-- 扫码提示区域 -->
+            <div id="qrScanInfo" style="display:none;margin-top:8px;padding:8px 12px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:13px;color:#2e7d32;"></div>
+            <div id="loginStatusMsg" style="margin-top:8px;padding:8px 12px;border-radius:6px;display:none;"></div>
+
+            <!-- ====== 登录进度条 ====== -->
+            <div id="loginProgressBar" style="display:none;margin-top:10px;padding:10px 12px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;">
+                <div style="display:flex;gap:2px;align-items:flex-start;font-size:11px;flex-wrap:wrap;">
+                    <div class="prog-step" data-step="1" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>打开登录页</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="2" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>填写账号</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="3" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>检测验证码</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="4" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>验证码输入</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="5" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>获取Cookie中</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="6" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>Cookie校验中</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="7" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>登录结果</span>
+                    </div>
+                </div>
+                <div id="progDetail" style="margin-top:6px;font-size:12px;color:#4361ee;"></div>
+            </div>
+
+            <!-- ====== 验证码输入区（手动输入验证码用） ====== -->
+            <div id="captchaInputArea" style="display:none;margin-top:10px;padding:12px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;">
+                <div style="font-weight:600;font-size:13px;margin-bottom:8px;">🔢 输入验证码</div>
+                <div id="captchaImageBox" style="margin-bottom:8px;border:1px solid #ddd;border-radius:4px;overflow:hidden;max-width:260px;background:#f5f5f5;">
+                    <img id="captchaImage" src="" style="width:100%;display:block;">
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <input type="text" id="captchaCodeInput" placeholder="输入验证码" maxlength="8"
+                           style="flex:1;min-width:100px;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:16px;letter-spacing:4px;text-align:center;">
+                    <button id="btnSubmitCaptcha" type="button" onclick="unifiedSubmitCaptcha()" class="btn btn-primary">✅ 提交验证码</button>
+                    <button id="btnRefreshCaptcha" type="button" onclick="unifiedRefreshCaptcha()" class="btn btn-sm btn-info">🔄 换一张</button>
+                    <button id="btnAutoCaptcha" type="button" onclick="unifiedAutoCaptcha()" class="btn btn-sm btn-secondary" style="display:none;">🤖 自动识别</button>
+                </div>
+                <div id="captchaFeedback" style="margin-top:6px;font-size:12px;color:#888;display:none;"></div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                <button id="btnTestConnectionAdd" type="button" onclick="testConnectionAdd()" class="btn btn-sm btn-secondary" style="display:none;" title="用Playwright打开目标网站 → 注入输入的Cookie/凭证 → 验证是否真正登录 → 返回真实用户名。先验证再保存。">
+                    🔌 验证凭证
+                </button>
+                <button id="btnStartLogin" type="button" onclick="unifiedLoginStart()" class="btn btn-primary" style="display:none;">
+                    🚀 开始浏览器登录
+                </button>
+                <button id="btnCaptchaLogin" type="button" onclick="unifiedLoginCaptcha()" class="btn btn-warning" style="display:none;">
+                    ✅ 点验证码并登录
+                </button>
+                <button id="btnRefreshScreenshot" type="button" onclick="unifiedRefreshScreenshot()" class="btn btn-sm btn-info" style="display:none;">
+                    🔄 刷新截图
+                </button>
+                <button id="btnSaveOnly" type="submit" class="btn btn-success">💾 保存</button>
+                <button type="button" onclick="unifiedClose()" class="btn" style="background:#eee;">取消</button>
+                <span style="flex:1;"></span>
+                <span id="debugCookieToggle" style="font-size:10px;color:#ccc;cursor:pointer;align-self:flex-end;"
+                      onclick="toggleDebugCookie()" title="仅用于调试/迁移：直接粘贴Cookie">🔧 调试</span>
+            </div>
+            <!-- Cookie 调试区 -->
+            <div id="debugCookieArea" style="display:none;margin-top:8px;padding:8px;background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;">
+                <label style="font-size:11px;color:#996600;font-weight:600;">🍪 Cookie 调试模式</label>
+                <textarea id="debugCookieInput" name="cfg_cookie" rows="3" placeholder="从浏览器 F12 → Application → Cookies 复制完整 Cookie 字符串"
+                          style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;font-size:11px;margin-top:4px;"></textarea>
+                <p style="font-size:10px;color:#996600;margin:4px 0 0;">粘贴后点击「💾 保存」即可。仅用于Cookie迁移或调试。</p>
+            </div>
+            <div id="addLoginResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ====== 状态检测弹窗 ====== -->
+<div id="statusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:650px;width:92%;max-height:85vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;font-size:18px;">🔍 账号状态检测</h2>
+        <div id="statusContent">
+            <p style="color:#999;">⏳ 检测中...</p>
+        </div>
+        <div style="margin-top:16px;">
+            <button onclick="closeStatusModal()" class="btn" style="background:#eee;">关闭</button>
+        </div>
+    </div>
+</div>

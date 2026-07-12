@@ -36,6 +36,14 @@
         .badge-warning { background: #fff3cd; color: #856404; }
         .badge-info { background: #d1ecf1; color: #0c5460; }
         .badge-secondary { background: #e2e3e5; color: #383d41; }
+        .notif-bell { position: relative; display: inline-block; }
+        .notif-badge {
+            position: absolute; top: -6px; right: -8px;
+            background: #dc2626; color: #fff; font-size: 9px; font-weight: 600;
+            min-width: 16px; height: 16px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 4px; line-height: 1;
+        }
         .flash { padding: 12px 20px; margin-bottom: 16px; border-radius: 6px; }
         .flash-success { background: #d4edda; color: #155724; }
         .flash-error { background: #f8d7da; color: #721c24; }
@@ -64,6 +72,138 @@
         .auth-form .links { text-align: center; margin-top: 16px; font-size: 14px; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        /* ═══ 手机响应式 ═══ */
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .navbar { flex-wrap: wrap; gap: 4px; padding: 8px 12px; }
+            .navbar .brand { font-size: 1em; width: 100%; margin-bottom: 4px; }
+            .navbar a { margin-left: 0; margin-right: 8px; font-size: 12px; padding: 4px 6px; }
+            .navbar > div:last-child { width: 100%; margin-top: 2px; text-align: right; }
+            .card { padding: 14px; border-radius: 6px; }
+            table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+            th, td { padding: 6px 4px; font-size: 12px; }
+            .btn { padding: 6px 12px; font-size: 13px; min-height: 36px; }
+            .btn-sm { padding: 4px 8px; font-size: 11px; min-height: 28px; }
+            .form-group input, .form-group textarea, .form-group select { font-size: 16px; }
+            .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .stat-card { padding: 12px; }
+            .stat-card .num { font-size: 1.4em; }
+            .publisher-grid { grid-template-columns: 1fr; }
+            .auth-form { margin: 20px auto; padding: 0 12px; }
+            .auth-form .card { padding: 20px; }
+            .flash { padding: 8px 12px; font-size: 13px; }
+            .badge { font-size: 11px; padding: 2px 6px; }
+        }
+        @media (max-width: 480px) {
+            .navbar { padding: 6px 8px; }
+            .navbar .brand { font-size: 0.9em; }
+            .navbar a { font-size: 11px; margin-right: 4px; padding: 3px 4px; min-height: 36px; display: inline-flex; align-items: center; }
+            .container { padding: 8px; }
+            .card { padding: 10px; }
+            th, td { padding: 4px 3px; font-size: 11px; }
+            .stats { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .stat-card { padding: 10px; }
+            .stat-card .num { font-size: 1.2em; }
+            .stat-card .label { font-size: 11px; }
+        }
+        /* ═══ 全站移动端增强 ═══ */
+        @media (max-width: 768px) {
+            /* 表格横滚+字号 */
+            .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; font-size: 12px; }
+            th, td { white-space: nowrap; padding: 6px 4px; }
+            /* 表单元素 - 防止溢出 */
+            input, select, textarea { max-width: 100% !important; box-sizing: border-box; }
+            input[type="text"], input[type="number"], input[type="password"], input[type="email"], input[type="url"] { max-width: 100% !important; }
+            /* 触摸友好按钮尺寸 */
+            .btn { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+            .btn-sm { min-height: 36px; }
+            /* 按钮区换行 */
+            .btn-group, .actions { display: flex; flex-wrap: wrap; gap: 4px; }
+            .btn-group .btn, .actions .btn { flex: 1 1 auto; min-width: 60px; }
+            /* 多列布局 */
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; }
+            .flex-row { flex-direction: column !important; }
+            .flex-row > * { width: 100% !important; }
+            /* 弹窗 */
+            .modal-content, [id$="Modal"] > div, [id$="modal"] > div, [id*="FormBox"] { max-width: 95% !important; margin: 10px auto !important; padding: 16px !important; }
+            /* 搜索/过滤栏 */
+            .filter-bar, .search-bar { flex-direction: column; align-items: stretch !important; }
+            .filter-bar > *, .search-bar > * { width: 100%; }
+            /* 部署标签 */
+            .rsp-table { white-space: normal !important; word-break: break-word !important; }
+            .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+            /* 导航栏紧凑 */
+            .navbar > div:first-child { display: flex; flex-wrap: wrap; gap: 2px; }
+            .navbar a { font-size: 12px; padding: 6px 6px; min-height: 36px; display: inline-flex; align-items: center; }
+            /* 两列导航时允许横滚 */
+            .navbar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            /* 卡片标题 */
+            .card h2 { font-size: 1em; }
+            .card h3 { font-size: 0.95em; }
+            /* 详情/摘要 */
+            details summary { font-size: 13px; }
+            details pre { max-width: 100% !important; font-size: 11px; }
+            /* 分页横滚 */
+            .pagination { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; justify-content: flex-start; padding: 4px 0; }
+            .pagination a { padding: 8px 12px; font-size: 13px; min-width: 36px; text-align: center; white-space: nowrap; }
+            /* 代码块 */
+            pre, code { word-break: break-all; white-space: pre-wrap; max-width: 100%; }
+            /* 容器-fluid */
+            .container-fluid { padding-left: 8px !important; padding-right: 8px !important; }
+            /* 弹窗/模态框 */
+            .modal-content, [class*="modal"] > div, [id$="Modal"] > div, [id*="Form"] > div, [id*="form"] > div:first-of-type { max-width: 95% !important; margin: 10px auto !important; padding: 16px !important; }
+            /* 存储文件浏览器 */
+            #storage-modal > div, [id*="storage-modal"] > div { width: 96% !important; max-width: 96% !important; padding: 12px !important; }
+            /* 编辑器 */
+            #editor-container { flex-direction: column !important; gap: 8px !important; }
+            #editor-container > * { flex: none !important; width: 100% !important; min-height: 200px !important; }
+            #editor-container textarea { min-height: 250px !important; }
+            /* 编译预览面板 */
+            .split-pane { flex-direction: column !important; min-height: auto !important; }
+            .split-pane .code-pane, .split-pane .preview-pane { flex: none !important; width: 100% !important; max-height: 300px !important; border-right: none !important; }
+            /* 过滤栏中的输入框不溢出 */
+            .filter-bar input, .filter-bar select { max-width: 100% !important; box-sizing: border-box; }
+            /* Bootstrap 行/列（价格监控等用的）*/
+            .row { flex-direction: column; }
+            .row .col, .row [class*="col-"] { width: 100% !important; margin-bottom: 8px; }
+        }
+        @media (max-width: 480px) {
+            h2 { font-size: 1.2em; }
+            h3 { font-size: 1.05em; }
+            .card h3 { font-size: 1em; }
+            /* 账号卡片 */
+            .account-card { padding: 10px !important; }
+            .account-card .info { font-size: 12px; }
+            .account-card .actions { gap: 2px; }
+            .account-card .actions a { font-size: 11px; padding: 3px 6px; }
+            /* 分页 */
+            .pagination a { padding: 6px 10px; font-size: 13px; min-width: 36px; text-align: center; }
+            /* 统计/摘要 */
+            .summary-line { flex-direction: column; gap: 4px; }
+            /* 标签页 */
+            .tabs { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+            .tabs a { padding: 6px 10px; font-size: 12px; }
+            /* 发布选择/多选 */
+            .checkbox-grid { grid-template-columns: 1fr 1fr !important; }
+            /* 工作台区 */
+            .provider-bar { flex-direction: column; align-items: stretch; }
+            .article-grid { grid-template-columns: 1fr !important; }
+            /* 触摸友好按钮最小尺寸 44px */
+            .btn { min-height: 44px; padding: 10px 14px; font-size: 14px; }
+            .btn-sm { min-height: 40px; padding: 8px 12px; font-size: 12px; }
+        }
+        /* 验证码弹窗手机优化 */
+        @media (max-width: 480px) {
+            #captchaModal > div { max-width: 95% !important; padding: 16px !important; }
+            #captchaInput { width: 100% !important; box-sizing: border-box !important; }
+            #captchaSubmitBtn { padding: 12px 24px !important; font-size: 16px !important; min-height: 44px; }
+        }
+    </style>
+    <!-- 折叠组件（纯CSS/JS，不依赖Bootstrap）-->
+    <style>
+        .collapse:not(.show) { display: none; }
+        .sub-collapse-header.collapsed .arrow { transform: rotate(-90deg); }
     </style>
 </head>
 <body>
@@ -73,19 +213,47 @@
             <a href="/" class="brand">🦥<span>FlashSloth</span></a>
             <a href="/">仪表盘</a>
             <a href="/forum-reader">逛论坛</a>
-            <a href="/comment-monitor" style="color:#f72585;">💬 评论</a>
+            <a href="/comment-monitor" style="color:#2ec4b6;">💬 评论</a>
+            <a href="/exploration" style="color:#ffd700;">🔍 探索</a>
+            {# 动态导航 - 存在闲鱼账号时显示闲鱼搜索入口 #}
+            {% if has_xianyu %}<a href="/xianyu/search" style="color:#ff6b35;">🐟 闲鱼</a>{% endif %}
             <a href="/accounts">账号</a>
             <a href="/publish/manage">发布</a>
+            <a href="/workspace" style="color:#6366f1;">🏗️ 工作台</a>
             <a href="/signin">签到</a>
-            <a href="/deployers" style="color:#ffd700;">部署</a>
+            <a href="/accounts#deploy" style="color:#ffd700;">部署</a>
             <a href="/storage/settings">存储</a>
-            <a href="/settings">设置</a>
             <a href="/ai/settings" style="color:#00d4ff;">🤖 AI</a>
+            <a href="/logs" style="color:#00d4ff;font-size:12px;">📊 日志</a>
         </div>
-        <div>
-            <span style="font-size: 13px; opacity: .8;">{{ current_user.username }}</span>
-            <a href="/change_password">改密码</a>
-            <a href="/logout">退出</a>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <!-- Playwright 状态指示器 -->
+            <span id="pwStatus" class="badge {{ pw_badge_class }}" style="font-size:11px;cursor:pointer;" onclick="window.location.href='/playwright-settings'" title="点击管理 Playwright 浏览器引擎">
+                {{ pw_badge_text }}
+            </span>
+            <a href="/notifications" class="notif-bell" style="position:relative;font-size:18px;text-decoration:none;">
+                🔔<span id="notifBadge" class="notif-badge" style="display:none;">0</span>
+            </a>
+            <a href="/gateway" style="font-size:13px;">📡网关</a>
+            <a href="/price-monitor" style="color:#f59e0b;">💰 价格</a>
+            <a href="/approval" style="color:#22c55e;">📋 审批</a>
+            <div class="user-dropdown" style="position:relative;display:inline-block;">
+                <span class="user-dropdown-trigger" style="font-size:13px;opacity:.8;cursor:default;padding:4px 8px;border-radius:6px;">👤 {{ current_user.username }} ▾</span>
+                <div class="user-dropdown-menu" style="display:none;position:absolute;right:0;top:100%;min-width:140px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:1000;padding:6px 0;">
+                    <a href="/settings" class="dropdown-item" style="display:block;padding:8px 16px;font-size:13px;color:#1e293b;text-decoration:none;transition:background .1s;">⚙️ 设置</a>
+                    <a href="/change_password" class="dropdown-item" style="display:block;padding:8px 16px;font-size:13px;color:#1e293b;text-decoration:none;transition:background .1s;">🔑 改密码</a>
+                    <div style="border-top:1px solid #f1f5f9;margin:4px 0;"></div>
+                    <a href="/logout" class="dropdown-item" style="display:block;padding:8px 16px;font-size:13px;color:#dc2626;text-decoration:none;transition:background .1s;">🚪 退出</a>
+                </div>
+                <style>
+                .user-dropdown:hover .user-dropdown-menu { display:block !important; }
+                .user-dropdown-menu .dropdown-item:hover { background:#f1f5f9; }
+                .user-dropdown-menu a { white-space:nowrap; }
+                @media (max-width: 768px) {
+                    .user-dropdown-menu { right:auto; left:0; }
+                }
+                </style>
+            </div>
         </div>
     </nav>
     {% endif %}
@@ -274,9 +442,9 @@ function directLogin(aid) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.success) {
+    if (data.logged_in) {
       document.getElementById('captchaTitle').textContent = '✅ 已登录';
-      document.getElementById('captchaMsg').textContent = '登录状态正常';
+      document.getElementById('captchaMsg').textContent = '登录状态正常 — ' + (data.status || '');
       setTimeout(function() {
         closeCaptchaModal();
         if (_captchaState.onSuccess) {
@@ -284,7 +452,9 @@ function directLogin(aid) {
         }
       }, 500);
     } else {
-      showCaptchaError(data.error || '登录状态异常');
+      var errMsg = data.status || data.error || '登录状态异常';
+      document.getElementById('captchaMsg').textContent = errMsg;
+      showCaptchaError(errMsg);
       document.getElementById('captchaSubmitBtn').disabled = false;
     }
   })
@@ -334,6 +504,23 @@ function cancelCaptcha() {
     _captchaState.reject(new Error('用户取消'));
   }
 }
+
+// ═══ Playwright 状态自动刷新 ═══
+function refreshPwStatus() {
+  var el = document.getElementById('pwStatus');
+  if (!el) return;
+  fetch('/api/browser/status')
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success && d.data) {
+      el.className = 'badge ' + (d.data.badge_class || 'badge-secondary');
+      el.textContent = d.data.badge_text || '🖥️ 未知';
+    }
+  })
+  .catch(function() {});
+}
+// 每5秒刷新一次
+setInterval(refreshPwStatus, 5000);
 </script>
 </body>
 </html>

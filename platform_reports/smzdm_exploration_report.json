@@ -1,0 +1,91 @@
+{
+  "platform": "smzdm",
+  "display_name": "什么值得买",
+  "domain": "smzdm.com",
+  "category": "shopping",
+  "architecture": "custom",
+  "explored_at": "2026-07-08 12:20:50",
+  "last_updated": "2026-07-08 12:20:50",
+  "explored_with_login": true,
+  "has_account": false,
+  "has_publisher": false,
+  "login": {
+    "login_url": "https://www.smzdm.com/",
+    "methods": [],
+    "captcha": {
+      "has_captcha": false,
+      "types": [],
+      "selectors": []
+    },
+    "third_party": {
+      "wechat": false,
+      "weibo": false,
+      "qq": false,
+      "github": false,
+      "apple": false
+    },
+    "qr_code": {
+      "has_qrcode": false,
+      "selectors": [],
+      "qr_container_sel": ""
+    },
+    "fields": [
+      {
+        "selector": "input[name='username']",
+        "type": "text",
+        "placeholder": "手机号/邮箱/用户名",
+        "name": "username",
+        "note": "用户名/手机号/邮箱输入"
+      },
+      {
+        "selector": "input[name='password']",
+        "type": "password",
+        "placeholder": "密码",
+        "name": "password",
+        "note": "密码输入框"
+      },
+      {
+        "selector": "input[name='sms_code']",
+        "type": "text",
+        "placeholder": "短信验证码",
+        "name": "sms_code",
+        "note": "短信验证码输入"
+      },
+      {
+        "selector": "#captcha_img",
+        "type": "image",
+        "placeholder": "验证码",
+        "name": "captcha",
+        "condition": "login_error_num >= 3",
+        "note": "图片验证码，登录失败3次后出现"
+      }
+    ],
+    "buttons": {
+      "login_button": "",
+      "register_button": ""
+    },
+    "cookie_hints": [
+      "sess",
+      "auth",
+      "token",
+      "smzdm_id"
+    ]
+  },
+  "publish": {
+    "editor_url": "https://www.smzdm.com/publish",
+    "editor_requires_login": false,
+    "editor_type": "",
+    "api_endpoints": [],
+    "image_upload": {
+      "url": "",
+      "method": ""
+    }
+  },
+  "technical": {
+    "has_rate_limit": false,
+    "has_anti_bot": true,
+    "has_dynamic_content": false,
+    "framework": "",
+    "note": "消费导购平台，自建架构"
+  }
+}

@@ -1,12 +1,161 @@
 {% extends "base.html" %}
 {% block title %}部署管理{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+    .platform-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; gap: 6px; }
+    .platform-card { padding: 10px; }
+    .platform-card .plat-icon { font-size: 22px; }
+    .platform-card .plat-name { font-size: 12px; }
+    .comment-select { flex-direction: column; align-items: stretch; }
+    .comment-option { max-width: 100%; min-width: unset; }
+    .plugin-grid { grid-template-columns: 1fr 1fr !important; gap: 6px; }
+    .plugin-card { padding: 8px; }
+    .config-actions { flex-direction: column; align-items: stretch; }
+    .config-actions button { width: 100%; min-height: 40px; }
+    .site-config-card { padding: 12px; }
+    .site-config-card h3 { font-size: 14px; }
+}
+@media (max-width: 480px) {
+    .platform-grid { grid-template-columns: 1fr 1fr !important; }
+    .platform-card { padding: 8px; }
+    .plugin-grid { grid-template-columns: 1fr !important; }
+    .comment-option { padding: 8px 10px; }
+    .site-config-card { padding: 8px; }
+    .config-actions button { min-height: 44px; font-size: 13px; }
+    .toggle-switch { width: 32px; height: 18px; }
+    .toggle-slider:before { height: 14px; width: 14px; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(14px); }
+    /* 触摸友好 */
+    .platform-card { min-height: 70px; display: flex; flex-direction: column; justify-content: center; }
+    .plugin-card .plugin-fields input { font-size: 16px; padding: 6px 8px; }
+}
+/* 站点配置卡片样式 */
+.site-config-card { background:#fff;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.site-config-card h3 { margin:0 0 12px;font-size:16px;color:#1a1a2e;display:flex;align-items:center;gap:8px; }
+/* 平台选择网格 */
+.platform-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px; }
+.platform-card { border:2px solid #eee;border-radius:10px;padding:14px;cursor:pointer;text-align:center;transition:all .15s; }
+.platform-card:hover { border-color:#4361ee;box-shadow:0 2px 8px rgba(67,97,238,.12); }
+.platform-card.selected { border-color:#4361ee;background:#f0f4ff; }
+.platform-card .plat-icon { font-size:28px;margin-bottom:6px; }
+.platform-card .plat-name { font-weight:600;font-size:14px; }
+.platform-card .plat-desc { font-size:11px;color:#888;margin-top:4px;line-height:1.4; }
+.platform-card .plat-file { font-size:10px;color:#aaa;margin-top:4px;font-family:monospace; }
+/* 评论系统选择器 */
+.comment-select { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px; }
+.comment-option { border:2px solid #eee;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:center;flex:1;min-width:120px;max-width:160px;transition:all .15s; }
+.comment-option:hover { border-color:#2ec4b6; }
+.comment-option.selected { border-color:#2ec4b6;background:#f0fdfa; }
+.comment-option .co-icon { font-size:22px; }
+.comment-option .co-name { font-size:13px;font-weight:600;margin-top:2px; }
+.comment-option .co-desc { font-size:10px;color:#888;margin-top:2px; }
+.comment-option .co-badge { font-size:9px;background:#2ec4b6;color:#fff;border-radius:4px;padding:1px 4px;display:inline-block;margin-top:2px; }
+/* 评论配置字段 */
+.comment-fields { background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:12px;display:none; }
+.comment-fields.show { display:block; }
+/* 插件网格 */
+.plugin-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px; }
+.plugin-card { border:1px solid #eee;border-radius:10px;padding:12px;transition:all .15s;position:relative; }
+.plugin-card:hover { border-color:#d0d5f0;box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.plugin-card .plugin-header { display:flex;align-items:center;gap:8px;margin-bottom:6px; }
+.plugin-card .plugin-icon { font-size:20px; }
+.plugin-card .plugin-name { font-weight:600;font-size:13px;flex:1; }
+.plugin-card .plugin-desc { font-size:11px;color:#888;line-height:1.4;margin-bottom:6px; }
+.plugin-card .plugin-fields { display:none;margin-top:8px;padding-top:8px;border-top:1px solid #eee; }
+.plugin-card .plugin-fields.show { display:block; }
+.plugin-card .plugin-fields input { width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px; }
+.plugin-card .plugin-fields label { font-size:11px;color:#666;display:block;margin-bottom:2px; }
+/* 开关 */
+.toggle-switch { position:relative;width:36px;height:20px;flex-shrink:0; }
+.toggle-switch input { opacity:0;width:0;height:0; }
+.toggle-slider { position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ddd;border-radius:20px;transition:.2s; }
+.toggle-slider:before { content:"";position:absolute;height:16px;width:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s; }
+.toggle-switch input:checked + .toggle-slider { background:#4361ee; }
+.toggle-switch input:checked + .toggle-slider:before { transform:translateX(16px); }
+/* 配置引导链接 */
+.guide-link { font-size:11px;color:#4361ee;text-decoration:none;display:inline-block;margin-top:4px; }
+.guide-link:hover { text-decoration:underline; }
+/* 保存按钮区 */
+.config-actions { display:flex;gap:8px;margin-top:16px;align-items:center; }
+.config-status { font-size:12px;padding:6px 12px;border-radius:6px;display:none; }
+.config-status.success { display:block;background:#d4edda;color:#155724; }
+.config-status.error { display:block;background:#f8d7da;color:#721c24; }
+/* 推荐标签 */
+.recommended-tag { font-size:9px;background:#ffd700;color:#1a1a2e;border-radius:4px;padding:1px 5px;display:inline-block;margin-left:4px;font-weight:600; }
+/* ═══ 部署管理手机端 ═══ */
+@media (max-width: 768px) {
+    .platform-grid { grid-template-columns: 1fr 1fr; }
+    .plugin-grid { grid-template-columns: 1fr; }
+    .comment-select { flex-direction: column; }
+    .comment-option { max-width: 100%; min-width: unset; }
+    .config-actions { flex-direction: column; align-items: stretch; }
+    .config-actions .btn { width: 100%; text-align: center; min-height: 40px; }
+    .site-config-card { padding: 14px; }
+    .site-config-card h3 { font-size: 14px; }
+}
+@media (max-width: 480px) {
+    .platform-grid { grid-template-columns: 1fr; }
+    .platform-card { padding: 10px; }
+    .plugin-card { padding: 10px; }
+}
+</style>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-    <h2 style="margin:0;">🚀 部署管理</h2>
+<!-- ====== 博客站点全局配置 ====== -->
+<div class="site-config-card">
+    <h3>🌐 博客站点配置</h3>
+    <p style="font-size:12px;color:#888;margin:-6px 0 14px;">
+        配置博客平台、评论系统和功能插件 — 所有配置持久化到数据库
+    </p>
+
+    <!-- a. 博客平台选择 -->
+    <div id="platformSection">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">📖 选择博客平台</label>
+        <div class="platform-grid" id="platformGrid">
+            <!-- 由 JS 动态渲染 -->
+            <p style="color:#999;font-size:13px;">正在加载博客平台列表...</p>
+        </div>
+    </div>
+
+    <!-- b. 评论系统配置 -->
+    <div id="commentSection" style="margin-top:16px;">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">💬 评论系统配置</label>
+        <div class="comment-select" id="commentSelect">
+            <div class="comment-option" data-comment="" onclick="selectComment(this)">
+                <div class="co-icon">🚫</div>
+                <div class="co-name">无评论</div>
+                <div class="co-desc">关闭评论功能</div>
+            </div>
+            <!-- 由 JS 动态渲染评论系统选项 -->
+            <p style="color:#999;font-size:13px;">正在加载评论系统列表...</p>
+        </div>
+        <div id="commentConfigFields" class="comment-fields">
+            <!-- 由 JS 动态渲染配置字段 -->
+        </div>
+        <div id="commentGuideLink" style="display:none;margin-bottom:8px;">
+            <a href="#" target="_blank" class="guide-link" id="commentGuideHref">📖 查看配置引导教程 →</a>
+        </div>
+    </div>
+
+    <!-- c. 插件配置 -->
+    <div id="pluginSection" style="margin-top:16px;">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">🔌 站点插件</label>
+        <div class="plugin-grid" id="pluginGrid">
+            <!-- 由 JS 动态渲染 -->
+            <p style="color:#999;font-size:13px;">正在加载插件列表...</p>
+        </div>
+    </div>
+
+    <!-- 保存按钮 -->
+    <div class="config-actions">
+        <button onclick="saveSiteConfig()" class="btn btn-success" style="font-size:14px;padding:10px 24px;">💾 保存站点配置</button>
+        <div id="configSaveStatus" class="config-status"></div>
+    </div>
 </div>
 
-<!-- 添加部署配置 -->
+<!-- ====== 添加部署目标（原有） ====== -->
 <div class="card">
     <h3>➕ 添加部署目标</h3>
     <form method="post" action="/deployers/add" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
@@ -33,11 +182,11 @@
     </form>
 </div>
 
-<!-- 已配置的部署 -->
+<!-- ====== 已配置的部署（原有） ====== -->
 <div class="card" style="margin-top:16px;">
     <h3>📡 已配置的部署目标</h3>
     {% if configs %}
-    <table>
+    <table class="rsp-table">
         <thead>
             <tr>
                 <th>名称</th>
@@ -80,7 +229,7 @@
     {% endif %}
 </div>
 
-<!-- 部署记录 -->
+<!-- ====== 部署记录（原有） ====== -->
 <div class="card" style="margin-top:16px;">
     <h3>📋 部署记录</h3>
     {% if logs %}
@@ -118,35 +267,399 @@
 </div>
 
 <script>
+// ====== 全局状态 ======
+var selectedPlatform = null;
+var selectedComment = null;
+var commentSystems = [];
+var plugins = [];
+var blogPlatforms = [];
+
+// ====== 加载数据 ======
+function loadSiteConfig() {
+    fetch('/api/deploy/site-config')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.config) {
+                var cfg = data.config;
+                selectedPlatform = cfg.platform || 'github_pages';
+                selectedComment = cfg.comment_system || '';
+
+                var commentCfg = {};
+                var pluginCfg = {};
+                try { commentCfg = JSON.parse(cfg.comment_config || '{}'); } catch(e) {}
+                try { pluginCfg = JSON.parse(cfg.plugins_config || '{}'); } catch(e) {}
+
+                window._savedCommentConfig = commentCfg;
+                window._savedPluginConfig = pluginCfg;
+            }
+        })
+        .catch(function() {})
+        .finally(function() {
+            loadPlatforms();
+        });
+}
+
+function loadPlatforms() {
+    fetch('/api/deploy/platforms')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                blogPlatforms = data.platforms;
+                renderPlatforms(data.platforms);
+                loadComments();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadComments() {
+    fetch('/api/deploy/comments')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                commentSystems = data.systems;
+                renderComments(data.systems);
+                loadPlugins();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadPlugins() {
+    fetch('/api/deploy/plugins')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                plugins = data.plugins;
+                renderPlugins(data.plugins);
+            }
+        })
+        .catch(function() {});
+}
+
+// ====== 渲染平台 ======
+function renderPlatforms(platforms) {
+    var grid = document.getElementById('platformGrid');
+    grid.innerHTML = '';
+    platforms.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'platform-card' + (selectedPlatform === p.id ? ' selected' : '');
+        card.dataset.platform = p.id;
+        card.onclick = function() { selectPlatform(p.id); };
+
+        // 推荐评论标签
+        var recHtml = '';
+        if (p.recommended_comments && p.recommended_comments.length > 0) {
+            recHtml = '<span class="recommended-tag">推荐 ' + p.recommended_comments[0] + '</span>';
+        }
+
+        card.innerHTML = '<div class="plat-icon">' + p.icon + '</div>'
+            + '<div class="plat-name">' + p.name + recHtml + '</div>'
+            + '<div class="plat-desc">' + p.desc + '</div>'
+            + '<div class="plat-file">' + p.config_file + '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function selectPlatform(pid) {
+    selectedPlatform = pid;
+    document.querySelectorAll('.platform-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.platform === pid);
+    });
+    // 推荐评论系统自动选择
+    var p = blogPlatforms.find(function(bp) { return bp.id === pid; });
+    if (p && p.recommended_comments && p.recommended_comments.length > 0) {
+        var rec = p.recommended_comments[0];
+        // Highlight the recommended comment
+        document.querySelectorAll('.comment-option').forEach(function(c) {
+            if (c.dataset.comment === rec) {
+                // Don't auto-select, just highlight visually
+                c.style.boxShadow = '0 0 0 2px #ffd700';
+            } else {
+                c.style.boxShadow = '';
+            }
+        });
+    }
+}
+
+// ====== 渲染评论系统 ======
+function renderComments(systems) {
+    var container = document.getElementById('commentSelect');
+    container.innerHTML = '';
+
+    // 无评论选项
+    var noneOption = document.createElement('div');
+    noneOption.className = 'comment-option' + (selectedComment === '' ? ' selected' : '');
+    noneOption.dataset.comment = '';
+    noneOption.onclick = function() { selectComment(this); };
+    noneOption.innerHTML = '<div class="co-icon">🚫</div>'
+        + '<div class="co-name">无评论</div>'
+        + '<div class="co-desc">关闭评论功能</div>';
+    container.appendChild(noneOption);
+
+    // 各评论系统
+    systems.forEach(function(s) {
+        var opt = document.createElement('div');
+        opt.className = 'comment-option' + (selectedComment === s.id ? ' selected' : '');
+        opt.dataset.comment = s.id;
+        opt.onclick = function() { selectComment(this); };
+        opt.innerHTML = '<div class="co-icon">' + s.icon + '</div>'
+            + '<div class="co-name">' + s.name + '</div>'
+            + '<div class="co-desc">' + s.desc + '</div>';
+        container.appendChild(opt);
+    });
+}
+
+function selectComment(el) {
+    document.querySelectorAll('.comment-option').forEach(function(c) { c.classList.remove('selected'); });
+    el.classList.add('selected');
+    selectedComment = el.dataset.comment;
+
+    var fieldsContainer = document.getElementById('commentConfigFields');
+    var guideLink = document.getElementById('commentGuideLink');
+    var guideHref = document.getElementById('commentGuideHref');
+
+    if (!selectedComment) {
+        fieldsContainer.classList.remove('show');
+        fieldsContainer.innerHTML = '';
+        guideLink.style.display = 'none';
+        return;
+    }
+
+    var sys = commentSystems.find(function(s) { return s.id === selectedComment; });
+    if (!sys) { fieldsContainer.classList.remove('show'); return; }
+
+    // 显示配置引导链接
+    if (sys.url) {
+        guideHref.href = sys.url;
+        guideLink.style.display = 'block';
+    } else {
+        guideLink.style.display = 'none';
+    }
+
+    // 渲染配置字段
+    fieldsContainer.innerHTML = '<label style="font-weight:600;font-size:13px;margin-bottom:6px;display:block;">'
+        + sys.icon + ' ' + sys.name + ' 配置</label>';
+    var saved = window._savedCommentConfig || {};
+    (sys.fields || []).forEach(function(f) {
+        var group = document.createElement('div');
+        group.style.marginBottom = '8px';
+        var label = document.createElement('label');
+        label.style.fontSize = '12px';
+        label.style.fontWeight = '600';
+        label.style.display = 'block';
+        label.style.marginBottom = '2px';
+        label.textContent = f.label;
+        if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+        group.appendChild(label);
+
+        if (f.type === 'select' && f.options) {
+            var sel = document.createElement('select');
+            sel.className = 'comment-field';
+            sel.dataset.fieldKey = f.key;
+            sel.style.width = '100%';
+            sel.style.padding = '6px 8px';
+            sel.style.border = '1px solid #ddd';
+            sel.style.borderRadius = '4px';
+            sel.style.fontSize = '12px';
+            f.options.forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.label || o.value;
+                if (o.value === (saved[f.key] || f.default)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            group.appendChild(sel);
+        } else {
+            var input = document.createElement('input');
+            input.type = f.type === 'number' ? 'number' : 'text';
+            input.className = 'comment-field';
+            input.dataset.fieldKey = f.key;
+            input.placeholder = f.placeholder || '';
+            input.value = saved[f.key] || f.default || '';
+            input.style.width = '100%';
+            input.style.padding = '6px 8px';
+            input.style.border = '1px solid #ddd';
+            input.style.borderRadius = '4px';
+            input.style.fontSize = '12px';
+            if (f.required) input.required = true;
+            group.appendChild(input);
+        }
+        fieldsContainer.appendChild(group);
+    });
+
+    // 添加配置说明
+    if (sys.url) {
+        var tip = document.createElement('p');
+        tip.style.fontSize = '11px';
+        tip.style.color = '#888';
+        tip.style.marginTop = '6px';
+        tip.innerHTML = '💡 如需扫码授权登录，请点击上方引导链接打开 ' + sys.name + ' 官方配置页';
+        fieldsContainer.appendChild(tip);
+    }
+
+    fieldsContainer.classList.add('show');
+}
+
+// ====== 渲染插件 ======
+function renderPlugins(plugins) {
+    var grid = document.getElementById('pluginGrid');
+    grid.innerHTML = '';
+    var saved = window._savedPluginConfig || {};
+
+    plugins.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'plugin-card';
+        card.dataset.plugin = p.id;
+
+        var enabled = saved[p.id] && saved[p.id].enabled === '1';
+        card.innerHTML = '<div class="plugin-header">'
+            + '<span class="plugin-icon">' + p.icon + '</span>'
+            + '<span class="plugin-name">' + p.name + '</span>'
+            + '<label class="toggle-switch">'
+            + '<input type="checkbox" data-plugin="' + p.id + '" ' + (enabled ? 'checked' : '')
+            + ' onchange="togglePlugin(this, \'' + p.id + '\')">'
+            + '<span class="toggle-slider"></span>'
+            + '</label>'
+            + '</div>'
+            + '<div class="plugin-desc">' + p.desc + '</div>'
+            + '<div class="plugin-fields' + (enabled ? ' show' : '') + '" id="pluginFields_' + p.id + '">';
+
+        (p.fields || []).forEach(function(f) {
+            var val = (saved[p.id] || {})[f.key] || f.default || '';
+            if (f.type === 'select' && f.options) {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<select data-plugin="' + p.id + '" data-field="' + f.key + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;">';
+                f.options.forEach(function(o) {
+                    card.innerHTML += '<option value="' + o.value + '"' + (val === o.value ? ' selected' : '') + '>' + (o.label || o.value) + '</option>';
+                });
+                card.innerHTML += '</select></div>';
+            } else if (f.type === 'textarea') {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<textarea data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;min-height:60px;font-family:monospace;">' + val + '</textarea></div>';
+            } else {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" value="' + val + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+            }
+        });
+
+        card.innerHTML += '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function togglePlugin(cb, pluginId) {
+    var fields = document.getElementById('pluginFields_' + pluginId);
+    if (fields) {
+        fields.classList.toggle('show', cb.checked);
+    }
+}
+
+// ====== 收集+保存配置 ======
+function collectCommentConfig() {
+    if (!selectedComment) return {};
+    var fields = document.querySelectorAll('.comment-field');
+    var cfg = {};
+    fields.forEach(function(f) {
+        cfg[f.dataset.fieldKey] = f.value;
+    });
+    return cfg;
+}
+
+function collectPluginConfig() {
+    var cfg = {};
+    document.querySelectorAll('.plugin-card').forEach(function(card) {
+        var pid = card.dataset.plugin;
+        var enabled = card.querySelector('input[type="checkbox"]');
+        if (!enabled || !enabled.checked) return;
+        cfg[pid] = { enabled: '1' };
+        card.querySelectorAll('input[data-field], select[data-field], textarea[data-field]').forEach(function(f) {
+            cfg[pid][f.dataset.field] = f.value;
+        });
+    });
+    return cfg;
+}
+
+function saveSiteConfig() {
+    var btn = document.querySelector('.config-actions .btn-success');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    var status = document.getElementById('configSaveStatus');
+    status.className = 'config-status';
+    status.style.display = 'none';
+
+    var payload = {
+        platform: selectedPlatform || 'github_pages',
+        comment_system: selectedComment || '',
+        comment_config: collectCommentConfig(),
+        plugins_config: collectPluginConfig(),
+    };
+
+    fetch('/api/deploy/site-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            status.className = 'config-status success';
+            status.textContent = '✅ ' + (data.message || '站点配置已保存');
+            status.style.display = 'block';
+        } else {
+            status.className = 'config-status error';
+            status.textContent = '❌ ' + (data.error || '保存失败');
+            status.style.display = 'block';
+        }
+    })
+    .catch(function(err) {
+        status.className = 'config-status error';
+        status.textContent = '❌ 请求失败: ' + err.message;
+        status.style.display = 'block';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '💾 保存站点配置';
+        // 3秒后隐藏状态
+        setTimeout(function() {
+            status.style.display = 'none';
+        }, 3000);
+    });
+}
+
+// ====== 原有动态字段（保持兼容） ======
 function toggleFields(sel) {
-    const container = document.getElementById('dynamicFields');
-    const option = sel.options[sel.selectedIndex];
+    var container = document.getElementById('dynamicFields');
+    var option = sel.options[sel.selectedIndex];
     if (!option || !option.value) {
         container.style.display = 'none';
         return;
     }
     try {
-        const fields = JSON.parse(option.getAttribute('data-fields') || '[]');
+        var fields = JSON.parse(option.getAttribute('data-fields') || '[]');
         container.innerHTML = '';
         if (fields.length === 0) {
             container.style.display = 'none';
             return;
         }
-        fields.forEach(f => {
-            const group = document.createElement('div');
+        fields.forEach(function(f) {
+            var group = document.createElement('div');
             group.className = 'form-group';
-            const label = document.createElement('label');
+            var label = document.createElement('label');
             label.textContent = f.label || f.key;
             if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
             group.appendChild(label);
 
             if (f.type === 'select') {
-                const select = document.createElement('select');
+                var select = document.createElement('select');
                 select.name = 'cfg_' + f.key;
                 select.required = f.required;
                 if (f.options) {
-                    f.options.forEach(o => {
-                        const opt = document.createElement('option');
+                    f.options.forEach(function(o) {
+                        var opt = document.createElement('option');
                         opt.value = o.value;
                         opt.textContent = o.label || o.value;
                         select.appendChild(opt);
@@ -154,7 +667,7 @@ function toggleFields(sel) {
                 }
                 group.appendChild(select);
             } else {
-                const input = document.createElement('input');
+                var input = document.createElement('input');
                 input.type = f.type === 'password' ? 'password' : 'text';
                 input.name = 'cfg_' + f.key;
                 input.placeholder = f.placeholder || '';
@@ -163,7 +676,6 @@ function toggleFields(sel) {
                 if (f.required) input.required = true;
                 group.appendChild(input);
             }
-
             container.appendChild(group);
         });
         container.style.display = 'flex';
@@ -171,5 +683,8 @@ function toggleFields(sel) {
         container.style.display = 'none';
     }
 }
+
+// ====== 初始化 ======
+loadSiteConfig();
 </script>
 {% endblock %}

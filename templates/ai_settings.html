@@ -1,167 +1,937 @@
 {% extends "base.html" %}
 {% block title %}AI 能力配置{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+</style>
 <h1 style="margin-bottom:20px;">🤖 AI 能力配置</h1>
-<p style="color:#666;margin-bottom:20px;">配置各能力的 AI Provider，支持多 Provider 并行/自动切换</p>
+<p style="color:#666;margin-bottom:20px;">从数据库动态加载 — 先选择供应商 → 填别称 + API Key → 测试连接 → 自动保存</p>
 
-<!-- 能力配置 -->
-<div class="card">
-    <h2>📋 能力路由</h2>
-    {% if config.capabilities %}
-    <table>
-        <thead><tr><th>能力</th><th>主Provider</th><th>模型</th><th>模式</th><th>操作</th></tr></thead>
-        <tbody>
-        {% for cap, cfg in config.capabilities.items() %}
-        <tr>
-            <td><strong>{{ cap }}</strong></td>
-            <td>{{ cfg.provider or cfg.providers[0].name if cfg.providers else '-' }}</td>
-            <td>{{ cfg.model or cfg.providers[0].model if cfg.providers else '-' }}</td>
-            <td>{{ cfg.mode or 'fallback' }}</td>
-            <td><button class="btn btn-sm btn-primary" onclick="editCapability('{{ cap }}')">编辑</button></td>
-        </tr>
-        {% endfor %}
+<style>
+.ai-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid #e0e0e0; border-radius:8px; margin-bottom:6px; transition:background .15s; flex-wrap:wrap; }
+.ai-row:hover { background:#f8f9fa; }
+.ai-row.disabled { opacity:.55; background:#f5f5f5; }
+.ai-icon { font-size:22px; flex-shrink:0; }
+.ai-name { font-weight:600; flex-shrink:0; min-width:100px; font-size:14px; }
+.ai-alias { color:#666; font-size:12px; flex-shrink:0; }
+.ai-website-link { font-size:12px; color:#4361ee; text-decoration:none; flex-shrink:0; }
+.ai-website-link:hover { text-decoration:underline; }
+.ai-status-badge { flex-shrink:0; min-width:80px; text-align:center; font-size:12px; }
+.ai-balance { flex-shrink:0; font-size:12px; color:#666; background:#f0f0f0; padding:2px 8px; border-radius:4px; }
+.ai-tools { display:flex; gap:6px; flex-shrink:0; margin-left:auto; }
+.ai-refresh-btn, .ai-toggle-btn, .ai-delete-btn { padding:3px 10px; border-radius:4px; border:1px solid #ddd; background:#fff; cursor:pointer; font-size:12px; }
+.ai-refresh-btn:hover { background:#e8f4fd; }
+.ai-toggle-btn.on { background:#d4edda; border-color:#22c55e; }
+.ai-toggle-btn.off { background:#f8d7da; border-color:#dc3545; }
+.ai-delete-btn:hover { background:#f8d7da; border-color:#dc3545; color:#dc3545; }
+/* ═══ AI 设置手机端 ═══ */
+@media (max-width: 768px) {
+    .ai-row { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+    .ai-name { min-width: 70px; font-size: 13px; }
+    .ai-icon { font-size: 18px; }
+    .ai-tools { margin-left: 0; width: 100%; justify-content: flex-start; }
+    .ai-tools button { flex: 1 1 auto; text-align: center; min-height: 36px; font-size: 11px; }
+    .ai-website-link { width: 100%; }
+}
+@media (max-width: 480px) {
+    .ai-row { padding: 6px 8px; gap: 4px; }
+    .ai-name { min-width: 60px; font-size: 12px; }
+    .ai-status-badge { font-size: 10px; min-width: 50px; }
+    .ai-balance { font-size: 10px; }
+    .ai-tools button { min-height: 40px; font-size: 12px; }
+}
+</style>
+
+<!-- 顶部操作栏 -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+        <select id="providerSelector" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;min-width:220px;">
+            <option value="">— 选择供应商添加 —</option>
+        </select>
+        <button onclick="onAddProvider()" class="btn btn-success">➕ 添加</button>
+        <button onclick="showAddCustomProvider()" class="btn btn-sm btn-info">✏️ 自定义</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="refreshAllBalances()" class="btn btn-sm btn-secondary">🔄 刷新余额</button>
+        <span id="aiCount" style="font-size:13px;color:#666;"></span>
+    </div>
+</div>
+
+<!-- 已配置的供应商列表（单列） -->
+<div class="card" style="padding:16px;">
+    <h2 style="margin-bottom:12px;font-size:15px;">🔌 已配置的 AI 供应商</h2>
+    <div id="providerList">
+        <p style="color:#999;padding:20px;text-align:center;">加载中...</p>
+    </div>
+</div>
+
+<!-- 添加供应商弹窗 -->
+<div id="addProviderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;font-size:18px;">➕ <span id="addProvName"></span></h2>
+        <div class="form-group">
+            <label>别称 <span style="color:#999;font-size:12px;">（同一供应商可添加多个，必填）</span></label>
+            <input id="addField_alias" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="例如: 工作号、主力Key">
+        </div>
+        <div id="addProvFields"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+            <button onclick="testAndSaveProvider()" class="btn btn-primary">🔍 测试并保存</button>
+            <button onclick="testOnlyProvider()" class="btn btn-info" id="testOnlyBtn">🔍 仅测试</button>
+            <button onclick="closeAddModal()" class="btn" style="background:#eee;">取消</button>
+        </div>
+        <div id="addProvTestResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
+    </div>
+</div>
+
+<!-- 编辑供应商弹窗 -->
+<div id="editProviderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;font-size:18px;">🔧 编辑供应商配置</h2>
+        <input type="hidden" id="editProvId">
+        <div class="form-group">
+            <label>别称 <span style="color:#999;font-size:12px;">（同一供应商可添加多个，必填）</span></label>
+            <input id="editField_alias" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="例如: 工作号、主力Key">
+        </div>
+        <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="editField_api_key" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="留空则不修改">
+        </div>
+        <div class="form-group">
+            <label>API Base URL</label>
+            <input id="editField_api_base" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder="https://api.example.com/v1">
+        </div>
+        <div class="form-group">
+            <label>API 格式</label>
+            <select id="editField_api_format" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
+                <option value="openai">OpenAI 兼容</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Gemini</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>模型列表 <span style="color:#999;font-size:12px;">（JSON 数组，如 ["gpt-4","gpt-4o"]）</span></label>
+            <input id="editField_models" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;" placeholder='["gpt-4", "gpt-4o"]'>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+            <button onclick="saveEditProvider()" class="btn btn-primary">💾 保存修改</button>
+            <button onclick="closeEditModal()" class="btn" style="background:#eee;">取消</button>
+        </div>
+        <div id="editProvResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
+    </div>
+</div>
+
+<!-- 自定义供应商弹窗 -->
+<div id="customProvModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;font-size:18px;">✏️ 自定义供应商</h2>
+        <div class="form-group"><label>名称</label><input id="custName" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>
+        <div class="form-group"><label>API Base URL</label><input id="custBase" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="https://api.example.com/v1"></div>
+        <div class="form-group"><label>API 格式</label>
+            <select id="custFormat" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="openai">OpenAI 兼容</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Gemini</option>
+            </select>
+        </div>
+        <div class="form-group"><label>模型（逗号分隔）</label><input id="custModels" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="gpt-4o, gpt-4o-mini"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+            <button onclick="saveCustomProvider()" class="btn btn-primary">💾 保存</button>
+            <button onclick="closeCustomModal()" class="btn" style="background:#eee;">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ====== 能力路由（能力 -> 供应商映射） ====== -->
+<div class="card" style="padding:16px;margin-top:20px;">
+    <h2 style="margin-bottom:12px;font-size:15px;">📋 能力路由（哪个供应商处理什么任务）</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+            <tr style="background:#f5f5f5;">
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">能力名</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">供应商</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">模型</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">模式</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">状态</th>
+                <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ddd;">操作</th>
+            </tr>
+        </thead>
+        <tbody id="capabilityTableBody">
+            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载中...</td></tr>
         </tbody>
     </table>
-    {% else %}
-    <p style="color:#999;padding:12px 0;">暂未配置能力路由（将使用默认自动发现）</p>
-    {% endif %}
 </div>
 
-<!-- AI Provider 列表 -->
-<div class="card">
-    <h2>🔌 可用 AI Provider</h2>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">
-    {% for p in providers %}
-    <div style="border:1px solid #ddd;border-radius:8px;padding:16px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span style="font-size:24px;">{{ p.icon }}</span>
-            <div>
-                <strong>{{ p.display_name }}</strong>
-                <span style="color:#999;font-size:12px;display:block;">{{ p.name }}</span>
-            </div>
-        </div>
-        <p style="font-size:13px;color:#666;margin:0 0 8px;">{{ p.description }}</p>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
-            {% for cap in p.capabilities %}
-            <span class="badge badge-info">{{ cap }}</span>
-            {% endfor %}
-        </div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;">
-            {% for m in p.models %}
-            <span style="font-size:11px;color:#999;background:#f5f5f5;padding:2px 6px;border-radius:4px;">{{ m }}</span>
-            {% endfor %}
-        </div>
-        <div style="margin-top:8px;">
-            {% set provider_cfg = config.providers.get(p.name, {}) %}
-            {% if provider_cfg.api_key %}
-            <span class="badge badge-success">✅ 已配置</span>
-            {% else %}
-            <span class="badge badge-warning">⚠️ 未配置API Key</span>
-            {% endif %}
-            <button class="btn btn-sm btn-primary" style="float:right;" onclick="editProvider('{{ p.name }}')">配置</button>
-        </div>
-    </div>
-    {% endfor %}
-    </div>
-</div>
-
-<!-- 编辑弹窗 -->
-<div id="editModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+<!-- 能力路由编辑弹窗 -->
+<div id="capEditModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:24px;max-width:500px;width:90%;">
-        <h2 id="editModalTitle" style="margin-bottom:16px;"></h2>
-        <div id="editModalBody"></div>
-        <div style="display:flex;gap:8px;margin-top:16px;">
-            <button class="btn btn-primary" onclick="saveEdit()">保存</button>
-            <button class="btn" style="background:#eee;" onclick="closeEdit()">取消</button>
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:420px;width:95%;">
+        <h2 style="margin-bottom:16px;font-size:18px;">✏️ 编辑能力路由</h2>
+        <div class="form-group">
+            <label>能力</label>
+            <input id="capEditName" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" readonly>
         </div>
+        <div class="form-group">
+            <label>供应商 <span style="color:#999;font-size:12px;">（自动=智能路由）</span></label>
+            <select id="capEditProvider" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="auto">🔄 自动路由（推荐）</option>
+                <option value="disabled">🚫 禁用</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>模型 <span style="color:#999;font-size:12px;">（自动=让供应商决定）</span></label>
+            <select id="capEditModel" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="auto">🔄 自动</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>模式</label>
+            <select id="capEditMode" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                <option value="auto">🔄 自动</option>
+                <option value="chat">💬 Chat（对话）</option>
+                <option value="competition">🏆 Competition（竞赛）</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+            <button onclick="saveCap()" class="btn btn-primary">💾 保存</button>
+            <button onclick="closeCapEditModal()" class="btn" style="background:#eee;">取消</button>
+        </div>
+        <div id="capEditResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
     </div>
 </div>
 
 <script>
-var _editingType = '';
-var _editingName = '';
+// ====== 页面加载 ======
+let _currentProvider = null;
+let _configuredProvidersFull = [];
 
-function editCapability(name) {
-    _editingType = 'capability';
-    _editingName = name;
-    document.getElementById('editModalTitle').textContent = '编辑能力: ' + name;
+document.addEventListener('DOMContentLoaded', function() {
+    loadRegistry();
+    loadConfigured();
+    loadCapabilities();
+});
 
-    var html = '<div class="form-group"><label>主Provider</label>' +
-        '<select id="editPrimary" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">' +
-        '<option value="">自动发现</option>' +
-        {% for p in providers %}
-        '<option value="{{ p.name }}">{{ p.display_name }}</option>' +
-        {% endfor %}
-        '</select></div>' +
-        '<div class="form-group"><label>模型（可选）</label>' +
-        '<input id="editModel" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="留空使用默认"></div>';
-
-    document.getElementById('editModalBody').innerHTML = html;
-    document.getElementById('editModal').style.display = 'flex';
+function loadRegistry() {
+    fetch('/api/ai/providers/list')
+    .then(r => r.json())
+    .then(data => {
+        renderProviderSelector(data);
+    })
+    .catch(() => {});
 }
 
-function editProvider(name) {
-    _editingType = 'provider';
-    _editingName = name;
-    document.getElementById('editModalTitle').textContent = '配置 Provider: ' + name;
-
-    var html = '<div class="form-group"><label>API Key</label>' +
-        '<input id="editApiKey" type="password" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="输入API密钥"></div>' +
-        '<div class="form-group"><label>API Base URL（可选）</label>' +
-        '<input id="editApiBase" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="留空使用默认"></div>';
-
-    document.getElementById('editModalBody').innerHTML = html;
-    document.getElementById('editModal').style.display = 'flex';
-
-    // 加载现有配置
-    fetch('/api/ai/config')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var pc = data.providers[name] || {};
-            if (document.getElementById('editApiKey')) {
-                document.getElementById('editApiKey').value = pc.api_key || '';
-                document.getElementById('editApiBase').value = pc.api_base || '';
-            }
-        });
-}
-
-function saveEdit() {
-    if (_editingType === 'capability') {
-        var primary = document.getElementById('editPrimary').value;
-        var model = document.getElementById('editModel').value;
-        var cfg = {};
-        if (primary) {
-            cfg.provider = primary;
-            if (model) cfg.model = model;
+function loadConfigured() {
+    fetch('/api/ai/providers/configured')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _configuredProvidersFull = data.providers || [];
+            renderConfiguredList(_configuredProvidersFull);
+            document.getElementById('aiCount').textContent = '已配置 ' + _configuredProvidersFull.length + ' 个';
         }
-        fetch('/api/ai/config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({capabilities: {[_editingName]: cfg}}),
-        }).then(function(r) { return r.json(); }).then(function(d) {
-            if (d.success) { location.reload(); }
-            else { alert('保存失败: ' + d.error); }
-        });
-    } else if (_editingType === 'provider') {
-        var apiKey = document.getElementById('editApiKey').value;
-        var apiBase = document.getElementById('editApiBase').value;
-        var cfg = {api_key: apiKey};
-        if (apiBase) cfg.api_base = apiBase;
-
-        fetch('/api/ai/config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({providers: {[_editingName]: cfg}}),
-        }).then(function(r) { return r.json(); }).then(function(d) {
-            if (d.success) { location.reload(); }
-            else { alert('保存失败: ' + d.error); }
-        });
-    }
+    })
+    .catch(() => {
+        document.getElementById('providerList').innerHTML = '<p style="color:#999;padding:20px;text-align:center;">加载失败</p>';
+    });
 }
 
-function closeEdit() {
-    document.getElementById('editModal').style.display = 'none';
+function renderProviderSelector(data) {
+    const sel = document.getElementById('providerSelector');
+    const providers = data.providers || [];
+    const catMap = {};
+    providers.forEach(p => {
+        const cat = p.category || 'custom';
+        if (!catMap[cat]) catMap[cat] = [];
+        catMap[cat].push(p);
+    });
+    sel.innerHTML = '<option value="">— 选择供应商添加 —</option>';
+    Object.entries(catMap).forEach(([cat, list]) => {
+        const catInfo = (data.categories || {})[cat] || {name: cat, icon: '📦'};
+        const group = document.createElement('optgroup');
+        group.label = catInfo.icon + ' ' + (catInfo.name || cat);
+        list.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.name;
+            opt.textContent = p.icon + ' ' + p.display_name;
+            opt.dataset.data = JSON.stringify(p);
+            group.appendChild(opt);
+        });
+        sel.appendChild(group);
+    });
+}
+
+function renderConfiguredList(providers) {
+    const container = document.getElementById('providerList');
+    if (!providers.length) {
+        container.innerHTML = '<p style="color:#999;padding:20px;text-align:center;">暂无已配置的供应商，请从上方选择添加</p>';
+        return;
+    }
+
+    // 按同类排序
+    const catOrder = ['chat', 'image', 'audio', 'video', 'embedding', 'custom'];
+    providers.sort((a, b) => {
+        const ai = catOrder.indexOf(a.category || 'custom');
+        const bi = catOrder.indexOf(b.category || 'custom');
+        if (ai !== bi) return ai - bi;
+        return (a.display_name || a.provider).localeCompare(b.display_name || b.provider);
+    });
+
+    let html = '';
+    providers.forEach(p => {
+        const enabled = p.enabled !== 0;
+        const status = p.status || 'untested';
+        const balance = p.balance || '';
+        const website = p.website || '';
+        const alias = p.alias || '';
+        const modelList = p.models_list || [];
+        const modelsHtml = modelList.length > 0
+            ? '<span style="display:inline-flex;gap:4px;flex-wrap:wrap;flex-shrink:0;max-width:300px;">' +
+              modelList.slice(0, 5).map(m => '<span style="font-size:10px;background:#e8f0fe;color:#1a56db;padding:1px 6px;border-radius:4px;white-space:nowrap;">' + escapeHtml(m) + '</span>').join('') +
+              (modelList.length > 5 ? '<span style="font-size:10px;color:#999;">+' + (modelList.length - 5) + '</span>' : '') +
+              '</span>'
+            : '';
+
+        html += '<div class="ai-row ' + (enabled ? '' : 'disabled') + '" id="airow_' + p.id + '">' +
+            '<span class="ai-icon">' + (p.icon || '🤖') + '</span>' +
+            '<span class="ai-name">' + escapeHtml(p.display_name || p.provider) + '</span>' +
+            (alias ? '<span class="ai-alias">(' + escapeHtml(alias) + ')</span>' : '') +
+            (website ? '<a href="' + website + '" target="_blank" class="ai-website-link" title="' + website + '">🌐 官网</a>' : '') +
+            '<span class="ai-status-badge">' +
+                (status === 'connected'
+                    ? '<span class="badge badge-success">✅ 已连接</span>'
+                    : status === 'failed'
+                    ? '<span class="badge badge-danger">❌ 断开</span>'
+                    : '<span class="badge badge-warning">⏳ 未测</span>') +
+            '</span>' +
+            (balance ? '<span class="ai-balance" id="balance_' + p.id + '">💰 ' + escapeHtml(balance) + '</span>' : '') +
+            (modelsHtml) +
+            '<span class="ai-tools">' +
+                '<button class="ai-refresh-btn" onclick="fetchModels(' + p.id + ')" title="获取模型列表">📋</button>' +
+                '<button class="ai-refresh-btn" onclick="refreshBalance(' + p.id + ')" title="刷新余额">🔄</button>' +
+                '<button class="ai-toggle-btn ' + (enabled ? 'on' : 'off') + '" onclick="toggleProvider(' + p.id + ')" title="' + (enabled ? '已启用 - 点击禁用' : '已禁用 - 点击启用') + '">' +
+                    (enabled ? '🟢 启用' : '🔴 禁用') +
+                '</button>' +
+                '<button class="ai-refresh-btn" onclick="editProvider(' + p.id + ')" title="编辑配置">🔧</button>' +
+                '<button class="ai-delete-btn" onclick="deleteProvider(' + p.id + ')" title="从数据库删除">🗑️ 删除</button>' +
+            '</span>' +
+        '</div>';
+    });
+    container.innerHTML = html;
+}
+
+// ====== 添加供应商 ======
+function onAddProvider() {
+    const sel = document.getElementById('providerSelector');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt.value) { alert('请先选择一个供应商'); return; }
+    const p = JSON.parse(opt.dataset.data || '{}');
+    showAddModal(p);
+}
+
+function showAddModal(p) {
+    _currentProvider = p;
+    document.getElementById('addProvName').textContent = (p.icon || '') + ' ' + (p.display_name || p.name);
+    document.getElementById('addField_alias').value = '';
+
+    let fields = p.config_fields || [];
+    if (p.api_base && !fields.find(f => f.key === 'api_base')) {
+        fields.push({key: 'api_base', label: 'API Base URL', type: 'text', required: false, placeholder: p.api_base});
+    }
+    let html = '';
+    fields.forEach(f => {
+        const t = f.type === 'password' ? 'password' : 'text';
+        html += '<div class="form-group"><label>' + (f.label || f.key) + '</label>' +
+            '<input type="' + t + '" id="addField_' + f.key + '" placeholder="' + (f.placeholder || '') + '"' +
+            ' style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;"></div>';
+    });
+    document.getElementById('addProvFields').innerHTML = html;
+    document.getElementById('addProvTestResult').style.display = 'none';
+    document.getElementById('addProviderModal').style.display = 'flex';
+}
+
+function closeAddModal() {
+    document.getElementById('addProviderModal').style.display = 'none';
+}
+
+function testOnlyProvider() {
+    _testConnection(false);
+}
+
+function testAndSaveProvider() {
+    _testConnection(true);
+}
+
+function _testConnection(saveOnSuccess) {
+    const p = _currentProvider;
+    if (!p) return;
+    const alias = document.getElementById('addField_alias')?.value?.trim() || '';
+    const apiKey = document.getElementById('addField_api_key')?.value || '';
+    if (!apiKey) { alert('请先填写 API Key'); return; }
+    const baseField = document.getElementById('addField_api_base');
+    const apiBase = baseField?.value || '';
+    const apiFormat = p.api_format || 'openai';
+
+    const div = document.getElementById('addProvTestResult');
+    div.style.display = 'block';
+    div.style.background = '#fff3cd';
+    div.style.color = '#856404';
+    div.innerHTML = '⏳ 测试连接中（零 token 消耗）...';
+
+    // Step 1: 测试连接
+    fetch('/api/ai/providers/configured/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            provider: p.name,
+            api_key: apiKey,
+            api_base: apiBase,
+            api_format: apiFormat,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            div.style.background = '#d4edda';
+            div.style.color = '#155724';
+            div.innerHTML = '✅ ' + escapeHtml(data.message || '连接成功');
+
+            if (saveOnSuccess) {
+                // Step 2: 成功 → 保存到数据库
+                const models = (data.models || p.models || []).join(',');
+                return fetch('/api/ai/providers/configured', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        provider: p.name,
+                        alias: alias,
+                        api_key: apiKey,
+                        api_base: apiBase,
+                        api_format: apiFormat,
+                        models: JSON.stringify(data.models || p.models || []),
+                    }),
+                });
+            } else {
+                // 仅测试，不保存
+                div.innerHTML = '✅ ' + escapeHtml(data.message || '连接成功') +
+                    '<br><span style="font-size:12px;">这是仅测试结果，未保存。点击「测试并保存」以保存到数据库</span>';
+                return null;
+            }
+        } else {
+            div.style.background = '#f8d7da';
+            div.style.color = '#721c24';
+            div.innerHTML = '❌ ' + escapeHtml(data.error || '连接失败');
+            return null;
+        }
+    })
+    .then(saveResult => {
+        if (saveResult) {
+            return saveResult.json();
+        }
+        return null;
+    })
+    .then(data => {
+        if (data && data.success) {
+            div.innerHTML = '✅ ✅ 已保存到数据库！';
+            closeAddModal();
+            loadConfigured(); // 刷新列表
+        } else if (data && !data.success) {
+            div.style.background = '#f8d7da';
+            div.style.color = '#721c24';
+            div.innerHTML = '❌ 保存失败: ' + escapeHtml(data.error || '');
+        }
+    })
+    .catch(e => {
+        div.style.background = '#f8d7da';
+        div.style.color = '#721c24';
+        div.innerHTML = '❌ 请求失败: ' + escapeHtml(e.message);
+    });
+}
+
+// ====== 启用/禁用 ======
+function toggleProvider(id) {
+    fetch('/api/ai/providers/configured/' + id + '/toggle', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured();
+        }
+    })
+    .catch(() => {});
+}
+
+// ====== 删除 ======
+function deleteProvider(id) {
+    if (!confirm('确认从数据库删除此 AI 供应商配置？')) return;
+    fetch('/api/ai/providers/configured/' + id, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured();
+        } else {
+            alert('删除失败: ' + (data.error || ''));
+        }
+    })
+    .catch(() => {});
+}
+
+// ====== 编辑供应商 ======
+let _editingProvId = null;
+
+function editProvider(id) {
+    const p = _configuredProvidersFull.find(x => x.id === id);
+    if (!p) {
+        alert('未找到供应商数据，请刷新页面重试');
+        return;
+    }
+    _editingProvId = id;
+
+    // Show provider name in modal title
+    const provIcon = p.icon || '🤖';
+    const provName = p.display_name || p.provider;
+    document.querySelector('#editProviderModal h2').textContent = '🔧 ' + provIcon + ' ' + provName;
+
+    // Pre-fill fields with current values
+    document.getElementById('editProvId').value = id;
+    document.getElementById('editField_alias').value = p.alias || '';
+
+    // API key: show hint but don't pre-fill actual key (security)
+    document.getElementById('editField_api_key').value = '';
+
+    document.getElementById('editField_api_base').value = p.api_base || '';
+
+    const fmtSelect = document.getElementById('editField_api_format');
+    fmtSelect.value = p.api_format || 'openai';
+
+    // Models: show as JSON array string
+    const models = p.models_list || [];
+    document.getElementById('editField_models').value = JSON.stringify(models);
+
+    // Show result area but hide previous result
+    const resultDiv = document.getElementById('editProvResult');
+    resultDiv.style.display = 'none';
+
+    document.getElementById('editProviderModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editProviderModal').style.display = 'none';
+}
+
+function saveEditProvider() {
+    const id = _editingProvId;
+    if (!id) return;
+
+    const data = {};
+    const alias = document.getElementById('editField_alias').value.trim();
+    if (alias) data.alias = alias;
+
+    const apiKey = document.getElementById('editField_api_key').value;
+    if (apiKey) data.api_key = apiKey;
+
+    const apiBase = document.getElementById('editField_api_base').value;
+    if (apiBase) data.api_base = apiBase;
+
+    const apiFormat = document.getElementById('editField_api_format').value;
+    if (apiFormat) data.api_format = apiFormat;
+
+    const modelsStr = document.getElementById('editField_models').value.trim();
+    if (modelsStr) {
+        try {
+            data.models = JSON.parse(modelsStr);
+            if (!Array.isArray(data.models)) {
+                alert('模型列表格式错误，请输入 JSON 数组，如 ["gpt-4", "gpt-4o"]');
+                return;
+            }
+        } catch (e) {
+            alert('模型列表格式错误，请输入有效的 JSON 数组，如 ["gpt-4", "gpt-4o"]');
+            return;
+        }
+    }
+
+    if (Object.keys(data).length === 0) {
+        alert('没有需要更新的内容');
+        return;
+    }
+
+    const resultDiv = document.getElementById('editProvResult');
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.color = '#856404';
+    resultDiv.innerHTML = '⏳ 保存中...';
+
+    fetch('/api/ai/providers/configured/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.color = '#155724';
+            resultDiv.innerHTML = '✅ ' + (data.message || '配置已更新');
+            setTimeout(() => {
+                closeEditModal();
+                loadConfigured();
+            }, 800);
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.color = '#721c24';
+            resultDiv.innerHTML = '❌ ' + (data.error || '保存失败');
+        }
+    })
+    .catch(e => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = '❌ 请求失败: ' + escapeHtml(e.message);
+    });
+}
+
+// ====== 余额刷新 ======
+function refreshBalance(id) {
+    const el = document.getElementById('balance_' + id);
+    if (el) el.innerHTML = '⏳ 刷新中...';
+    fetch('/api/ai/providers/balance/refresh/' + id, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (el) el.innerHTML = '💰 ' + escapeHtml(data.balance || 'N/A');
+        } else {
+            if (el) el.innerHTML = '❌ 查询失败';
+        }
+    })
+    .catch(() => {
+        if (el) el.innerHTML = '❌ 查询失败';
+    });
+}
+
+function fetchModels(id) {
+    // Get the provider info from the configured list
+    const row = document.getElementById('airow_' + id);
+    if (!row) return;
+    const btn = row.querySelector('.ai-tools button:first-child');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+    // We need provider name and api_key - fetch from configured list detail
+    fetch('/api/ai/providers/configured')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) throw new Error('加载失败');
+        const provider = (data.providers || []).find(p => p.id === id);
+        if (!provider) throw new Error('未找到供应商');
+
+        // Test connection and save models
+        return fetch('/api/ai/providers/configured/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                provider: provider.provider,
+                api_key: provider.api_key,
+                api_base: provider.api_base || '',
+                api_format: provider.api_format || 'openai',
+                config_id: id,
+            }),
+        });
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured(); // Refresh the list to show new models
+            loadCapabilities(); // Also refresh capability table model dropdown
+        } else {
+            alert('获取模型失败: ' + (data.error || ''));
+        }
+    })
+    .catch(e => {
+        alert('获取模型失败: ' + e.message);
+    })
+    .finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '📋'; }
+    });
+}
+
+function refreshAllBalances() {
+    const btn = document.querySelector('button[onclick="refreshAllBalances()"]');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 刷新中...'; }
+    fetch('/api/ai/providers/balance/refresh_all', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            loadConfigured();
+        }
+    })
+    .finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新余额'; }
+    });
+}
+
+// ====== 自定义供应商 ======
+function showAddCustomProvider() {
+    document.getElementById('customProvModal').style.display = 'flex';
+}
+function closeCustomModal() {
+    document.getElementById('customProvModal').style.display = 'none';
+}
+function saveCustomProvider() {
+    const name = document.getElementById('custName').value.trim();
+    if (!name) { alert('请填写名称'); return; }
+    const data = {
+        name: name,
+        api_base: document.getElementById('custBase').value.trim(),
+        api_format: document.getElementById('custFormat').value,
+        models: document.getElementById('custModels').value.split(',').map(s => s.trim()).filter(Boolean),
+    };
+    fetch('/api/ai/providers/custom', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    }).then(r => r.json()).then(d => {
+        if (d.success) { closeCustomModal(); loadRegistry(); }
+        else { alert('保存失败: ' + (d.error || '')); }
+    });
+}
+
+// ====== 能力路由 ======
+let _editingCap = null;
+let _configuredProviders = [];
+let _providerModels = {};
+let _registryData = {};
+
+function loadCapabilities() {
+    fetch('/api/ai/config')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _providerModels = data.provider_models || {};
+            renderCapabilities(data.config || {});
+        } else {
+            document.getElementById('capabilityTableBody').innerHTML =
+                '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
+        }
+    })
+    .catch(() => {
+        document.getElementById('capabilityTableBody').innerHTML =
+            '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载失败</td></tr>';
+    });
+    // Also load configured providers for the edit modal dropdown
+    fetch('/api/ai/providers/configured')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _configuredProviders = data.providers || [];
+        }
+    })
+    .catch(() => {});
+    // Also load registry for model info
+    fetch('/api/ai/providers/list')
+    .then(r => r.json())
+    .then(data => {
+        const map = {};
+        (data.providers || []).forEach(p => { map[p.name] = p; });
+        _registryData = map;
+    })
+    .catch(() => {});
+}
+
+// Listen for provider dropdown change in edit modal
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('capEditProvider')?.addEventListener('change', function() {
+        buildModelDropdown(this.value, 'auto');
+    });
+});
+
+function renderCapabilities(config) {
+    const caps = config.capabilities || {};
+    const capList = ['writing', 'translate', 'image_gen', 'audio_gen', 'video_gen'];
+    const capNames = {
+        'writing':      '✍️ 写作',
+        'translate':    '🌐 翻译',
+        'image_gen':    '🎨 图片生成',
+        'audio_gen':    '🎵 音频生成',
+        'video_gen':    '🎬 视频生成'
+    };
+
+    let html = '';
+    capList.forEach(key => {
+        const cap = caps[key] || {};
+        const providerName = cap.provider || 'auto';
+        const model = cap.model || 'auto';
+        const mode = cap.mode || 'auto';
+        const isDisabled = providerName === 'disabled';
+
+        // 供应商显示
+        let displayProvider, statusHtml;
+        if (isDisabled) {
+            displayProvider = '<span style="color:#999;">—</span>';
+            statusHtml = '<span class="badge badge-danger">🚫 禁用</span>';
+        } else if (providerName === 'auto' || !providerName) {
+            displayProvider = '<span style="color:#4361ee;font-weight:500;">🔄 自动路由</span>';
+            statusHtml = '<span class="badge badge-info">🔄 自动路由</span>';
+        } else {
+            displayProvider = escapeHtml(providerName);
+            const modelDisplay = (model && model !== 'auto') ? (':' + model) : '';
+            statusHtml = '<span class="badge badge-success">' + escapeHtml(providerName) + escapeHtml(modelDisplay) + '</span>';
+        }
+
+        // 模型显示
+        let displayModel;
+        if (isDisabled) {
+            displayModel = '<span style="color:#999;">-</span>';
+        } else if (!model || model === 'auto') {
+            displayModel = '<span style="color:#999;">自动</span>';
+        } else {
+            displayModel = escapeHtml(model);
+        }
+
+        // 模式显示
+        const modeLabels = {'auto': '🔄 自动', 'chat': '💬 Chat', 'competition': '🏆 竞赛'};
+        const displayMode = modeLabels[mode] || escapeHtml(mode);
+
+        html += '<tr>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + (capNames[key] || key) + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayProvider + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayModel + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + displayMode + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' + statusHtml + '</td>' +
+            '<td style="padding:8px 10px;border-bottom:1px solid #eee;">' +
+                '<button class="btn btn-sm btn-primary" onclick="editCap(\'' + key + '\')">✏️ 编辑</button>' +
+            '</td>' +
+        '</tr>';
+    });
+    document.getElementById('capabilityTableBody').innerHTML = html;
+}
+
+function editCap(key) {
+    _editingCap = key;
+    document.getElementById('capEditName').value = key;
+
+    // Build provider dropdown from configured providers
+    const sel = document.getElementById('capEditProvider');
+    sel.innerHTML = '<option value="auto">🔄 自动路由（推荐）</option>' +
+                    '<option value="disabled">🚫 禁用</option>';
+    _configuredProviders.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.provider;
+        opt.textContent = (p.icon || '🤖') + ' ' + (p.display_name || p.provider) +
+            (p.alias ? ' (' + p.alias + ')' : '');
+        sel.appendChild(opt);
+    });
+
+    // Load current config for this capability
+    fetch('/api/ai/config')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const caps = (data.config || {}).capabilities || {};
+            const cap = caps[key] || {};
+            const providerVal = cap.provider || 'auto';
+            sel.value = providerVal;
+
+            // Build model dropdown based on selected provider
+            buildModelDropdown(providerVal, cap.model || 'auto');
+
+            document.getElementById('capEditMode').value = cap.mode || 'auto';
+        }
+    })
+    .catch(() => {});
+
+    document.getElementById('capEditResult').style.display = 'none';
+    document.getElementById('capEditModal').style.display = 'flex';
+}
+
+function buildModelDropdown(providerName, selectedModel) {
+    const sel = document.getElementById('capEditModel');
+    sel.innerHTML = '<option value="auto">🔄 自动</option>';
+
+    if (!providerName || providerName === 'auto' || providerName === 'disabled') return;
+
+    // Try to get models from configured providers
+    const providerModels = _providerModels || {};
+    const models = providerModels[providerName] || [];
+    // Also try from registry
+    const registryData = _registryData || {};
+    const regModels = (registryData[providerName] || {}).models || [];
+
+    const allModels = [...new Set([...models, ...regModels])];
+    allModels.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+    });
+
+    if (selectedModel) sel.value = selectedModel;
+}
+
+function closeCapEditModal() {
+    document.getElementById('capEditModal').style.display = 'none';
+}
+
+function saveCap() {
+    const key = _editingCap;
+    const provider = document.getElementById('capEditProvider').value;
+    const model = document.getElementById('capEditModel').value;
+    const mode = document.getElementById('capEditMode').value;
+
+    const resultDiv = document.getElementById('capEditResult');
+    resultDiv.style.display = 'block';
+    resultDiv.style.background = '#fff3cd';
+    resultDiv.style.color = '#856404';
+    resultDiv.innerHTML = '⏳ 保存中...';
+
+    // Build the config object
+    const config = {};
+    const caps = {};
+
+    if (provider === 'disabled') {
+        caps[key] = { provider: 'disabled' };
+    } else {
+        const cfg = { provider: provider, mode: mode };
+        if (model && model !== 'auto') {
+            cfg.model = model;
+        } else {
+            cfg.model = 'auto';
+        }
+        caps[key] = cfg;
+    }
+
+    config.capabilities = caps;
+
+    fetch('/api/ai/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(config),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.color = '#155724';
+            resultDiv.innerHTML = '✅ 已保存！';
+            closeCapEditModal();
+            loadCapabilities();
+        } else {
+            resultDiv.style.background = '#f8d7da';
+            resultDiv.style.color = '#721c24';
+            resultDiv.innerHTML = '❌ 保存失败: ' + escapeHtml(data.error || '');
+        }
+    })
+    .catch(e => {
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = '❌ 请求失败: ' + escapeHtml(e.message);
+    });
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text || '';
+    return d.innerHTML;
 }
 </script>
 {% endblock %}

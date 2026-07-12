@@ -1,0 +1,239 @@
+{
+  "site_url": "https://mydigit.cn",
+  "total_forums": 33,
+  "postable_forums": 33,
+  "forums": {
+    "2": {
+      "name": "智能手机",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "36": {
+      "name": "数码交易区",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "37": {
+      "name": "数码值得买",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "39": {
+      "name": "电脑软硬派",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "40": {
+      "name": "WiFi/路由器",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "41": {
+      "name": "NAS/网络存储",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "43": {
+      "name": "数码杂谈",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "44": {
+      "name": "机顶盒/智能电视",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "45": {
+      "name": "数码前沿",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "48": {
+      "name": "汽车拆客",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "51": {
+      "name": "拆机乐园",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "52": {
+      "name": "行业拆客",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "56": {
+      "name": "创意DIY",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "57": {
+      "name": "能工巧匠",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "59": {
+      "name": "电子学堂",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "60": {
+      "name": "维修达人",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "61": {
+      "name": "我爱单片机",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "63": {
+      "name": "U盘存储技术",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "64": {
+      "name": "SSD存储技术",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "66": {
+      "name": "电源/充电器",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "67": {
+      "name": "手电筒/照明",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "68": {
+      "name": "耳机发烧友",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "70": {
+      "name": "3D打印/雕刻机",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "71": {
+      "name": "我是工具控",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "72": {
+      "name": "仪表谈谈",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "74": {
+      "name": "骑行天地",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "76": {
+      "name": "摄友沙龙",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "78": {
+      "name": "站务中心",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "79": {
+      "name": "安防/监控",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "80": {
+      "name": "缘聚茶楼",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "82": {
+      "name": "积分商城",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "88": {
+      "name": "硬件博物馆",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    },
+    "94": {
+      "name": "免费家元充电站",
+      "can_post": true,
+      "keywords": [],
+      "href": "",
+      "postable": true
+    }
+  },
+  "last_explored": "2026-07-06 11:14:26"
+}

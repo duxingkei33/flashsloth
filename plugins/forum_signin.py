@@ -43,10 +43,19 @@ for _f in sorted(os.listdir(_plugins_dir)):
 # 验证注册状态
 _available = list_signins()
 
+# ─── 与 web 路由共享 registry ───────────────────────
+# signin_*.py 插件注册到 core_signin 模块（import hack），
+# 但 routes/signin.py 使用 flashsloth.core.signin 模块。
+# 同步 registry 确保两处共享同一个注册字典。
+try:
+    import importlib
+    _fs_signin = importlib.import_module("flashsloth.core.signin")
+    _fs_signin._registry = _core_mod._registry
+except Exception:
+    pass
+
 CST = timezone(timedelta(hours=8))
-# 优先使用 FLASHSLOTH_DB_PATH 环境变量（与 admin.py 一致）
-DB = os.environ.get("FLASHSLOTH_DB_PATH") or \
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
+DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "flashsloth.db")
 
 
 def get_db():
@@ -78,12 +87,14 @@ def ensure_signin_log_table():
 
 def log_signin(account_id, platform, account_name, site_url,
                success, already_signed, error="", message=""):
+    """记录签到日志到数据库，使用 CST (UTC+8) 时间"""
+    now_cst = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db()
     conn.execute(
-        "INSERT INTO signin_log (account_id, platform, account_name, site_url, success, already_signed, error, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO signin_log (account_id, platform, account_name, site_url, success, already_signed, error, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (account_id, platform, account_name, site_url,
          1 if success else 0, 1 if already_signed else 0,
-         error[:200], message[:200])
+         error[:200], message[:200], now_cst)
     )
     conn.commit()
     conn.close()

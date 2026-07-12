@@ -1,0 +1,240 @@
+{
+  "platform": "51cto",
+  "display_name": "51CTO",
+  "site_url": "https://www.51cto.com",
+  "explored_with_login": false,
+  "explored_at": "2026-07-08 01:37:42",
+  "category": "social",
+  "login_methods": {
+    "password": false,
+    "phone": true,
+    "qrcode": false,
+    "captcha_detected": false
+  },
+  "capabilities": {},
+  "api_endpoints": [],
+  "tech_stack": {
+    "frontend_framework": "Unknown/SSR",
+    "spa_mode": "traditional",
+    "is_discuz": false
+  },
+  "adaptability_assessment": {
+    "login_adaptable": false,
+    "publish_possible": true,
+    "api_available": false,
+    "waf_blocked": false,
+    "publisher_exists": false,
+    "adapter_exists": false
+  },
+  "errors": [],
+  "homepage_title": "技术成就梦想51CTO-中国知名的数字化人才学习平台和技术社区",
+  "login_buttons_found": [
+    "注册/登录",
+    "WorkBuddy 驱动 SpringBoot 应用开发实战"
+  ],
+  "login_url": "https://gg.51cto.com/www/delivery/ck.php?oaparams=2__bannerid=11283__zoneid=1096__cb=14c0d0f279__oadest=https%3A%2F%2Fb.51cto.com%2Fsignup%3Futm_source%3Dhome_word",
+  "login_input_fields": [
+    {
+      "name": "",
+      "type": "tel",
+      "placeholder": "手机号",
+      "id": ""
+    },
+    {
+      "name": "",
+      "type": "text",
+      "placeholder": "验证码",
+      "id": ""
+    },
+    {
+      "name": "",
+      "type": "checkbox",
+      "placeholder": "",
+      "id": ""
+    }
+  ],
+  "login_buttons": [
+    "获取验证码",
+    "《51CTO服务条款》",
+    "《隐私协议》",
+    "注册即获7天免费试用",
+    "已有账号？立即登录"
+  ],
+  "editor_urls": {
+    "https://blog.51cto.com": {
+      "status_code": {
+        "timeOrigin": 1783445877822.6,
+        "timing": {
+          "connectStart": 1783445877823,
+          "secureConnectionStart": 1783445877824,
+          "unloadEventEnd": 0,
+          "domainLookupStart": 1783445877822,
+          "domainLookupEnd": 1783445877822,
+          "responseStart": 1783445877996,
+          "connectEnd": 1783445877974,
+          "responseEnd": 1783445877997,
+          "requestStart": 1783445877974,
+          "domLoading": 1783445877999,
+          "redirectStart": 0,
+          "loadEventEnd": 1783445878031,
+          "domComplete": 1783445878031,
+          "navigationStart": 1783445877822,
+          "loadEventStart": 1783445878031,
+          "domContentLoadedEventEnd": 1783445878031,
+          "unloadEventStart": 0,
+          "redirectEnd": 0,
+          "domInteractive": 1783445878031,
+          "fetchStart": 1783445877822,
+          "domContentLoadedEventStart": 1783445878031
+        },
+        "navigation": {
+          "type": 0,
+          "redirectCount": 0
+        }
+      },
+      "final_url": "https://blog.51cto.com/",
+      "redirected_to_login": false,
+      "title": "请求已被拦截"
+    },
+    "https://www.51cto.com/blog": {
+      "status_code": {
+        "timeOrigin": 1783445880066.4,
+        "timing": {
+          "connectStart": 1783445880220,
+          "secureConnectionStart": 0,
+          "unloadEventEnd": 0,
+          "domainLookupStart": 1783445880220,
+          "domainLookupEnd": 1783445880220,
+          "responseStart": 1783445880339,
+          "connectEnd": 1783445880220,
+          "responseEnd": 1783445880340,
+          "requestStart": 1783445880222,
+          "domLoading": 1783445880343,
+          "redirectStart": 1783445880066,
+          "loadEventEnd": 1783445882507,
+          "domComplete": 1783445882504,
+          "navigationStart": 1783445880066,
+          "loadEventStart": 1783445882504,
+          "domContentLoadedEventEnd": 1783445880751,
+          "unloadEventStart": 0,
+          "redirectEnd": 1783445880220,
+          "domInteractive": 1783445880537,
+          "fetchStart": 1783445880220,
+          "domContentLoadedEventStart": 1783445880747
+        },
+        "navigation": {
+          "type": 0,
+          "redirectCount": 1
+        }
+      },
+      "final_url": "https://www.51cto.com/",
+      "redirected_to_login": false,
+      "title": "技术成就梦想51CTO-中国知名的数字化人才学习平台和技术社区"
+    },
+    "https://blog.51cto.com/write": {
+      "status_code": {
+        "timeOrigin": 1783445882790.3,
+        "timing": {
+          "connectStart": 1783445882790,
+          "secureConnectionStart": 0,
+          "unloadEventEnd": 0,
+          "domainLookupStart": 1783445882790,
+          "domainLookupEnd": 1783445882790,
+          "responseStart": 1783445882814,
+          "connectEnd": 1783445882790,
+          "responseEnd": 1783445882815,
+          "requestStart": 1783445882791,
+          "domLoading": 1783445882816,
+          "redirectStart": 0,
+          "loadEventEnd": 1783445882850,
+          "domComplete": 1783445882850,
+          "navigationStart": 1783445882790,
+          "loadEventStart": 1783445882850,
+          "domContentLoadedEventEnd": 1783445882850,
+          "unloadEventStart": 0,
+          "redirectEnd": 0,
+          "domInteractive": 1783445882850,
+          "fetchStart": 1783445882790,
+          "domContentLoadedEventStart": 1783445882850
+        },
+        "navigation": {
+          "type": 0,
+          "redirectCount": 0
+        }
+      },
+      "final_url": "https://blog.51cto.com/write",
+      "redirected_to_login": false,
+      "title": "请求已被拦截"
+    },
+    "https://blog.51cto.com/newpost": {
+      "status_code": {
+        "timeOrigin": 1783445884891.5,
+        "timing": {
+          "connectStart": 1783445884891,
+          "secureConnectionStart": 0,
+          "unloadEventEnd": 0,
+          "domainLookupStart": 1783445884891,
+          "domainLookupEnd": 1783445884891,
+          "responseStart": 1783445884938,
+          "connectEnd": 1783445884891,
+          "responseEnd": 1783445884940,
+          "requestStart": 1783445884892,
+          "domLoading": 1783445884941,
+          "redirectStart": 0,
+          "loadEventEnd": 1783445884975,
+          "domComplete": 1783445884975,
+          "navigationStart": 1783445884891,
+          "loadEventStart": 1783445884975,
+          "domContentLoadedEventEnd": 1783445884975,
+          "unloadEventStart": 0,
+          "redirectEnd": 0,
+          "domInteractive": 1783445884975,
+          "fetchStart": 1783445884891,
+          "domContentLoadedEventStart": 1783445884975
+        },
+        "navigation": {
+          "type": 0,
+          "redirectCount": 0
+        }
+      },
+      "final_url": "https://blog.51cto.com/newpost",
+      "redirected_to_login": false,
+      "title": "请求已被拦截"
+    },
+    "https://blog.51cto.com/editor": {
+      "status_code": {
+        "timeOrigin": 1783445887012.5,
+        "timing": {
+          "connectStart": 1783445887012,
+          "secureConnectionStart": 0,
+          "unloadEventEnd": 0,
+          "domainLookupStart": 1783445887012,
+          "domainLookupEnd": 1783445887012,
+          "responseStart": 1783445887033,
+          "connectEnd": 1783445887012,
+          "responseEnd": 1783445887034,
+          "requestStart": 1783445887013,
+          "domLoading": 1783445887036,
+          "redirectStart": 0,
+          "loadEventEnd": 1783445887050,
+          "domComplete": 1783445887050,
+          "navigationStart": 1783445887012,
+          "loadEventStart": 1783445887050,
+          "domContentLoadedEventEnd": 1783445887049,
+          "unloadEventStart": 0,
+          "redirectEnd": 0,
+          "domInteractive": 1783445887049,
+          "fetchStart": 1783445887012,
+          "domContentLoadedEventStart": 1783445887049
+        },
+        "navigation": {
+          "type": 0,
+          "redirectCount": 0
+        }
+      },
+      "final_url": "https://blog.51cto.com/editor",
+      "redirected_to_login": false,
+      "title": "请求已被拦截"
+    }
+  }
+}

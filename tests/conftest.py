@@ -26,7 +26,7 @@ if os.path.exists(_BOOT_FILE):
                 ADMIN_PASS = line.split(":", 1)[1].strip()
 else:
     ADMIN_USER = "admin_redacted"
-    ADMIN_PASS = "test_redacted"
+    ADMIN_PASS = "Fs&211211"
 
 # ── 数据库路径（仅用于 setup/teardown） ────────────────────
 # 优先使用 FLASHSLOTH_DB_PATH 环境变量（与 admin.py 一致），

@@ -18,6 +18,41 @@ except ImportError:
 class DiscuzPublisher(Publisher):
     name = "discuz"
     display_name = "Discuz! 论坛"
+    architecture = "基于 Discuz! 架构"
+    
+    # ─── 各平台特殊限制 ─────────────────────────
+    PLATFORM_LIMITS = {
+        "mydigit.cn": {
+            "max_image_size": 9 * 1024 * 1024,
+            "daily_upload_limit": 200,
+            "daily_upload_size": 0,
+            "allowed_extensions": ('.jpg', '.jpeg', '.png', '.gif', '.zip', '.rar', '.pdf', '.mp4'),
+            "supports_draft": True,
+        },
+        "amobbs.com": {
+            "max_image_size": 16 * 1024 * 1024,
+            "daily_upload_limit": 70,
+            "daily_upload_size": 10 * 1024 * 1024,
+            "allowed_extensions": ('.chm', '.pdf', '.zip', '.rar', '.tar', '.gz', '.bzip2', '.bz2',
+                                   '.gif', '.jpg', '.jpeg', '.png', '.bmp', '.webp', '.7z'),
+            "supports_draft": False,
+        },
+    }
+    
+    login_methods = [
+        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 1,
+         "fields": ["site_url"],
+         "description": "打开论坛登录页截图，用手机扫码访问后自动捕获 Cookie"},
+        {"method": "password", "label": "密码+验证码登录", "icon": "🔑", "priority": 2,
+         "fields": ["site_url", "username", "password"],
+         "description": "输入论坛用户名密码，通过验证码自动登录"},
+        {"method": "phone", "label": "手机验证码登录", "icon": "📞", "priority": 3,
+         "fields": ["site_url", "phone"],
+         "description": "输入手机号，Playwright 自动发送验证码并等待用户输入"},
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
+         "fields": ["site_url", "cookie"],
+         "description": "从浏览器 F12 复制 Cookie 直接粘贴"},
+    ]
     config_fields = [
         {"key": "login_mode", "label": "登录方式", "type": "select", "required": True,
          "options": [
@@ -26,7 +61,7 @@ class DiscuzPublisher(Publisher):
          ],
          "placeholder": "选择登录方式"},
         {"key": "site_url", "label": "论坛地址", "type": "text", "required": True,
-         "placeholder": "https://www.amobbs.com"},
+         "placeholder": "https://(your-forum-domain).com"},
         {"key": "username", "label": "用户名（密码模式）", "type": "text", "required": False,
          "placeholder": "论坛登录用户名"},
         {"key": "password", "label": "密码（密码模式）", "type": "password", "required": False,
@@ -42,12 +77,24 @@ class DiscuzPublisher(Publisher):
         self.login_mode = config.get("login_mode", "cookie")
         self.username = config.get("username", "")
         self.password = config.get("password", "")
+        
+        # ─── 按平台自动应用限制 ─────────────────
+        domain = self._get_domain()
+        for site_key, limits in self.PLATFORM_LIMITS.items():
+            if site_key in domain:
+                for k, v in limits.items():
+                    if k not in config or not config.get(k):
+                        config[k] = v
+                break
+        
         # 使用人机浏览器
         self.browser = HumanSession(base_url=self.site_url, min_delay=0.5, max_delay=2.0)
         raw_cookie = config.get("cookie", "")
         if raw_cookie:
             self.browser.set_cookies(raw_cookie)
         self._last_forum_page = ""  # 记录上次访问的板块页
+        # 是否支持存草稿（从平台限制读取）
+        self.supports_draft = self.config.get("supports_draft", True)
 
     def _get_domain(self) -> str:
         return self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
@@ -76,22 +123,82 @@ class DiscuzPublisher(Publisher):
             }
 
     def _test_cookie(self) -> dict:
-        """测试 Cookie — 模拟真人访问个人主页"""
+        """测试 Cookie — 使用 Playwright 模拟真人访问个人主页验证登录态"""
+        if not self.site_url:
+            return {"success": False, "error": "未配置论坛地址", "status": "配置不完整"}
+        raw_cookie = self.config.get("cookie", "")
+        if not raw_cookie:
+            return {"success": False, "error": "未配置 Cookie", "status": "无 Cookie"}
+        import re
         try:
-            # 先访问首页模拟入口
-            self.browser.get("/forum.php")
-            # 再访问个人主页（真人操作：首页→个人主页）
-            resp = self.browser.get("/home.php?mod=space&do=profile")
-            if "个人主页" in resp.text or self.username in resp.text:
-                return {"success": True, "error": "", "status": "已登录"}
-            for cookie in self.browser.session.cookies:
-                if "auth" in cookie.name.lower():
-                    return {"success": True, "error": "", "status": "已登录"}
-            if "login" in resp.url.lower():
-                return {"success": False, "error": "Cookie 已过期，请重新登录获取", "status": "Cookie过期"}
-            return {"success": False, "error": "无法确认登录状态", "status": "未知"}
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                )
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+                )
+                # 注入 Cookie
+                domain = self.site_url.replace("https://", "").replace("http://", "").split("/")[0]
+                cookies = []
+                for pair in raw_cookie.split(";"):
+                    pair = pair.strip()
+                    if not pair or "=" not in pair:
+                        continue
+                    n, v = pair.split("=", 1)
+                    cookies.append({"name": n.strip(), "value": v.strip(),
+                                    "domain": f".{domain}", "path": "/"})
+                ctx.add_cookies(cookies)
+
+                page = ctx.new_page()
+                try:
+                    # 先访问首页
+                    page.goto(self.site_url + "/forum.php", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+                    # 再访问个人主页
+                    page.goto(self.site_url + "/home.php?mod=space&do=profile", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+
+                    body_text = page.inner_text("body")[:2000]
+                    page_url = page.url.lower()
+                    redirected_to_login = "login" in page_url
+
+                    # 查找登录态指示器（⚠️ 空用户名不能传入空正则，会匹配所有文本）
+                    indicators = []
+                    _indicator_pats = [r'退出\s*登录', r'退出', r'个人主页', r'个人中心', r'我的中心', r'我的帖子', r'注销']
+                    if self.username and len(self.username.strip()) >= 2:
+                        _indicator_pats.insert(0, rf'{re.escape(self.username.strip())}')
+                    for pat in _indicator_pats:
+                        if re.search(pat, body_text, re.IGNORECASE):
+                            indicators.append(pat)
+
+                    if "login" in page_url:
+                        return {"success": False, "error": "Cookie 已过期，请重新登录获取", "status": "Cookie过期"}
+                    # ── 严格判断登录态（2026-07-08: 修复弱验证Bug） ──
+                    # 铁律：必须检测到「退出」或「注销」作为强登录证据
+                    # 且至少需要2个独立登录指示器，或用户名出现在页面中
+                    has_strong_exit = bool(re.search(r'退出|注销', body_text))
+                    username_in_body = self.username and len(self.username.strip()) >= 2 and \
+                        re.search(re.escape(self.username.strip()), body_text)
+                    sufficient_indicators = len(indicators) >= 2
+
+                    if has_strong_exit and (sufficient_indicators or username_in_body):
+                        return {"success": True, "error": "", "status": f"已登录 — 检测到: {' | '.join(indicators[:3])}",
+                                "username_found": True, "username_indicators": indicators[:3]}
+
+                    if indicators:
+                        return {"success": False, "error": f"Cookie可能已过期：检测到{len(indicators)}个页面元素但无退出/注销按钮", "status": "Cookie过期"}
+                    return {"success": False, "error": "无法确认登录状态（未检测到用户信息）", "status": "未知"}
+                except Exception as e:
+                    return {"success": False, "error": f"页面加载异常: {e}", "status": "连接失败"}
+                finally:
+                    page.close()
+                    browser.close()
         except Exception as e:
-            return {"success": False, "error": f"连接失败: {e}", "status": "连接失败"}
+            return {"success": False, "error": f"Playwright 初始化失败: {e}", "status": "连接失败"}
 
     def login_with_password(self, captcha_text: str, seccodehash: str) -> dict:
         """密码+验证码登录"""
@@ -190,8 +297,9 @@ class DiscuzPublisher(Publisher):
             return {"success": False, "error": "请选择要发布到的版块",
                     "url": "", "id": ""}
 
+        save_as_draft = kwargs.get("save_as_draft", False)
         try:
-            result = self._publish_thread(article, fid)
+            result = self._publish_thread(article, fid, save_as_draft=save_as_draft)
             return result
         except Exception as e:
             return {"success": False, "error": f"Discuz! 发布异常: {e}",
@@ -281,7 +389,12 @@ class DiscuzPublisher(Publisher):
 
         images = self._extract_images_from_body(body)
         if not images:
+            self._last_upload_warnings = []
             return body, {}, []
+
+        # 准备失败记录列表
+        self._last_upload_warnings = []
+        failed_images = self._last_upload_warnings
 
         # 从指定页面或 newthread 页面提取上传参数
         if page_html:
@@ -319,9 +432,63 @@ class DiscuzPublisher(Publisher):
                 local_path = os.path.join(fs_upload_dir, src[len('static/uploads/'):])
             elif not src.startswith('http'):
                 local_path = os.path.join(fs_upload_dir, os.path.basename(src))
+            elif src.startswith(('http://', 'https://')):
+                # 远程图片 → 下载到临时目录
+                try:
+                    resp2 = self.browser.session.get(src, timeout=15, stream=True)
+                    if resp2.status_code == 200:
+                        import tempfile
+                        ext = os.path.splitext(src.split('?')[0])[1] or '.jpg'
+                        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                        for chunk in resp2.iter_content(8192):
+                            tmp.write(chunk)
+                        tmp.close()
+                        local_path = tmp.name
+                except Exception:
+                    failed_images.append({"src": src, "error": "远程图片下载失败"})
+                    continue
 
             if not local_path or not os.path.isfile(local_path):
                 continue
+
+            # ── 图片校验：格式、大小、尺寸 ──
+            # 检查格式
+            allowed_exts = self.config.get("allowed_extensions", ('.jpg', '.jpeg', '.png', '.gif'))
+            if isinstance(allowed_exts, str):
+                allowed_exts = tuple(f'.{e.strip().lower()}' for e in allowed_exts.split(',') if e.strip())
+            ext = os.path.splitext(local_path)[1].lower()
+            if ext not in allowed_exts:
+                failed_images.append({"src": src, "error": f"不支持的格式 {ext}，支持: {', '.join(allowed_exts)}"})
+                continue
+
+            # 检查文件大小（可配置，默认 2MB）
+            max_size = self.config.get("max_image_size", 2 * 1024 * 1024)
+            if isinstance(max_size, str):
+                # 支持 "9MB" 格式
+                max_size_m = re.match(r'(\d+\.?\d*)\s*(MB|KB|M|K)', max_size, re.IGNORECASE)
+                if max_size_m:
+                    val = float(max_size_m.group(1))
+                    unit = max_size_m.group(2).upper()
+                    if unit in ('MB', 'M'):
+                        max_size = int(val * 1024 * 1024)
+                    elif unit in ('KB', 'K'):
+                        max_size = int(val * 1024)
+            file_size = os.path.getsize(local_path)
+            if file_size > max_size:
+                failed_images.append({"src": src, "error": f"图片过大 ({file_size/1024/1024:.1f}MB > {max_size/1024/1024:.0f}MB)"})
+                continue
+
+            # 检查图片尺寸
+            try:
+                from PIL import Image
+                pil_img = Image.open(local_path)
+                w, h = pil_img.size
+                max_dim = 1000
+                if w > max_dim or h > max_dim * 2:
+                    failed_images.append({"src": src, "error": f"图片尺寸 {w}x{h} 超过推荐限制"})
+                    # 不阻止上传，仅警告
+            except ImportError:
+                pass
 
             # 上传
             try:
@@ -344,7 +511,11 @@ class DiscuzPublisher(Publisher):
                 elif raw and raw.isdigit():
                     token_map[src] = f"DISCUZUPLOAD|0|{raw}|1|0"
                     local_ids.append('0')
-            except Exception:
+                elif "limit" in raw.lower() or "exceed" in raw.lower() or "每日" in raw or "超额" in raw:
+                    failed_images.append({"src": src, "error": f"上传被拒（可能已达每日限额）: {raw[:100]}"})
+                    continue
+            except Exception as e:
+                failed_images.append({"src": src, "error": f"上传异常: {str(e)[:100]}"})
                 continue
 
         # 替换 body 中的图片引用
@@ -364,10 +535,10 @@ class DiscuzPublisher(Publisher):
         return result, token_map, local_ids
 
     def _format_for_discuz(self, body: str, attachment_tokens: dict = None) -> str:
-        """将文章内容转换为 Discuz! 兼容格式
+        """将文章内容转换为 Discuz! BBCode 格式
 
-        Discuz 接受 HTML 标签（p, h1-h6, strong, em, ul/li 等），
-        但禁用了 <img> 和 <a> 标签，需转为 BBCode。
+        Discuz! 的 wysiwyg=0 模式只识别 BBCode，HTML 标签会被作为纯文本显示。
+        所以必须输出纯 BBCode，不能包含任何 HTML 标签。
 
         attachment_tokens: {原路径: DISCUZUPLOAD|...} — 已上传的附件 token，
                          有此 token 的图片用 [img=0,1]token[/img] 格式。
@@ -379,56 +550,59 @@ class DiscuzPublisher(Publisher):
 
         # ── 第1步：先处理已上传的附件（替换为 Discuz 附件标签） ──
         for orig_src, token in attachment_tokens.items():
-            # HTML
             text = _re.sub(
                 rf'<img[^>]*src="{_re.escape(orig_src)}"[^>]*>',
                 f'[img=0,1]{token}[/img]',
                 text,
             )
-            # Markdown
             text = _re.sub(
                 rf'!\[([^\]]*)\]\({_re.escape(orig_src)}\)',
                 f'[img=0,1]{token}[/img]',
                 text,
             )
 
-        # ── 第2步：处理 Markdown 语法 ──
-        text = _re.sub(r'^### (.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'^## (.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'^# (.+)$', r'<h1>\1</h1>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-        text = _re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
-        text = _re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
-        text = _re.sub(r'_(.+?)_', r'<em>\1</em>', text)
-        text = _re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-        text = _re.sub(r'^- (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'^\* (.+)$', r'<li>\1</li>', text, flags=_re.MULTILINE)
-        text = _re.sub(r'```(\w*)\n(.*?)```', r'<pre><code>\2</code></pre>', text, flags=_re.DOTALL)
+        # ── 第2步：Markdown → BBCode ──
+        # 标题: ## → [size=6][b]...[/b][/size]
+        text = _re.sub(r'^### (.+)$', r'[size=5][b]\1[/b][/size]', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^## (.+)$', r'[size=6][b]\1[/b][/size]', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^# (.+)$', r'[size=7][b]\1[/b][/size]', text, flags=_re.MULTILINE)
+        # 粗体: **text** → [b]text[/b]
+        text = _re.sub(r'\*\*(.+?)\*\*', r'[b]\1[/b]', text)
+        text = _re.sub(r'__(.+?)__', r'[b]\1[/b]', text)
+        # 斜体: *text* → [i]text[/i]
+        text = _re.sub(r'\*(.+?)\*', r'[i]\1[/i]', text)
+        text = _re.sub(r'_(.+?)_', r'[i]\1[/i]', text)
+        # 行内代码: `code` → [font=monospace]code[/font]
+        text = _re.sub(r'`([^`]+)`', r'[font=monospace]\1[/font]', text)
+        # 无序列表: - item → [*]item
+        text = _re.sub(r'^- (.+)$', r'[*]\1', text, flags=_re.MULTILINE)
+        text = _re.sub(r'^\* (.+)$', r'[*]\1', text, flags=_re.MULTILINE)
+        # 代码块: ``` → [code]...[/code]
+        text = _re.sub(r'```(\w*)\n(.*?)```', r'[code]\2[/code]', text, flags=_re.DOTALL)
+        # 删除线
+        text = _re.sub(r'~~(.+?)~~', r'[s]\1[/s]', text)
+        # 引用: > text → [quote]text[/quote]
+        text = _re.sub(r'^> (.+)$', r'[quote]\1[/quote]', text, flags=_re.MULTILINE)
 
-        # ── 第3步：段落包裹 ──
-        parts = []
-        for para in text.split('\n\n'):
-            para = para.strip()
-            if not para:
-                continue
-            if not _re.match(r'^\s*<', para):
-                para = f'<p>{para}</p>'
-            parts.append(para)
-        text = '\n'.join(parts)
-
-        # ── 第4步：处理剩余未上传的 <img> 和 <a> ──
-        # 剩余 <img> → 外链 [img]
+        # ── 第3步：处理链接和图片（转为 BBCode） ──
+        # 链接: [text](url) → [url=url]text[/url]
         text = _re.sub(
-            r'<img[^>]*src="([^"]+)"[^>]*>',
-            lambda m: self._make_img_bbcode(m.group(1)),
+            r'\[([^\]]+)\]\(([^)]+)\)',
+            lambda m: self._make_img_bbcode(m.group(2)) if _re.search(r'\.(jpg|jpeg|png|gif|webp|bmp)(\?|#|$)', m.group(2), _re.I) else f'[url={m.group(2)}]{m.group(1)}[/url]',
             text,
-            flags=_re.IGNORECASE,
         )
         # 剩余 ![]() → 外链 [img]
         text = _re.sub(
             r'!\[([^\]]*)\]\(([^)]+)\)',
             lambda m: self._make_img_bbcode(m.group(2)),
             text,
+        )
+        # 剩余 <img> → 外链 [img]
+        text = _re.sub(
+            r'<img[^>]*src="([^"]+)"[^>]*>',
+            lambda m: self._make_img_bbcode(m.group(1)),
+            text,
+            flags=_re.IGNORECASE,
         )
         # <a> → [url]
         text = _re.sub(
@@ -437,6 +611,12 @@ class DiscuzPublisher(Publisher):
             text,
             flags=_re.IGNORECASE | _re.DOTALL,
         )
+
+        # ── 第4步：段落分隔（BBCode 用空行分隔，不用 <p>） ──
+        # 去掉已有的 <p>...</p> 包裹（如果有）
+        text = _re.sub(r'</?p>', '', text)
+        # 多个换行合并成双换行（段落分隔）
+        text = _re.sub(r'\n{3,}', '\n\n', text)
 
         return text.strip()
 
@@ -564,7 +744,7 @@ class DiscuzPublisher(Publisher):
 
             # 页面特征判断
             if "viewthread" in resp.url and "tid" in resp.url:
-                if "等待审核" in resp.text or "审核中" in resp.text:
+                if "审核" in resp.text or "待审核" in resp.text:
                     return {"status": "pending_review", "visible": False,
                             "title": "帖子已提交，等待审核"}
                 if "抱歉" in resp.text[:500] or "没有找到" in resp.text[:500]:
@@ -575,8 +755,6 @@ class DiscuzPublisher(Publisher):
                 title_text = title_m.group(1) if title_m else ""
 
                 # 双重确认：去个人中心→我的帖子看看
-                # 帖子直接可见（viewthread+tid），已确认发布。
-                # "我的帖子"是辅助验证，没找到也认为是已发布（可能分页/缓存原因）
                 try:
                     from plugins.forum_reader import DiscuzForumReader
                     site_url = self.config.get("site_url", "").rstrip("/")
@@ -588,7 +766,10 @@ class DiscuzPublisher(Publisher):
                         return {"status": "published", "visible": True,
                                 "url": url, "title": title_text,
                                 "my_posts_verified": True}
-                    # 即使"我的帖子"找不到，只要帖子直接可见就算已发布
+                    elif my_posts["status"] == "pending_review":
+                        return {"status": "pending_review", "visible": False,
+                                "title": "帖子不在'我的帖子'列表中，但直接访问可见（可能审核中）",
+                                "my_posts_verified": False}
                 except Exception:
                     pass  # 降级为直接验证结果
 
@@ -631,13 +812,28 @@ class DiscuzPublisher(Publisher):
         except:
             return False
 
-    def _publish_thread(self, article: Article, fid: str) -> dict:
+    def _publish_thread(self, article: Article, fid: str, save_as_draft: bool = False) -> dict:
         """完整发帖流程：模拟真人操作"""
         # 第0步：去重检查
         if self._check_duplicate_title(fid, article.title):
             return {"success": False,
                     "error": f"该标题已在 fid={fid} 中存在（去重），跳过发布",
                     "url": "", "id": "", "message": "skip_duplicate"}
+
+        # 第0.5步：平台特殊检查
+        domain = self._get_domain()
+        warnings = []
+        if "mydigit" in domain:
+            # 数码之家: emoji 警告
+            import re as _re_emoji
+            emoji_pattern = _re_emoji.compile(
+                "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF"
+                "\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251"
+                "\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF"
+                "\U00002600-\U000026FF\u2700-\u27BF]+"
+            )
+            if emoji_pattern.search(article.title or "") or emoji_pattern.search(article.body or ""):
+                warnings.append("⚠️ 数码之家使用 emoji 可能造成内容丢失，建议删除后重发")
 
         # 第1步：导航到论坛首页
         self.browser.get("/forum.php")
@@ -668,17 +864,20 @@ class DiscuzPublisher(Publisher):
             for cls in ["alert_error", "alert_info"]:
                 m = re.search(f'<div[^>]*class="{cls}"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
                 if m:
-                    msg = re.sub(r"<[^>]+>", " ", m.group(1)).strip()[:200]
+                    msg = re.sub(r"<[^>]+>\s*", " ", m.group(1)).strip()[:200]
                     break
             if not msg:
                 msg_text = re.search(r'<div[^>]*id="messagetext"[^>]*>(.*?)</div>', resp.text, re.DOTALL)
                 if msg_text:
-                    msg = re.sub(r"<[^>]+>", " ", msg_text.group(1)).strip()[:200]
+                    msg = re.sub(r"<[^>]+>\s*", " ", msg_text.group(1)).strip()[:200]
             if not msg and "提示信息" in resp.text:
                 msg = "账号无发帖权限（提示信息页面，无发帖表单）"
             if not msg:
                 msg = f"无法获取发帖表单 (page: {page_class})，请检查账号权限"
-            return {"success": False, "error": msg, "url": "", "id": ""}
+            result = {"success": False, "error": msg, "url": "", "id": ""}
+            if warnings:
+                result["warnings"] = warnings
+            return result
 
         # 提取表单隐藏字段
         form_fields = self._extract_form_fields(resp.text)
@@ -698,7 +897,7 @@ class DiscuzPublisher(Publisher):
             "formhash": formhash,
             "posttime": form_fields.get("posttime", ""),
             "wysiwyg": "0",
-            "subject": article.title,
+            "subject": (article.title or "")[:80],
             "message": body_html,
             "typeid": typeid or form_fields.get("typeid", ""),
             "readperm": form_fields.get("readperm", ""),
@@ -721,6 +920,12 @@ class DiscuzPublisher(Publisher):
             f"{self.site_url}/forum.php?mod=post&action=newthread"
             f"&fid={fid}&extra=&topicsubmit=yes"
         )
+        if save_as_draft:
+            data["save"] = "1"
+            submit_url += "&save=1"
+            draft_message = "draft"
+        else:
+            draft_message = "published"
         time.sleep(random.uniform(0.5, 1.5))
         resp = self.browser.post(submit_url, data=data)
 
@@ -741,7 +946,8 @@ class DiscuzPublisher(Publisher):
                 return {
                     "success": True, "tid": tid,
                     "url": verify.get("url", resp.url),
-                    "error": "", "message": "published",
+                    "error": "", "message": draft_message,
+                    "warnings": warnings,
                 }
             elif verify["status"] == "pending_review":
                 return {
@@ -749,6 +955,7 @@ class DiscuzPublisher(Publisher):
                     "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
                     "error": "帖子已发布，等待管理员审核",
                     "message": "pending_review",
+                    "warnings": warnings,
                 }
             else:
                 return {
@@ -756,6 +963,7 @@ class DiscuzPublisher(Publisher):
                     "url": f"{self.site_url}/forum.php?mod=viewthread&tid={tid}",
                     "error": f"已创建但状态不明: {verify.get('title', '')}",
                     "message": "uncertain",
+                    "warnings": warnings,
                 }
 
         # 没有 tid，检查错误
@@ -817,3 +1025,61 @@ class DiscuzPublisher(Publisher):
         return {"success": False,
                 "error": f"发帖失败 (page: {response_page_class})，请检查版块权限或主题分类",
                 "url": "", "id": ""}
+
+
+    def upload_image(self, local_path: str) -> dict:
+        """
+        上传单张图片到 Discuz! 论坛附件。
+        使用论坛标准的 swfupload 接口上传。
+        """
+        if not os.path.isfile(local_path):
+            return {"success": False, "url": "", "error": f"文件不存在: {local_path}"}
+        fid = self.config.get("fid", "")
+        if not fid:
+            return {"success": False, "url": "", "error": "未设置版块ID (fid)"}
+        try:
+            r = self.browser.get(f"/forum.php?mod=post&action=newthread&fid={fid}")
+            uid_m = __import__("re").search(r'"uid":"(\d+)"', r.text)
+            hash_m = __import__("re").search(r'"hash":"([a-f0-9]+)"', r.text)
+            uid = uid_m.group(1) if uid_m else ""
+            hash_val = hash_m.group(1) if hash_m else ""
+            if not uid or not hash_val:
+                return {"success": False, "url": "", "error": "无法获取上传参数"}
+            upload_url = f"{self.site_url}/misc.php?mod=swfupload&action=swfupload&operation=upload&fid={fid}&simple=1"
+            import mimetypes
+            mime = mimetypes.guess_type(local_path)[0] or "image/jpeg"
+            with open(local_path, "rb") as fh:
+                resp = self.browser.session.post(
+                    upload_url,
+                    files={"Filedata": (__import__("os").path.basename(local_path), fh, mime)},
+                    data={"uid": uid, "hash": hash_val, "type": "image"},
+                    timeout=30,
+                )
+            raw = resp.text.strip()
+            if raw and "DISCUZUPLOAD" in raw:
+                parts = raw.split("|")
+                if len(parts) >= 3:
+                    return {"success": True, "url": f"{self.site_url}/forum.php?mod=attachment&aid={parts[2]}", "aid": parts[2]}
+                return {"success": True, "url": raw, "aid": parts[1] if len(parts) > 1 else ""}
+            if raw and raw.isdigit():
+                return {"success": True, "url": f"{self.site_url}/forum.php?mod=attachment&aid={raw}", "aid": raw}
+            return {"success": False, "url": "", "error": f"上传失败: {raw[:200]}"}
+        except Exception as e:
+            return {"success": False, "url": "", "error": f"Discuz 上传异常: {e}"}
+
+    def process_images_with_discuz(self, article):
+        """使用 Discuz 上传管线处理文章中的图片"""
+        if not article.body:
+            return article
+        fid = self.config.get("fid", "")
+        if not fid:
+            return article
+        try:
+            body_with_tokens, token_map, local_ids = self._upload_images_to_forum(
+                article.body or "", fid
+            )
+            if token_map:
+                article.body = body_with_tokens
+        except Exception:
+            pass
+        return article

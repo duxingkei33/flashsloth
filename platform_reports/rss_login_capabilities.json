@@ -1,0 +1,24 @@
+{
+  "platform": "rss",
+  "explored_at": "2026-07-08T08:20:00+00:00",
+  "login_url": "",
+  "login_methods": [
+    {
+      "method": "cookie",
+      "label": "Feed URL订阅",
+      "detected": true,
+      "description": "RSS无需登录，输入Feed URL即可订阅。如果有需要认证的Feed，可粘贴Cookie。"
+    }
+  ],
+  "note": "RSS订阅无需登录，通过Feed URL订阅即可。site_url输入框填写Feed地址（如 https://blog.example.com/feed.xml）。",
+  "raw_detection": {
+    "has_password_input": false,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": false,
+    "has_wechat": false,
+    "has_app_qr": false,
+    "third_party_providers": []
+  },
+  "engine": "generic"
+}

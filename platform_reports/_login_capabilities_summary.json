@@ -1,0 +1,199 @@
+{
+    "zhihu": {
+        "login_methods": [
+            "qrcode",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T21:54:42.708193+00:00"
+    },
+    "bilibili": {
+        "login_methods": [
+            "qrcode",
+            "password",
+            "phone",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T18:11:50.806584+00:00"
+    },
+    "discuz": {
+        "login_methods": [
+            "qrcode",
+            "password",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T17:11:31.646398+00:00"
+    },
+    "wordpress": {
+        "login_methods": [
+            "password",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T17:11:31.647430+00:00"
+    },
+    "amobbs": {
+        "login_methods": [
+            "password",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-08T07:50:00"
+    },
+    "xianyu_auto_reply": {
+        "login_methods": [
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T23:24:00+00:00"
+    },
+    "juejin": {
+        "login_methods": [
+            "qrcode",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T21:54:51.649330+00:00"
+    },
+    "xiaohongshu": {
+        "login_methods": [
+            "phone",
+            "qrcode",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T23:41:43+00:00"
+    },
+    "xianyu_products": {
+        "login_methods": [
+            "password",
+            "qrcode",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T17:11:31.648083+00:00"
+    },
+    "mydigit": {
+        "login_methods": [
+            "qrcode",
+            "password",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T17:11:31.647055+00:00"
+    },
+    "smzdm": {
+        "login_methods": [
+            "password",
+            "phone",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-08T00:35:09+00:00"
+    },
+    "twitter": {
+        "login_methods": [
+            "password",
+            "phone",
+            "oauth_apple",
+            "oauth_google",
+            "oauth1",
+            "bearer"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-08T08:25:00+08:00"
+    },
+    "oshwhub": {
+        "login_methods": [
+            "qrcode",
+            "password",
+            "phone",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "FULL",
+        "note": "SSO体系(passport.jlc.com)，cookie需结构化json保存domain",
+        "error": null,
+        "explored_at": "2026-07-08T11:10:00+08:00"
+    },
+    "wechat_mp": {
+        "login_methods": [
+            "password",
+            "qrcode",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T21:55:01.696318+00:00"
+    },
+    "douban": {
+        "login_methods": [
+            "qrcode",
+            "phone",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T17:11:31.646823+00:00"
+    },
+    "dewu": {
+        "login_methods": [
+            "password",
+            "phone",
+            "qrcode",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-08T00:19:00+00:00"
+    },
+    "xianyu": {
+        "login_methods": [
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T21:55:31.218102+00:00"
+    },
+    "csdn": {
+        "login_methods": [
+            "password",
+            "qrcode",
+            "oauth",
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-07T21:54:35.540683+00:00"
+    },
+    "rss": {
+        "login_methods": [
+            "cookie"
+        ],
+        "detail": "BASIC",
+        "error": null,
+        "explored_at": "2026-07-08T08:20:00+00:00"
+    }
+}

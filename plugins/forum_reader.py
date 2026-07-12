@@ -234,15 +234,17 @@ class DiscuzForumReader:
             if found:
                 return {"status": "published", "visible": True,
                         "match": True, "title": "在'我的帖子'中找到"}
-            # 不在列表中 → 帖子直接可见就算已发布
-            detail = self.get_thread_detail(tid)
-            if detail and detail.get("content") and len(detail["content"]) > 20:
-                return {"status": "published", "visible": True,
+            else:
+                # 不在列表中，可能待审核/被删
+                # 再试试直接访问帖子检查
+                detail = self.get_thread_detail(tid)
+                if detail and detail.get("content") and len(detail["content"]) > 20:
+                    return {"status": "pending_review", "visible": False,
+                            "match": False,
+                            "title": "帖子不在'我的帖子'列表中，但直接访问可看到内容（可能审核中）"}
+                return {"status": "not_found", "visible": False,
                         "match": False,
-                        "title": "帖子可直接访问，但不在'我的帖子'列表中"}
-            return {"status": "not_found", "visible": False,
-                    "match": False,
-                    "title": "帖子不在'我的帖子'列表中，也无法直接访问"}
+                        "title": "帖子不在'我的帖子'列表中，也无法直接访问"}
         except Exception as e:
             return {"status": "error", "visible": False,
                     "match": False, "title": str(e)}

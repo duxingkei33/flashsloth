@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+{% block title %}通知网关{% endblock %}
+{% block content %}
+<style>
+.gw-container { max-width: 900px; margin: 0 auto; padding: 16px; }
+.gw-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.gw-header h1 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.gw-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 20px; margin-bottom: 16px; transition: all .15s;
+}
+.gw-card:hover { border-color: #cbd5e1; }
+.gw-card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+}
+.gw-card-name { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.gw-card-platform {
+    font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 8px;
+    border-radius: 6px;
+}
+.gw-card-status {
+    font-size: 12px; padding: 2px 8px; border-radius: 6px;
+}
+.gw-card-status.enabled { background: #dcfce7; color: #16a34a; }
+.gw-card-status.disabled { background: #fef2f2; color: #dc2626; }
+.gw-card-actions { display: flex; gap: 6px; }
+.gw-card-actions button {
+    padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+    font-size: 11px; background: #fff; cursor: pointer;
+}
+.gw-card-actions button:hover { background: #f8fafc; }
+.gw-card-actions .btn-danger { color: #dc2626; border-color: #fecaca; }
+.gw-card-actions .btn-danger:hover { background: #fef2f2; }
+.gw-card-actions .btn-primary { color: #2563eb; border-color: #93c5fd; }
+.gw-card-actions .btn-primary:hover { background: #eff6ff; }
+
+.gw-empty {
+    text-align: center; padding: 60px 20px; color: #94a3b8;
+}
+.gw-empty .big-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* 添加表单 */
+.gw-form {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 24px; margin-bottom: 20px;
+}
+.gw-form h2 { margin: 0 0 16px; font-size: 16px; display: flex; align-items: center; gap: 6px; }
+.gw-form-row { margin-bottom: 12px; }
+.gw-form-row label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #475569; }
+.gw-form-row input, .gw-form-row select, .gw-form-row textarea {
+    width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: 14px;
+}
+.gw-form-row textarea { min-height: 60px; font-family: monospace; font-size: 12px; }
+.gw-form-row .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.gw-form-actions { display: flex; gap: 8px; margin-top: 16px; }
+.gw-btn-primary {
+    padding: 8px 20px; background: #2563eb; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.gw-btn-primary:hover { background: #1d4ed8; }
+.gw-btn-secondary {
+    padding: 8px 20px; background: #fff; color: #475569; border: 1px solid #d1d5db;
+    border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.gw-btn-secondary:hover { background: #f8fafc; }
+.gw-btn-success {
+    padding: 8px 20px; background: #16a34a; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.gw-btn-success:hover { background: #15803d; }
+
+.gw-config-fields { margin-top: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; }
+
+.gw-result {
+    margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 13px;
+}
+.gw-result.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.gw-result.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+
+/* ═══ 网关页手机端优化 ═══ */
+@media (max-width: 768px) {
+    .gw-container { padding: 10px; }
+    .gw-header { flex-direction: column; align-items: flex-start !important; gap: 10px; }
+    .gw-header h1 { font-size: 17px; }
+    .gw-header > div { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+    .gw-header .gw-btn-secondary, .gw-header .gw-btn-success { flex: 1 1 auto; text-align: center; font-size: 12px; padding: 6px 12px; }
+    .gw-card { padding: 14px; }
+    .gw-card-header { flex-direction: column; gap: 8px; align-items: stretch; }
+    .gw-card-name { font-size: 14px; flex-wrap: wrap; }
+    .gw-card-actions { flex-wrap: wrap; gap: 4px; }
+    .gw-card-actions button { flex: 1 1 auto; text-align: center; font-size: 11px; padding: 6px 8px; min-height: 36px; }
+    .gw-form { padding: 16px; }
+    .gw-form h2 { font-size: 14px; }
+    .gw-form-row input, .gw-form-row select { font-size: 16px; }
+    .gw-config-fields { padding: 8px; }
+    .gw-form-actions { flex-direction: column; }
+    .gw-form-actions button { width: 100%; text-align: center; }
+    .gw-form-row textarea { min-height: 50px; }
+}
+@media (max-width: 480px) {
+    .gw-container { padding: 6px; }
+    .gw-card { padding: 10px; }
+    .gw-card-name { font-size: 13px; }
+    .gw-card-platform { font-size: 10px; }
+    .gw-card-actions button { font-size: 10px; padding: 4px 6px; min-height: 36px; }
+}
+@media (max-width: 600px) {
+    .gw-card-header { flex-direction: column; gap: 8px; align-items: stretch; }
+    .gw-card-actions { flex-wrap: wrap; }
+}
+</style>
+
+<div class="gw-container">
+    <div class="gw-header">
+        <h1>🔔 通知网关</h1>
+        <div>
+            <button class="gw-btn-secondary" onclick="toggleForm()" id="addBtn">➕ 添加终端</button>
+            <button class="gw-btn-success" onclick="testAll()" style="margin-left:8px;">📤 测试全部</button>
+        </div>
+    </div>
+
+    <!-- 添加/编辑表单 -->
+    <div class="gw-form" id="gwForm" style="display:none;">
+        <h2 id="formTitle">📡 添加通知终端</h2>
+        <input type="hidden" id="editId" value="">
+
+        <div class="gw-form-row">
+            <label for="gwName">终端名称</label>
+            <input type="text" id="gwName" placeholder="如：我的飞书群、运维告警群...（选择平台类型后自动生成）" autofocus>
+            <div class="hint">💡 选择平台类型后，若名称为空则自动填入平台名称</div>
+        </div>
+
+        <div class="gw-form-row">
+            <label for="gwPlatform">平台类型</label>
+            <select id="gwPlatform" onchange="onPlatformChange()"
+                    data-qr-platforms='{{ ["feishu","wecom","wechat","dingtalk"]|tojson }}'>  {# TODO: 从 provider 配置字段动态推导 #}
+                <option value="">— 选择平台 —</option>
+                {% for p in providers %}
+                <option value="{{ p.name }}" data-fields='{{ p.config_fields|tojson }}'
+                        data-display="{{ p.icon }} {{ p.display_name }}">{{ p.icon }} {{ p.display_name }} — {{ p.description }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="gwConfigFields" class="gw-config-fields" style="display:none;">
+            <p style="font-size:13px;color:#64748b;margin:0 0 8px;">配置参数：</p>
+        </div>
+
+        <!-- 扫码自动配置区域 -->
+        <div id="gwQrConfig" class="gw-config-fields" style="display:none;margin-top:12px;background:#f0f7ff;border:1px solid #d0e4ff;">
+            <p style="font-size:13px;color:#1e40af;margin:0 0 8px;font-weight:500;">📱 扫码自动配置 — <span id="gwQrPlatform"></span></p>
+            <p style="font-size:12px;color:#64748b;margin:0 0 8px;">自动生成回调地址并生成二维码，扫码后自动填入 Webhook URL</p>
+            <div style="text-align:center;margin-bottom:8px;">
+                <img id="gwQrImg" src="" style="width:200px;height:200px;display:none;border:2px solid #fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);">
+            </div>
+            <div id="gwQrStatus" style="display:none;font-size:13px;text-align:center;margin-bottom:8px;"></div>
+            <div id="gwQrUrl" style="font-size:10px;color:#94a3b8;word-break:break-all;text-align:center;margin-bottom:8px;display:none;"></div>
+            <div id="gwQrResult" class="gw-result" style="display:none;"></div>
+            <div style="display:flex;gap:8px;justify-content:center;">
+                <button id="gwQrBtn" class="gw-btn-primary" onclick="startQrConfig()" style="background:#1e40af;">📱 扫码配置</button>
+                <button class="gw-btn-secondary" onclick="document.getElementById('gwQrConfig').style.display='none'">取消</button>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;margin:8px 0 0;text-align:center;">
+                ⚠️ 需要服务器有公网地址或使用隧道（ngrok/localtunnel）。部署后可自动配置。
+            </p>
+        </div>
+
+        <div class="gw-form-actions">
+            <button class="gw-btn-primary" onclick="saveChannel()">💾 保存</button>
+            <button class="gw-btn-secondary" onclick="toggleForm()">取消</button>
+        </div>
+        <div id="gwFormResult" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- 渠道列表 -->
+    <div id="gwChannels">
+        {% if channels %}
+        {% for ch in channels %}
+        {% set cfg = ch.config_json|from_json if ch.config_json and ch.config_json|length > 2 else {} %}
+        <div class="gw-card" id="ch_{{ ch.id }}">
+            <div class="gw-card-header">
+                <div>
+                    <div class="gw-card-name">
+                        {{ ch.name }}
+                        <span class="gw-card-platform">{{ ch.platform }}</span>
+                        <span class="gw-card-status {{ 'enabled' if ch.enabled else 'disabled' }}">
+                            {{ '启用' if ch.enabled else '禁用' }}
+                        </span>
+                    </div>
+                </div>
+                <div class="gw-card-actions">
+                    <button class="btn-primary" onclick="testChannel({{ ch.id }})">📤 测试</button>
+                    <button onclick="editChannel({{ ch.id }})">✏️ 编辑</button>
+                    {% if ch.enabled %}
+                    <button onclick="toggleChannel({{ ch.id }}, 0)">⏸️ 禁用</button>
+                    {% else %}
+                    <button onclick="toggleChannel({{ ch.id }}, 1)">▶️ 启用</button>
+                    {% endif %}
+                    <button class="btn-danger" onclick="deleteChannel({{ ch.id }})">🗑️ 删除</button>
+                </div>
+            </div>
+            {% if cfg %}
+            <div style="font-size:12px;color:#94a3b8;">
+                {% for k, v in cfg.items() %}
+                <span style="margin-right:12px;"><strong>{{ k }}:</strong> {{ '••••••' if 'secret' in k or 'key' in k or 'token' in k else v }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div id="result_{{ ch.id }}" class="gw-result" style="display:none;"></div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="gw-empty">
+            <div class="big-icon">📡</div>
+            <div>还没有配置任何通知终端</div>
+            <p style="font-size:13px;margin-top:8px;">点击「添加终端」绑定飞书/企微/Telegram/Discord 等 20+ 平台</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+let providerFields = {};
+
+document.querySelectorAll('#gwPlatform option').forEach(opt => {
+    if (opt.value) {
+        try {
+            providerFields[opt.value] = JSON.parse(opt.dataset.fields || '[]');
+        } catch(e) { providerFields[opt.value] = []; }
+    }
+});
+
+function toggleForm() {
+    const form = document.getElementById('gwForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form.style.display === 'none') {
+        document.getElementById('editId').value = '';
+        document.getElementById('gwName').value = '';
+        document.getElementById('gwPlatform').value = '';
+        document.getElementById('gwConfigFields').style.display = 'none';
+        document.getElementById('gwConfigFields').innerHTML = '';
+        document.getElementById('formTitle').textContent = '📡 添加通知终端';
+    }
+}
+
+function onPlatformChange() {
+    const platform = document.getElementById('gwPlatform').value;
+    const container = document.getElementById('gwConfigFields');
+    const fields = providerFields[platform] || [];
+
+    // 自动填充终端名称
+    const nameInput = document.getElementById('gwName');
+    if (!nameInput.value.trim()) {
+        const opt = document.querySelector('#gwPlatform option[value="' + platform + '"]');
+        if (opt) {
+            const display = opt.dataset.display || platform;
+            nameInput.value = display;
+        }
+    }
+
+    if (!platform || fields.length === 0) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        // 隐藏扫码按钮
+        const qrArea = document.getElementById('gwQrConfig');
+        if (qrArea) qrArea.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    container.innerHTML = '<p style="font-size:13px;color:#64748b;margin:0 0 8px;">配置参数：</p>' +
+        fields.map(f => {
+            const typeMap = {url: 'url', password: 'password', text: 'text', select: 'select', number: 'number'};
+            const inputType = typeMap[f.type] || 'text';
+            let input;
+            if (inputType === 'select' && f.options) {
+                input = `<select id="cfg_${f.key}" ${f.required ? 'required' : ''}>
+                    <option value="">— 选择 —</option>
+                    ${f.options.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+                </select>`;
+            } else {
+                input = `<input type="${inputType}" id="cfg_${f.key}" ${f.required ? 'required' : ''}
+                    placeholder="${f.placeholder || ''}" value="${f.default || ''}">`;
+            }
+            return `<div class="gw-form-row">
+                <label>${f.label} ${f.required ? '<span style="color:#dc2626;">*</span>' : ''}</label>
+                ${input}
+                ${f.placeholder ? '<div class="hint">' + f.placeholder + '</div>' : ''}
+            </div>`;
+        }).join('');
+
+    // 显示/隐藏扫码配置区域
+    showQrConfig(platform);
+}
+
+// ====== 扫码自动配置 ======
+function showQrConfig(platform) {
+    const qrArea = document.getElementById('gwQrConfig');
+    if (!qrArea) return;
+
+    // qrPlatforms 从 API /api/gateway/providers 动态加载
+    var qrPlatforms = [];
+    try {
+        var sel = document.getElementById('gwPlatform');
+        if (sel && sel.getAttribute('data-qr-platforms')) {
+            qrPlatforms = JSON.parse(sel.getAttribute('data-qr-platforms'));
+        }
+    } catch(e) {}
+    if (!qrPlatforms.length) {
+        qrPlatforms = ['feishu', 'wecom', 'wechat', 'dingtalk'];
+    }
+    if (qrPlatforms.includes(platform)) {
+        qrArea.style.display = 'block';
+        document.getElementById('gwQrPlatform').textContent =
+            document.querySelector('#gwPlatform option[value="' + platform + '"]')?.textContent || platform;
+    } else {
+        qrArea.style.display = 'none';
+    }
+}
+
+function startQrConfig() {
+    const btn = document.getElementById('gwQrBtn');
+    btn.disabled = true;
+    btn.innerHTML = '⏳ 启动中...';
+    document.getElementById('gwQrResult').style.display = 'none';
+
+    fetch('/api/gateway/start-callback', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({platform: document.getElementById('gwPlatform').value})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.qr_url) {
+            // 显示二维码
+            const qrImg = document.getElementById('gwQrImg');
+            qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' +
+                encodeURIComponent(data.qr_url);
+            qrImg.style.display = 'block';
+            document.getElementById('gwQrUrl').textContent = data.qr_url;
+            document.getElementById('gwQrStatus').textContent = '📱 请用手机扫码，平台会自动发送验证请求';
+            document.getElementById('gwQrStatus').style.color = '#16a34a';
+            document.getElementById('gwQrStatus').style.display = 'block';
+
+            // 开始轮询回调结果
+            window._gwQrPoll = setInterval(function() {
+                fetch('/api/gateway/callback-result/' + data.session_id)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.webhook_url) {
+                        clearInterval(window._gwQrPoll);
+                        // 自动填入 webhook_url
+                        const whInput = document.getElementById('cfg_webhook_url');
+                        if (whInput) whInput.value = d.webhook_url;
+                        if (d.secret) {
+                            const secInput = document.getElementById('cfg_secret');
+                            if (secInput) secInput.value = d.secret;
+                        }
+                        document.getElementById('gwQrStatus').textContent = '✅ 自动配置成功！Webhook URL 已填入';
+                        document.getElementById('gwQrStatus').style.color = '#16a34a';
+                        btn.disabled = false;
+                        btn.innerHTML = '✅ 已配置';
+                    }
+                })
+                .catch(function() {});
+            }, 2000);
+
+            // 5分钟后超时
+            setTimeout(function() {
+                if (window._gwQrPoll) {
+                    clearInterval(window._gwQrPoll);
+                    document.getElementById('gwQrStatus').textContent = '⏰ 超时，请重新点击"扫码配置"';
+                    document.getElementById('gwQrStatus').style.color = '#dc2626';
+                    btn.disabled = false;
+                    btn.innerHTML = '📱 扫码配置';
+                }
+            }, 300000);
+        } else {
+            document.getElementById('gwQrResult').style.display = 'block';
+            document.getElementById('gwQrResult').className = 'gw-result error';
+            document.getElementById('gwQrResult').textContent = '❌ ' + (data.error || '启动失败');
+            btn.disabled = false;
+            btn.innerHTML = '📱 扫码配置';
+        }
+    })
+    .catch(function(e) {
+        document.getElementById('gwQrResult').style.display = 'block';
+        document.getElementById('gwQrResult').className = 'gw-result error';
+        document.getElementById('gwQrResult').textContent = '❌ ' + e.message;
+        btn.disabled = false;
+        btn.innerHTML = '📱 扫码配置';
+    });
+}
+
+function saveChannel() {
+    const name = document.getElementById('gwName').value.trim();
+    const platform = document.getElementById('gwPlatform').value;
+    const editId = document.getElementById('editId').value;
+
+    if (!name || !platform) { alert('请填写名称和选择平台'); return; }
+
+    const config = {};
+    const fields = providerFields[platform] || [];
+    fields.forEach(f => {
+        const el = document.getElementById('cfg_' + f.key);
+        if (el) config[f.key] = el.value;
+    });
+
+    const url = editId ? '/api/gateway/channels/' + editId : '/api/gateway/channels';
+    const method = editId ? 'PUT' : 'POST';
+
+    document.getElementById('gwFormResult').innerHTML = '🔄 保存中...';
+
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(editId ? {name: name, platform: platform, config: config} : {name: name, platform: platform, config: config})
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('gwFormResult').innerHTML =
+            `<div class="gw-result ${data.success ? 'success' : 'error'}">${data.success ? '✅ ' : '❌ '}${data.message || data.error}</div>`;
+        if (data.success) {
+            setTimeout(() => location.reload(), 1000);
+        }
+    });
+}
+
+function editChannel(id) {
+    toggleForm();
+    document.getElementById('formTitle').textContent = '✏️ 编辑终端';
+    document.getElementById('editId').value = id;
+
+    fetch('/api/gateway/channels')
+    .then(r => r.json())
+    .then(data => {
+        const ch = (data.channels || []).find(c => c.id === id);
+        if (!ch) return;
+        document.getElementById('gwName').value = ch.name;
+        document.getElementById('gwPlatform').value = ch.platform;
+        onPlatformChange();
+
+        try {
+            const cfg = JSON.parse(ch.config_json || '{}');
+            Object.keys(cfg).forEach(k => {
+                const el = document.getElementById('cfg_' + k);
+                if (el) el.value = cfg[k];
+            });
+        } catch(e) {}
+    });
+}
+
+function toggleChannel(id, enabled) {
+    fetch('/api/gateway/channels/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(r => r.json())
+    .then(data => { if (data.success) location.reload(); });
+}
+
+function deleteChannel(id) {
+    if (!confirm('确定删除这个通知终端？')) return;
+    fetch('/api/gateway/channels/' + id, {method: 'DELETE'})
+    .then(r => r.json())
+    .then(data => { if (data.success) location.reload(); });
+}
+
+function testChannel(id) {
+    const resultEl = document.getElementById('result_' + id);
+    resultEl.style.display = 'block';
+    resultEl.className = 'gw-result';
+    resultEl.textContent = '🔄 发送测试消息...';
+
+    fetch('/api/gateway/channels/' + id + '/test', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        resultEl.className = 'gw-result ' + (data.success ? 'success' : 'error');
+        resultEl.textContent = data.success ? '✅ 测试成功！' : '❌ 失败: ' + (data.error || '');
+    });
+}
+
+function testAll() {
+    if (!confirm('向所有已启用的终端发送测试消息？')) return;
+    fetch('/api/gateway/test-all', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        const msg = data.results.map(r =>
+            `${r.platform || r.channel}: ${r.success ? '✅' : '❌ ' + (r.error || '')}`
+        ).join('\n');
+        alert(`测试完成: ${data.success_count}/${data.total}\n\n${msg}`);
+    });
+}
+</script>
+{% endblock %}

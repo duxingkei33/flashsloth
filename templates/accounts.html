@@ -1,88 +1,1394 @@
-{% extends "base.html" %}
-{% block title %}平台账号管理{% endblock %}
-{% block content %}
-<h1 style="margin-bottom:20px;">🔑 多平台账号管理</h1>
+{% extends 'base.html' %}
 
+{% block title %}平台账号管理{% endblock %}
+
+{% block content %}
+
+<style>
+/* ═══ 账号管理页核心样式 ═══ */
+
+/* 平台图标映射 */
+.plat-icon { display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;font-size:16px;flex-shrink:0; }
+
+/* 搜索/过滤栏 */
+.filter-bar { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06); }
+.filter-bar input { padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;flex:1;min-width:180px; }
+.filter-bar select { padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer; }
+.filter-bar .sort-btn { padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;cursor:pointer;font-size:12px;color:#666;transition:all .15s; }
+.filter-bar .sort-btn:hover { background:#4361ee;color:#fff;border-color:#4361ee; }
+.filter-bar .sort-btn.active { background:#4361ee;color:#fff;border-color:#4361ee; }
+.filter-count { font-size:12px;color:#999;white-space:nowrap; }
+
+/* 批量操作工具栏 */
+.batch-toolbar { display:none;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px; }
+.batch-toolbar.show { display:flex; }
+.batch-toolbar .batch-count { font-weight:600;color:#4361ee; }
+.batch-toolbar .btn-sm { font-size:12px;padding:4px 10px; }
+
+/* 账号卡片（增强版） */
+.acct-card { display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #eee;border-radius:10px;margin-bottom:8px;transition:all .15s;position:relative; }
+.acct-card:hover { border-color:#d0d5f0;box-shadow:0 2px 8px rgba(67,97,238,.08); }
+.acct-card.selected { border-color:#4361ee;background:#f8f9ff; }
+.acct-card.disabled { opacity:.7; }
+.acct-card .check-wrap { flex-shrink:0;width:20px; }
+.acct-card .check-wrap input { width:16px;height:16px;cursor:pointer; }
+
+/* 账号信息区 */
+.acct-info { flex:1;min-width:0;display:flex;flex-direction:column;gap:2px; }
+.acct-info .name-row { display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.acct-info .name-row .acct-name { font-weight:600;font-size:14px;color:#1a1a2e; }
+.acct-info .plat-tag { font-size:10px;background:#f0f4ff;color:#4361ee;padding:1px 6px;border-radius:4px;white-space:nowrap; }
+.acct-info .detail-row { display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px; }
+
+/* 状态徽章组 */
+.status-group { display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+.status-badge { display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500; }
+.status-badge.online { background:#d4edda;color:#155724; }
+.status-badge.offline { background:#f8d7da;color:#721c24; }
+.status-badge.unknown { background:#e2e3e5;color:#383d41; }
+.status-badge.pending { background:#fff3cd;color:#856404; }
+.status-badge.cached { background:#d1ecf1;color:#0c5460; }
+.time-tag { font-size:10px;color:#aaa;white-space:nowrap; }
+
+/* 操作按钮组 */
+.acct-actions { display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0; }
+.acct-actions .btn { font-size:11px;padding:4px 8px; }
+
+/* 视图切换 */
+.view-toggle { display:flex;gap:2px;margin-left:auto; }
+.view-toggle button { padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;cursor:pointer;font-size:13px;color:#666;transition:all .15s; }
+.view-toggle button.active { background:#4361ee;color:#fff;border-color:#4361ee; }
+
+/* 空状态增强 */
+.empty-state-enhanced { text-align:center;padding:60px 24px; }
+.empty-state-enhanced .big-icon { font-size:64px;margin-bottom:16px; }
+.empty-state-enhanced h2 { font-size:20px;color:#333;margin-bottom:8px; }
+.empty-state-enhanced p { color:#888;margin-bottom:24px;font-size:14px;line-height:1.6; }
+.empty-state-enhanced .steps { display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:0 auto 24px;max-width:600px; }
+.empty-state-enhanced .step-card { background:#f8f9fa;border:1px solid #eee;border-radius:10px;padding:20px 16px;text-align:center;flex:1;min-width:120px;max-width:180px; }
+.empty-state-enhanced .step-card .step-num { font-size:28px;margin-bottom:8px; }
+.empty-state-enhanced .step-card .step-label { font-size:13px;color:#555;line-height:1.4; }
+.empty-state-enhanced .step-card:hover { border-color:#4361ee; }
+
+/* 紧凑视图（列表模式） */
+.compact-view .acct-card { padding:8px 12px;border-radius:6px;margin-bottom:4px;gap:8px; }
+.compact-view .acct-card .plat-icon { width:24px;height:24px;font-size:13px; }
+.compact-view .acct-info .name-row .acct-name { font-size:13px; }
+.compact-view .acct-info .detail-row { font-size:11px; }
+.compact-view .acct-actions .btn { font-size:10px;padding:2px 6px; }
+
+/* 平台卡片分类 */
+.plat-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px; }
+.plat-header h2 { margin:0;font-size:16px;display:flex;align-items:center;gap:8px; }
+.plat-header .plat-count { font-size:12px;color:#999;font-weight:normal; }
+
+/* 手机响应式 */
+@media (max-width: 768px) {
+    .filter-bar { flex-direction:column;align-items:stretch !important; }
+    .filter-bar input { min-width:unset; }
+    .filter-bar select { width:100%; }
+    .acct-card { flex-wrap:wrap;padding:10px; }
+    .acct-card .check-wrap { order:-1; }
+    .acct-info { width:calc(100% - 36px); }
+    .acct-actions { width:100%;margin-top:4px;justify-content:flex-start; }
+    .empty-state-enhanced .steps { flex-direction:column;align-items:center; }
+    .empty-state-enhanced .step-card { max-width:100%;width:100%; }
+    .view-toggle { margin-left:0;width:100%;justify-content:flex-end; }
+}
+/* 平台搜索自动补全下拉框 */
+.platform-search-wrap { position:relative; display:inline-flex; align-items:stretch; min-width:180px; }
+#platformSearchInput:focus { border-color:#4361ee;outline:none;box-shadow:0 0 0 2px rgba(67,97,238,.15); }
+#platformDropdownToggle:hover { background:#f0f4ff !important;border-color:#4361ee !important;color:#4361ee !important; }
+#platformSearchDropdown { display:none; position:absolute; top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:999;max-height:320px;overflow-y:auto;margin-top:4px; }
+#platformSearchDropdown .plat-item { display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;transition:background .1s; }
+#platformSearchDropdown .plat-item:last-child { border-bottom:none; }
+#platformSearchDropdown .plat-item:hover,
+#platformSearchDropdown .plat-item.active { background:#f0f4ff; }
+#platformSearchDropdown .plat-item .plat-icon { width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0; }
+#platformSearchDropdown .plat-item .plat-info { flex:1;min-width:0; }
+#platformSearchDropdown .plat-item .plat-info .plat-name { font-weight:600;font-size:13px;color:#1a1a2e; }
+#platformSearchDropdown .plat-item .plat-info .plat-arch { font-size:11px;color:#888;margin-top:2px; }
+#platformSearchDropdown .plat-empty { padding:16px;text-align:center;color:#aaa;font-size:13px; }
+#platformSearchDropdown .plat-loading { padding:16px;text-align:center;color:#4361ee;font-size:13px; }
+#platformSearchDropdown .plat-noquery { padding:16px;text-align:center;color:#aaa;font-size:12px;line-height:1.6; }
+@media (max-width: 768px) {
+    .platform-search-wrap { display:flex;min-width:unset;width:100%; }
+    .platform-search-wrap #platformSearchInput { width:100%; }
+}
+@media (max-width: 480px) {
+    .filter-bar { padding:8px 10px; }
+    .acct-card { padding:8px;gap:6px; }
+    .acct-info .name-row .acct-name { font-size:13px; }
+    .plat-icon { width:26px;height:26px;font-size:14px; }
+    /* 触摸友好：按钮和操作栏 */
+    .acct-actions .btn { min-height:40px; font-size:12px; padding:6px 10px; flex:1 1 auto; }
+    .acct-card { flex-wrap:wrap; }
+    .acct-actions { width:100%; margin-top:6px; justify-content:stretch; gap:4px; }
+    .acct-actions .btn { flex:1 1 auto; text-align:center; min-width:60px; }
+    /* 添加账号弹窗 */
+    #addFormBox > div { padding:16px !important; max-width:98% !important; width:98% !important; }
+    #addFormBox input, #addFormBox select { font-size:16px; }
+    #addFormBox #platformSearchInput { font-size:16px; }
+    #addFormBox input, #addFormBox .platform-search-wrap { font-size:16px; }
+    /* 平台搜索 */
+    .platform-search-wrap { display:flex;min-width:unset;width:100%; }
+    #platformSearchInput { font-size:16px; }
+    /* 部署区块 */
+    #deploy .stat-card { min-width:100% !important; flex:1 1 100% !important; }
+    .site-config-card { background:#fff;border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1); }
+    .site-config-card h3 { margin:0 0 12px;font-size:16px;color:#1a1a2e;display:flex;align-items:center;gap:8px; }
+    .platform-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px; }
+    .platform-card { border:2px solid #eee;border-radius:10px;padding:14px;cursor:pointer;text-align:center;transition:all .15s; }
+    .platform-card:hover { border-color:#4361ee;box-shadow:0 2px 8px rgba(67,97,238,.12); }
+    .platform-card.selected { border-color:#4361ee;background:#f0f4ff; }
+    .platform-card .plat-icon { font-size:28px;margin-bottom:6px; }
+    .platform-card .plat-name { font-weight:600;font-size:14px; }
+    .platform-card .plat-desc { font-size:11px;color:#888;margin-top:4px;line-height:1.4; }
+    .platform-card .plat-file { font-size:10px;color:#aaa;margin-top:4px;font-family:monospace; }
+    .comment-select { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px; }
+    .comment-option { border:2px solid #eee;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:center;flex:1;min-width:120px;max-width:160px;transition:all .15s; }
+    .comment-option:hover { border-color:#2ec4b6; }
+    .comment-option.selected { border-color:#2ec4b6;background:#f0fdfa; }
+    .comment-option .co-icon { font-size:22px; }
+    .comment-option .co-name { font-size:13px;font-weight:600;margin-top:2px; }
+    .comment-option .co-desc { font-size:10px;color:#888;margin-top:2px; }
+    .comment-option .co-badge { font-size:9px;background:#2ec4b6;color:#fff;border-radius:4px;padding:1px 4px;display:inline-block;margin-top:2px; }
+    .comment-fields { background:#f8f9fa;border-radius:8px;padding:14px;margin-bottom:12px;display:none; }
+    .comment-fields.show { display:block; }
+    .plugin-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px; }
+    .plugin-card { border:1px solid #eee;border-radius:10px;padding:12px;transition:all .15s;position:relative; }
+    .plugin-card:hover { border-color:#d0d5f0;box-shadow:0 1px 4px rgba(0,0,0,.06); }
+    .plugin-card .plugin-header { display:flex;align-items:center;gap:8px;margin-bottom:6px; }
+    .plugin-card .plugin-icon { font-size:20px; }
+    .plugin-card .plugin-name { font-weight:600;font-size:13px;flex:1; }
+    .plugin-card .plugin-desc { font-size:11px;color:#888;line-height:1.4;margin-bottom:6px; }
+    .plugin-card .plugin-fields { display:none;margin-top:8px;padding-top:8px;border-top:1px solid #eee; }
+    .plugin-card .plugin-fields.show { display:block; }
+    .plugin-card .plugin-fields input { width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:4px; }
+    .plugin-card .plugin-fields label { font-size:11px;color:#666;display:block;margin-bottom:2px; }
+    .toggle-switch { position:relative;width:36px;height:20px;flex-shrink:0; }
+    .toggle-switch input { opacity:0;width:0;height:0; }
+    .toggle-slider { position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ddd;border-radius:20px;transition:.2s; }
+    .toggle-slider:before { content:"";position:absolute;height:16px;width:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s; }
+    .toggle-switch input:checked + .toggle-slider { background:#4361ee; }
+    .toggle-switch input:checked + .toggle-slider:before { transform:translateX(16px); }
+    .guide-link { font-size:11px;color:#4361ee;text-decoration:none;display:inline-block;margin-top:4px; }
+    .guide-link:hover { text-decoration:underline; }
+    .config-actions { display:flex;gap:8px;margin-top:16px;align-items:center; }
+    .config-status { font-size:12px;padding:6px 12px;border-radius:6px;display:none; }
+    .config-status.success { display:block;background:#d4edda;color:#155724; }
+    .config-status.error { display:block;background:#f8d7da;color:#721c24; }
+    .recommended-tag { font-size:9px;background:#ffd700;color:#1a1a2e;border-radius:4px;padding:1px 5px;display:inline-block;margin-left:4px;font-weight:600; }
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+}
+
+/* ═══ 添加账号弹窗：引导卡片 ═══ */
+.guide-banner {
+    background: linear-gradient(135deg, #e8f0fe 0%, #d4e4fc 100%);
+    border: 1px solid #b8d4f8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.guide-banner .guide-header {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1a3a6b;
+    margin-bottom: 8px;
+}
+.guide-banner .guide-steps ol {
+    margin: 4px 0 8px 0;
+    padding-left: 20px;
+    color: #2c3e50;
+}
+.guide-banner .guide-steps li {
+    margin-bottom: 3px;
+}
+.guide-banner .guide-btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #1d4ed8;
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    margin: 4px 0 10px 0;
+    transition: background 0.15s;
+}
+.guide-banner .guide-btn:hover {
+    background: #1e40af;
+}
+.guide-banner .guide-fields-map {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 6px;
+}
+.guide-banner .guide-fields-map th {
+    background: #d0e2fc;
+    color: #1a3a6b;
+    text-align: left;
+    padding: 5px 8px;
+    font-weight: 600;
+    border: 1px solid #b8d4f8;
+}
+.guide-banner .guide-fields-map td {
+    padding: 4px 8px;
+    border: 1px solid #c9dffa;
+    background: rgba(255,255,255,0.5);
+    color: #2c3e50;
+}
+.guide-banner .guide-fields-map td code {
+    background: #e8f0fe;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #1d4ed8;
+}
+/* ═══ 暗色模式引导卡片 ═══ */
+@media (prefers-color-scheme: dark) {
+    .guide-banner {
+        background: linear-gradient(135deg, #1a2744 0%, #1e3a5f 100%);
+        border-color: #2d4a7a;
+    }
+    .guide-banner .guide-header { color: #8ab4f8; }
+    .guide-banner .guide-steps ol { color: #e0e0e0; }
+    .guide-banner .guide-fields-map th {
+        background: #2d4a7a;
+        color: #8ab4f8;
+        border-color: #3a5a8a;
+    }
+    .guide-banner .guide-fields-map td {
+        border-color: #3a5a8a;
+        background: rgba(0,0,0,0.2);
+        color: #e0e0e0;
+    }
+    .guide-banner .guide-fields-map td code {
+        background: #1a2744;
+        color: #8ab4f8;
+    }
+}
+</style>
+
+<!-- ====== 顶部：标题 + 添加账号 ====== -->
+<div class="acct-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
+
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="⏱ API轻量检测 — 用requests访问平台API，仅检测Cookie是否被服务端拒绝（重定向到登录页等明确信号）。无法用此方法确认真实登录态。
+✅ 检测到未登录→自动更新状态为❌
+⏳ 通过但未确认→显示待确认（需点击「🔍 状态检测」用Playwright全量验证）
+检测通过≠已登录，仅表示API没有拒绝Cookie。">🔄 批量预检</button>
+        <div class="platform-search-wrap" style="position:relative;display:inline-flex;align-items:stretch;">
+            <input type="text" id="platformSearchInput" placeholder="🔍 搜索平台..."
+                   autocomplete="off" oninput="onPlatformSearchInput()"
+                   onfocus="onPlatformSearchFocus()" onkeydown="onPlatformSearchKeydown(event)"
+                   data-selected=""
+                   style="padding:8px 12px;border:1px solid #ddd;border-radius:6px 0 0 6px;font-size:14px;width:260px;box-sizing:border-box;border-right:none;">
+            <button type="button" id="platformDropdownToggle"
+                    onclick="togglePlatformDropdown()"
+                    style="padding:8px 10px;border:1px solid #ddd;border-radius:0 6px 6px 0;background:#fff;cursor:pointer;font-size:12px;color:#666;display:flex;align-items:center;">
+                ▼
+            </button>
+            <div id="platformSearchDropdown"></div>
+        </div>
+        <button onclick="onAddAccount()" class="btn btn-success" id="btnAddAccount" disabled>添加</button>
+    </div>
+</div>
+
+<!-- ====== 搜索/过滤/排序栏 (优化1/6) ====== -->
+<div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="🔍 搜索账号名称、平台、站点..." oninput="filterAccounts()" onkeydown="filterAccountsImmediate(event)">
+    <select id="filterPlatform" onchange="filterAccounts()">
+        <option value="">所有平台</option>
+        {% for p in platforms %}
+        <option value="{{ p.name }}">{{ p.display_name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterStatus" onchange="filterAccounts()">
+        <option value="">所有状态</option>
+        <option value="online">✅ 已登录</option>
+        <option value="offline">❌ 未登录</option>
+        <option value="pending">⏳ 待确认</option>
+        <option value="unknown">⏳ 未知</option>
+        <option value="enabled">启用</option>
+        <option value="disabled">禁用</option>
+    </select>
+
+    <!-- 排序 (优化6) -->
+    <button class="sort-btn active" data-sort="platform" onclick="sortAccounts('platform')">📋 平台</button>
+    <button class="sort-btn" data-sort="name" onclick="sortAccounts('name')">📛 名称</button>
+    <button class="sort-btn" data-sort="status" onclick="sortAccounts('status')">✅ 状态</button>
+    <button class="sort-btn" data-sort="lastcheck" onclick="sortAccounts('lastcheck')">⏱ 检测</button>
+
+    <span class="filter-count" id="filterCount"></span>
+
+    <!-- 视图切换 (优化5) -->
+    <div class="view-toggle">
+        <button class="active" title="卡片视图" onclick="setViewMode('card')">🃏 卡片</button>
+        <button title="紧凑视图" onclick="setViewMode('compact')">📋 列表</button>
+    </div>
+</div>
+
+<!-- ====== 批量操作工具栏 (优化3) ====== -->
+<div class="batch-toolbar" id="batchToolbar">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
+        <input type="checkbox" id="selectAllAccounts" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;">全选</span>
+    </label>
+    <span class="batch-count" id="batchCount">已选 0 个</span>
+    <button onclick="batchToggle(true)" class="btn btn-sm btn-success">✅ 批量启用</button>
+    <button onclick="batchToggle(false)" class="btn btn-sm btn-warning">⛔ 批量禁用</button>
+    <button onclick="batchDelete()" class="btn btn-sm btn-danger">🗑 批量删除</button>
+    <button onclick="clearSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
+</div>
+
+<!-- ====== 平台图标映射 (数据驱动, from route) ====== -->
+<!-- platform_icons 和 platform_colors 由路由传入，不再硬编码 -->
+
+<!-- ====== 有账号的平台卡片 (优化5: 卡片模式) ====== -->
+{% set platform_accounts = grouped %}
+{% set has_any = namespace(value=false) %}
+{% set acct_total = namespace(value=0) %}
+
+<div id="accountsContainer" class="card-view">
 {% for p in platforms %}
-<div class="card" style="margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h2 style="margin:0;font-size:16px;">{{ p.display_name }}</h2>
-        <button onclick="showAddForm('{{ p.name }}')" class="btn btn-sm btn-success">+ 添加账号</button>
+{% set accounts = platform_accounts.get(p.name, []) %}
+{% if accounts %}
+{% set has_any.value = true %}
+{% set acct_total.value = acct_total.value + accounts|length %}
+
+<div class="card" style="margin-bottom:16px;overflow:visible;" data-platform="{{ p.name }}">
+    <div class="plat-header">
+        <h2>
+            <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(p.name, platform_icons['default']) }}</span>
+            {{ p.display_name }}
+            <span class="plat-count">({{ accounts|length }} 个账号)</span>
+        </h2>
     </div>
 
-    {% set accounts = grouped.get(p.name, []) %}
-    {% if accounts %}
-    <table style="margin-top:12px;">
-        <thead><tr><th>账号名</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody>
-        {% for a in accounts %}
-        <tr>
-            <td>{{ a.account_name }}</td>
-            <td>
-                {% if a.is_active %}
-                <span class="badge badge-success">启用</span>
-                {% else %}
-                <span class="badge badge-warning">停用</span>
+    {% for a in accounts %}
+    {% set cfg = a.config_json|from_json if a.config_json else {} %}
+    {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
+    {% set is_online = cached.get('logged_in', None) if cached else None %}
+    {% set last_check_ts = cached.get('_cache_timestamp', 0) if cached else 0 %}
+    {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
+    <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
+         data-platform="{{ p.name }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none else 'unknown')) }}"
+         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}"
+         data-site-url="{{ cfg.get('site_url', '')|lower }}" data-last-check="{{ last_check_ts }}">
+        <!-- 批量选择框 (优化3) -->
+        <div class="check-wrap">
+            <input type="checkbox" class="acct-checkbox" value="{{ a.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;cursor:pointer;">
+        </div>
+
+        <!-- 平台图标 (优化4) -->
+        <span class="plat-icon" style="background:{{ platform_colors.get(p.name, '#f0f4ff') }};">
+            {{ platform_icons.get(p.name, platform_icons['default']) }}
+        </span>
+
+        <!-- 账号信息 -->
+        <div class="acct-info">
+            <div class="name-row">
+                <span class="acct-name">{{ a.account_name }}</span>
+                <span class="plat-tag">{{ p.display_name }}</span>
+                {% set site_url = cfg.get('site_url', '') %}
+                {% if site_url %}
+                <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;" title="{{ site_url }}">🌐</a>
                 {% endif %}
-            </td>
-            <td>
-                <a href="/accounts/edit/{{ a.id }}" class="btn btn-sm btn-primary">编辑</a>
-                <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
-                   onclick="return confirm('确定删除此账号？')">删除</a>
-            </td>
-        </tr>
-        {% endfor %}
+            </div>
+            <div class="detail-row">
+                <!-- 启用/禁用 开关 (优化3) -->
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;flex-shrink:0;"
+                       title="{{ '点击禁用' if a.is_active else '点击启用' }}">
+                    <input type="checkbox" {{ 'checked' if a.is_active else '' }}
+                           onchange="toggleAccount({{ a.id }}, this)"
+                           style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if a.is_active else '#999' }};">{{ '启用' if a.is_active else '禁用' }}</span>
+                </label>
+
+                <!-- 状态徽章带最后检测时间 (优化1/2) -->
+                <span class="status-group">
+                    <!-- 登录状态徽章 -->
+                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none and cached.get('_cache_source') else 'unknown')) }}">
+                        {% if is_online and cached.get('username') %}
+                            ✅ {{ cached.get('username') }}{% if cached.get('points') %} {{ cached.get('points_label','积分') }}:{{ cached.get('points') }}{% endif %}
+                        {% elif is_online %}
+                            ✅ 已登录
+                        {% elif is_online == False %}
+                            ❌ {{ cached.get('status', '未登录') }}
+                        {% elif cached.get('_cache_source') and is_online is none %}
+                            ⏳ 待确认（API检测通过）
+                        {% else %}
+                            {{ '⏳ 启用' if a.is_active else '⛔ 停用' }}
+                        {% endif %}
+                    </span>
+
+                    <!-- 最后检测时间 (优化2) -->
+                    <span id="lastCheck_{{ a.id }}" class="time-tag">
+                        {% if cached.get('_cache_source') %}
+                            {% set age = cached.get('_cache_age_seconds', 999) %}
+                            {% if age < 60 %}
+                                <span style="color:#22c55e;">⏳ {{ age }}秒前</span>
+                            {% elif age < 300 %}
+                                <span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
+                            {% else %}
+                                <span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>
+                            {% endif %}
+                        {% elif cached.get('verified_at') %}
+                            <span style="color:#888;">🕐 {{ cached.get('verified_at')[:16] }}</span>
+                        {% else %}
+                            <span style="color:#ccc;">未检测</span>
+                        {% endif %}
+                    </span>
+                </span>
+
+                <!-- 用户信息深度展示 -->
+                <span id="userInfo_{{ a.id }}" style="font-size:11px;color:#666;display:flex;align-items:center;gap:4px;">
+                    {% if cached.get('logged_in') and cached.get('username') %}
+                        <span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>
+                        {% if cached.get('points') %}
+                            <span style="color:#888;">{{ cached.get('points_label','积分') }}:{{ cached.get('points') }}</span>
+                        {% endif %}
+                        {% if cached.get('level') %}
+                            <span style="color:#888;">{{ cached.get('level') }}</span>
+                        {% endif %}
+                    {% elif cached.get('logged_in') %}
+                        <span style="color:#22c55e;">✅ 已登录</span>
+                    {% endif %}
+                </span>
+
+                <!-- Cookie 指示器 -->
+                <span style="font-size:12px;color:#999;" title="{{ '有Cookie' if has_cookie else '无Cookie' }}">
+                    {% if has_cookie %}🍪{% else %}—{% endif %}
+                </span>
+
+                <!-- 保持在线开关 -->
+                {% set keep_alive = cfg.get('keep_alive', '0') %}
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:11px;"
+                       title="{{ '点击关闭保持在线' if keep_alive == '1' else '点击开启保持在线' }}">
+                    <input type="checkbox" {{ 'checked' if keep_alive == '1' else '' }}
+                           onchange="toggleKeepAlive({{ a.id }}, this)"
+                           style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if keep_alive == '1' else '#999' }};">🔗</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 操作按钮组 -->
+        <div class="acct-actions">
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="Playwright真实浏览器 → 注入Cookie → 打开目标平台 → 检测退出/注销按钮+用户名/积分的全量登录态验证。比API轻量检测准确可靠。">🔍 状态检测</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
+            {% if p.name.startswith('xianyu') %}
+            <a href="http://localhost:{{ '9000' if p.name == 'xianyu' else '9001' }}" target="_blank" class="btn btn-sm btn-success" title="跳转至闲鱼自动回复后台（xianyu-auto-reply Docker 服务）">🐟 闲鱼后台</a>
+            {% endif %}
+            <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
+               onclick="return confirm('确定删除「{{ a.account_name }}」？此操作不可恢复。')">🗑 删除</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+{# ====== 孤儿账号：没有对应 publisher 的账号（数据驱动）====== #}
+{% set known_platforms = platforms|map(attribute='name')|list %}
+{% for pname, accts in platform_accounts.items() %}
+{% if pname not in known_platforms and accts %}
+{% set has_any.value = true %}
+{% set acct_total.value = acct_total.value + accts|length %}
+<div class="card" style="margin-bottom:16px;overflow:visible;" data-platform="{{ pname }}">
+    <div class="plat-header">
+        <h2>
+            <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(pname, platform_icons['default']) }}</span>
+            {{ pname }}
+            <span class="plat-count">({{ accts|length }} 个账号)</span>
+        </h2>
+    </div>
+    {% for a in accts %}
+    {% set cfg = a.config_json|from_json if a.config_json else {} %}
+    {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
+    {% set is_online = cached.get('logged_in', None) if cached else None %}
+    {% set last_check_ts = cached.get('_cache_timestamp', 0) if cached else 0 %}
+    {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
+    <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
+         data-platform="{{ pname }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none else 'unknown')) }}"
+         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}"
+         data-site-url="{{ cfg.get('site_url', '')|lower }}" data-last-check="{{ last_check_ts }}">
+        <div class="check-wrap">
+            <input type="checkbox" class="acct-checkbox" value="{{ a.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;cursor:pointer;">
+        </div>
+        <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(pname, platform_icons['default']) }}</span>
+        <div class="acct-info">
+            <div class="name-row">
+                <span class="acct-name">{{ a.account_name }}</span>
+                <span class="plat-tag">{{ pname }}</span>
+                {% set site_url = cfg.get('site_url', '') %}
+                {% if site_url %}
+                <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;" title="{{ site_url }}">🌐</a>
+                {% endif %}
+            </div>
+            <div class="detail-row">
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;flex-shrink:0;" title="{{ '点击禁用' if a.is_active else '点击启用' }}">
+                    <input type="checkbox" {{ 'checked' if a.is_active else '' }} onchange="toggleAccount({{ a.id }}, this)" style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if a.is_active else '#999' }};">{{ '启用' if a.is_active else '禁用' }}</span>
+                </label>
+                <span class="status-group">
+                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none and cached.get('_cache_source') else 'unknown')) }}">
+                        {% if is_online and cached.get('username') %}✅ {{ cached.get('username') }}{% if cached.get('points') %} {{ cached.get('points_label','积分') }}:{{ cached.get('points') }}{% endif %}
+                        {% elif is_online %}✅ 已登录
+                        {% elif is_online == False %}❌ {{ cached.get('status', '未登录') }}
+                        {% elif cached.get('_cache_source') and is_online is none %}⏳ 待确认（API检测通过）
+                        {% else %}{{ '⏳ 启用' if a.is_active else '⛔ 停用' }}{% endif %}
+                    </span>
+                    <span id="lastCheck_{{ a.id }}" class="time-tag">
+                        {% if cached.get('_cache_source') %}
+                            {% set age = cached.get('_cache_age_seconds', 999) %}
+                            {% if age < 60 %}<span style="color:#22c55e;">⏳ {{ age }}秒前</span>
+                            {% elif age < 300 %}<span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
+                            {% else %}<span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>{% endif %}
+                        {% elif cached.get('verified_at') %}<span style="color:#888;">🕐 {{ cached.get('verified_at')[:16] }}</span>
+                        {% else %}<span style="color:#ccc;">未检测</span>{% endif %}
+                    </span>
+                </span>
+                <span id="userInfo_{{ a.id }}" style="font-size:11px;color:#666;display:flex;align-items:center;gap:4px;">
+                    {% if is_online and cached.get('username') %}<span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>{% endif %}
+                </span>
+                <span style="font-size:12px;color:#999;" title="{{ '有Cookie' if has_cookie else '无Cookie' }}">{% if has_cookie %}🍪{% else %}—{% endif %}</span>
+            </div>
+        </div>
+        <div class="acct-actions">
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info">🔍 状态检测</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning">🌐 浏览器登录</button>
+            <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger" onclick="return confirm('确定删除「{{ a.account_name }}」？')">🗑 删除</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+</div>
+
+{% if not has_any.value %}
+<!-- ====== 空状态优化 (优化7) ====== -->
+<div class="empty-state-enhanced">
+    <div class="big-icon">📭</div>
+    <h2>还没有配置任何平台账号</h2>
+    <p>FlashSloth 需要一个平台的账号才能发布文章、签到、采集内容。<br>按以下步骤开始：</p>
+    <div class="steps">
+        <div class="step-card">
+            <div class="step-num">1️⃣</div>
+            <div class="step-label">选择平台<br>（如 阿莫论坛 / CSDN / 立创开源）</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">2️⃣</div>
+            <div class="step-label">填写账号密码<br>或粘贴 Cookie</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">3️⃣</div>
+            <div class="step-label">自动登录<br>系统通过浏览器自动登录</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">4️⃣</div>
+            <div class="step-label">发布内容<br>支持多平台同步发布</div>
+        </div>
+    </div>
+    <button onclick="document.getElementById('platformSearchInput').focus();document.getElementById('platformSearchInput').click();" class="btn btn-primary" style="font-size:15px;padding:10px 24px;">🚀 选择平台开始添加</button>
+    <p style="margin-top:12px;font-size:12px;color:#aaa;">已有账号？在上方下拉框中选择平台，点击「添加」即可</p>
+
+    <!-- 快捷平台入口 (优化7) -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
+        <p style="font-size:13px;color:#888;margin-bottom:10px;">⚡ 快捷添加：直接选择热门平台</p>
+        <div class="quick-plat-grid" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;max-width:500px;margin:0 auto;">
+            {% for p in platforms[:12] %}
+            <button type="button" class="quick-plat-btn" data-platform="{{ p.name }}"
+                    style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#f8f9fa;cursor:pointer;font-size:13px;transition:all .15s;display:flex;align-items:center;gap:5px;"
+                    onclick="quickAddPlatform('{{ p.name }}')"
+                    onmouseover="this.style.borderColor='#4361ee';this.style.background='#f0f4ff';"
+                    onmouseout="this.style.borderColor='#ddd';this.style.background='#f8f9fa';"
+                    title="添加 {{ p.display_name }} 账号">
+                <span>{{ platform_icons.get(p.name, platform_icons['default']) }}</span>
+                <span>{{ p.display_name }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+    function quickAddPlatform(platform) {
+        // 安全守卫：等待外部 JS 加载完成
+        if (typeof onAddAccount === 'undefined' || typeof _platformSearchData === 'undefined') {
+            setTimeout(function() { quickAddPlatform(platform); }, 300);
+            return;
+        }
+        // 使用新搜索选择器
+        var input = document.getElementById('platformSearchInput');
+        input.dataset.selected = platform;
+        // 查找显示名
+        for (var i = 0; i < _platformSearchData.length; i++) {
+            if (_platformSearchData[i].name === platform) {
+                input.placeholder = '✅ ' + _platformSearchData[i].display_name;
+                break;
+            }
+        }
+        input.value = '';
+        document.getElementById('btnAddAccount').disabled = false;
+        onAddAccount();
+    }
+    </script>
+
+<!-- 账号管理 JS — 提前加载确保函数定义可用 -->
+<script src="/static/js/accounts/globals.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/utils.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/search.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/login.js?v={{ JS_VERSION }}"></script>
+<script src="/static/js/accounts/scan.js?v={{ JS_VERSION }}"></script>
+
+</div>
+{% endif %}
+
+{% if has_any.value %}
+<!-- ====== 页脚统计 ====== -->
+<div style="text-align:center;padding:16px;color:#999;font-size:12px;">
+    共 <span style="font-weight:600;color:#666;">{{ acct_total.value }}</span> 个账号，
+    分布在 <span style="font-weight:600;color:#666;">{{ platforms|selectattr('name', 'in', grouped.keys())|list|length }}</span> 个平台
+</div>
+{% endif %}
+
+<!-- ====== 部署配置区块 (锚点 #deploy) ====== -->
+<div id="deploy" style="margin-top:24px;">
+
+<div class="site-config-card">
+    <h3>🌐 博客站点配置</h3>
+    <p style="font-size:12px;color:#888;margin:-6px 0 14px;">
+        配置博客平台、评论系统和功能插件 — 所有配置持久化到数据库
+    </p>
+
+    <!-- a. 博客平台选择 -->
+    <div id="platformSection">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">📖 选择博客平台</label>
+        <div class="platform-grid" id="platformGrid">
+            <p style="color:#999;font-size:13px;">正在加载博客平台列表...</p>
+        </div>
+    </div>
+
+    <!-- b. 评论系统配置 -->
+    <div id="commentSection" style="margin-top:16px;">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">💬 评论系统配置</label>
+        <div class="comment-select" id="commentSelect">
+            <div class="comment-option" data-comment="" onclick="selectComment(this)">
+                <div class="co-icon">🚫</div>
+                <div class="co-name">无评论</div>
+                <div class="co-desc">关闭评论功能</div>
+            </div>
+            <p style="color:#999;font-size:13px;">正在加载评论系统列表...</p>
+        </div>
+        <div id="commentConfigFields" class="comment-fields"></div>
+        <div id="commentGuideLink" style="display:none;margin-bottom:8px;">
+            <a href="#" target="_blank" class="guide-link" id="commentGuideHref">📖 查看配置引导教程 →</a>
+        </div>
+    </div>
+
+    <!-- c. 插件配置 -->
+    <div id="pluginSection" style="margin-top:16px;">
+        <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;">🔌 站点插件</label>
+        <div class="plugin-grid" id="pluginGrid">
+            <p style="color:#999;font-size:13px;">正在加载插件列表...</p>
+        </div>
+    </div>
+
+    <!-- 保存按钮 -->
+    <div class="config-actions">
+        <button onclick="saveSiteConfig()" class="btn btn-success" style="font-size:14px;padding:10px 24px;">💾 保存站点配置</button>
+        <div id="configSaveStatus" class="config-status"></div>
+    </div>
+</div>
+
+<!-- 添加部署目标 -->
+<div class="card">
+    <h3>➕ 添加部署目标</h3>
+    <form method="post" action="/deployers/add" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+        <div class="form-group">
+            <label>部署器类型</label>
+            <select name="deployer_name" id="deployerSelect" onchange="toggleFields(this)" required>
+                <option value="">— 选择部署器 —</option>
+                {% for d in deployers %}
+                <option value="{{ d.name }}" data-fields='{{ d.config_fields|tojson }}'>{{ d.display_name }}</option>
+                {% endfor %}
+            </select>
+            {% if not deployers %}
+            <p style="color:#999;font-size:12px;margin-top:4px;">暂无可用的部署器插件</p>
+            {% endif %}
+        </div>
+        <div class="form-group">
+            <label>显示名称</label>
+            <input type="text" name="display_name" placeholder="例如: 我的博客" style="width:300px;">
+        </div>
+        <div id="dynamicFields" style="display:none;flex-direction:column;gap:12px;"></div>
+        <button type="submit" class="btn btn-success" style="width:200px;">+ 添加部署配置</button>
+    </form>
+</div>
+
+<!-- 已配置的部署目标 -->
+<div class="card" style="margin-top:16px;">
+    <h3>📡 已配置的部署目标</h3>
+    {% if configs %}
+    <table class="rsp-table">
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in configs %}
+            <tr>
+                <td><strong>{{ c.display_name or c.deployer_name }}</strong></td>
+                <td><span class="badge badge-info">{{ c.deployer_name }}</span></td>
+                <td>
+                    {% if c.is_active %}
+                    <span class="badge badge-success">启用</span>
+                    {% else %}
+                    <span class="badge badge-warning">禁用</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:4px;">
+                        <a href="/deployers/deploy/{{ c.id }}" class="btn btn-sm btn-success"
+                           onclick="return confirm('确认部署到 {{ c.display_name or c.deployer_name }}？')">
+                            🚀 部署
+                        </a>
+                        <a href="/deployers/test/{{ c.id }}" class="btn btn-sm btn-primary">测试</a>
+                        <a href="/deployers/delete/{{ c.id }}" class="btn btn-sm btn-danger"
+                           onclick="return confirm('确定删除？')">删除</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p style="color:#999;padding:12px 0;font-size:14px;">暂未添加 {{ p.display_name }} 账号</p>
+    <p style="color:#999;text-align:center;padding:20px 0;">
+        还没有部署配置。请选择上方部署器类型并添加。
+    </p>
     {% endif %}
 </div>
-{% endfor %}
 
-<!-- 添加账号弹窗 -->
-<div id="addForm" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+<!-- 部署记录 -->
+<div class="card" style="margin-top:16px;">
+    <h3>📋 部署记录</h3>
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>部署器</th>
+                <th>结果</th>
+                <th>详情</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td style="font-size:12px;color:#666;">{{ log.created_at[:16] }}</td>
+                <td><span class="badge badge-info">{{ log.deployer_name }}</span></td>
+                <td>
+                    {% if log.success %}
+                    <span class="badge badge-success">✅ 成功</span>
+                    {% else %}
+                    <span class="badge badge-danger" title="{{ log.error }}">❌ 失败</span>
+                    {% endif %}
+                </td>
+                <td style="font-size:12px;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ log.message or log.error or '-' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#999;text-align:center;padding:20px 0;">暂无部署记录</p>
+    {% endif %}
+</div>
+
+</div>
+
+<!-- ====== 添加账号弹窗 ====== -->
+<div id="addFormBox" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">
-        <h2 style="margin-bottom:16px;">添加账号 — <span id="addPlatformName"></span></h2>
-        <form method="post" action="/accounts/add">
-            <input type="hidden" name="platform" id="addPlatform">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:550px;width:90%;max-height:85vh;overflow-y:auto;">
+        <h2 id="addFormTitle" style="margin-bottom:16px;font-size:18px;">➕ 添加账号 — <span id="addPlatName"></span></h2>
+
+        <form method="post" action="/accounts/add" id="accountForm" onsubmit="return validateAccountForm()">
+            <input type="hidden" name="platform" id="addPlatInput">
+            <input type="hidden" name="edit_id" id="editAccountId" value="">
             <div class="form-group">
-                <label>账号别名</label>
-                <input type="text" name="account_name" required placeholder="如：主号、备用号">
+                <label>账号别名 <span style="color:#999;font-size:12px;">（留空自动生成）</span></label>
+                <input type="text" name="account_name" id="addAccountName" placeholder="留空自动生成：discuz01、oshwhub01"
+                       style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;">
             </div>
-            <div id="addConfigFields"></div>
-            <div style="display:flex;gap:8px;margin-top:16px;">
-                <button type="submit" class="btn btn-primary">保存</button>
-                <button type="button" class="btn" style="background:#eee;" onclick="hideAddForm()">取消</button>
+            <div id="addPresetHints" style="margin-bottom:10px;"></div>
+
+            <!-- 登录方法选择 Tab -->
+            <div id="loginMethodTabs" style="display:flex;gap:4px;margin-bottom:8px;border-bottom:2px solid #eee;padding-bottom:8px;flex-wrap:wrap;"></div>
+
+            <!-- 登录方式说明演示卡 -->
+            <div id="loginMethodDemo" style="display:none;margin-bottom:12px;padding:12px;background:linear-gradient(135deg,#f8f9ff,#eef1ff);border:1px solid #d0d5f0;border-radius:10px;font-size:13px;">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <div id="loginDemoTitle" style="font-weight:600;font-size:14px;margin-bottom:8px;"></div>
+                        <div id="loginDemoSteps" style="color:#555;line-height:1.7;margin-bottom:6px;"></div>
+                        <div id="loginDemoNote" style="font-size:11px;color:#888;background:#fff;padding:6px 10px;border-radius:6px;border:1px dashed #ddd;"></div>
+                    </div>
+                    <div id="loginDemoImageArea" style="flex-shrink:0;width:200px;border-radius:8px;overflow:hidden;border:1px solid #d0d5f0;background:#fff;">
+                        <img id="loginDemoImage" src="" alt="登录流程示意图" style="width:100%;display:block;">
+                    </div>
+                </div>
             </div>
+
+            <div id="loginMethodContent"></div>
+
+            <!-- 预览截图区域 -->
+            <div id="loginScreenshotArea" style="display:none;margin-top:10px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:350px;">
+                <img id="loginScreenshotImg" src="" style="width:100%;display:block;">
+            </div>
+            <!-- 扫码提示区域 -->
+            <div id="qrScanInfo" style="display:none;margin-top:8px;padding:8px 12px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;font-size:13px;color:#2e7d32;"></div>
+            <div id="loginStatusMsg" style="margin-top:8px;padding:8px 12px;border-radius:6px;display:none;"></div>
+
+            <!-- ====== 登录进度条 ====== -->
+            <div id="loginProgressBar" style="display:none;margin-top:10px;padding:10px 12px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;">
+                <div style="display:flex;gap:2px;align-items:flex-start;font-size:11px;flex-wrap:wrap;">
+                    <div class="prog-step" data-step="1" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>打开登录页</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="2" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>填写账号</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="3" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>检测验证码</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="4" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>验证码输入</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="5" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>获取Cookie中</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="6" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>Cookie校验中</span>
+                    </div>
+                    <span style="color:#ccc;font-size:10px;">→</span>
+                    <div class="prog-step" data-step="7" style="display:flex;align-items:center;gap:3px;padding:3px 6px;border-radius:4px;background:#e0e0e0;color:#999;">
+                        <span class="prog-icon">⏳</span><span>登录结果</span>
+                    </div>
+                </div>
+                <div id="progDetail" style="margin-top:6px;font-size:12px;color:#4361ee;"></div>
+            </div>
+
+            <!-- ====== 验证码输入区（手动输入验证码用） ====== -->
+            <div id="captchaInputArea" style="display:none;margin-top:10px;padding:12px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;">
+                <div style="font-weight:600;font-size:13px;margin-bottom:8px;">🔢 输入验证码</div>
+                <div id="captchaImageBox" style="margin-bottom:8px;border:1px solid #ddd;border-radius:4px;overflow:hidden;max-width:260px;background:#f5f5f5;">
+                    <img id="captchaImage" src="" style="width:100%;display:block;">
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <input type="text" id="captchaCodeInput" placeholder="输入验证码" maxlength="8"
+                           style="flex:1;min-width:100px;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:16px;letter-spacing:4px;text-align:center;">
+                    <button id="btnSubmitCaptcha" type="button" onclick="unifiedSubmitCaptcha()" class="btn btn-primary">✅ 提交验证码</button>
+                    <button id="btnRefreshCaptcha" type="button" onclick="unifiedRefreshCaptcha()" class="btn btn-sm btn-info">🔄 换一张</button>
+                    <button id="btnAutoCaptcha" type="button" onclick="unifiedAutoCaptcha()" class="btn btn-sm btn-secondary" style="display:none;">🤖 自动识别</button>
+                </div>
+                <div id="captchaFeedback" style="margin-top:6px;font-size:12px;color:#888;display:none;"></div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+                <button id="btnTestConnectionAdd" type="button" onclick="testConnectionAdd()" class="btn btn-sm btn-secondary" style="display:none;" title="用Playwright打开目标网站 → 注入输入的Cookie/凭证 → 验证是否真正登录 → 返回真实用户名。先验证再保存。">
+                    🔌 验证凭证
+                </button>
+                <button id="btnStartLogin" type="button" onclick="unifiedLoginStart()" class="btn btn-primary" style="display:none;">
+                    🚀 开始浏览器登录
+                </button>
+                <button id="btnCaptchaLogin" type="button" onclick="unifiedLoginCaptcha()" class="btn btn-warning" style="display:none;">
+                    ✅ 点验证码并登录
+                </button>
+                <button id="btnRefreshScreenshot" type="button" onclick="unifiedRefreshScreenshot()" class="btn btn-sm btn-info" style="display:none;">
+                    🔄 刷新截图
+                </button>
+                <button id="btnSaveOnly" type="submit" class="btn btn-success">💾 保存</button>
+                <button type="button" onclick="unifiedClose()" class="btn" style="background:#eee;">取消</button>
+                <span style="flex:1;"></span>
+                <span id="debugCookieToggle" style="font-size:10px;color:#ccc;cursor:pointer;align-self:flex-end;"
+                      onclick="toggleDebugCookie()" title="仅用于调试/迁移：直接粘贴Cookie">🔧 调试</span>
+            </div>
+            <!-- Cookie 调试区 -->
+            <div id="debugCookieArea" style="display:none;margin-top:8px;padding:8px;background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;">
+                <label style="font-size:11px;color:#996600;font-weight:600;">🍪 Cookie 调试模式</label>
+                <textarea id="debugCookieInput" name="cfg_cookie" rows="3" placeholder="从浏览器 F12 → Application → Cookies 复制完整 Cookie 字符串"
+                          style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;font-size:11px;margin-top:4px;"></textarea>
+                <p style="font-size:10px;color:#996600;margin:4px 0 0;">粘贴后点击「💾 保存」即可。仅用于Cookie迁移或调试。</p>
+            </div>
+            <div id="addLoginResult" style="margin-top:10px;padding:10px;border-radius:6px;display:none;"></div>
         </form>
     </div>
 </div>
 
+
+<!-- ====== 状态检测弹窗 ====== -->
+<div id="statusModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+     background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:650px;width:92%;max-height:85vh;overflow-y:auto;">
+        <h2 style="margin-bottom:16px;font-size:18px;">🔍 账号状态检测</h2>
+        <div id="statusContent">
+            <p style="color:#999;">⏳ 检测中...</p>
+        </div>
+        <div style="margin-top:16px;">
+            <button onclick="closeStatusModal()" class="btn" style="background:#eee;">关闭</button>
+        </div>
+    </div>
+</div>
+
 <script>
-const PLATFORM_FIELDS = {{ platforms|tojson }};
+// ====== 全局状态 ======
+var selectedPlatform = null;
+var selectedComment = null;
+var commentSystems = [];
+var plugins = [];
+var blogPlatforms = [];
 
-function showAddForm(platform) {
-    const p = PLATFORM_FIELDS.find(x => x.name === platform);
-    if (!p) return;
-    document.getElementById('addPlatform').value = platform;
-    document.getElementById('addPlatformName').textContent = p.display_name;
+// ====== 加载数据 ======
+function loadSiteConfig() {
+    fetch('/api/deploy/site-config')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.config) {
+                var cfg = data.config;
+                selectedPlatform = cfg.platform || 'github_pages';
+                selectedComment = cfg.comment_system || '';
 
-    let html = '';
-    (p.config_fields || []).forEach(f => {
-        const type = f.type === 'password' ? 'password' : 'text';
-        html += `<div class="form-group">
-            <label>${f.label}</label>
-            <input type="${type}" name="cfg_${f.key}" placeholder="${f.placeholder || ''}">
-        </div>`;
+                var commentCfg = {};
+                var pluginCfg = {};
+                try { commentCfg = JSON.parse(cfg.comment_config || '{}'); } catch(e) {}
+                try { pluginCfg = JSON.parse(cfg.plugins_config || '{}'); } catch(e) {}
+
+                window._savedCommentConfig = commentCfg;
+                window._savedPluginConfig = pluginCfg;
+            }
+        })
+        .catch(function() {})
+        .finally(function() {
+            loadPlatforms();
+        });
+}
+
+function loadPlatforms() {
+    fetch('/api/deploy/platforms')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                blogPlatforms = data.platforms;
+                renderPlatforms(data.platforms);
+                loadComments();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadComments() {
+    fetch('/api/deploy/comments')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                commentSystems = data.systems;
+                renderComments(data.systems);
+                loadPlugins();
+            }
+        })
+        .catch(function() {});
+}
+
+function loadPlugins() {
+    fetch('/api/deploy/plugins')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                plugins = data.plugins;
+                renderPlugins(data.plugins);
+            }
+        })
+        .catch(function() {});
+}
+
+// ====== 渲染平台 ======
+function renderPlatforms(platforms) {
+    var grid = document.getElementById('platformGrid');
+    grid.innerHTML = '';
+    platforms.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'platform-card' + (selectedPlatform === p.id ? ' selected' : '');
+        card.dataset.platform = p.id;
+        card.onclick = function() { selectPlatform(p.id); };
+
+        var recHtml = '';
+        if (p.recommended_comments && p.recommended_comments.length > 0) {
+            recHtml = '<span class="recommended-tag">推荐 ' + p.recommended_comments[0] + '</span>';
+        }
+
+        card.innerHTML = '<div class="plat-icon">' + p.icon + '</div>'
+            + '<div class="plat-name">' + p.name + recHtml + '</div>'
+            + '<div class="plat-desc">' + p.desc + '</div>'
+            + '<div class="plat-file">' + p.config_file + '</div>';
+        grid.appendChild(card);
     });
-    document.getElementById('addConfigFields').innerHTML = html;
-    document.getElementById('addForm').style.display = 'flex';
 }
 
-function hideAddForm() {
-    document.getElementById('addForm').style.display = 'none';
+function selectPlatform(pid) {
+    selectedPlatform = pid;
+    document.querySelectorAll('.platform-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.platform === pid);
+    });
+    var p = blogPlatforms.find(function(bp) { return bp.id === pid; });
+    if (p && p.recommended_comments && p.recommended_comments.length > 0) {
+        var rec = p.recommended_comments[0];
+        document.querySelectorAll('.comment-option').forEach(function(c) {
+            if (c.dataset.comment === rec) {
+                c.style.boxShadow = '0 0 0 2px #ffd700';
+            } else {
+                c.style.boxShadow = '';
+            }
+        });
+    }
 }
+
+// ====== 渲染评论系统 ======
+function renderComments(systems) {
+    var container = document.getElementById('commentSelect');
+    container.innerHTML = '';
+
+    var noneOption = document.createElement('div');
+    noneOption.className = 'comment-option' + (selectedComment === '' ? ' selected' : '');
+    noneOption.dataset.comment = '';
+    noneOption.onclick = function() { selectComment(this); };
+    noneOption.innerHTML = '<div class="co-icon">🚫</div>'
+        + '<div class="co-name">无评论</div>'
+        + '<div class="co-desc">关闭评论功能</div>';
+    container.appendChild(noneOption);
+
+    systems.forEach(function(s) {
+        var opt = document.createElement('div');
+        opt.className = 'comment-option' + (selectedComment === s.id ? ' selected' : '');
+        opt.dataset.comment = s.id;
+        opt.onclick = function() { selectComment(this); };
+        opt.innerHTML = '<div class="co-icon">' + s.icon + '</div>'
+            + '<div class="co-name">' + s.name + '</div>'
+            + '<div class="co-desc">' + s.desc + '</div>';
+        container.appendChild(opt);
+    });
+}
+
+function selectComment(el) {
+    document.querySelectorAll('.comment-option').forEach(function(c) { c.classList.remove('selected'); });
+    el.classList.add('selected');
+    selectedComment = el.dataset.comment;
+
+    var fieldsContainer = document.getElementById('commentConfigFields');
+    var guideLink = document.getElementById('commentGuideLink');
+    var guideHref = document.getElementById('commentGuideHref');
+
+    if (!selectedComment) {
+        fieldsContainer.classList.remove('show');
+        fieldsContainer.innerHTML = '';
+        guideLink.style.display = 'none';
+        return;
+    }
+
+    var sys = commentSystems.find(function(s) { return s.id === selectedComment; });
+    if (!sys) { fieldsContainer.classList.remove('show'); return; }
+
+    if (sys.url) {
+        guideHref.href = sys.url;
+        guideLink.style.display = 'block';
+    } else {
+        guideLink.style.display = 'none';
+    }
+
+    fieldsContainer.innerHTML = '<label style="font-weight:600;font-size:13px;margin-bottom:6px;display:block;">'
+        + sys.icon + ' ' + sys.name + ' 配置</label>';
+    var saved = window._savedCommentConfig || {};
+    (sys.fields || []).forEach(function(f) {
+        var group = document.createElement('div');
+        group.style.marginBottom = '8px';
+        var label = document.createElement('label');
+        label.style.fontSize = '12px';
+        label.style.fontWeight = '600';
+        label.style.display = 'block';
+        label.style.marginBottom = '2px';
+        label.textContent = f.label;
+        if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+        group.appendChild(label);
+
+        if (f.type === 'select' && f.options) {
+            var sel = document.createElement('select');
+            sel.className = 'comment-field';
+            sel.dataset.fieldKey = f.key;
+            sel.style.width = '100%';
+            sel.style.padding = '6px 8px';
+            sel.style.border = '1px solid #ddd';
+            sel.style.borderRadius = '4px';
+            sel.style.fontSize = '12px';
+            f.options.forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.label || o.value;
+                if (o.value === (saved[f.key] || f.default)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            group.appendChild(sel);
+        } else {
+            var input = document.createElement('input');
+            input.type = f.type === 'number' ? 'number' : 'text';
+            input.className = 'comment-field';
+            input.dataset.fieldKey = f.key;
+            input.placeholder = f.placeholder || '';
+            input.value = saved[f.key] || f.default || '';
+            input.style.width = '100%';
+            input.style.padding = '6px 8px';
+            input.style.border = '1px solid #ddd';
+            input.style.borderRadius = '4px';
+            input.style.fontSize = '12px';
+            if (f.required) input.required = true;
+            group.appendChild(input);
+        }
+        fieldsContainer.appendChild(group);
+    });
+
+    if (sys.url) {
+        var tip = document.createElement('p');
+        tip.style.fontSize = '11px';
+        tip.style.color = '#888';
+        tip.style.marginTop = '6px';
+        tip.innerHTML = '💡 如需扫码授权登录，请点击上方引导链接打开 ' + sys.name + ' 官方配置页';
+        fieldsContainer.appendChild(tip);
+    }
+
+    fieldsContainer.classList.add('show');
+}
+
+// ====== 渲染插件 ======
+function renderPlugins(plugins) {
+    var grid = document.getElementById('pluginGrid');
+    grid.innerHTML = '';
+    var saved = window._savedPluginConfig || {};
+
+    plugins.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'plugin-card';
+        card.dataset.plugin = p.id;
+
+        var enabled = saved[p.id] && saved[p.id].enabled === '1';
+        card.innerHTML = '<div class="plugin-header">'
+            + '<span class="plugin-icon">' + p.icon + '</span>'
+            + '<span class="plugin-name">' + p.name + '</span>'
+            + '<label class="toggle-switch">'
+            + '<input type="checkbox" data-plugin="' + p.id + '" ' + (enabled ? 'checked' : '')
+            + ' onchange="togglePlugin(this, \'' + p.id + '\')">'
+            + '<span class="toggle-slider"></span>'
+            + '</label>'
+            + '</div>'
+            + '<div class="plugin-desc">' + p.desc + '</div>'
+            + '<div class="plugin-fields' + (enabled ? ' show' : '') + '" id="pluginFields_' + p.id + '">';
+
+        (p.fields || []).forEach(function(f) {
+            var val = (saved[p.id] || {})[f.key] || f.default || '';
+            if (f.type === 'select' && f.options) {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<select data-plugin="' + p.id + '" data-field="' + f.key + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;">';
+                f.options.forEach(function(o) {
+                    card.innerHTML += '<option value="' + o.value + '"' + (val === o.value ? ' selected' : '') + '>' + (o.label || o.value) + '</option>';
+                });
+                card.innerHTML += '</select></div>';
+            } else if (f.type === 'textarea') {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<textarea data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;min-height:60px;font-family:monospace;">' + val + '</textarea></div>';
+            } else {
+                card.innerHTML += '<div style="margin-bottom:4px;">'
+                    + '<label style="font-size:11px;color:#666;display:block;margin-bottom:2px;">' + f.label + '</label>'
+                    + '<input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-plugin="' + p.id + '" data-field="' + f.key + '" placeholder="' + (f.placeholder || '') + '" value="' + val + '" style="width:100%;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;"></div>';
+            }
+        });
+
+        card.innerHTML += '</div>';
+        grid.appendChild(card);
+    });
+}
+
+function togglePlugin(cb, pluginId) {
+    var fields = document.getElementById('pluginFields_' + pluginId);
+    if (fields) {
+        fields.classList.toggle('show', cb.checked);
+    }
+}
+
+// ====== 收集+保存配置 ======
+function collectCommentConfig() {
+    if (!selectedComment) return {};
+    var fields = document.querySelectorAll('.comment-field');
+    var cfg = {};
+    fields.forEach(function(f) {
+        cfg[f.dataset.fieldKey] = f.value;
+    });
+    return cfg;
+}
+
+function collectPluginConfig() {
+    var cfg = {};
+    document.querySelectorAll('.plugin-card').forEach(function(card) {
+        var pid = card.dataset.plugin;
+        var enabled = card.querySelector('input[type="checkbox"]');
+        if (!enabled || !enabled.checked) return;
+        cfg[pid] = { enabled: '1' };
+        card.querySelectorAll('input[data-field], select[data-field], textarea[data-field]').forEach(function(f) {
+            cfg[pid][f.dataset.field] = f.value;
+        });
+    });
+    return cfg;
+}
+
+function saveSiteConfig() {
+    var btn = document.querySelector('.config-actions .btn-success');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    var status = document.getElementById('configSaveStatus');
+    status.className = 'config-status';
+    status.style.display = 'none';
+
+    var payload = {
+        platform: selectedPlatform || 'github_pages',
+        comment_system: selectedComment || '',
+        comment_config: collectCommentConfig(),
+        plugins_config: collectPluginConfig(),
+    };
+
+    fetch('/api/deploy/site-config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            status.className = 'config-status success';
+            status.textContent = '✅ ' + (data.message || '站点配置已保存');
+            status.style.display = 'block';
+        } else {
+            status.className = 'config-status error';
+            status.textContent = '❌ ' + (data.error || '保存失败');
+            status.style.display = 'block';
+        }
+    })
+    .catch(function(err) {
+        status.className = 'config-status error';
+        status.textContent = '❌ 请求失败: ' + err.message;
+        status.style.display = 'block';
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '💾 保存站点配置';
+        setTimeout(function() {
+            status.style.display = 'none';
+        }, 3000);
+    });
+}
+
+// ====== 原有动态字段（保持兼容） ======
+function toggleFields(sel) {
+    var container = document.getElementById('dynamicFields');
+    var option = sel.options[sel.selectedIndex];
+    if (!option || !option.value) {
+        container.style.display = 'none';
+        return;
+    }
+    try {
+        var fields = JSON.parse(option.getAttribute('data-fields') || '[]');
+        container.innerHTML = '';
+        if (fields.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        fields.forEach(function(f) {
+            var group = document.createElement('div');
+            group.className = 'form-group';
+            var label = document.createElement('label');
+            label.textContent = f.label || f.key;
+            if (f.required) label.innerHTML += ' <span style="color:red">*</span>';
+            group.appendChild(label);
+
+            if (f.type === 'select') {
+                var select = document.createElement('select');
+                select.name = 'cfg_' + f.key;
+                select.required = f.required;
+                if (f.options) {
+                    f.options.forEach(function(o) {
+                        var opt = document.createElement('option');
+                        opt.value = o.value;
+                        opt.textContent = o.label || o.value;
+                        select.appendChild(opt);
+                    });
+                }
+                group.appendChild(select);
+            } else {
+                var input = document.createElement('input');
+                input.type = f.type === 'password' ? 'password' : 'text';
+                input.name = 'cfg_' + f.key;
+                input.placeholder = f.placeholder || '';
+                input.value = f.default || '';
+                input.style.width = '400px';
+                if (f.required) input.required = true;
+                group.appendChild(input);
+            }
+            container.appendChild(group);
+        });
+        container.style.display = 'flex';
+    } catch(e) {
+        container.style.display = 'none';
+    }
+}
+
+// 锚点跳转时自动加载
+function initDeploy() {
+    loadSiteConfig();
+}
+var _deployInitialized = false;
+if (window.location.hash === '#deploy') {
+    _deployInitialized = true;
+    initDeploy();
+}
+window.addEventListener('hashchange', function() {
+    if (window.location.hash === '#deploy' && !_deployInitialized) {
+        _deployInitialized = true;
+        initDeploy();
+    }
+});
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.hash === '#deploy' && !_deployInitialized) {
+        _deployInitialized = true;
+        initDeploy();
+    }
+});
 </script>
+
 {% endblock %}

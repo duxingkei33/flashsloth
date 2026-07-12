@@ -1,0 +1,86 @@
+{
+  "platform": "dewu",
+  "display_name": "得物",
+  "domain": "dewu.com",
+  "category": "shopping",
+  "architecture": "custom",
+  "explored_at": "2026-07-08 12:20:44",
+  "last_updated": "2026-07-08 12:20:44",
+  "explored_with_login": true,
+  "has_account": false,
+  "has_publisher": false,
+  "login": {
+    "login_url": "https://www.dewu.com/",
+    "methods": [],
+    "captcha": {
+      "has_captcha": false,
+      "types": [],
+      "selectors": []
+    },
+    "third_party": {
+      "wechat": false,
+      "weibo": false,
+      "qq": false,
+      "github": false,
+      "apple": false
+    },
+    "qr_code": {
+      "has_qrcode": false,
+      "selectors": [],
+      "qr_container_sel": ""
+    },
+    "fields": [
+      {
+        "selector": "input[placeholder='请输入手机号码']",
+        "type": "text",
+        "placeholder": "请输入手机号码",
+        "name": "",
+        "id": "",
+        "note": "手机号输入框（短信/密码登录均使用）"
+      },
+      {
+        "selector": "input[placeholder='请输入短信验证码']",
+        "type": "text",
+        "placeholder": "请输入短信验证码",
+        "name": "",
+        "id": "",
+        "note": "短信验证码输入框（短信登录Tab下显示）"
+      },
+      {
+        "selector": "input[placeholder='密码']",
+        "type": "password",
+        "placeholder": "密码",
+        "name": "",
+        "id": "",
+        "note": "密码输入框（密码登录Tab下显示）"
+      }
+    ],
+    "buttons": {
+      "login_button": "",
+      "register_button": ""
+    },
+    "cookie_hints": [
+      "token",
+      "sid",
+      "session",
+      "dewu_token"
+    ]
+  },
+  "publish": {
+    "editor_url": "https://www.dewu.com/editor",
+    "editor_requires_login": false,
+    "editor_type": "",
+    "api_endpoints": [],
+    "image_upload": {
+      "url": "",
+      "method": ""
+    }
+  },
+  "technical": {
+    "has_rate_limit": false,
+    "has_anti_bot": false,
+    "has_dynamic_content": false,
+    "framework": "",
+    "note": "潮流网购社区，自建架构"
+  }
+}

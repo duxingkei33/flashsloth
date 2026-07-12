@@ -1,0 +1,37 @@
+{
+  "platform": "xianyu",
+  "explored_at": "2026-07-07T21:55:31.218102+00:00",
+  "login_url": "https://www.goofish.com/",
+  "login_methods": [
+    {
+      "method": "oauth",
+      "label": "第三方账号登录",
+      "detected": true,
+      "providers": [
+        "google"
+      ]
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "detected": true
+    }
+  ],
+  "note": "xianyu登录页支持第三方账号登录/第三方(google)",
+  "raw_detection": {
+    "has_password_input": false,
+    "has_phone_input": false,
+    "has_code_button": false,
+    "has_qrcode_img": false,
+    "has_wechat": false,
+    "has_app_qr": false,
+    "third_party_providers": [
+      "google"
+    ],
+    "page_title": "闲鱼 - 闲不住？上闲鱼！",
+    "page_url": "https://www.goofish.com/"
+  },
+  "error": null,
+  "screenshot": "/home/duxingkei/.hermes/flashsloth/platform_reports/screenshots/xianyu_login.png",
+  "engine": "xianyu"
+}

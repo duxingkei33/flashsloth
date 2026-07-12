@@ -1,0 +1,103 @@
+{
+  "platform": "oshwhub",
+  "explored_at": "2026-07-08T10:15:00+08:00",
+  "updated_at": "2026-07-08T11:10:00+08:00",
+  "site_url": "https://oshwhub.com",
+  "login_url": "https://passport.jlc.com/login",
+  "engine": "oshwhub",
+  "framework": "Ant Design (Next.js)",
+  "sso_ecosystem": {
+    "provider": "passport.jlc.com",
+    "domains": [".jlc.com", ".oshwhub.com"],
+    "primary_cookie_domain": ".jlc.com",
+    "cookie_keywords": ["JSESSIONID", "SESSION"],
+    "requires_structured_cookies": true,
+    "note": "JLC统一SSO体系，扁平cookie字符串丢失domain信息导致SSO失败，必须保存结构化cookies_json"
+  },
+  "login_methods": [
+    {
+      "method": "qrcode",
+      "label": "扫码登录",
+      "detected": true,
+      "default_tab": true,
+      "sub_types": [
+        {"id": "wechat", "label": "微信扫码", "detected": true}
+      ],
+      "selector": "canvas[class*='qrcode']",
+      "tab_click": "扫码登录",
+      "tab_selector": "button:has-text('扫码登录')"
+    },
+    {
+      "method": "password",
+      "label": "账号密码登录",
+      "detected": true,
+      "tab_click": "账号登录",
+      "tab_selector": "button:has-text('账号登录')",
+      "framework": "Ant Design",
+      "form_selectors": {
+        "framework": "antd",
+        "input_container": ".ant-form-item",
+        "input_class": "input.ant-input",
+        "username": [
+          "input[placeholder*='手机号码']",
+          "input[placeholder*='邮箱']",
+          "input[placeholder*='账号']",
+          ".ant-form-item input:not([type='password'])"
+        ],
+        "password": [
+          "input[type='password']",
+          "input.ant-input[type='password']"
+        ],
+        "submit": [
+          "button.ant-btn-primary:has-text('登录')",
+          "button[type='submit']:has-text('登录')"
+        ],
+        "submit_alt": "Enter key"
+      },
+      "captcha": {
+        "types": ["slider", "image"],
+        "slider_selectors": [
+          "#aliyunCaptcha-sliding-slider",
+          ".nc-container",
+          "[class*='slider']"
+        ],
+        "image_selectors": [
+          "img[src*='captcha']",
+          "img[src*='verify']",
+          "img[alt*='验证码']"
+        ]
+      }
+    },
+    {
+      "method": "phone",
+      "label": "手机号登录",
+      "detected": true,
+      "tab_click": "手机号登录",
+      "tab_selector": "button:has-text('手机号登录')",
+      "form_selectors": {
+        "phone": ["input[type='tel']", "input[placeholder*='手机号']"],
+        "code": ["input[placeholder*='验证码']"],
+        "get_code": ["button:has-text('获取验证码')"]
+      }
+    },
+    {
+      "method": "oauth",
+      "label": "第三方账号登录",
+      "providers": ["qq", "wechat_oauth"]
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie粘贴",
+      "requires_structured": true,
+      "note": "必须用结构化cookies_json（保留domain/path/secure），扁平字符串导致SSO失败"
+    }
+  ],
+  "login_indicator_selectors": {
+    "after_login_url_pattern": "oshwhub.com",
+    "avatar": "[class*='user-avatar']",
+    "username_display": ["[class*='user-name']", "[class*='nickname']"],
+    "logout_text": ["退出", "注销"],
+    "required_indicators_for_success": ["avatar"],
+    "optional_indicators": ["退出", "用户名"]
+  }
+}

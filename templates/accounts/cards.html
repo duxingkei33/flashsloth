@@ -1,0 +1,295 @@
+<!-- ====== 顶部：标题 + 添加账号 ====== -->
+<div class="acct-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <h1 style="margin:0;font-size:20px;">🔑 多平台账号管理</h1>
+
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button onclick="batchRefreshAccounts()" class="btn btn-sm btn-info" title="⏱ API轻量检测 — 用requests访问平台API，仅检测Cookie是否被服务端拒绝（重定向到登录页等明确信号）。无法用此方法确认真实登录态。
+✅ 检测到未登录→自动更新状态为❌
+⏳ 通过但未确认→显示待确认（需点击「🔍 状态检测」用Playwright全量验证）
+检测通过≠已登录，仅表示API没有拒绝Cookie。">🔄 批量预检</button>
+        <div class="platform-search-wrap" style="position:relative;display:inline-flex;align-items:stretch;">
+            <input type="text" id="platformSearchInput" placeholder="🔍 搜索平台..."
+                   autocomplete="off" oninput="onPlatformSearchInput()"
+                   onfocus="onPlatformSearchFocus()" onkeydown="onPlatformSearchKeydown(event)"
+                   data-selected=""
+                   style="padding:8px 12px;border:1px solid #ddd;border-radius:6px 0 0 6px;font-size:14px;width:260px;box-sizing:border-box;border-right:none;">
+            <button type="button" id="platformDropdownToggle"
+                    onclick="togglePlatformDropdown()"
+                    style="padding:8px 10px;border:1px solid #ddd;border-radius:0 6px 6px 0;background:#fff;cursor:pointer;font-size:12px;color:#666;display:flex;align-items:center;">
+                ▼
+            </button>
+            <div id="platformSearchDropdown"></div>
+        </div>
+        <button onclick="onAddAccount()" class="btn btn-success" id="btnAddAccount" disabled>添加</button>
+    </div>
+</div>
+
+<!-- ====== 搜索/过滤/排序栏 (优化1/6) ====== -->
+<div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="🔍 搜索账号名称、平台、站点..." oninput="filterAccounts()" onkeydown="filterAccountsImmediate(event)">
+    <select id="filterPlatform" onchange="filterAccounts()">
+        <option value="">所有平台</option>
+        {% for p in platforms %}
+        <option value="{{ p.name }}">{{ p.display_name }}</option>
+        {% endfor %}
+    </select>
+    <select id="filterStatus" onchange="filterAccounts()">
+        <option value="">所有状态</option>
+        <option value="online">✅ 已登录</option>
+        <option value="offline">❌ 未登录</option>
+        <option value="pending">⏳ 待确认</option>
+        <option value="unknown">⏳ 未知</option>
+        <option value="enabled">启用</option>
+        <option value="disabled">禁用</option>
+    </select>
+
+    <!-- 排序 (优化6) -->
+    <button class="sort-btn active" data-sort="platform" onclick="sortAccounts('platform')">📋 平台</button>
+    <button class="sort-btn" data-sort="name" onclick="sortAccounts('name')">📛 名称</button>
+    <button class="sort-btn" data-sort="status" onclick="sortAccounts('status')">✅ 状态</button>
+    <button class="sort-btn" data-sort="lastcheck" onclick="sortAccounts('lastcheck')">⏱ 检测</button>
+
+    <span class="filter-count" id="filterCount"></span>
+
+    <!-- 视图切换 (优化5) -->
+    <div class="view-toggle">
+        <button class="active" title="卡片视图" onclick="setViewMode('card')">🃏 卡片</button>
+        <button title="紧凑视图" onclick="setViewMode('compact')">📋 列表</button>
+    </div>
+</div>
+
+<!-- ====== 批量操作工具栏 (优化3) ====== -->
+<div class="batch-toolbar" id="batchToolbar">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
+        <input type="checkbox" id="selectAllAccounts" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;">全选</span>
+    </label>
+    <span class="batch-count" id="batchCount">已选 0 个</span>
+    <button onclick="batchToggle(true)" class="btn btn-sm btn-success">✅ 批量启用</button>
+    <button onclick="batchToggle(false)" class="btn btn-sm btn-warning">⛔ 批量禁用</button>
+    <button onclick="batchDelete()" class="btn btn-sm btn-danger">🗑 批量删除</button>
+    <button onclick="clearSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
+</div>
+
+<!-- ====== 平台图标映射 (数据驱动, from route) ====== -->
+<!-- platform_icons 和 platform_colors 由路由传入，不再硬编码 -->
+
+<!-- ====== 有账号的平台卡片 (优化5: 卡片模式) ====== -->
+{% set platform_accounts = grouped %}
+{% set has_any = namespace(value=false) %}
+{% set acct_total = namespace(value=0) %}
+
+<div id="accountsContainer" class="card-view">
+{% for p in platforms %}
+{% set accounts = platform_accounts.get(p.name, []) %}
+{% if accounts %}
+{% set has_any.value = true %}
+{% set acct_total.value = acct_total.value + accounts|length %}
+
+<div class="card" style="margin-bottom:16px;overflow:visible;" data-platform="{{ p.name }}">
+    <div class="plat-header">
+        <h2>
+            <span class="plat-icon" style="background:#f0f4ff;">{{ platform_icons.get(p.name, platform_icons['default']) }}</span>
+            {{ p.display_name }}
+            <span class="plat-count">({{ accounts|length }} 个账号)</span>
+        </h2>
+    </div>
+
+    {% for a in accounts %}
+    {% set cfg = a.config_json|from_json if a.config_json else {} %}
+    {% set cached = cached_statuses.get(a.id, {}) if cached_statuses else {} %}
+    {% set is_online = cached.get('logged_in', None) if cached else None %}
+    {% set last_check_ts = cached.get('_cache_timestamp', 0) if cached else 0 %}
+    {% set has_cookie = cfg.get('cookie', '')|length > 0 %}
+    <div class="acct-card {{ 'disabled' if not a.is_active else '' }}" data-account-id="{{ a.id }}"
+         data-platform="{{ p.name }}" data-status="{{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none else 'unknown')) }}"
+         data-name="{{ a.account_name|lower }}" data-sort-platform="{{ loop.index0 }}"
+         data-site-url="{{ cfg.get('site_url', '')|lower }}" data-last-check="{{ last_check_ts }}">
+        <!-- 批量选择框 (优化3) -->
+        <div class="check-wrap">
+            <input type="checkbox" class="acct-checkbox" value="{{ a.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;cursor:pointer;">
+        </div>
+
+        <!-- 平台图标 (优化4) -->
+        <span class="plat-icon" style="background:{{ platform_colors.get(p.name, '#f0f4ff') }};">
+            {{ platform_icons.get(p.name, platform_icons['default']) }}
+        </span>
+
+        <!-- 账号信息 -->
+        <div class="acct-info">
+            <div class="name-row">
+                <span class="acct-name">{{ a.account_name }}</span>
+                <span class="plat-tag">{{ p.display_name }}</span>
+                {% set site_url = cfg.get('site_url', '') %}
+                {% if site_url %}
+                <a href="{{ site_url }}" target="_blank" style="font-size:11px;color:#4361ee;text-decoration:none;" title="{{ site_url }}">🌐</a>
+                {% endif %}
+            </div>
+            <div class="detail-row">
+                <!-- 启用/禁用 开关 (优化3) -->
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;flex-shrink:0;"
+                       title="{{ '点击禁用' if a.is_active else '点击启用' }}">
+                    <input type="checkbox" {{ 'checked' if a.is_active else '' }}
+                           onchange="toggleAccount({{ a.id }}, this)"
+                           style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if a.is_active else '#999' }};">{{ '启用' if a.is_active else '禁用' }}</span>
+                </label>
+
+                <!-- 状态徽章带最后检测时间 (优化1/2) -->
+                <span class="status-group">
+                    <!-- 登录状态徽章 -->
+                    <span id="statusBadge_{{ a.id }}" class="status-badge {{ 'online' if is_online else ('offline' if is_online == False else ('pending' if is_online is none and cached.get('_cache_source') else 'unknown')) }}">
+                        {% if is_online and cached.get('username') %}
+                            ✅ {{ cached.get('username') }}{% if cached.get('points') %} {{ cached.get('points_label','积分') }}:{{ cached.get('points') }}{% endif %}
+                        {% elif is_online %}
+                            ✅ 已登录
+                        {% elif is_online == False %}
+                            ❌ {{ cached.get('status', '未登录') }}
+                        {% elif cached.get('_cache_source') and is_online is none %}
+                            ⏳ 待确认（API检测通过）
+                        {% else %}
+                            {{ '⏳ 启用' if a.is_active else '⛔ 停用' }}
+                        {% endif %}
+                    </span>
+
+                    <!-- 最后检测时间 (优化2) -->
+                    <span id="lastCheck_{{ a.id }}" class="time-tag">
+                        {% if cached.get('_cache_source') %}
+                            {% set age = cached.get('_cache_age_seconds', 999) %}
+                            {% if age < 60 %}
+                                <span style="color:#22c55e;">⏳ {{ age }}秒前</span>
+                            {% elif age < 300 %}
+                                <span style="color:#f59e0b;">⏳ {{ (age/60)|int }}分前</span>
+                            {% else %}
+                                <span style="color:#ef4444;">⏳ {{ (age/60)|int }}分前</span>
+                            {% endif %}
+                        {% elif cached.get('verified_at') %}
+                            <span style="color:#888;">🕐 {{ cached.get('verified_at')[:16] }}</span>
+                        {% else %}
+                            <span style="color:#ccc;">未检测</span>
+                        {% endif %}
+                    </span>
+                </span>
+
+                <!-- 用户信息深度展示 -->
+                <span id="userInfo_{{ a.id }}" style="font-size:11px;color:#666;display:flex;align-items:center;gap:4px;">
+                    {% if cached.get('logged_in') and cached.get('username') %}
+                        <span style="color:#22c55e;font-weight:500;">{{ cached.get('username') }}</span>
+                        {% if cached.get('points') %}
+                            <span style="color:#888;">{{ cached.get('points_label','积分') }}:{{ cached.get('points') }}</span>
+                        {% endif %}
+                        {% if cached.get('level') %}
+                            <span style="color:#888;">{{ cached.get('level') }}</span>
+                        {% endif %}
+                    {% elif cached.get('logged_in') %}
+                        <span style="color:#22c55e;">✅ 已登录</span>
+                    {% endif %}
+                </span>
+
+                <!-- Cookie 指示器 -->
+                <span style="font-size:12px;color:#999;" title="{{ '有Cookie' if has_cookie else '无Cookie' }}">
+                    {% if has_cookie %}🍪{% else %}—{% endif %}
+                </span>
+
+                <!-- 保持在线开关 -->
+                {% set keep_alive = cfg.get('keep_alive', '0') %}
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:11px;"
+                       title="{{ '点击关闭保持在线' if keep_alive == '1' else '点击开启保持在线' }}">
+                    <input type="checkbox" {{ 'checked' if keep_alive == '1' else '' }}
+                           onchange="toggleKeepAlive({{ a.id }}, this)"
+                           style="width:14px;height:14px;cursor:pointer;">
+                    <span style="color:{{ '#22c55e' if keep_alive == '1' else '#999' }};">🔗</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 操作按钮组 -->
+        <div class="acct-actions">
+            <button onclick="checkStatus({{ a.id }})" class="btn btn-sm btn-info" title="Playwright真实浏览器 → 注入Cookie → 打开目标平台 → 检测退出/注销按钮+用户名/积分的全量登录态验证。比API轻量检测准确可靠。">🔍 状态检测</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-primary">✏️ 编辑</button>
+            <button onclick="onEditAccount({{ a.id }})" class="btn btn-sm btn-warning" title="在编辑弹窗中密码/QR码/验证码登录">🌐 浏览器登录</button>
+            {% if p.name.startswith('xianyu') %}
+            <a href="http://localhost:{{ '9000' if p.name == 'xianyu' else '9001' }}" target="_blank" class="btn btn-sm btn-success" title="跳转至闲鱼自动回复后台（xianyu-auto-reply Docker 服务）">🐟 闲鱼后台</a>
+            {% endif %}
+            <a href="/accounts/delete/{{ a.id }}" class="btn btn-sm btn-danger"
+               onclick="return confirm('确定删除「{{ a.account_name }}」？此操作不可恢复。')">🗑 删除</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+</div>
+
+{% if not has_any.value %}
+<!-- ====== 空状态优化 (优化7) ====== -->
+<div class="empty-state-enhanced">
+    <div class="big-icon">📭</div>
+    <h2>还没有配置任何平台账号</h2>
+    <p>FlashSloth 需要一个平台的账号才能发布文章、签到、采集内容。<br>按以下步骤开始：</p>
+    <div class="steps">
+        <div class="step-card">
+            <div class="step-num">1️⃣</div>
+            <div class="step-label">选择平台<br>（如 阿莫论坛 / CSDN / 立创开源）</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">2️⃣</div>
+            <div class="step-label">填写账号密码<br>或粘贴 Cookie</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">3️⃣</div>
+            <div class="step-label">自动登录<br>系统通过浏览器自动登录</div>
+        </div>
+        <div class="step-card">
+            <div class="step-num">4️⃣</div>
+            <div class="step-label">发布内容<br>支持多平台同步发布</div>
+        </div>
+    </div>
+    <button onclick="document.getElementById('platformSearchInput').focus();document.getElementById('platformSearchInput').click();" class="btn btn-primary" style="font-size:15px;padding:10px 24px;">🚀 选择平台开始添加</button>
+    <p style="margin-top:12px;font-size:12px;color:#aaa;">已有账号？在上方下拉框中选择平台，点击「添加」即可</p>
+
+    <!-- 快捷平台入口 (优化7) -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
+        <p style="font-size:13px;color:#888;margin-bottom:10px;">⚡ 快捷添加：直接选择热门平台</p>
+        <div class="quick-plat-grid" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;max-width:500px;margin:0 auto;">
+            {% for p in platforms[:12] %}
+            <button type="button" class="quick-plat-btn" data-platform="{{ p.name }}"
+                    style="padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#f8f9fa;cursor:pointer;font-size:13px;transition:all .15s;display:flex;align-items:center;gap:5px;"
+                    onclick="quickAddPlatform('{{ p.name }}')"
+                    onmouseover="this.style.borderColor='#4361ee';this.style.background='#f0f4ff';"
+                    onmouseout="this.style.borderColor='#ddd';this.style.background='#f8f9fa';"
+                    title="添加 {{ p.display_name }} 账号">
+                <span>{{ platform_icons.get(p.name, platform_icons['default']) }}</span>
+                <span>{{ p.display_name }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+    function quickAddPlatform(platform) {
+        // 使用新搜索选择器
+        var input = document.getElementById('platformSearchInput');
+        input.dataset.selected = platform;
+        // 查找显示名
+        for (var i = 0; i < _platformSearchData.length; i++) {
+            if (_platformSearchData[i].name === platform) {
+                input.placeholder = '✅ ' + _platformSearchData[i].display_name;
+                break;
+            }
+        }
+        input.value = '';
+        document.getElementById('btnAddAccount').disabled = false;
+        onAddAccount();
+    }
+    </script>
+</div>
+{% endif %}
+
+{% if has_any.value %}
+<!-- ====== 页脚统计 ====== -->
+<div style="text-align:center;padding:16px;color:#999;font-size:12px;">
+    共 <span style="font-weight:600;color:#666;">{{ acct_total.value }}</span> 个账号，
+    分布在 <span style="font-weight:600;color:#666;">{{ platforms|selectattr('name', 'in', grouped.keys())|list|length }}</span> 个平台
+</div>
+{% endif %}
+

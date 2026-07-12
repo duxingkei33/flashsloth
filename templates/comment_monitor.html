@@ -2,6 +2,38 @@
 {% block title %}💬 评论监控{% endblock %}
 {% block content %}
 <style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+    .mon-header { flex-direction: column; align-items: flex-start !important; }
+    .mon-header h1 { font-size: 1.1em; }
+    .mon-header > div { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+    .mon-header .btn { flex: 1 1 auto; text-align: center; }
+    .tab-bar { overflow-x: auto; white-space: nowrap; }
+    .tab { padding: 8px 12px; font-size: 12px; }
+    .forum-group h2 { font-size: 1em; flex-wrap: wrap; }
+    .post-card { padding: 10px 12px; flex-direction: column; align-items: stretch !important; }
+    .post-card .info { min-width: unset; }
+    .post-card .title { font-size: 13px; }
+    .post-card .stats { justify-content: flex-start; gap: 8px; }
+    .actions { width: 100%; }
+    .actions .btn { flex: 1 1 auto; text-align: center; min-height: 36px; }
+    .replies-modal-inner { padding: 16px; width: 95%; }
+    .config-row { flex-direction: column; align-items: stretch; }
+    .config-row input[type=time], .config-row select { width: 100%; }
+}
+@media (max-width: 480px) {
+    .mon-header h1 { font-size: 1em; }
+    .post-card { padding: 8px 10px; }
+    .post-card .title { font-size: 12px; }
+    .post-card .meta { font-size: 11px; }
+    .stat-item .num { font-size: 1em; }
+    .tab { font-size: 11px; padding: 6px 10px; }
+    .replies-modal-inner { padding: 12px; }
+    .actions .btn { min-height: 40px; font-size: 11px; }
+}
+</style>
+<style>
 .mon-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
 .mon-header h1 { font-size:1.3em; }
 .unread-badge { background:#e63946; color:#fff; padding:2px 10px; border-radius:12px; font-size:12px; margin-left:6px; }
@@ -42,6 +74,25 @@
                        overflow-y:auto; padding:24px; }
 .reply-item { padding:12px 0; border-bottom:1px solid #eee; }
 .reply-item:last-child { border-bottom:none; }
+/* ═══ 评论监控手机端 ═══ */
+@media (max-width: 768px) {
+    .mon-header { flex-direction: column; align-items: flex-start; }
+    .post-card { flex-direction: column; align-items: flex-start; }
+    .post-card .info { min-width: unset; width: 100%; }
+    .post-card .stats { width: 100%; justify-content: space-around; }
+    .config-row { flex-direction: column; align-items: flex-start; }
+    .config-row label { min-width: unset; }
+    .config-row select, .config-row input { width: 100%; }
+    .actions { width: 100%; justify-content: stretch; }
+    .actions .btn { flex: 1 1 auto; text-align: center; min-height: 40px; }
+}
+@media (max-width: 480px) {
+    .post-card { padding: 10px 12px; }
+    .post-card .title { font-size: 13px; }
+    .post-card .meta { font-size: 11px; }
+    .stat-item .num { font-size: 1em; }
+    .replies-modal-inner { padding: 16px; width: 96%; }
+}
 .reply-item .author { font-weight:600; color:#4361ee; font-size:13px; }
 .reply-item .time { font-size:11px; color:#999; margin-left:8px; }
 .reply-item .content { font-size:14px; margin-top:4px; color:#333; line-height:1.5; }

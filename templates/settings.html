@@ -1,80 +1,125 @@
 {% extends "base.html" %}
 {% block title %}系统设置{% endblock %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .rsp-table { white-space: normal !important; word-break: break-word !important; }
+    .rsp-table th, .rsp-table td { white-space: normal !important; word-break: break-all !important; }
+    /* 设置页手机优化 */
+    .card { padding: 12px; }
+    .card h2 { font-size: 1em; }
+    .card > div:first-of-type { flex-direction: column !important; gap: 8px !important; }
+    .card > div:first-of-type input { width: 100% !important; flex: unset !important; }
+    .card > div:first-of-type button { width: 100%; }
+    .rsp-table { display: block; overflow-x: auto; }
+    .btn { min-height: 40px; }
+    .btn-sm { min-height: 36px; }
+}
+@media (max-width: 480px) {
+    .card { padding: 8px; }
+    .card h2 { font-size: 0.95em; }
+    .card > div:first-of-type { align-items: stretch !important; }
+    .rsp-table th, .rsp-table td { font-size: 11px; padding: 3px 2px; }
+    .btn { min-height: 44px; font-size: 13px; }
+    .btn-sm { min-height: 40px; font-size: 11px; }
+}
 <h1 style="margin-bottom:20px;">⚙️ 系统设置</h1>
 
-<!-- Provider 设置 -->
-<div class="card" id="provider">
-    <h2>📥 内容来源 (Provider)</h2>
-    <p style="color:#666;font-size:13px;margin-bottom:16px;">
-        选择从哪里读取文章。选 Markdown 则监控 posts 目录；选 Notion 则从 Notion 数据库拉取。
+<!-- API Keys -->
+<div class="card" id="api-keys">
+    <h2>🔑 API Keys（开放接口鉴权）</h2>
+    <p style="color:#666;font-size:13px;margin-bottom:12px;">
+        用于外部系统/AI skill 调用 FlashSloth 功能的标准化 API。
+        端点格式: <code>POST /api/v1/&lt;resource&gt;/&lt;action&gt;</code>
     </p>
-    <form method="post" action="/settings/provider">
-        <div class="form-group">
-            <label>启用 Provider</label>
-            <select name="provider_type">
-                <option value="markdown" {% if config.provider.type == 'markdown' %}selected{% endif %}>
-                    Markdown 文件（监控 posts/ 目录）
-                </option>
-                <option value="notion" {% if config.provider.type == 'notion' %}selected{% endif %}>
-                    Notion 数据库
-                </option>
-            </select>
-        </div>
-        <div id="notion-fields" style="display:{{ 'block' if config.provider.type == 'notion' else 'none' }}">
-            <div class="form-group">
-                <label>Notion Token</label>
-                <input type="password" name="notion_token" value="{{ config.provider.notion.token or '' }}">
-            </div>
-            <div class="form-group">
-                <label>数据库 ID</label>
-                <input type="text" name="notion_db_id" value="{{ config.provider.notion.database_id or '' }}">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary">保存 Provider 设置</button>
-    </form>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <input type="text" id="newKeyName" placeholder="Key 名称（如: my-ai-skill）"
+               style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;flex:1;">
+        <button onclick="createApiKey()" class="btn btn-success btn-sm">➕ 生成新 Key</button>
+    </div>
+    <div id="newKeyResult" style="display:none;padding:10px 14px;border-radius:6px;margin-bottom:12px;word-break:break-all;font-family:monospace;font-size:13px;"></div>
+    <table class="rsp-table">
+        <thead><tr>
+            <th>名称</th>
+            <th>Key 前缀</th>
+            <th>状态</th>
+            <th>最后使用</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr></thead>
+        <tbody id="apiKeyTableBody">
+            <tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">加载中...</td></tr>
+        </tbody>
+    </table>
 </div>
 
-<!-- Publisher 设置 -->
-<div class="card" id="publishers">
-    <h2>📤 发布平台 (Publisher)</h2>
-    <p style="color:#666;font-size:13px;margin-bottom:16px;">
-        配置各平台的 API 凭证。配置后即可在仪表盘一键发布。
-    </p>
-    <form method="post" action="/settings/publishers">
-        {% for p in publishers %}
-        <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:12px;" id="{{ p.name }}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <strong>{{ p.display_name }}</strong>
-                <label style="font-size:13px;">
-                    <input type="checkbox" name="{{ p.name }}_enabled"
-                           {{ 'checked' if p.enabled else '' }}>
-                    启用
-                </label>
-            </div>
-            {% for field in p.config_fields %}
-            <div class="form-group">
-                <label>{{ field.label }}</label>
-                {% if field.type == 'select' %}
-                <select name="{{ p.name }}_{{ field.key }}">
-                    {% for opt in field.options %}
-                    <option value="{{ opt }}" {{ 'selected' if field.value == opt else '' }}>{{ opt }}</option>
-                    {% endfor %}
-                </select>
-                {% else %}
-                <input type="{{ field.type }}" name="{{ p.name }}_{{ field.key }}"
-                       value="{{ field.value or '' }}" placeholder="{{ field.placeholder or '' }}">
-                {% endif %}
-                {% if field.key in field.missing %}
-                <span style="color:#e63946;font-size:12px;">⚠️ 必填</span>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% endfor %}
-        <button type="submit" class="btn btn-primary">保存 Publisher 设置</button>
-    </form>
-</div>
+<script>
+function loadApiKeys() {
+    fetch('/api/v1/keys').then(r=>r.json()).then(d => {
+        if (!d.success) return;
+        const keys = d.data || [];
+        let html = '';
+        keys.forEach(k => {
+            const active = k.is_active ? '✅ 启用' : '❌ 禁用';
+            html += '<tr>' +
+                '<td>' + escapeHtml(k.name) + '</td>' +
+                '<td><code>' + escapeHtml(k.key_prefix) + '...</code></td>' +
+                '<td>' + active + '</td>' +
+                '<td>' + (k.last_used_at || '-') + '</td>' +
+                '<td>' + (k.created_at || '-') + '</td>' +
+                '<td>' +
+                    '<button class="btn btn-sm ' + (k.is_active ? 'btn-warning' : 'btn-success') + '" onclick="toggleApiKey(' + k.id + ')">' + (k.is_active ? '禁用' : '启用') + '</button> ' +
+                    '<button class="btn btn-sm btn-danger" onclick="deleteApiKey(' + k.id + ')">删除</button>' +
+                '</td></tr>';
+        });
+        if (!keys.length) html = '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">暂无 API Key</td></tr>';
+        document.getElementById('apiKeyTableBody').innerHTML = html;
+    });
+}
+
+function createApiKey() {
+    const name = document.getElementById('newKeyName').value.trim() || '';
+    const div = document.getElementById('newKeyResult');
+    div.style.display = 'block';
+    div.style.background = '#fff3cd';
+    div.style.color = '#856404';
+    div.innerHTML = '⏳ 生成中...';
+    fetch('/api/v1/keys', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name}),
+    }).then(r=>r.json()).then(d => {
+        if (d.success) {
+            div.style.background = '#d4edda';
+            div.style.color = '#155724';
+            div.innerHTML = '✅ 新 Key 已生成（仅显示一次，请立即复制保存）：<br><strong>' + escapeHtml(d.data.key) + '</strong>';
+            loadApiKeys();
+        } else {
+            div.style.background = '#f8d7da';
+            div.style.color = '#721c24';
+            div.innerHTML = '❌ ' + escapeHtml(d.error || '');
+        }
+    });
+}
+
+function toggleApiKey(id) {
+    fetch('/api/v1/keys/' + id + '/toggle', {method: 'POST'})
+    .then(r=>r.json()).then(d => { if (d.success) loadApiKeys(); });
+}
+
+function deleteApiKey(id) {
+    if (!confirm('确定删除此 API Key？')) return;
+    fetch('/api/v1/keys/' + id, {method: 'DELETE'})
+    .then(r=>r.json()).then(d => { if (d.success) loadApiKeys(); });
+}
+
+function escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t || '';
+    return d.innerHTML;
+}
+loadApiKeys();
+</script>
 
 <!-- 构建设置 -->
 <div class="card" id="builder">
@@ -98,64 +143,7 @@
     </form>
 </div>
 
-<!-- 数据导出导入 -->
-<div class="card" id="migration">
-    <h2>📦 数据迁移</h2>
-    <p style="color:#666;font-size:13px;margin-bottom:16px;">
-        导出全部数据（数据库 + 上传文件 + 配置），方便迁移到新平台。
-        导入时会自动备份当前数据。
-    </p>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-        <button id="exportBtn" class="btn btn-primary" onclick="exportData()">📦 导出数据</button>
-        <input id="importFile" type="file" accept=".zip" style="display:none">
-        <button class="btn btn-success" onclick="document.getElementById('importFile').click()">⬆️ 选择备份文件</button>
-        <button id="importBtn" class="btn btn-warning" onclick="importData()">⬆️ 导入数据</button>
-    </div>
-    <p style="color:#999;font-size:12px;margin-top:12px;">
-        导出包含：数据库(账号/文章/发布记录)、上传图片/附件、配置文件<br>
-        导入前会自动备份当前数据到 static/backups/
-    </p>
-</div>
-
 <script>
-// ─── 数据导出导入 ───
-async function exportData() {
-    const btn = document.getElementById('exportBtn');
-    btn.disabled = true; btn.textContent = '打包中...';
-    try {
-        const resp = await fetch('/api/export');
-        if (!resp.ok) { alert('导出失败: ' + await resp.text()); return; }
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'flashsloth_backup.zip';
-        document.body.appendChild(a); a.click();
-        a.remove(); URL.revokeObjectURL(url);
-        alert('✅ 导出成功！');
-    } catch(e) { alert('❌ 导出失败: ' + e.message); }
-    finally { btn.disabled = false; btn.textContent = '📦 导出数据'; }
-}
-async function importData() {
-    const fileInput = document.getElementById('importFile');
-    const file = fileInput.files[0];
-    if (!file) { alert('请先选择备份文件'); return; }
-    if (!confirm('⚠️ 导入将覆盖当前数据！原数据会自动备份。\n确认继续？')) return;
-    const btn = document.getElementById('importBtn');
-    btn.disabled = true; btn.textContent = '导入中...';
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-        const resp = await fetch('/api/import', { method: 'POST', body: fd });
-        const data = await resp.json();
-        if (data.success) {
-            alert('✅ ' + data.message);
-            location.reload();
-        } else {
-            alert('❌ 导入失败: ' + (data.error || '未知错误'));
-        }
-    } catch(e) { alert('❌ 导入失败: ' + e.message); }
-    finally { btn.disabled = false; btn.textContent = '⬆️ 导入数据'; }
-}
 // Provider 切换显示 Notion 字段
 document.querySelector('select[name="provider_type"]')?.addEventListener('change', function() {
     document.getElementById('notion-fields').style.display =

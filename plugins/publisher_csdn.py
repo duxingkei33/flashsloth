@@ -1,341 +1,297 @@
 """
-CSDN Publisher — Selenium 浏览器自动化
-CSDN 无公开 API，用 Selenium 模拟登录 + 发布
-⚠️ 平台改前端可能失效，维护成本较高
+CSDN Publisher — Playwright 浏览器自动化（sync API）
 
-使用方法：
-1. 在浏览器登录 CSDN（mp.csdn.net）
-2. F12 → Application → Cookies → 复制全部 Cookie 字符串
-3. 在 FlashSloth 后台配置 CSDN 账号时粘贴 Cookie
+基于实际探索结果：
+- 编辑器: https://editor.csdn.net/md/?not_checkout=1
+- 标题: input[placeholder*='标题']
+- 正文: .editor__inner.markdown-highlighting (Markdown 模式)
+- 存草稿: button:has-text('保存草稿')
+- 发布: button:has-text('发布文章')
 """
-import os, json, time
-from flashsloth.core.publisher import Publisher, register
+import re, json, os, logging
 from flashsloth.core.article import Article
+from flashsloth.core.publisher import Publisher, register, PublishError
+from playwright.sync_api import sync_playwright
+
+EDITOR_URL = "https://editor.csdn.net/md/?not_checkout=1"
+BLOG_URL = "https://blog.csdn.net"
 
 
-CHROME_PATHS = [
-    "/tmp/chrome-extracted/chrome-linux64/chrome",
-    "/opt/hermes/.playwright/chromium-1228/chrome",
-]
-
-CHROMEDRIVER_PATHS = [
-    "/tmp/chromedriver-linux64/chromedriver",
-    "/tmp/chromedriver",
-    "/usr/local/bin/chromedriver",
-]
-
-
-def _find_chrome() -> str | None:
-    for p in CHROME_PATHS:
-        if os.path.isfile(p) and os.access(p, os.X_OK):
-            return p
-    return None
-
-
-def _find_chromedriver() -> str | None:
-    for p in CHROMEDRIVER_PATHS:
-        if os.path.isfile(p) and os.access(p, os.X_OK):
-            return p
-    return None
+def _parse_cookies(cookie_str: str) -> list:
+    cookies = []
+    for pair in cookie_str.split(";"):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        n, v = pair.split("=", 1)
+        cookies.append({"name": n.strip(), "value": v.strip(), "domain": ".csdn.net", "path": "/"})
+    return cookies
 
 
 @register
 class CSDNPublisher(Publisher):
     name = "csdn"
     display_name = "CSDN"
-    description = "通过 Selenium 浏览器自动化发布到 CSDN 博客"
-    config_fields = [
-        {
-            "key": "cookie",
-            "label": "Cookie（登录 CSDN 后从浏览器 F12 复制）",
-            "type": "password",
-            "required": True,
-            "placeholder": "粘贴完整的 Cookie 字符串",
-        },
-        {
-            "key": "auto_publish",
-            "label": "发布后自动发表（而不是存草稿）",
-            "type": "boolean",
-            "required": False,
-            "default": False,
-        },
-        {
-            "key": "article_type",
-            "label": "文章类型",
-            "type": "select",
-            "required": False,
-            "default": "original",
-            "options": [
-                {"value": "original", "label": "原创"},
-                {"value": "reprint", "label": "转载"},
-                {"value": "translated", "label": "翻译"},
-            ],
-        },
+    architecture = "自研CMS"
+
+    PLATFORM_LIMITS = {
+        "csdn.net": {
+            "max_title_length": 100,
+            "min_title_length": 5,
+            "supports_draft": True,
+            "supports_schedule": True,
+            "supports_cover": True,
+            "supports_tags": True,
+            "article_types": ["original", "reprint", "translated"],
+            "image_upload": "playwright",
+        }
+    }
+
+    login_methods = [
+        {"method": "qrcode", "label": "📱 扫码登录", "icon": "📱", "priority": 1,
+         "fields": [],
+         "description": "打开 CSDN 登录页截图，用手机扫码访问后自动捕获 Cookie"},
+        {"method": "password", "label": "账号密码登录", "icon": "🔑", "priority": 2,
+         "fields": ["username", "password"],
+         "description": "输入 CSDN 用户名和密码，Playwright 浏览器自动登录"},
+        {"method": "phone", "label": "手机验证码登录", "icon": "📞", "priority": 3,
+         "fields": ["phone"],
+         "description": "输入手机号，Playwright 自动发送验证码并等待用户输入"},
+        {"method": "cookie", "label": "Cookie 粘贴（备选）", "icon": "🍪", "priority": 99,
+         "fields": ["cookie"],
+         "description": "登录后从浏览器 F12 → Application → Cookies → csdn.net 复制"},
     ]
+    config_fields = [
+        {"key": "username", "label": "用户名/邮箱", "type": "text", "required": False, "default": ""},
+        {"key": "password", "label": "密码", "type": "password", "required": False, "default": ""},
+        {"key": "cookie", "label": "Cookie（备选）", "type": "password", "required": False,
+         "placeholder": "CSDN 全站 Cookie（从 F12 复制）"},
+        {"key": "article_type", "label": "默认文章类型", "type": "select", "required": False,
+         "default": "original",
+         "options": [
+             {"value": "original", "label": "原创"},
+             {"value": "reprint", "label": "转载"},
+             {"value": "translated", "label": "翻译"},
+         ]},
+    ]
+    supports_draft = True
 
-    def publish(self, article: Article, **kwargs) -> dict:
-        from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import TimeoutException, NoSuchElementException
+    def __init__(self, config: dict):
+        super().__init__(config)
+        self.cookie_str = config.get("cookie", "")
+        self.article_type = config.get("article_type", "original")
+        self.logger = logging.getLogger(f"publisher.{self.name}")
 
-        missing = self.validate_config()
-        if missing:
-            return {"success": False, "error": f"缺少配置: {', '.join(missing)}",
-                    "url": "", "id": ""}
-
-        chrome_path = _find_chrome()
-        chromedriver_path = _find_chromedriver()
-
-        if not chrome_path:
-            return {"success": False, "error": "Chrome 浏览器未安装，请先下载 Chrome for Testing",
-                    "url": "", "id": ""}
-
-        opts = Options()
-        opts.binary_location = chrome_path
-        opts.add_argument("--headless=new")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-setuid-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--window-size=1280,800")
-        opts.add_argument(
-            'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        )
-
-        try:
-            service_kwargs = {}
-            if chromedriver_path:
-                from selenium.webdriver.chrome.service import Service
-                service = Service(executable_path=chromedriver_path)
-                service_kwargs["service"] = service
-
-            driver = webdriver.Chrome(options=opts, **service_kwargs)
-            wait = WebDriverWait(driver, 15)
-
-            # 注入 Cookie
-            driver.get("https://mp.csdn.net")
-            time.sleep(2)
-            self._inject_cookies(driver)
-
-            # 跳到编辑器
-            driver.get("https://mp.csdn.net/mp_blog/creation/editor")
-            time.sleep(3)
-
-            # 检查是否登录成功
-            if "passport.csdn.net" in driver.current_url or "login" in driver.current_url:
-                driver.quit()
-                return {"success": False, "error": "Cookie 已过期，请重新登录 CSDN 后复制新的 Cookie",
-                        "url": "", "id": ""}
-
-            # 切换到 Markdown 模式（如果必要）
-            self._try_click(driver, wait, [
-                "li[data-mode='markdown']",
-                "button:has-text('Markdown')",
-                ".md-tab",
-            ], timeout=3)
-
-            time.sleep(1)
-
-            # 填写标题
-            title_filled = self._try_fill(driver, wait, article.title, [
-                "#article-title",
-                "input.article-title",
-                "input[placeholder*='标题']",
-                "#title",
-            ], timeout=5)
-
-            if not title_filled:
-                driver.quit()
-                return {"success": False, "error": "找不到标题输入框，CSDN 编辑器可能已改版",
-                        "url": "", "id": ""}
-
-            # 填写正文
-            body_filled = self._try_fill(driver, wait, article.body, [
-                "#editor-content textarea",
-                ".editor-content textarea",
-                "#editor-content",
-                ".article-content textarea",
-                "div[contenteditable='true']",
-            ], timeout=5)
-
-            if not body_filled:
-                # 尝试用 JS 设置富文本编辑器
-                try:
-                    driver.execute_script(
-                        "document.querySelector('[contenteditable=true]').innerHTML = arguments[0]",
-                        self._md_to_html(article.body)
-                    )
-                    body_filled = True
-                except:
-                    pass
-
-            if not body_filled:
-                driver.quit()
-                return {"success": False, "error": "找不到正文编辑区，CSDN 编辑器可能已改版",
-                        "url": "", "id": ""}
-
-            time.sleep(1)
-
-            # 发布/存草稿
-            auto_publish = self.config.get("auto_publish", False)
-            if auto_publish:
-                clicked = self._try_click(driver, wait, [
-                    "button:has-text('发布')",
-                    "button:has-text('公开发布')",
-                    ".publish-btn",
-                    "#publish-btn",
-                ], timeout=5)
-                if not clicked:
-                    self._try_click(driver, wait, [
-                        "button:has-text('存草稿')",
-                        "button:has-text('保存')",
-                    ], timeout=3)
-            else:
-                self._try_click(driver, wait, [
-                    "button:has-text('存草稿')",
-                    "button:has-text('保存草稿')",
-                    "button:has-text('保存')",
-                ], timeout=5)
-
-            time.sleep(3)
-            final_url = driver.current_url
-            driver.quit()
-
-            return {
-                "success": True,
-                "url": final_url,
-                "id": "",
-                "error": "",
-                "message": f"已{'发布' if auto_publish else '保存到草稿'}，请到 CSDN 后台确认",
-            }
-
-        except Exception as e:
-            try:
-                driver.quit()
-            except:
-                pass
-            return {"success": False, "error": f"CSDN Selenium 发布失败: {e}",
-                    "url": "", "id": ""}
+    def _cookies(self):
+        return _parse_cookies(self.cookie_str) if self.cookie_str else []
 
     def test_connection(self) -> dict:
-        """测试 Cookie 是否有效"""
-        from selenium import webdriver
-        from selenium.webdriver.chrome.options import Options
-        chrome_path = _find_chrome()
-        if not chrome_path:
-            return {"success": False, "error": "Chrome 未找到", "status": "缺少浏览器"}
-
-        opts = Options()
-        opts.binary_location = chrome_path
-        opts.add_argument("--headless=new")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-setuid-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-gpu")
-
+        """测试 Cookie 有效性，提取用户名"""
+        if not self.cookie_str:
+            return {"success": False, "error": "未配置 Cookie"}
         try:
-            chromedriver_path = _find_chromedriver()
-            service_kwargs = {}
-            if chromedriver_path:
-                from selenium.webdriver.chrome.service import Service
-                service = Service(executable_path=chromedriver_path)
-                service_kwargs["service"] = service
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True, args=[
+                    '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                ])
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1920, "height": 1080}, locale="zh-CN",
+                )
+                ctx.add_cookies(self._cookies())
+                page = ctx.new_page()
+                page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(3000)
 
-            driver = webdriver.Chrome(options=opts, **service_kwargs)
-            driver.get("https://mp.csdn.net")
-            time.sleep(2)
-            self._inject_cookies(driver)
-            driver.get("https://mp.csdn.net/mp_blog/creation/editor")
-            time.sleep(3)
+                # 获取页面文本内容检测登录态
+                body_text = page.inner_text("body")[:2000]
 
-            if "passport.csdn.net" in driver.current_url or "login" in driver.current_url:
-                driver.quit()
-                return {"success": False, "error": "Cookie 已过期", "status": "Cookie 过期"}
+                # 检查强登录态指标
+                has_logout = bool(re.search(r'退出', body_text))
+                has_cancel = bool(re.search(r'注销', body_text))
+                has_center = bool(re.search(r'个人中心|用户中心|会员中心', body_text))
+                strong_exit = has_logout or has_cancel
 
-            driver.quit()
-            return {"success": True, "error": "", "status": "Cookie 有效，已登录 CSDN"}
+                # 尝试提取用户名
+                username_hint = ""
+                # 方法1: 从 CSDN 博客主页链接提取
+                profile_links = page.locator("a[href*='blog.csdn.net/']")
+                for i in range(min(profile_links.count(), 5)):
+                    href = profile_links.nth(i).get_attribute("href") or ""
+                    m = re.search(r'blog\.csdn\.net/([^/"\'\s?]+)', href)
+                    if m:
+                        username_hint = m.group(1)
+                        break
 
+                # 方法2: 从配置中的用户名匹配
+                if not username_hint:
+                    configured = self.config.get("username", "")
+                    if configured and configured in body_text:
+                        username_hint = configured
+
+                # 方法3: 页面欢迎文本（支持 欢迎 xxx、Hi xxx 等模式）
+                if not username_hint:
+                    m = re.search(r'(?:欢迎|欢迎回来|Hi)[：:\s]+([^\s。！，、，用户]{2,30})', body_text)
+                    if m:
+                        username_hint = m.group(1).strip()[:30]
+
+                # 判定规则: 必须存在强退出标记 + (至少有2个指标 或 提取到用户名)
+                indicators = sum([has_logout, has_cancel, has_center])
+                is_logged_in = strong_exit and (indicators >= 2 or bool(username_hint))
+
+                browser.close()
+                if is_logged_in:
+                    status = f"✅ 已登录 — {username_hint}" if username_hint else "✅ 已登录"
+                    return {"success": True, "error": "", "status": status}
+                return {"success": False, "error": "❌ Cookie已失效（未检测到登录态）", "status": "Cookie过期"}
         except Exception as e:
-            try:
-                driver.quit()
-            except:
-                pass
             return {"success": False, "error": str(e), "status": "连接失败"}
 
-    def _inject_cookies(self, driver):
-        """从 Cookie 字符串注入到浏览器"""
-        import urllib.parse
-        cookie_str = self.config.get("cookie", "")
-        if not cookie_str:
-            return
-        for item in cookie_str.split(";"):
-            item = item.strip()
-            if "=" in item:
-                name, value = item.split("=", 1)
-                name = name.strip()
-                value = urllib.parse.unquote(value.strip())
-                if name and value:
-                    try:
-                        driver.add_cookie({
-                            "name": name,
-                            "value": value,
-                            "domain": ".csdn.net",
-                            "path": "/",
-                        })
-                    except:
-                        pass
+    def publish(self, article: Article, **kwargs) -> dict:
+        """使用 Playwright 发布到 CSDN"""
+        if not self.cookie_str:
+            return {"success": False, "error": "未配置 Cookie", "url": "", "id": ""}
 
-    def _try_click(self, driver, wait, selectors, timeout=5):
-        """尝试用多个选择器点击元素"""
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import TimeoutException
-        for sel in selectors:
-            try:
-                el = wait.with_timeout(timeout).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, sel))
+        save_as_draft = kwargs.get("save_as_draft", True)
+        result = {"success": False, "url": "", "id": "", "error": "", "message": ""}
+
+        try:
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True, args=[
+                    '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                ])
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1920, "height": 1080}, locale="zh-CN",
                 )
-                el.click()
-                return True
-            except:
-                continue
-        return False
+                ctx.add_cookies(self._cookies())
+                page = ctx.new_page()
 
-    def _try_fill(self, driver, wait, text, selectors, timeout=5):
-        """尝试用多个选择器填入文本"""
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import TimeoutException
-        for sel in selectors:
-            try:
-                el = wait.with_timeout(timeout).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, sel))
-                )
-                el.clear()
-                el.send_keys(text)
-                return True
-            except:
-                continue
-        return False
+                try:
+                    # 1. 预热 — 先访问首页建立会话
+                    page.goto("https://www.csdn.net/", wait_until="domcontentloaded", timeout=20000)
+                    page.wait_for_timeout(2000)
+                    self.logger.info("✅ 首页加载完成")
 
-    def _md_to_html(self, md_text):
-        """简单 Markdown 转 HTML"""
-        import re
-        html = md_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.M)
-        html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.M)
-        html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.M)
-        html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
-        html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
-        html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.M)
-        html = re.sub(r'```(\w*)\n([\s\S]*?)```', r'<pre><code>\2</code></pre>', html)
-        html = html.replace("\n\n", "</p><p>")
-        html = "<p>" + html + "</p>"
-        html = re.sub(r'<li>(.*?)</li>', r'<li>\1</li>', html)
-        # 把 <li> 包进 <ul>
-        html = re.sub(r'(<li>.*?</li>)', r'<ul>\1</ul>', html)
-        return html
+                    # 2. 打开编辑器
+                    page.goto(EDITOR_URL, wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(5000)
+
+                    if "passport" in page.url or "login" in page.url.lower():
+                        raise PublishError("Cookie 已过期，需重新登录")
+
+                    self.logger.info(f"✅ 编辑器已打开")
+
+                    # 3. 填写标题
+                    title_input = page.locator("input[placeholder*='标题']").first
+                    if title_input.count() > 0:
+                        title_input.fill(article.title[:100])
+                        self.logger.info(f"✅ 标题: {article.title[:40]}...")
+                    else:
+                        raise PublishError("找不到标题输入框")
+
+                    # 4. 填写正文
+                    body = article.body or article.content or ""
+                    if body:
+                        editor_div = page.locator(".editor__inner.markdown-highlighting, .editor").first
+                        if editor_div.count() > 0:
+                            editor_div.evaluate(f"el => el.innerText = {json.dumps(body)}")
+                            self.logger.info(f"✅ 正文已填写 ({len(body)} chars)")
+                        else:
+                            page.evaluate(f"""
+                                (() => {{
+                                    const el = document.querySelector('.editor');
+                                    if (el) el.innerText = {json.dumps(body)};
+                                }})()
+                            """)
+                            self.logger.info("✅ 正文已通过JS填写")
+
+                    # 5. 处理图片
+                    image_warnings = []
+                    body_text = body
+                    if article.images:
+                        for img_path in article.images[:10]:
+                            if os.path.isfile(img_path):
+                                csdn_url = self._upload_image(page, img_path)
+                                if csdn_url:
+                                    body_text = body_text.replace(img_path, csdn_url)
+                                    self.logger.info(f"  ✅ 图片: {csdn_url[:50]}")
+                                else:
+                                    image_warnings.append(f"图片上传失败: {img_path}")
+                        if body_text != body:
+                            editor_div = page.locator(".editor").first
+                            if editor_div.count() > 0:
+                                editor_div.evaluate(f"el => el.innerText = {json.dumps(body_text)}")
+
+                    # 6. 存草稿或发布
+                    if save_as_draft:
+                        draft_btn = page.locator("button:has-text('保存草稿')").first
+                        if draft_btn.count() > 0 and draft_btn.is_visible():
+                            draft_btn.click()
+                            page.wait_for_timeout(3000)
+                            self.logger.info("✅ 已存草稿")
+                            result["message"] = "draft"
+                        else:
+                            self.logger.warning("⚠️ 未找到存草稿按钮")
+                    else:
+                        pub_btn = page.locator("button:has-text('发布文章')").first
+                        if pub_btn.count() > 0:
+                            pub_btn.click()
+                            page.wait_for_timeout(5000)
+                            self.logger.info("✅ 已发布")
+                            result["message"] = "published"
+
+                    # 尝试获取文章 ID
+                    html = page.content()
+                    for pattern in [r'article/details/(\d+)', r'articleId=(\d+)']:
+                        m = re.search(pattern, html + page.url)
+                        if m:
+                            result["id"] = m.group(1)
+                            result["url"] = f"{BLOG_URL}/duxingkei/article/details/{m.group(1)}"
+                            break
+
+                    result["success"] = True
+                    if image_warnings:
+                        result["error"] = "; ".join(image_warnings[:3])
+
+                except PublishError:
+                    raise
+                except Exception as e:
+                    raise PublishError(f"CSDN 发布失败: {str(e)}") from e
+                finally:
+                    page.close()
+                    browser.close()
+
+        except PublishError as e:
+            result["error"] = str(e)
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
+
+    def _upload_image(self, page, local_path: str) -> str:
+        """纯 Playwright 上传图片"""
+        if not os.path.isfile(local_path):
+            return ""
+
+        file_input = page.locator("input[type='file']").first
+        if file_input.count() == 0:
+            return ""
+
+        try:
+            file_input.set_input_files(local_path)
+            page.wait_for_timeout(5000)
+            html = page.content()
+            urls = re.findall(r'https://img-blog\.csdnimg\.cn/[^\s"\'<>]+', html)
+            if urls:
+                return urls[0]
+        except:
+            pass
+        return ""
+
+    def upload_image(self, local_path: str) -> dict:
+        """上传图片到 CSDN 图床"""
+        url = self._upload_image(None, local_path)
+        if url:
+            return {"success": True, "url": url, "error": ""}
+        return {"success": False, "url": "", "error": "上传失败"}

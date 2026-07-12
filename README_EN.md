@@ -2,24 +2,194 @@
 
 ---
 
-# 🦥 FlashSloth
+# 🦥 FlashSloth — Your Personal Digital Asset Hub
 
-**Publish at sloth speed**
+> Sloth speed, lightning publishing
+> One dashboard to manage all your digital assets across the internet
 
-FlashSloth is an open-source multi-platform content publishing and site deployment system. Write once in Markdown, publish to multiple platforms with a single click, or deploy as a static site.
+---
 
 ## ✨ Features
 
-| Feature | Description |
-|---------|-------------|
-| **📝 Article Editor** | Markdown editor with live preview, tag management, draft/published states |
-| **📡 Multi-Platform Publishing** | Discuz! Forums, GitHub Pages Blog, WordPress, WeChat, Juejin, Zhihu, CSDN, RSS |
-| **🚀 Site Deployment** | One-click static site deployment to GitHub Pages |
-| **↩️ Retract Management** | Retract published articles with optional re-publish |
-| **📊 Publish Tracking** | Full publish history and deploy status for every article |
-| **🔐 Security** | Auto-generated random admin credentials on first boot, GitHub Token auth |
-| **💾 Storage** | Local storage + AList cloud storage, image/file attachments |
-| **🌐 i18n** | Chinese/English interface (see language switcher at top) |
+### 🔐 Account Management
+- [x] Unified multi-platform account management (add/edit/delete/enable/disable)
+- [x] 🔑 Password + captcha login — Playwright browser automation
+- [x] 📱 QR code scan login — Remote browser screenshot + 10s polling cookie capture
+- [x] 📱 Phone SMS login — phone_login + SMS verification code flow + frontend support
+- [x] 🪪 Unified login capability exploration — 7-platform Playwright real detection (password/QR/SMS) + JSON report + dynamic tab rendering
+- [x] 🗂️ Account management modular split — routes/accounts/ package (crud/helpers/login/qrcode/search/status)
+- [x] 🧩 Frontend JS modularization — accounts.html 2900-line inline JS split into 5 independent modules (globals/login/scan/search/utils)
+- [x] 🎯 Login engine data-driven — routes derived dynamically from exploration JSON instead of hardcoded DISCUZ_PLATFORMS list
+- [x] 📡 Scan-methods API data-driven — exploration JSON dynamically derives QR scan methods per platform
+- [x] 🎨 Unified login form — API enhancement (site_url/OAuth/captcha fields) + frontend dynamic rendering
+- [x] 🍪 Cookie paste (debug mode)
+- [x] 🖼️ Login method demo cards (mini-app style step-by-step guide)
+- [x] 🔒 Credential encryption storage (Fernet AES-128-CBC + HMAC-SHA256)
+- [x] 🔐 Unified credential system — ScanLoginEngine unified scan engine + save/get/verify_credential tri-function API
+- [x] 🧪 Unified cookie validator — eliminated 4 scattered cookie validation code paths, unified verify_cookie / verify_cookie_for_adapter interface
+- [x] 📊 Three-layer status detection — persistent BrowserEngine+API lightweight check+Playwright real verification+3-tier cache (memory/SQLite/real-time)+batch refresh+deep user info
+- [x] 🧩 Unified browser login button — shared edit dialog for all platforms
+- [x] 📱 Phone SMS login extended to CSDN/Bilibili publishers
+- [x] 🏗️ BrowserEngine persistent refactor — shared engine + subprocess Playwright verification (avoids WSGI deadlock)
+- [x] 🪟 Account modal deepening — amobbs/discuz/mydigit/wordpress + captcha input + 5-step progress bar + Amobbs border verification
+- [x] 🔍 Login status deep verification — real extraction of username/points/level + frontend display enhancement
+- [x] 🎨 Account page UI enhancement — search optimization/platform color labels/quick add/time labels/batch progress bar
+- [x] 🛡️ Cookie strict validation mode — DiscuzPublisher strict login detection (logout button + 2 indicators) + test-connection Playwright subprocess degradation to eliminate false positives + enhanced CSDN/OSHWHub/Zhihu test_connection (real username extraction + strong exit indicators + detailed failure messages)
+- [x] 🚀 Auto-start Playwright on login — Launches Playwright BrowserEngine on login (configurable auto_start)
+- [x] 🔌 Verify credential button — One-click credential verification for saved accounts
+- [x] 🧩 QR scan thread safety — scan retry anti-reentry + OSHWHub QR scan adapter
+- [x] 🗂️ Template modularization — accounts/ sub-template directory (head/cards/deploy/deploy_js/modal)
+
+### 📝 Multi-Platform Publishing
+- [x] Discuz! Forums (amobbs/mydigit etc.) — post + draft + sign-in
+- [x] WordPress — REST API publish (App Password auth)
+- [x] WeChat Official Account — Official API draft (AppID + AppSecret) + exploration + image upload/cover/summary
+- [x] CSDN — Playwright publish + sign-in
+- [x] Zhihu — Full Playwright rewrite (password/QR/Cookie) + platform exploration report
+- [x] OSHWHub (JLCPCB Open Source) — Playwright publish + sign-in
+- [x] Juejin — Cookie-based publish (password/QR/Cookie)
+- [x] Bilibili Articles — Playwright publish + draft save + image upload + login plugin + exploration reports (password/QR/Cookie)
+- [x] Twitter/X — tweepy API v2 OAuth1.0a + login capability/presets/image extraction + draft isolation
+- [x] Xianyu (Goofish) Product Listing — MTOP Signature V2 + AI category + SDK
+- [x] Xianyu Auto-Reply System Integration — Docker service (product listing/order query)
+- [x] Xianyu Auto-Reply Sidecar Adapter — xianyu-auto-reply REST API + health monitoring
+- [x] 📕 Xiaohongshu (Little Red Book) New Publisher — Playwright full workflow (image-text notes + login verification + image upload)
+- [x] 💰 Smzdm (What's Worth Buying) New Publisher — Playwright publisher (title/body/images/category selection)
+- [x] 🛍️ Dewu (Poizon) New Publisher — Playwright publisher (product listing + login verification + image upload)
+- [x] Gallery Product Listing (Reserved)
+- [x] RSS Feed — Pure Python generation
+- [x] GitHub Pages — git push deployment
+- [x] 🕐 Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend cookie status (✅/❌ indicator)
+- [x] 📋 Article list multi-select batch delete/publish
+
+### 🔔 Notification Gateway
+- [x] 22 notification channels (Telegram/Discord/Slack/WhatsApp/DingTalk/WeCom/Feishu/WeChat/Email/Matrix/Teams/LINE etc.)
+- [x] QR code auto-configuration via /callback endpoint
+- [x] Message queue + Provider registry
+- [x] Batch test / single channel test
+
+### 🔍 Platform Exploration
+- [x] Discuz forum auto-exploration (Playwright)
+- [x] Login capability exploration — 19-platform Playwright real detection (password/QR/SMS) + JSON reports + dynamic tab rendering
+- [x] 🤖 Login engine routing data-driven — all platform login APIs read engine field from exploration JSON, new platforms need no backend route changes
+- [x] 🆕 Unified login form API — site_url defaults/OAuth provider interactive buttons/captcha info banner
+- [x] Hourly incremental polling + anti-detection rate limiting (dual-cache memory+DB persistence for cross-process)
+- [x] Forum section keyword matching + exploration data management page
+- [x] Platform publish capability display + tag section management
+- [x] Bilibili full exploration report + login plugin + platform capability import
+- [x] Zhihu platform exploration — login/editor/capability data
+- [x] WeChat Official Account exploration — image upload/cover/summary capability
+- [x] WeChat full exploration + publisher enhancement
+- [x] 🤖 Zhihu/Juejin API lightweight login status detector
+- [x] 📡 Exploration radar v2 — Dewu/SMZDM/Xiaohongshu full exploration reports + category classification field
+- [x] 🆕 New platform exploration: 51CTO (WAF detection + SMS-only login assessment) + Douban exploration report
+- [x] 📚 Forum registry dual-track — JSON+DB dual support, FORUM_REGISTRY_MODE=auto/db/json three modes, loads extra_info+tags_of_interest fields
+- [x] ⏱️ Auto-refresh login capabilities — P0 script polls all platforms every 15 minutes + JSON sync update
+- [x] 📄 WordPress exploration report
+
+### 👨‍👩‍👧‍👦 Auto Sign-In
+- [x] OSHWHub sign-in (with auto re-login on cookie expiry + asyncio isolation fix)
+- [x] CSDN sign-in
+- [x] amobbs / Discuz! sign-in
+- [x] Sign-in statistics (success/failure breakdown, de-duplication fix)
+- [x] Batch sign-in time configuration + random offset (±30min) setting
+- [x] Randomized execution window (within 1 hour of configured time, account_id offset to avoid concurrent sign-ins)
+- [x] ♻️ Sign-in BrowserEngine reuse — Discuz sign-in migrated from standalone Playwright to shared BrowserEngine singleton
+
+### 🛒 Xianyu Integration
+- [x] Product search (keyword/price range/sort/pagination)
+- [x] Price monitoring & comparison (LCSC components)
+- [x] MTOP Signature V2 publisher + AI category recognition
+- [x] xianyu_client SDK (mtop/sign/session/media/category/limiter/guard)
+- [x] Xianyu Auto-Reply System — Docker service integration + API proxy + health status monitoring
+
+### 🧠 Smart Matching
+- [x] AI section matching (multi-platform support)
+- [x] Keyword library sync
+- [x] AI provider dynamic management (21+ providers, balance query, test connection)
+
+### 📋 Approval Workflow
+- [x] Create/approve/reject/cancel approval requests
+- [x] Webhook endpoint (text commands like "approve 123")
+- [x] Gateway notifications + approval history
+
+### 📚 Unified Pipeline
+- [x] 3-module shared workflow engine (Collect→Compile→Preview→Draft→Publish)
+- [x] Visual pipeline flow chart
+- [x] Run history list
+
+### 🧰 Workspace & Provider Framework
+- [x] Unified content management workspace — Provider selection + pipeline + content logs
+- [x] Provider abstraction framework — base→workspace, 3 Providers (Markdown/Notion/Taobao), config management
+- [x] Provider config fields dynamic rendering — each Provider declares its own config_fields schema, frontend reads from API, replacing hardcoded definitions
+- [x] AI call log system — auto-recording + visual log page + pagination/filtering
+- [x] 📋 Unified log management — publish/sign-in/AI/deploy logs in one page + pagination + real-time filtering
+- [x] 🖥️ Playwright browser engine settings page
+- [x] 🖥️ BrowserEngine auto-cleanup — 60s monitoring thread, auto-recycle idle browser instances
+- [x] External service registry — unified management for xianyu-auto-reply等服务
+- [x] Deployment config enhancement — #deploy inline block + deploy normalization + unified test_connection format + auto-start engine + /deployers redirect to /accounts#deploy
+
+### 💬 Comment Monitoring
+- [x] Multi-forum comment monitoring — unread/reply/stats dashboard
+- [x] Comment notification push
+
+### 📱 Mobile Support
+- [x] 📱 Full-page responsive enhancement — zero horizontal overflow at 375px, touch-friendly buttons/modals/nav/card grid
+- [x] Mobile CSS enhancements — responsive layout for phones/tablets
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                  User Interface Layer (Flask Web UI)               │
+│  Dashboard · Articles · Sign-In · Xianyu Search · Accounts        │
+│  Config · Exploration Data · Gateway · Approval · AI Settings     │
+│  Workspace · AI Logs · Playwright Settings · Comment Monitor      │
+│  Deploy Config · External Services · Storage Settings             │
+└──────────────────────────────────────────────────────────────────┘
+                             ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                    Gateway API Layer (routes/)                     │
+│  routes/accounts/ (package: crud/login/qrcode/search/status)     │
+│  gateway.py · ai.py · signin.py · exploration.py · posts.py     │
+│  api_v2.py · browser_login.py · approval.py · notifications.py  │
+│  price_monitor.py · workspace_ui.py · browser_engine.py         │
+│  external_services.py · storage_deploy.py · auth.py              │
+└──────────────────────────────────────────────────────────────────┘
+                             ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                 Unified Workflow Engine (core/)                    │
+│  publisher · gateway · scheduler · database · credential_crypto   │
+│  anti_detect · explorer · price_monitor · approval · notifier     │
+│  ai_provider · article · deployer · compiler · pipeline           │
+│  signin · image_pipeline · captcha_handler                        │
+│  browser_engine · status_detector · status_cache · provider       │
+│  provider_registry · storage · cookie_validator · forum_registry   │
+└──────────────────────────────────────────────────────────────────┘
+                             ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                Plugin + Adapter Layer (plugins/ + sdk/)            │
+│  publisher_*.py — 19 platform publishers (incl. Dewu/Smzdm/Xiaohongshu)   │
+│  signin_*.py   — 3 sign-in plugins                                │
+│  provider_*.py — 3 Provider plugins (Markdown/Notion/Taobao)      │
+│  generic_login.py · bilibili_login.py · xianyu_client/           │
+│  sdk/adapters/ (14 platform adapters)                            │
+└──────────────────────────────────────────────────────────────────┘
+                             ↕
+┌──────────────────────────────────────────────────────────────────┐
+│                    Public Infrastructure                            │
+│  SQLite (flashsloth.db + status_cache.db)                         │
+│  .fs_key encryption key · config/ · templates/ · static/          │
+│  platform_reports/ (19+ reports + JSON data files)                │
+│  scripts/ · DEVELOPMENT_SPECIFICATION.md · ARCHITECTURE.md        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+> See [ARCHITECTURE.md](ARCHITECTURE.md) for full architecture details
+
+---
 
 ## 🚀 Quick Start
 
@@ -27,7 +197,8 @@ FlashSloth is an open-source multi-platform content publishing and site deployme
 
 - Python 3.10+
 - Git
-- (Optional) Cloudflare Tunnel for external access
+- (Optional) Playwright for browser automation login
+- (Optional) Cloudflare Tunnel / frpc for external access
 
 ### Installation
 
@@ -39,12 +210,16 @@ cd flashsloth
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Start (auto-initializes DB and generates random admin credentials)
-python flashsloth/admin.py
+# 3. Install Playwright (for browser auto-login)
+pip install playwright
+python -m playwright install chromium
 
-# 4. On first boot, you'll see:
+# 4. Start (auto-initializes DB and generates random admin credentials)
+python admin.py
+
+# 5. On first boot, you'll see:
 # ======================================================
-#   🦥 FlashSloth — 树懒的速度，闪电的发布
+#   🦥 FlashSloth — Sloth speed, lightning publishing
 #   🌐 http://0.0.0.0:5000
 #   👤 First boot: auto-generated admin credentials:
 #      Username: admin_a1b2c3
@@ -52,91 +227,97 @@ python flashsloth/admin.py
 #   ⚠️  Please change password after login!
 # ======================================================
 
-# 5. Open http://localhost:5000 in your browser
+# 6. Open http://localhost:5000 in your browser
 ```
 
 > **⚠️ Production tips:**
 > - Set the `FLASHSLOTH_SECRET` env var for a fixed secret key
+> - Set `FS_ENCRYPTION_KEY` for a fixed encryption key
 > - Use Nginx + Gunicorn as a reverse proxy
-> - See Cloudflare Tunnel section below for secure external access
 
-### External Access (Cloudflare Tunnel)
+### External Access
 
 ```bash
-# Start a Cloudflare Tunnel (no domain needed, no ports opened)
-cloudflared tunnel --url http://localhost:5000
-
-# You'll get a https://xxxx.trycloudflare.com URL
+# Use frpc or Cloudflare Tunnel to expose local port 5000
+frpc -c frpc.toml
 ```
 
-## 🔧 Environment Variables
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `FLASHSLOTH_SECRET` | Auto-generated | Recommended | Flask secret key |
+| `FLASHSLOTH_SECRET` | Auto-generated | Recommended | Flask secret key for production |
+| `FS_ENCRYPTION_KEY` | Auto-generated | Recommended | Fernet encryption key; falls back to .fs_key |
 | `FLASHSLOTH_HOST` | `0.0.0.0` | No | Listen address |
 | `FLASHSLOTH_PORT` | `5000` | No | Listen port |
 
-## 🏗️ Project Structure
+### Key Files
 
-```
-flashsloth/
-├── admin.py                  ← Web admin panel (main entry)
-├── core/
-│   ├── article.py            ← Unified article model
-│   ├── publisher.py          ← Publisher base class + registry
-│   ├── deployer.py           ← Deployer base class + registry
-│   ├── storage.py            ← Storage abstraction layer
-│   └── config.py             ← Configuration
-├── plugins/
-│   ├── publisher_discuz.py   ← Discuz! Forum publisher
-│   ├── publisher_github_pages.py ← GitHub Pages blog publisher
-│   ├── publisher_wordpress.py    ← WordPress publisher
-│   ├── publisher_wechat.py       ← WeChat Official Account
-│   ├── publisher_juejin.py       ← Juejin publisher
-│   ├── publisher_rss.py          ← RSS feed publisher
-│   ├── publisher_zhihu.py        ← Zhihu publisher
-│   ├── publisher_csdn.py         ← CSDN publisher
-│   ├── deployer_github_pages.py  ← GitHub Pages deployer
-│   └── storage_alist.py          ← AList cloud storage
-├── templates/                ← Jinja2 templates
-│   ├── base.html
-│   ├── index.html
-│   ├── edit.html
-│   ├── login.html
-│   ├── publish_select.html
-│   ├── publish_manage.html
-│   ├── deployers.html
-│   ├── accounts.html
-│   ├── storage_settings.html
-│   └── settings.html
-└── flashsloth.db             ← SQLite database (auto-created)
-```
+- `.fs_key` — Fernet credential encryption key (mode 600), auto-generated on first boot
 
-## 📸 Workflow
+---
 
-```
-Create article → Edit Markdown → Save as draft
-    ↓
-Select target platforms
-    ↓
-Publish (Publisher writes to each platform)
-    ↓
-[Optional] Deploy to GitHub Pages (Deployer pushes to repo)
-    ↓
-[Optional] Retract → Re-publish
-```
+## 📊 Scheduled Tasks
 
-## 🔒 Security
+| Task | Interval | Description |
+|------|----------|-------------|
+| Auto Sign-In | Every minute | Daemon thread executes within configured time window, account_id offset to avoid concurrent sign-ins |
+| Forum Exploration | Hourly | `scripts/hourly_forum_check.py` — incremental Discuz section check |
+| Login Capability Refresh | Every 15 min | Auto-poll all platforms + JSON sync update |
+| Price Refresh | Per config | LCSC component price refresh |
 
-- **Auto-generated random admin credentials** on first boot
-- GitHub deployment uses **Personal Access Token authentication** — no hardcoded credentials
-- Set `FLASHSLOTH_SECRET` env var for production
-- Cloudflare Tunnel support for secure external access without opening firewall ports
+---
 
-## 🤝 Contributing
+## 📋 Version History
 
-Bug reports and feature requests are welcome via GitHub Issues. For Pull Requests, please open an issue first to discuss.
+| Version | Date | Key Changes |
+|---------|------|-------------|
+| **v5.21** | 2026-07-08 | Amobbs captcha submit fix — .seccodecheck detection + branch (direct submit when absent) + site_url completion; Playwright element screenshot; captcha refresh fix — Playwright sync cross-thread auto-rebuild; regression fix — submit_text_captcha 3-state strategy + auth_cookie _sid filter + thread tracking recovery; border click fix — only trigger border click when .seccodecheck exists, avoid coordinates hitting refresh link |
+| **v5.20** | 2026-07-08 | Amobbs captcha fix — Playwright element screenshot replaces urllib + frontend base64-first; Mydigit exploration data; Iron Rule #40 triple backup; doc sync watchdog cron |
+| **v5.19** | 2026-07-08 | OSHWHub SSO login fix — real-time login replaces cookie injection + cookies_json structured storage + AntDesign adapter; captcha pre-detection fix |
+| **v5.18** | 2026-07-08 | Data-driven fix — 39 iron rule #19 hardcoded violations fully fixed + E2E verification; forum_registry dynamic loading + renderers dead code cleanup; 3 new platform publishers (Dewu/Smzdm/Xiaohongshu) |
+| **v5.17** | 2026-07-08 | Frontend JS modularization — accounts.html 2900-line inline JS split into 5 independent static JS module files (globals/login/scan/search/utils) |
+| **v5.16** | 2026-07-08 | Login engine routing data-driven refactor — exploration JSON drives engine routing + config_fields derivation; accounts.py/accounts.html modular split (templates/accounts/ + routes/accounts/); QR scan thread safety + OSHWHub QR adapter; RSS login exploration + Twitter exploration improvements |
+| **v5.15** | 2026-07-08 | Login data-driven fixes — cache bug + hardcoded URL → exploration data-driven; unified login form API enhancement (site_url/OAuth/captcha) + frontend dynamic rendering |
+| **v5.13** | 2026-07-08 | Account connection status fix — `_detection_error` flag fix + frontend button merge (status check + verify credential unified into 🔍 Status Check) |
+| **v5.11** | 2026-07-08 | P0 Provider abstraction framework E2E verified; sign-in BrowserEngine reuse; verify credential button; deploy page redirect (/deployers→/accounts#deploy); 15-min login capability auto-refresh; WordPress exploration report |
+| **v5.10** | 2026-07-08 | test_connection enhancement — CSDN/OSHWHub/Zhihu publisher real username extraction + strong exit indicators + detailed failure messages; forum registry loads extra_info+tags_of_interest |
+| v5.08 | 2026-07-08 | Deploy normalization — #deploy inline block in account page + unified test_connection format + auto-start Playwright on login (configurable) + platform exploration data updates (Dewu/SMZDM/Xiaohongshu) |
+| v5.07 | 2026-07-08 | Cookie strict validation — Discuz login false positive fix + test-connection Playwright subprocess + forum registry dual-track validated + exploration report updates |
+| v5.05 | 2026-07-08 | 51CTO platform exploration — WAF+SMS-only assessment + Exploration radar v2 (Dewu/SMZDM/Xiaohongshu) + category field |
+| v5.04 | 2026-07-08 | Pre-publish cookie expiry check — Publisher base class check_cookie() + publish_select frontend status display |
+| v5.03 | 2026-07-08 | Account modal normalization — removed legacy platform-specific login modals (amobbs/xianyu/oshwhub) |
+| v5.02 | 2026-07-08 | Unified cookie validator — verify_credential/get/save tri-function + OSHWHub migration + keyword false-positive fix |
+| v4.93 | 2026-07-08 | QR code login full optimization — multi-method selection + timeout + account modal QR optimization |
+| v4.92 | 2026-07-08 | Unified credential system — ScanLoginEngine + save/get/verify_credential + QR engine refactor |
+| v4.91 | 2026-07-07 | QR code login priority #1 across all publishers + site_url propagation fix + BrowserEngine auto-cleanup + Unified log mgmt page |
+| v4.90 | 2026-07-07 | Unified log management (publish/sign-in/AI/deploy) + adapter architecture fix + composite search dropdown |
+| v4.80 | 2026-07-07 | Mobile layout optimization — full-page responsive (375px zero overflow, touch-friendly buttons/modals/nav/card grid) |
+| v4.79 | 2026-07-07 | Login status deep verification — real username/points/level extraction + frontend display |
+| v4.78 | 2026-07-07 | Account page UI enhancement (search/platform colors/quick-add/time labels/batch progress) + article multi-select batch ops + Zhihu/Juejin API lightweight status + Xianyu Sidecar adapter |
+| v4.77 | 2026-07-07 | Account modal captcha input + 5-step progress bar + Amobbs border verify + Twitter/X login capability complete + ai_call_log fix |
+| v4.76 | 2026-07-07 | BrowserEngine thread safety + QR code background thread + signin registry fix |
+| v4.75 | 2026-07-07 | Account modal deepening — amobbs/discuz/mydigit/wordpress login completion |
+| v4.74 | 2026-07-07 | Provider framework → workspace — base→workspace, 3 Providers, config mgmt + mobile CSS |
+| v4.70 | 2026-07-07 | Sign-in stats fix — manual sign-in counting + de-duplication + state persistence |
+| v4.67 | 2026-07-07 | Twitter Publisher improvements — image upload pipeline + Article compatibility + draft isolation |
+| v4.66 | 2026-07-07 | Zhihu platform exploration — login/editor/capability data |
+| v4.65 | 2026-07-07 | Playwright verification subprocess (WSGI deadlock fix) + batch sign-in time + random offset |
+| v4.64 | 2026-07-07 | BrowserEngine deadlock fix — context_processor timeout decoupling |
+| v4.63 | 2026-07-07 | Cookie count anti-pattern cleanup |
+| v4.62 | 2026-07-07 | OSHWHub cookie expiry auto-fallback password + CSDN sign-in fix |
+| v4.60 | 2026-07-07 | BrowserEngine persistent + accounts.py refactor + Phone login thread fix |
+| v4.59 | 2026-07-07 | Phone SMS login extended to CSDN/Bilibili publishers |
+| v4.58 | 2026-07-07 | Production perf optimization — disable hot reload + BrowserEngine 2s cache |
+| v4.57 | 2026-07-07 | 3-layer status detection — persistent BrowserEngine + API lightweight + Playwright verify + cache + deep user info |
+| v4.56 | 2026-07-07 | Bilibili full exploration report + login plugin + platform capability import + WeChat exploration/publisher |
+| v4.55 | 2026-07-07 | AI call log system + Workspace + Phone SMS login + unified login exploration + Playwright settings + mobile CSS |
+
+---
 
 ## 📄 License
 

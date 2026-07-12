@@ -1,0 +1,137 @@
+{
+  "platform": "twitter",
+  "explored_at": "2026-07-08T08:25:00+08:00",
+  "login_url": "https://x.com/login",
+  "login_methods": [
+    {
+      "method": "password",
+      "label": "邮箱/手机号 + 密码",
+      "icon": "📧",
+      "detected": true,
+      "description": "标准浏览器登录：输入邮箱/用户名 + 密码。对应 input name: username_or_email (text) 和 password",
+      "fields": [
+        "username_or_email",
+        "password"
+      ],
+      "note": "X.com 登录页同时显示邮箱/用户名输入框和密码输入框，支持 webauthn 自动填充。表单 POST 至 /i/jf/onboarding/web?mode=login（JetFuel 框架）"
+    },
+    {
+      "method": "phone",
+      "label": "手机号登录",
+      "icon": "📱",
+      "detected": true,
+      "description": "按钮文字 'Continue with phone'，点击后进入手机号输入 + 短信验证码流程",
+      "fields": [
+        "phone_number"
+      ],
+      "note": "需要能接收短信的手机号，适合没有邮箱账号的用户"
+    },
+    {
+      "method": "oauth_apple",
+      "label": "Apple SSO",
+      "icon": "🍎",
+      "detected": true,
+      "description": "'Continue with Apple' — Sign in with Apple 单点登录",
+      "fields": [],
+      "note": "弹出 Apple ID 授权窗口，需要 Apple 账号"
+    },
+    {
+      "method": "oauth_google",
+      "label": "Google SSO",
+      "icon": "🔵",
+      "detected": true,
+      "description": "嵌入式 Google Sign-In iframe (accounts.google.com/gsi/button)",
+      "fields": [],
+      "note": "内嵌 Google 登录按钮 iframe，使用 FedCM / GSI 协议"
+    },
+    {
+      "method": "oauth1",
+      "label": "OAuth 1.0a 认证（推荐用于API发布）",
+      "icon": "🔑",
+      "detected": true,
+      "description": "需要 Twitter Developer Portal 创建应用并申请 API Key/Secret 和 Access Token",
+      "fields": [
+        "api_key",
+        "api_secret",
+        "access_token",
+        "access_token_secret"
+      ],
+      "required_permissions": [
+        "Read",
+        "Write"
+      ],
+      "note": "可在 https://developer.twitter.com/en/portal/dashboard 的 Projects & Apps → 项目 → Keys and Tokens 中获取。发推/上传图片必须用此方式"
+    },
+    {
+      "method": "bearer",
+      "label": "Bearer Token（只读）",
+      "icon": "🔒",
+      "detected": true,
+      "description": "仅用于验证连接和查询账户信息，不能发推和上传图片",
+      "fields": [
+        "bearer_token"
+      ],
+      "note": "Bearer Token 在 Developer Portal 的 Keys and Tokens 页面中获取"
+    },
+    {
+      "method": "cookie",
+      "label": "Cookie 粘贴（不推荐）",
+      "icon": "🍪",
+      "priority": 99,
+      "detected": false,
+      "description": "Twitter/X 网页版 Cookie（功能有限，不推荐用于 API 发布）",
+      "note": "Twitter API 发布推荐使用 OAuth 1.0a 认证"
+    }
+  ],
+  "note": "X.com 浏览器登录（https://x.com/login）支持邮箱/用户名+密码、手机号、Apple SSO、Google SSO 四种方式。无 QR 码登录。API 发布（发推/上传图片）必须使用 OAuth 1.0a。credential 存储在 platform_accounts.config_json 中。",
+  "capabilities": {
+    "publish": true,
+    "upload_image": true,
+    "thread": true,
+    "draft": true,
+    "retract": true,
+    "read": false,
+    "signin": true,
+    "comment": false
+  },
+  "raw_detection": {
+    "auth_type": "web_browser_login",
+    "api_version": [
+      "v2",
+      "v1.1"
+    ],
+    "library": "tweepy>=4.14",
+    "image_limit": 4,
+    "tweet_length_limit": 280,
+    "premium_tweet_length": 4000,
+    "max_thread_length": 50,
+    "page_url": "https://x.com/login",
+    "page_title": "X - The Everything App / X",
+    "form_action": "https://x.com/i/jf/onboarding/web?mode=login",
+    "form_method": "get",
+    "framework": "JetFuel (jf)",
+    "login_inputs": [
+      {
+        "name": "username_or_email",
+        "type": "text",
+        "autocomplete": "username webauthn"
+      },
+      {
+        "name": "password",
+        "type": "password"
+      }
+    ],
+    "login_buttons": [
+      "Continue with phone",
+      "Continue with Apple",
+      "Google Sign-In (embedded iframe)"
+    ],
+    "qrcode_login": false,
+    "cloudflare_protection": true,
+    "cloudflare_detail": "返回 HTTP 403 + Cloudflare challenge (__cf_bm cookie)，但通过 WSL host 代理（172.22.160.1:1080）可正常访问。页面加载后显示完整登录表单，无进一步风控/验证码",
+    "proxy_required": true,
+    "proxy_detail": "中国网络环境（GFW）封锁 x.com/twitter.com，必须通过代理访问。WSL 环境中通过 Windows host 代理（172.22.160.1:1080）成功访问"
+  },
+  "error": null,
+  "engine": "generic"
+}

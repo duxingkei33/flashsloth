@@ -1,0 +1,17 @@
+{
+  "platform": "xianyu_auto_reply",
+  "explored_at": "2026-07-07T23:24:00+00:00",
+  "login_url": "https://www.goofish.com/",
+  "login_methods": [
+    {
+      "method": "cookie",
+      "label": "Cookie导入",
+      "detected": true
+    }
+  ],
+  "note": "闲鱼自动回复：通过Cookie导入认证",
+  "raw_detection": {},
+  "error": null,
+  "screenshot": "",
+  "engine": "xianyu"
+}

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          pip install flask flask-login markdown requests beautifulsoup4
+          pip install playwright
+          python -m playwright install chromium --with-deps 2>/dev/null || true
+
+      - name: Module import test
+        run: python .github/workflows/check_imports.py
+
+      - name: Run test suite
+        run: |
+          python tests/test_imports.py
+          python tests/test_core.py

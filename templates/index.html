@@ -1,5 +1,40 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+@media (max-width: 768px) {
+    .idx-actions-bar { flex-direction: column !important; gap: 8px !important; }
+    .idx-actions-bar > * { width: 100% !important; }
+}
+/* ═══ 仪表盘手机端优化 ═══ */
+@media (max-width: 768px) {
+    /* 统计卡片网格 */
+    .stats { grid-template-columns:repeat(2,1fr); gap:8px; }
+    .stat-card { padding:12px; min-height:80px; }
+    .stat-card .num { font-size:1.3em; }
+    /* 文章列表横滚 */
+    #articles table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; font-size:12px; }
+    #articles th, #articles td { white-space:nowrap; padding:6px 4px; font-size:12px; }
+    /* 发布平台卡片 */
+    .publisher-card { padding:12px; }
+    /* 按钮触摸友好 */
+    .card .btn { min-height:40px; display:inline-flex; align-items:center; justify-content:center; }
+    .card .btn-sm { min-height:36px; }
+    /* 部署目标 */
+    .publisher-grid { grid-template-columns:1fr; }
+}
+@media (max-width: 480px) {
+    .stats { grid-template-columns:1fr 1fr; gap:6px; }
+    .stat-card .num { font-size:1.1em; }
+    .stat-card { padding:10px; min-height:70px; }
+    .stat-card .label { font-size:11px; }
+    .card h2 { font-size:1.1em; }
+    .card .btn { min-height:44px; font-size:13px; }
+    .card .btn-sm { min-height:40px; font-size:11px; padding:8px 10px; }
+}
+/* 批量操作工具栏：置灰按钮 */
+.batch-toolbar button:disabled { opacity:0.4; cursor:not-allowed; }
+.batch-toolbar button { transition:opacity .2s; }
+</style>
 <!-- 统计 — 可点击跳转对应区域 -->
 <div class="stats">
     <a href="#articles" class="stat-card" style="text-decoration:none;display:block;cursor:pointer;">
@@ -20,65 +55,41 @@
     </a>
 </div>
 
-<!-- ⚙️ Provider 选择 -->
-<div class="card" id="provider">
-    <h2>📥 内容来源 (Provider)</h2>
-    <form method="post" action="/settings/provider" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
-        <div class="form-group" style="flex:1;min-width:200px;margin:0;">
-            <label>文章来源</label>
-            <select name="provider_type" onchange="toggleNotion(this)">
-                <option value="markdown" {{ 'selected' if not provider or provider.provider_type == 'markdown' else '' }}>
-                    📁 Markdown 文件 (posts/ 目录)
-                </option>
-                <option value="notion" {{ 'selected' if provider and provider.provider_type == 'notion' else '' }}>
-                    📄 Notion 数据库
-                </option>
-            </select>
-        </div>
-        <div id="notionFields" style="display:{{ 'flex' if provider and provider.provider_type == 'notion' else 'none' }};gap:8px;flex-wrap:wrap;">
-            {% set nc = (provider.config_json|from_json) if provider else {} %}
-            <div class="form-group" style="margin:0;">
-                <label>Notion Token</label>
-                <input type="password" name="notion_token" value="{{ nc.token or '' }}"
-                       placeholder="ntn_..." style="width:280px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-                <label>数据库 ID</label>
-                <input type="text" name="notion_db_id" value="{{ nc.database_id or '' }}"
-                       placeholder="38dc67..." style="width:280px;">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">保存</button>
-    </form>
-</div>
-<script>
-function toggleNotion(sel) {
-    document.getElementById('notionFields').style.display =
-        sel.value === 'notion' ? 'flex' : 'none';
-}
-</script>
-
 <!-- 📡 发布平台 -->
 <div class="card" id="platforms">
     <div style="display:flex;justify-content:space-between;align-items:center;">
         <h2 style="margin:0;">📡 发布平台</h2>
         <a href="/accounts" class="btn btn-sm btn-primary">管理账号</a>
     </div>
-    <div class="publisher-grid" style="margin-top:12px;">
-        {% for p in publishers %}
-        {% set accts = account_map.get(p.name, []) %}
-        <div class="publisher-card"
-             style="border-left-color: {{ '#2ec4b6' if accts else '#ccc' }}">
-            <div class="name">{{ p.display_name }}</div>
-            <div class="status">
-                {% if accts %}
-                <span class="badge badge-success">{{ accts|length }} 个账号</span>
-                {% else %}
-                <span class="badge badge-info">未配置</span>
-                {% endif %}
+    <div style="margin-top:12px;">
+        {% if account_map %}
+        {% for pname, accts in account_map.items() %}
+        {% set pub_info = publishers|selectattr('name', 'equalto', pname)|first %}
+        <div style="margin-bottom:8px;padding:10px 14px;border:1px solid #e0e0e0;border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-weight:600;font-size:14px;">{{ pub_info.display_name if pub_info else pname }}</span>
+                <span class="badge badge-success" style="font-size:11px;">{{ accts|length }} 个账号</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% for a in accts %}
+                {% set acfg = a.config_json|from_json if a.config_json else {} %}
+                {% set site_url = acfg.get('site_url', '') %}
+                <a href="/accounts" class="btn btn-sm btn-outline" style="font-size:12px;display:inline-flex;align-items:center;gap:4px;text-decoration:none;border:1px solid #ddd;border-radius:6px;padding:4px 10px;background:#fafafa;"
+                   title="点击查看账号配置">
+                    {{ a.account_name }}
+                    {% if site_url %}
+                    <span style="color:#4361ee;font-size:11px;">🌐</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
+        {% else %}
+        <p style="color:#999;text-align:center;padding:20px 0;">
+            还没有配置任何平台账号，<a href="/accounts">去添加 →</a>
+        </p>
+        {% endif %}
     </div>
 </div>
 
@@ -86,7 +97,7 @@ function toggleNotion(sel) {
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;">
         <h2 style="margin:0;">🚀 部署目标</h2>
-        <a href="/deployers" class="btn btn-sm btn-success">管理部署</a>
+        <a href="/accounts#deploy" class="btn btn-sm btn-success">管理部署</a>
     </div>
     <div class="publisher-grid" style="margin-top:12px;">
         {% for d in deployers %}
@@ -117,23 +128,31 @@ function toggleNotion(sel) {
 
 <!-- 📝 文章列表 -->
 <div class="card" id="articles">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <h2 style="margin:0;">📝 文章 <span style="font-size:13px;color:#999;font-weight:normal;">（共 {{ total_articles }} 篇，已发布 {{ total_published }} 篇）</span></h2>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <div id="batchBar" style="display:none;gap:8px;align-items:center;background:#eef0ff;padding:6px 12px;border-radius:8px;">
-                <span id="selectedCount" style="font-size:13px;color:#4361ee;font-weight:bold;">已选 0 篇</span>
-                <button class="btn btn-sm btn-success" onclick="batchPublish()">📤 批量发布</button>
-                <button class="btn btn-sm btn-danger" onclick="batchRetract()">↩️ 批量撤回</button>
-                <button class="btn btn-sm btn-danger" onclick="batchDelete()">🗑️ 批量删除</button>
-            </div>
-            <a href="/post/new" class="btn btn-success">+ 新建</a>
-        </div>
+        <a href="/post/new" class="btn btn-success">+ 新建</a>
     </div>
+
+    <!-- 批量操作工具栏 -->
+    <div id="articleBatchToolbar" class="batch-toolbar" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:#eef2ff;border:1px solid #d0d5f0;border-radius:8px;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;">
+            <input type="checkbox" id="articleSelectAll" onchange="toggleArticleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;">
+            <span style="font-size:13px;">全选</span>
+        </label>
+        <span class="batch-count" id="articleBatchCount" style="font-weight:600;color:#4361ee;">已选 0 篇</span>
+        <button onclick="batchDeleteArticles()" class="btn btn-sm btn-danger" id="batchDeleteBtn" disabled>🗑 批量删除</button>
+        <button onclick="batchPublishArticles()" class="btn btn-sm btn-success" id="batchPublishBtn" disabled>🚀 批量发布</button>
+        <button onclick="batchExportMd()" class="btn btn-sm btn-info" id="batchExportBtn" disabled>📥 导出Markdown</button>
+        <button onclick="clearArticleSelection()" class="btn btn-sm" style="background:#eee;">取消选择</button>
+        <span id="articleBatchProgress" style="font-size:12px;color:#888;margin-left:auto;"></span>
+    </div>
+
     {% if posts %}
+    <div style="overflow-x:auto;">
     <table>
         <thead>
             <tr>
-                <th style="width:32px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+                <th style="width:32px;"><input type="checkbox" id="articleSelectAllHeader" onchange="toggleArticleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;"></th>
                 <th>标题</th>
                 <th>标签</th>
                 <th>状态</th>
@@ -144,8 +163,8 @@ function toggleNotion(sel) {
         </thead>
         <tbody>
             {% for post in posts %}
-            <tr>
-                <td><input type="checkbox" class="article-checkbox" value="{{ post.id }}" onchange="updateBatchBar()"></td>
+            <tr data-post-id="{{ post.id }}">
+                <td><input type="checkbox" class="article-checkbox" value="{{ post.id }}" onchange="updateArticleBatchBar()" style="width:16px;height:16px;cursor:pointer;"></td>
                 <td><a href="/post/edit/{{ post.id }}" style="color:#4361ee;">{{ post.title or '(无标题)' }}</a></td>
                 <td>
                     {% if post.tags %}
@@ -167,13 +186,22 @@ function toggleNotion(sel) {
                     <div style="display:flex;gap:3px;flex-wrap:wrap;">
                         {% for pl in plist %}
                         {% if pl.url %}
+                        {% if pl.status == 'draft' %}
+                        <span class="badge badge-warning" style="font-size:11px;cursor:pointer;"
+                              title="存草稿于 {{ pl.platform }}">📝 {{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
+                        {% else %}
                         <a href="{{ pl.url }}" target="_blank"
                            class="badge badge-info platform-link"
                            style="font-size:11px;cursor:pointer;"
                            title="{{ pl.url }}">{{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</a>
+                        {% endif %}
+                    {% else %}
+                        {% if pl.status == 'draft' %}
+                        <span class="badge badge-warning" style="font-size:11px;">📝 存草稿: {{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
                         {% else %}
                         <span class="badge badge-info" style="font-size:11px;">{{ pl.platform }}{% if pl.account_name %}:{{ pl.account_name }}{% endif %}</span>
                         {% endif %}
+                    {% endif %}
                         {% endfor %}
                     </div>
                     {% else %}
@@ -202,13 +230,6 @@ function toggleNotion(sel) {
             {% endfor %}
         </tbody>
     </table>
-    
-    <!-- 底部批量操作栏 -->
-    <div id="bottomBatchBar" style="display:none;justify-content:center;gap:12px;padding:16px;background:#f0f2ff;border-radius:0 0 8px 8px;border-top:1px solid #dde;">
-        <span id="bottomSelectedCount" style="font-size:14px;color:#4361ee;font-weight:bold;line-height:32px;">已选 0 篇</span>
-        <button class="btn btn-success" onclick="batchPublish()">📤 批量发布</button>
-        <button class="btn btn-primary" onclick="batchRetract()">↩️ 批量撤回</button>
-        <button class="btn btn-danger" onclick="batchDelete()">🗑️ 批量删除</button>
     </div>
     {% else %}
     <p style="color:#999;text-align:center;padding:40px 0;">
@@ -225,16 +246,11 @@ function toggleNotion(sel) {
     </div>
     {% if logs %}
     <table>
-        <thead><tr><th>时间</th><th>文章</th><th>平台</th><th>账号</th><th>状态</th><th>结果</th></tr></thead>
+        <thead><tr><th>时间</th><th>平台</th><th>账号</th><th>状态</th><th>结果</th></tr></thead>
         <tbody>
             {% for log in logs %}
             <tr>
                 <td style="font-size:12px;color:#666;">{{ log.created_at[:16] }}</td>
-                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                    <a href="/post/edit/{{ log.article_id }}" style="color:#4361ee;text-decoration:none;" title="{{ log.article_title or '(已删除)' }}">
-                        {{ log.article_title or '(已删除)' }}
-                    </a>
-                </td>
                 <td>
                     {% if log.url %}
                     <a href="{{ log.url }}" target="_blank" class="badge badge-info"
@@ -279,6 +295,8 @@ function toggleNotion(sel) {
     <p style="color:#999;text-align:center;padding:20px 0;">暂无发布记录</p>
     {% endif %}
 </div>
+{% endblock %}
+
 <script>
 async function checkPending2() {
     const btn = document.getElementById('refreshPendingBtn2');
@@ -308,88 +326,141 @@ async function checkPending2() {
     }
 }
 
-// ── 批量操作 ──────────────────────────────────
-function toggleAll(master) {
-    document.querySelectorAll('.article-checkbox').forEach(cb => cb.checked = master.checked);
-    updateBatchBar();
+// ====== 文章批量操作 ======
+function toggleArticleSelectAll(cb) {
+    document.querySelectorAll('.article-checkbox').forEach(function(c) { c.checked = cb.checked; });
+    updateArticleBatchBar();
 }
 
-function getSelectedIds() {
-    return Array.from(document.querySelectorAll('.article-checkbox:checked')).map(cb => parseInt(cb.value));
-}
-
-function updateBatchBar() {
-    const ids = getSelectedIds();
-    const bar = document.getElementById('batchBar');
-    const bottomBar = document.getElementById('bottomBatchBar');
-    const count = document.getElementById('selectedCount');
-    const bottomCount = document.getElementById('bottomSelectedCount');
-    const show = ids.length > 0;
-    if (show) {
-        bar.style.display = 'flex';
-        count.textContent = '已选 ' + ids.length + ' 篇';
-        if (bottomBar) { bottomBar.style.display = 'flex'; }
-        if (bottomCount) { bottomCount.textContent = '已选 ' + ids.length + ' 篇'; }
-    } else {
-        bar.style.display = 'none';
-        if (bottomBar) { bottomBar.style.display = 'none'; }
+function updateArticleBatchBar() {
+    var checked = document.querySelectorAll('.article-checkbox:checked');
+    var count = checked.length;
+    document.getElementById('articleBatchCount').textContent = '已选 ' + count + ' 篇';
+    var hasSel = count > 0;
+    document.getElementById('batchDeleteBtn').disabled = !hasSel;
+    document.getElementById('batchPublishBtn').disabled = !hasSel;
+    document.getElementById('batchExportBtn').disabled = !hasSel;
+    if (!hasSel) {
+        document.getElementById('articleSelectAll').checked = false;
+        document.getElementById('articleSelectAllHeader').checked = false;
     }
 }
 
-async function batchDelete() {
-    const ids = getSelectedIds();
-    if (ids.length === 0) return alert('请先勾选文章');
-    if (!confirm(`确定删除所选 ${ids.length} 篇文章？不可恢复！`)) return;
-    const res = await fetch('/api/articles/batch-delete', {
+function clearArticleSelection() {
+    document.querySelectorAll('.article-checkbox').forEach(function(c) { c.checked = false; });
+    updateArticleBatchBar();
+}
+
+function getSelectedArticleIds() {
+    var ids = [];
+    document.querySelectorAll('.article-checkbox:checked').forEach(function(c) {
+        ids.push(parseInt(c.value));
+    });
+    return ids;
+}
+
+function batchDeleteArticles() {
+    var ids = getSelectedArticleIds();
+    if (ids.length === 0) { alert('请先选择文章'); return; }
+    if (!confirm('⚠️ 确定删除选中的 ' + ids.length + ' 篇文章？此操作不可恢复！')) return;
+    var prog = document.getElementById('articleBatchProgress');
+    prog.textContent = '⏳ 删除中...';
+    fetch('/api/articles/batch-delete', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ids})
+        body: JSON.stringify({ids: ids})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            prog.textContent = '✅ 已删除 ' + data.deleted + ' 篇';
+            setTimeout(function() { location.reload(); }, 800);
+        } else {
+            prog.textContent = '❌ ' + (data.error || '删除失败');
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) {
+        prog.textContent = '❌ 网络错误';
+        alert('网络错误: ' + e.message);
     });
-    const data = await res.json();
-    if (data.success) {
-        alert(`✅ 成功删除 ${data.deleted} 篇文章`);
-        location.reload();
-    } else {
-        alert('❌ ' + (data.error || '删除失败'));
-    }
 }
 
-async function batchPublish() {
-    const ids = getSelectedIds();
-    if (ids.length === 0) return alert('请先勾选文章');
-    if (!confirm(`确定发布所选 ${ids.length} 篇文章到 GitHub Pages？`)) return;
-    const res = await fetch('/api/articles/batch-publish', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ids})
-    });
-    const data = await res.json();
-    if (data.success) {
-        const ok = data.results.filter(r => r.success).length;
-        const fail = data.results.filter(r => !r.success).length;
-        alert(`✅ 发布完成: ${ok} 成功, ${fail} 失败`);
-        location.reload();
-    } else {
-        alert('❌ ' + (data.error || '发布失败'));
-    }
+function batchPublishArticles() {
+    var ids = getSelectedArticleIds();
+    if (ids.length === 0) { alert('请先选择文章'); return; }
+    // 跳转到发布选择页面，传入多篇文章ID
+    var url = '/publish/select?ids=' + ids.join(',');
+    window.location.href = url;
 }
 
-async function batchRetract() {
-    const ids = getSelectedIds();
-    if (ids.length === 0) return alert('请先勾选文章');
-    if (!confirm(`确定撤回所选 ${ids.length} 篇文章的发布？`)) return;
-    const res = await fetch('/api/articles/batch-retract', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ids})
+function batchExportMd() {
+    var ids = getSelectedArticleIds();
+    if (ids.length === 0) { alert('请先选择文章'); return; }
+    var prog = document.getElementById('articleBatchProgress');
+    prog.textContent = '⏳ 导出中 (0/' + ids.length + ')...';
+
+    var articles = [];
+    var fetchPromises = ids.map(function(id, index) {
+        return fetch('/post/edit/' + id)
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+
+                var title = '';
+                var body = '';
+                var summary = '';
+                var tags = '';
+
+                var titleEl = doc.querySelector('input[name="title"]');
+                if (titleEl) title = titleEl.value;
+
+                var bodyEl = doc.querySelector('textarea[name="body"]');
+                if (bodyEl) body = bodyEl.value;
+
+                var summaryEl = doc.querySelector('input[name="summary"]');
+                if (summaryEl) summary = summaryEl.value;
+
+                var tagsEl = doc.querySelector('input[name="tags"]');
+                if (tagsEl) tags = tagsEl.value;
+
+                articles.push({id: id, title: title, body: body, summary: summary, tags: tags});
+                prog.textContent = '⏳ 导出中 (' + (index + 1) + '/' + ids.length + ')...';
+            })
+            .catch(function(e) {
+                prog.textContent = '❌ 文章 #' + id + ' 读取失败: ' + e.message;
+            });
     });
-    const data = await res.json();
-    if (data.success) {
-        alert(`✅ 撤回操作完成`);
-        location.reload();
-    } else {
-        alert('❌ ' + (data.error || '撤回失败'));
-    }
+
+    Promise.all(fetchPromises).then(function() {
+        if (articles.length === 0) {
+            prog.textContent = '❌ 导出失败';
+            return;
+        }
+
+        var md = '';
+        articles.forEach(function(a, i) {
+            if (i > 0) md += '\n\n---\n\n';
+            md += '# ' + (a.title || '(无标题)') + '\n\n';
+            if (a.summary) md += '> ' + a.summary + '\n\n';
+            if (a.tags) md += '**标签:** ' + a.tags + '\n\n---\n\n';
+            md += a.body || '(无内容)';
+        });
+
+        var blob = new Blob([md], {type: 'text/markdown;charset=utf-8'});
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        var dateStr = new Date().toISOString().slice(0, 10);
+        link.download = 'flashsloth-export-' + dateStr + '.md';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        prog.textContent = '✅ 已导出 ' + articles.length + ' 篇';
+        setTimeout(function() { prog.textContent = ''; }, 3000);
+    });
 }
 </script>
-{% endblock %}

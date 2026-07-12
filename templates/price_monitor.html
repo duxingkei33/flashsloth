@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}价格监控 - FlashSloth{% endblock %}
+{% block content %}
+<style>
+.pm-card { border:1px solid #e2e8f0; border-radius:8px; margin-bottom:10px; background:#fff; }
+.pm-header { padding:10px 14px; border-bottom:1px solid #eef2f6; display:flex; justify-content:space-between; align-items:center; }
+.pm-body { padding:14px; }
+.price-up { color:#dc2626; }
+.price-down { color:#16a34a; }
+.price-stable { color:#64748b; }
+/* 手机端优化 */
+@media (max-width: 768px) {
+    .pm-card { border-radius:6px; }
+    .pm-header { padding:8px 10px; flex-wrap:wrap; gap:4px; }
+    .pm-header strong { font-size:13px; }
+    .pm-body { padding:10px; }
+    .pm-body .row { flex-direction:column; gap:6px; }
+    .pm-body .row .col { width:100%; text-align:left !important; display:flex; justify-content:space-between; }
+    .pm-body .row .col small:first-child { min-width:60px; }
+    .btn { min-height:40px; }
+    .btn-sm { min-height:36px; }
+}
+@media (max-width: 480px) {
+    .pm-header { padding:6px 8px; flex-direction:column; align-items:flex-start; gap:4px; }
+    .pm-header > div:last-child { width:100%; display:flex; gap:4px; }
+    .pm-header > div:last-child button { flex:1; }
+    .pm-body { padding:8px; }
+    .pm-body .row .col { font-size:12px; }
+    .btn-sm { min-height:40px; font-size:11px; }
+}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">💰 价格监控</h3>
+    <button class="btn btn-primary btn-sm" onclick="showAddDialog()">+ 添加元件</button>
+  </div>
+
+  {% if monitors %}
+  {% for m in monitors %}
+  <div class="pm-card">
+    <div class="pm-header">
+      <div>
+        <strong>{{ m.name }}</strong>
+        <code class="ms-2" style="font-size:0.75rem;">{{ m.lcsc_code }}</code>
+      </div>
+      <div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="refreshPrice({{ m.id }})">🔄</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteMonitor({{ m.id }})">🗑️</button>
+      </div>
+    </div>
+    <div class="pm-body">
+      {% set hist = histories.get(m.id, []) %}
+      {% if hist %}
+      {% set latest = hist[0] %}
+      <div class="row text-center">
+        <div class="col"><small class="text-muted">最低价</small><br><strong>¥{{ '%.2f'|format(latest.price_min or 0) }}</strong></div>
+        <div class="col"><small class="text-muted">最高价</small><br><strong>¥{{ '%.2f'|format(latest.price_max or 0) }}</strong></div>
+        <div class="col"><small class="text-muted">库存</small><br><strong>{{ latest.stock or 'N/A' }}</strong></div>
+        <div class="col"><small class="text-muted">目标价</small><br><strong>¥{{ '%.2f'|format(m.target_price) }}</strong></div>
+        <div class="col"><small class="text-muted">更新时间</small><br><small>{{ latest.fetched_at[:16] }}</small></div>
+      </div>
+      {% if hist|length > 1 %}
+      <div class="mt-2">
+        <small class="text-muted">最近价格趋势:</small>
+        <div style="display:flex;gap:4px;align-items:center;margin-top:4px;">
+          {% for h in hist[:10] %}
+          <div style="height:{{ (h.price_min or 0) * 10 + 20 }}px;width:20px;background:#3b82f6;border-radius:2px;font-size:0.55rem;text-align:center;color:#fff;min-height:20px;">
+            {{ '%.1f'|format(h.price_min or 0) if h.price_min else '?' }}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="text-muted small">暂无价格数据，点击🔄抓取</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="card p-4 text-center text-muted">
+    <div style="font-size:2rem;margin-bottom:8px;">💰</div>
+    <p>暂无价格监控，添加一个元件开始跟踪价格</p>
+    <button class="btn btn-primary btn-sm" onclick="showAddDialog()">+ 添加第一个元件</button>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function showAddDialog() {
+  var name = prompt('元件名称（如：ESP32-S3）');
+  if (!name) return;
+  var code = prompt('LCSC 编码（如：C123456）');
+  if (!code) return;
+  var target = prompt('目标价（低于此价报警，可不填）', '0') || '0';
+  fetch('/api/price-monitor/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name, lcsc_code: code, target_price: parseFloat(target)})
+  })
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){location.reload()}
+    else{alert('添加失败: '+(d.error||''))}
+  });
+}
+
+function refreshPrice(mid) {
+  fetch('/api/price-monitor/refresh/' + mid, {method: 'POST'})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){location.reload()}
+    else{alert('刷新失败: '+(d.error||''))}
+  });
+}
+
+function deleteMonitor(mid) {
+  if(!confirm('确认删除？')) return;
+  fetch('/api/price-monitor/delete/' + mid, {method: 'POST'})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.success){location.reload()}
+  });
+}
+</script>
+{% endblock %}

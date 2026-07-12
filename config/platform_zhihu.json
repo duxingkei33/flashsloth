@@ -1,0 +1,40 @@
+{
+  "display_name": "知乎",
+  "type": "sns",
+  "site_url": "https://www.zhihu.com",
+  "editor_url": "https://zhuanlan.zhihu.com/write",
+  "login_page_url": "https://www.zhihu.com/signin",
+  "content_types": ["column_article"],
+  "capabilities": {
+    "publish": true,
+    "publish_draft": true,
+    "upload_image": true,
+    "signin": false,
+    "read_comments": false,
+    "write_comments": false,
+    "fetch_content": false,
+    "browse": false
+  },
+  "upload_limits": {
+    "max_title_length": 200,
+    "image_supported": true,
+    "image_formats": ["jpg", "jpeg", "png", "gif", "webp"],
+    "image_max_size_mb": 10,
+    "daily_upload_limit": 50
+  },
+  "content_limits": {
+    "format": "rich_text",
+    "editor_type": "draft_js",
+    "review_required": true
+  },
+  "publisher_status": "ready",
+  "needs_credentials": true,
+  "credentials_required": ["phone", "password"],
+  "recommended_login": "qrcode",
+  "login_methods": [
+    {"method": "phone", "label": "手机验证码登录", "priority": 1, "fields": ["phone"], "note": "主要方式"},
+    {"method": "qrcode", "label": "微信/App扫码登录", "priority": 1, "fields": []},
+    {"method": "password", "label": "密码登录", "priority": 2, "fields": ["username", "password"], "note": "需切换Tab"},
+    {"method": "cookie", "label": "Cookie粘贴", "priority": 99, "fields": ["cookie"]}
+  ]
+}

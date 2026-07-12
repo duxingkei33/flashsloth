@@ -1,0 +1,78 @@
+{
+  "platform": "juejin",
+  "platform_domain": "juejin.cn",
+  "explored_at": "2026-07-07T22:19:20+08:00",
+  "explored_with_login": false,
+  "needs_credentials": true,
+  "recommended_login": "phone",
+  "credentials_required": ["phone", "password"],
+  "site_url": "https://juejin.cn",
+  "login_page": {
+    "url": "https://juejin.cn/",
+    "title": "稀土掘金",
+    "inputs": [
+      {"type": "search", "placeholder": "探索稀土掘金", "name": ""},
+      {"type": "", "placeholder": "请输入手机号", "name": "mobile"},
+      {"type": "", "placeholder": "请输入验证码", "name": "registerSmsCode"}
+    ],
+    "password_mode_inputs": [
+      {"type": "", "placeholder": "请输入邮箱/手机号（国际号码加区号）", "name": "loginPhoneOrEmail"},
+      {"type": "password", "placeholder": "请输入密码", "name": "loginPassword"}
+    ],
+    "buttons": ["获取验证码", "登录 / 注册", "登录", "注册"],
+    "login_methods": [
+      {"method": "phone", "label": "手机验证码登录", "priority": 1, "detected": true},
+      {"method": "password", "label": "密码登录", "priority": 1, "detected": true},
+      {"method": "qrcode", "label": "扫码登录（APP v6.4.1+）", "priority": 2, "detected": true},
+      {"method": "oauth", "label": "第三方登录", "priority": 2, "providers": ["github", "weibo", "wechat"]},
+      {"method": "cookie", "label": "Cookie粘贴（备选）", "priority": 99, "detected": true}
+    ]
+  },
+  "editor_access": {
+    "url": "https://juejin.cn/editor/drafts/new",
+    "final_url": "https://juejin.cn/login?to=https%3A%2F%2Fjuejin.cn%2Feditor%2Fdrafts%2Fnew",
+    "redirected_to_login": true,
+    "status": "需要登录"
+  },
+  "api_endpoints": [
+    "https://api.juejin.cn/content_api/v1/content/article_rank?category_id=1&type=hot&count=50&from=0&aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/content_api/v1/resource_placements/shows?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/interact_api/v1/pin_tab_lead?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/list_api/v1/activity_settings_v1?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/recommend_api/v1/article/recommend_all_feed?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/recommend_api/v1/dislike/white_list?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/recommend_api/v1/user/rec_user_card?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/tag_api/v1/query_category_briefs?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/tag_api/v1/theme/list_by_hot?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/user_api/v1/author/recommend?aid=2608&uuid=7659791399667369522&spider=0&category_id=&cursor=0&limit=20",
+    "https://api.juejin.cn/user_api/v1/incentive_activity/awards?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/user_api/v1/quality_user/rank?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/user_api/v1/sys/token",
+    "https://api.juejin.cn/user_api/v1/task/get?aid=2608&uuid=7659791399667369522&spider=0",
+    "https://api.juejin.cn/user_api/v1/user/get?aid=2608&uuid=7659791399667369522&spider=0&not_self=0",
+    "https://api.juejin.cn/user_api/v1/user/profile_id?aid=2608&uuid=7659791399667369522&spider=0&web_id=7659791399667369522"
+  ],
+  "publisher_status": "exists_but_needs_rewrite",
+  "publisher_file": "plugins/publisher_juejin.py",
+  "publisher_issues": [
+    "使用 requests 而非 Playwright（违反铁律#2）",
+    "无图片上传支持",
+    "Cookie 无自动刷新机制"
+  ],
+  "public_post_access": {
+    "accessible": true,
+    "url_pattern": "https://juejin.cn/post/{id}"
+  },
+  "screenshots": {
+    "login_page": "platform_reports/screenshots/juejin_login_page.png",
+    "login_dialog": "platform_reports/screenshots/juejin_login_dialog.png",
+    "password_login": "platform_reports/screenshots/juejin_password_login.png",
+    "qrcode_login": "platform_reports/screenshots/juejin_qrcode_login.png"
+  },
+  "needs_work": [
+    "重写 publisher 为 Playwright 模式",
+    "添加图片上传支持",
+    "添加存草稿/发布双模式",
+    "E2E 隧道验证（需要账号凭证）"
+  ]
+}

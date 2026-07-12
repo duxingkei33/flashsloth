@@ -1,0 +1,649 @@
+{% extends "base.html" %}
+{% block title %}内容工作台{% endblock %}
+{% block content %}
+<style>
+/* ─── 布局 ─── */
+.ws-container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.ws-section {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 20px 24px; margin-bottom: 20px;
+}
+.ws-section h2 {
+    margin: 0 0 14px; font-size: 16px; display: flex;
+    align-items: center; gap: 6px;
+}
+.ws-section h2 .badge {
+    font-size: 11px; background: #e2e8f0; color: #64748b;
+    padding: 1px 8px; border-radius: 10px; font-weight: 400;
+}
+
+/* ─── Provider 选择器 ─── */
+.ws-provider-bar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.ws-provider-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; border-radius: 10px; font-size: 14px;
+    background: #f8fafc; border: 2px solid #e2e8f0;
+    cursor: pointer; transition: all .2s;
+}
+.ws-provider-btn:hover { border-color: #93c5fd; background: #eff6ff; }
+.ws-provider-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; font-weight: 600; }
+.ws-provider-btn .icon { font-size: 18px; }
+
+/* ─── 文章卡片网格 ─── */
+.ws-item-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+}
+.ws-item-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px;
+    cursor: pointer; transition: all .15s;
+}
+.ws-item-card:hover { border-color: #93c5fd; box-shadow: 0 2px 8px rgba(37,99,235,.08); }
+.ws-item-card .ws-item-title {
+    font-size: 14px; font-weight: 500; margin-bottom: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-item-card .ws-item-summary {
+    font-size: 12px; color: #64748b;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-item-card .ws-item-meta {
+    font-size: 11px; color: #94a3b8; margin-top: 6px;
+}
+.ws-item-card.selected { border-color: #2563eb; background: #eff6ff; }
+
+/* ─── 流水线流程图 ─── */
+.ws-flow {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; margin-bottom: 16px; flex-wrap: wrap;
+}
+.ws-stage {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 10px 16px; border-radius: 12px; font-size: 13px; font-weight: 500;
+    min-width: 64px; transition: all .3s;
+}
+.ws-stage.passed { background: #f0fdf4; color: #16a34a; border: 2px solid #bbf7d0; }
+.ws-stage.failed { background: #fef2f2; color: #dc2626; border: 2px solid #fecaca; }
+.ws-stage.skipped { background: #f8fafc; color: #94a3b8; border: 2px solid #e2e8f0; }
+.ws-stage.pending { background: #fff; color: #94a3b8; border: 2px solid #e2e8f0; }
+.ws-stage.active { background: #eff6ff; color: #2563eb; border: 2px solid #93c5fd; }
+.ws-stage-icon { font-size: 20px; }
+.ws-stage-label { font-size: 11px; }
+.ws-arrow { font-size: 18px; color: #cbd5e1; padding: 0 4px; }
+
+/* ─── 流水线表单 ─── */
+.ws-form-row { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.ws-form-row label { font-size: 13px; color: #475569; min-width: 60px; display: flex; align-items: center; gap: 4px; }
+.ws-form-row input, .ws-form-row select {
+    padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; flex: 1; min-width: 120px;
+}
+.ws-form-row textarea {
+    padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
+    width: 100%; min-height: 70px; resize: vertical; font-family: inherit;
+}
+.ws-form-row .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+/* ─── 运行结果 ─── */
+.ws-result { display: none; margin-bottom: 16px; }
+.ws-result-stages { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ws-result-stage {
+    padding: 6px 12px; border-radius: 8px; font-size: 12px;
+}
+.ws-result-stage.passed { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.ws-result-stage.failed { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.ws-result-stage.skipped { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+.ws-result-errors { background: #fef2f2; padding: 12px; border-radius: 8px; font-size: 13px; color: #dc2626; }
+
+/* ─── 按钮 ─── */
+.ws-btn-run {
+    background: #2563eb; color: #fff; padding: 10px 28px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 500; cursor: pointer; transition: all .2s;
+}
+.ws-btn-run:hover { background: #1d4ed8; transform: translateY(-1px); }
+.ws-btn-run:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.ws-btn-run.loading { position: relative; color: transparent; }
+.ws-btn-run.loading::after {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    border: 2px solid #fff; border-top-color: transparent; border-radius: 50%;
+    animation: spin .6s linear infinite; top: 50%; left: 50%; margin: -8px 0 0 -8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── 日志两栏 ─── */
+.ws-log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ws-log-list { max-height: 300px; overflow-y: auto; }
+.ws-log-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 4px;
+    font-size: 12px;
+}
+.ws-log-item .lbl { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-log-item .ts { color: #94a3b8; font-size: 11px; white-space: nowrap; }
+
+/* ─── 加载中 ─── */
+.ws-loading { text-align: center; padding: 40px 0; color: #94a3b8; font-size: 14px; }
+
+/* ─── 手机 ─── */
+@media (max-width: 600px) {
+    .ws-container { padding: 8px; }
+    .ws-section { padding: 14px 16px; }
+    .ws-provider-bar { gap: 6px; }
+    .ws-provider-btn { padding: 6px 12px; font-size: 12px; }
+    .ws-item-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .ws-flow { gap: 2px; }
+    .ws-stage { padding: 6px 8px; min-width: 48px; font-size: 11px; }
+    .ws-arrow { font-size: 14px; padding: 0 2px; }
+    .ws-log-grid { grid-template-columns: 1fr; }
+    /* 工作台手机端增强 */
+    .ws-container { padding: 8px; }
+    .ws-section { padding: 12px; }
+    .ws-section h2 { font-size: 14px; }
+    .ws-provider-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .ws-provider-btn { justify-content: center; padding: 8px 12px; font-size: 13px; min-height: 40px; }
+    .ws-item-grid { grid-template-columns: 1fr; }
+    .ws-flow { flex-wrap: wrap; justify-content: flex-start; gap: 2px; }
+    .ws-stage { min-width: 0; flex: 1 1 auto; padding: 6px 8px; font-size: 11px; }
+    .ws-arrow { display: none; }
+    .ws-form-row { flex-direction: column; gap: 6px; }
+    .ws-form-row label { min-width: unset; }
+    .ws-form-row input, .ws-form-row select { width: 100%; }
+    .ws-log-grid { grid-template-columns: 1fr; }
+    .ws-btn-run { width: 100%; text-align: center; }
+}
+@supports (display: grid) {
+    /* 保护性声明 */
+}
+</style>
+
+<div class="ws-container">
+
+    <!-- ═══ 1️⃣ Provider 选择 ═══ -->
+    <div class="ws-section" id="wsSectionProvider">
+        <h2>📥 数据来源 (Provider)</h2>
+        <div class="ws-provider-bar" id="wsProviderBar">
+            <div class="ws-loading" id="wsProviderLoading">加载 Provider 列表...</div>
+        </div>
+        <!-- 文章列表 -->
+        <div id="wsItemList" style="margin-top:14px;">
+            <div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px 0;">选择一个 Provider 查看内容列表</div>
+        </div>
+        <!-- Provider 配置面板 -->
+        <div id="wsProviderConfigPanel" style="display:none;margin-top:12px;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <span style="font-weight:600;font-size:14px;" id="wsConfigTitle">配置</span>
+                <span onclick="wsToggleConfig(null)" style="cursor:pointer;color:#94a3b8;font-size:12px;">✕ 关闭</span>
+            </div>
+            <div id="wsConfigFields"></div>
+            <button class="btn btn-sm btn-primary" onclick="wsSaveConfig()" style="margin-top:10px;">💾 保存配置</button>
+            <span id="wsConfigStatus" style="font-size:12px;margin-left:8px;color:#999;"></span>
+        </div>
+    </div>
+
+    <!-- ═══ 2️⃣ 流水线 ═══ -->
+    <div class="ws-section" id="wsSectionPipeline">
+        <h2>⚡ 流水线流程</h2>
+        <!-- 流程图 -->
+        <div class="ws-flow">
+            {% set stages = [
+                ('collect', '📥', '采集'),
+                ('compile', '⚙️', '编译'),
+                ('preview', '👁️', '预览'),
+                ('draft', '💾', '草稿'),
+                ('publish', '🚀', '发布'),
+            ] %}
+            {% for sid, icon, label in stages %}
+            <div class="ws-stage pending" id="stage_{{ sid }}">
+                <span class="ws-stage-icon">{{ icon }}</span>
+                <span class="ws-stage-label">{{ label }}</span>
+            </div>
+            {% if not loop.last %}<span class="ws-arrow">→</span>{% endif %}
+            {% endfor %}
+        </div>
+        <!-- 表单 -->
+        <div class="ws-form-row">
+            <label>类型</label>
+            <select id="wsType">
+                {% for k, v in content_types.items() %}
+                <option value="{{ k }}">{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="ws-form-row">
+            <label>标题</label>
+            <input type="text" id="wsTitle" placeholder="内容标题">
+        </div>
+        <div class="ws-form-row">
+            <label>正文</label>
+            <textarea id="wsBody" placeholder="正文内容（支持 Markdown）"></textarea>
+        </div>
+        <div class="ws-form-row">
+            <label>标签</label>
+            <input type="text" id="wsTags" placeholder="逗号分隔: AI, Python, 教程">
+        </div>
+        <div class="ws-form-row">
+            <label>跑到</label>
+            <select id="wsUntil">
+                <option value="compile">⚙️ 编译为止</option>
+                <option value="preview">👁️ 预览为止</option>
+                <option value="draft" selected>💾 存草稿（默认）</option>
+                <option value="publish">🚀 全流程发布</option>
+            </select>
+        </div>
+        <div class="ws-form-row" id="wsPlatformRow" style="display:none;">
+            <label>发到</label>
+            <select id="wsPlatform">
+                <option value="">— 选择平台 —</option>
+                {# 平台列表动态加载 - 由 /api/accounts/deploy/platforms 驱动 #}
+                <option value="wordpress">WordPress</option>
+                <option value="wechat">微信公众号</option>
+                <option value="juejin">掘金</option>
+                <option value="csdn">CSDN</option>
+                <option value="zhihu">知乎</option>
+                <option value="discuz">Discuz! 论坛</option>
+            </select>
+            <script>
+            // 数据驱动：从 API 动态加载平台列表
+            fetch('/api/accounts/deploy/platforms')
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.platforms && data.platforms.length > 6) {
+                        var sel = document.getElementById('wsPlatform');
+                        // 保留前6个已有选项，追加新平台
+                        var existing = Array.from(sel.options).map(o => o.value);
+                        data.platforms.forEach(function(p) {
+                            if (existing.indexOf(p.id) === -1 && p.id !== '') {
+                                var opt = document.createElement('option');
+                                opt.value = p.id;
+                                opt.textContent = p.name;
+                                sel.appendChild(opt);
+                            }
+                        });
+                    }
+                }).catch(function(){});
+            </script>
+        </div>
+        <div style="margin-top:14px;">
+            <button class="ws-btn-run" id="wsRunBtn" onclick="wsRunPipeline()">▶ 运行流水线</button>
+        </div>
+        <!-- 结果 -->
+        <div class="ws-result" id="wsResult">
+            <div style="background:#f8fafc;padding:14px;border-radius:10px;">
+                <div style="font-weight:600;margin-bottom:8px;" id="wsResultTitle">📋 运行结果</div>
+                <div class="ws-result-stages" id="wsResultStages"></div>
+                <div id="wsResultErrors" style="display:none;" class="ws-result-errors"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ 3️⃣ 内容日志 ═══ -->
+    <div class="ws-section" id="wsSectionLogs">
+        <h2>📋 内容日志 <span class="badge">发布 + 采集</span></h2>
+        <div class="ws-log-grid">
+            <div>
+                <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:#475569;">🚀 发布记录</div>
+                <div class="ws-log-list" id="wsPublishLogs">
+                    <div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0;">加载中...</div>
+                </div>
+            </div>
+            <div>
+                <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:#475569;">📥 采集记录</div>
+                <div class="ws-log-list" id="wsCollectLogs">
+                    <div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0;">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ 流水线历史 ═══ -->
+    <div class="ws-section" id="wsHistory" style="margin-top:0;">
+        <h2>🕐 最近流水线运行</h2>
+        <div id="wsHistoryList"><div style="color:#94a3b8;font-size:13px;">暂无运行记录</div></div>
+    </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// Provider 加载 & 选择
+// ══════════════════════════════════════════════════════════════
+
+var wsCurrentProvider = null;
+var wsProviderInfo = {};  // {name: {display_name, icon, config_fields, ...}}
+
+function wsLoadProviders() {
+    fetch('/api/workspace/providers')
+    .then(r => r.json())
+    .then(data => {
+        const bar = document.getElementById('wsProviderBar');
+        const items = data.providers || [];
+        if (items.length === 0) {
+            bar.innerHTML = '<div style="color:#94a3b8;font-size:13px;">暂无可用 Provider</div>';
+            return;
+        }
+        // 存储 provider 元信息（含 config_fields）
+        items.forEach(p => { wsProviderInfo[p.name] = p; });
+
+        bar.innerHTML = items.map(p =>
+            `<div style="display:flex;align-items:center;gap:4px;">
+                <div class="ws-provider-btn" data-name="${escapeHtml(p.name)}" onclick="wsSelectProvider('${escapeHtml(p.name)}', this)">
+                    <span class="icon">${p.icon || '📄'}</span>
+                    ${escapeHtml(p.display_name)}
+                </div>
+                <span class="ws-provider-config-btn" data-name="${escapeHtml(p.name)}" onclick="wsToggleConfig('${escapeHtml(p.name)}')"
+                      style="font-size:12px;cursor:pointer;color:#94a3b8;padding:4px;border-radius:4px;"
+                      title="配置 ${escapeHtml(p.display_name)}">⚙️</span>
+            </div>`
+        ).join('');
+
+        // 自动选择当前已配置的
+        if (data.current) {
+            const btns = bar.querySelectorAll('.ws-provider-btn');
+            for (let b of btns) {
+                if (b.dataset.name === data.current.type) {
+                    wsSelectProvider(data.current.type, b);
+                    break;
+                }
+            }
+        }
+    })
+    .catch(err => {
+        document.getElementById('wsProviderLoading').textContent = '加载失败: ' + err.message;
+    });
+}
+
+function wsSelectProvider(name, btnEl) {
+    // 高亮
+    document.querySelectorAll('.ws-provider-btn').forEach(el => el.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    wsCurrentProvider = name;
+
+    const list = document.getElementById('wsItemList');
+    list.innerHTML = '<div class="ws-loading">📥 加载内容列表...</div>';
+
+    fetch('/api/workspace/provider/' + encodeURIComponent(name) + '/items')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            list.innerHTML = '<div style="color:#dc2626;text-align:center;padding:20px 0;">' + escapeHtml(data.error) + '</div>';
+            return;
+        }
+        const items = data.items || [];
+        if (items.length === 0) {
+            list.innerHTML = '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px 0;">该 Provider 暂无内容</div>';
+            return;
+        }
+        list.innerHTML =
+            '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">共 ' + items.length + ' 篇内容，点击加载到流水线</div>' +
+            '<div class="ws-item-grid">' +
+            items.map(item =>
+                `<div class="ws-item-card" onclick="wsLoadItem('${escapeHtml(name)}', '${escapeHtml(item.id)}', '${escapeHtml(item.title)}', this)">
+                    <div class="ws-item-title">${escapeHtml(item.title || '(无标题)')}</div>
+                    <div class="ws-item-summary">${escapeHtml(item.summary || item.source || '')}</div>
+                    <div class="ws-item-meta">
+                        ${item.created_at ? escapeHtml(item.created_at.slice(0, 10)) : ''}
+                        ${item.tags && item.tags.length ? ' | ' + item.tags.map(t => '#' + t).join(' ') : ''}
+                    </div>
+                </div>`
+            ).join('') +
+            '</div>';
+    })
+    .catch(err => {
+        list.innerHTML = '<div style="color:#dc2626;text-align:center;padding:20px 0;">加载失败: ' + escapeHtml(err.message) + '</div>';
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// Provider 配置
+// ══════════════════════════════════════════════════════════════
+
+var wsConfigProvider = null;
+
+function wsToggleConfig(name) {
+    const panel = document.getElementById('wsProviderConfigPanel');
+    if (!name || name === wsConfigProvider && panel.style.display !== 'none') {
+        panel.style.display = 'none';
+        wsConfigProvider = null;
+        return;
+    }
+    wsConfigProvider = name;
+    panel.style.display = 'block';
+    document.getElementById('wsConfigTitle').textContent = '⚙️ 配置 ' + name;
+
+    // 从 wsProviderInfo 获取 config_fields（已从 API 加载）
+    const info = wsProviderInfo[name] || {};
+    const fields = info.config_fields || [];
+    const fieldsEl = document.getElementById('wsConfigFields');
+
+    // 加载当前配置
+    fetch('/api/workspace/provider/' + encodeURIComponent(name) + '/config')
+    .then(r => r.json())
+    .then(data => {
+        const cfg = data.config || {};
+        fieldsEl.innerHTML = fields.map(f =>
+            '<div style="margin-bottom:8px;">' +
+            '<label style="font-size:12px;color:#475569;display:block;margin-bottom:2px;">' +
+            (f.required ? '<span style="color:#dc2626;">*</span> ' : '') + f.label + '</label>' +
+            '<input type="' + f.type + '" id="wsCfg_' + f.key + '" ' +
+            'value="' + escapeHtml(cfg[f.key] || f.default || '') + '" ' +
+            'placeholder="' + escapeHtml(f.hint || '') + '" ' +
+            'style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;width:100%;">' +
+            '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + escapeHtml(f.hint || '') + '</div>' +
+            '</div>'
+        ).join('');
+        if (fields.length === 0) {
+            fieldsEl.innerHTML = '<div style="color:#94a3b8;font-size:12px;">该 Provider 无需额外配置</div>';
+        }
+    });
+}
+
+function wsSaveConfig() {
+    const statusEl = document.getElementById('wsConfigStatus');
+    if (!wsConfigProvider) return;
+    const info = wsProviderInfo[wsConfigProvider] || {};
+    const fields = info.config_fields || [];
+    const cfg = {};
+    fields.forEach(f => {
+        const el = document.getElementById('wsCfg_' + f.key);
+        if (el && el.value) cfg[f.key] = el.value;
+    });
+    statusEl.textContent = '⏳ 保存中...';
+    fetch('/api/workspace/provider/' + encodeURIComponent(wsConfigProvider) + '/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({config: cfg}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        statusEl.textContent = data.success ? '✅ 已保存' : '❌ ' + (data.error || '失败');
+        if (data.success) setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    })
+    .catch(err => {
+        statusEl.textContent = '❌ ' + err.message;
+    });
+}
+
+function wsLoadItem(providerName, itemId, title, cardEl) {
+    // 高亮选中
+    document.querySelectorAll('.ws-item-card').forEach(el => el.classList.remove('selected'));
+    if (cardEl) cardEl.classList.add('selected');
+
+    // 填充流水线表单
+    document.getElementById('wsTitle').value = title;
+
+    fetch('/api/workspace/provider/' + encodeURIComponent(providerName) + '/item/' + encodeURIComponent(itemId))
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.content) {
+            document.getElementById('wsBody').value = data.content;
+        }
+        // 滚动到流水线区域
+        document.getElementById('wsSectionPipeline').scrollIntoView({behavior: 'smooth', block: 'start'});
+    })
+    .catch(err => {
+        console.error('加载内容失败:', err);
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// 流水线执行
+// ══════════════════════════════════════════════════════════════
+
+document.getElementById('wsUntil').addEventListener('change', function() {
+    document.getElementById('wsPlatformRow').style.display =
+        this.value === 'publish' ? 'flex' : 'none';
+});
+
+function wsRunPipeline() {
+    const title = document.getElementById('wsTitle').value.trim();
+    if (!title) { alert('请输入标题'); return; }
+
+    const btn = document.getElementById('wsRunBtn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+
+    document.querySelectorAll('.ws-stage').forEach(el => {
+        el.className = 'ws-stage active';
+    });
+
+    fetch('/api/workspace/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            content_type: document.getElementById('wsType').value,
+            title: title,
+            body: document.getElementById('wsBody').value,
+            tags: document.getElementById('wsTags').value,
+            until: document.getElementById('wsUntil').value,
+            publish_platform: document.getElementById('wsPlatform').value,
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+
+        const stages = data.stages || [];
+        stages.forEach(s => {
+            const el = document.getElementById('stage_' + s.stage);
+            if (el) el.className = 'ws-stage ' + s.status;
+        });
+
+        const order = ['collect','compile','preview','draft','publish'];
+        const lastDone = stages.length > 0 ? order.indexOf(stages[stages.length-1].stage) : -1;
+        for (let i = lastDone + 1; i < order.length; i++) {
+            const el = document.getElementById('stage_' + order[i]);
+            if (el && el.className === 'ws-stage active') el.className = 'ws-stage pending';
+        }
+
+        const result = document.getElementById('wsResult');
+        result.style.display = 'block';
+        document.getElementById('wsResultTitle').textContent =
+            data.success ? '✅ 流水线运行成功' : '❌ 流水线运行失败';
+
+        document.getElementById('wsResultStages').innerHTML = stages.map(s =>
+            `<span class="ws-result-stage ${s.status}">${s.stage}: ${s.status} — ${s.message}</span>`
+        ).join('');
+
+        const errorsEl = document.getElementById('wsResultErrors');
+        if (data.errors && data.errors.length > 0) {
+            errorsEl.style.display = 'block';
+            errorsEl.innerHTML = '<strong>错误：</strong><br>' + data.errors.join('<br>');
+        } else {
+            errorsEl.style.display = 'none';
+        }
+
+        wsLoadHistory();
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        alert('运行失败: ' + err.message);
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// 日志 & 历史
+// ══════════════════════════════════════════════════════════════
+
+function wsLoadHistory() {
+    fetch('/api/workspace/history')
+    .then(r => r.json())
+    .then(data => {
+        const list = document.getElementById('wsHistoryList');
+        const runs = data.runs || [];
+        if (runs.length === 0) {
+            list.innerHTML = '<div style="color:#94a3b8;font-size:13px;">暂无运行记录</div>';
+            return;
+        }
+        list.innerHTML = runs.map(r => {
+            const total = r.stages.length;
+            const passed = r.stages.filter(s => s.status === 'passed').length;
+            return `<div class="ws-log-item">
+                <span style="${r.success ? 'color:#16a34a;' : 'color:#dc2626;'}">${r.success ? '✅' : '❌'}</span>
+                <span class="lbl">${escapeHtml(r.title)}</span>
+                <span style="color:#64748b;font-size:11px;">${r.type} | ${passed}/${total} 阶段</span>
+                <span class="ts">${r.created_at || ''}</span>
+            </div>`;
+        }).join('');
+    });
+}
+
+function wsLoadPublishLogs() {
+    const el = document.getElementById('wsPublishLogs');
+    fetch('/api/workspace/logs/publish')
+    .then(r => r.json())
+    .then(data => {
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+            el.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0;">暂无发布记录</div>';
+            return;
+        }
+        el.innerHTML = logs.map(log =>
+            `<div class="ws-log-item">
+                <span>${log.success ? '✅' : '❌'}</span>
+                <span class="lbl">${escapeHtml(log.platform || '')}: ${escapeHtml(log.account_name || '')}</span>
+                <span class="ts">${(log.created_at || '').slice(0, 10)}</span>
+            </div>`
+        ).join('');
+    })
+    .catch(() => {
+        el.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0;">暂无发布记录</div>';
+    });
+}
+
+function wsLoadCollectLogs() {
+    const el = document.getElementById('wsCollectLogs');
+    fetch('/api/workspace/logs/collect')
+    .then(r => r.json())
+    .then(data => {
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+            el.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0;">暂无采集记录</div>';
+            return;
+        }
+        el.innerHTML = logs.map(log =>
+            `<div class="ws-log-item">
+                <span>${log.success ? '✅' : '❌'}</span>
+                <span class="lbl">${escapeHtml(log.title || '')}</span>
+                <span class="ts">${(log.created_at || '').slice(0, 10)}</span>
+            </div>`
+        ).join('');
+    })
+    .catch(() => {
+        el.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0;">暂无采集记录</div>';
+    });
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// ═══ 初始化 ═══
+wsLoadProviders();
+wsLoadHistory();
+wsLoadPublishLogs();
+wsLoadCollectLogs();
+</script>
+{% endblock %}

@@ -9,6 +9,7 @@ build/
 .venv/
 venv/
 .boot_credentials
+.fs_key
 storage/
 
 # ========================================
@@ -17,7 +18,6 @@ storage/
 frpc.toml
 data/
 static/uploads/
-static/uploads
 *.jpg
 *.jpeg
 *.png
@@ -30,5 +30,20 @@ static/uploads
 # Keep template files
 !frpc.toml.template
 !flashsloth.yml.template
-*.db-wal
+# 忽略本地临时文件
+*.pyc
+__pycache__/
+.venv/
+venv/
+# 但保留测试文件
+!tests/
 *.db-shm
+*.db-wal
+*.bak
+.agents/
+*.pid
+.fs.pid
+*.db
+xianyu-auto-reply
+test_*.py
+trace_*.py

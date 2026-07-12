@@ -1,0 +1,405 @@
+{
+  "version": "1.0",
+  "categories": {
+    "official": {"name": "官方", "icon": "⭐"},
+    "cn_official": {"name": "国产官方", "icon": "🇨🇳"},
+    "cloud_provider": {"name": "云服务商", "icon": "☁️"},
+    "aggregator": {"name": "聚合代理", "icon": "🔄"},
+    "third_party": {"name": "第三方", "icon": "🔗"},
+    "custom": {"name": "自定义", "icon": "✏️"}
+  },
+  "providers": [
+    {
+      "name": "openai",
+      "display_name": "OpenAI",
+      "category": "official",
+      "description": "OpenAI GPT-4o / DALL-E 3 / TTS — 全球领先的AI模型",
+      "icon": "🟢",
+      "website": "https://platform.openai.com",
+      "api_base": "https://api.openai.com/v1",
+      "api_format": "openai",
+      "models": [
+        "gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
+        "o3", "o4-mini", "dall-e-3", "tts-1"
+      ],
+      "capabilities": ["writing", "image_gen", "audio_gen", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.openai.com/v1"}
+      ]
+    },
+    {
+      "name": "claude",
+      "display_name": "Claude (Anthropic)",
+      "category": "official",
+      "description": "Anthropic Claude — 安全可靠的AI助手",
+      "icon": "🔴",
+      "website": "https://www.anthropic.com/claude-code",
+      "api_base": "https://api.anthropic.com",
+      "api_format": "anthropic",
+      "models": [
+        "claude-sonnet-4-20250514", "claude-opus-4-20250514",
+        "claude-haiku-3-5-20241022"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.anthropic.com"}
+      ]
+    },
+    {
+      "name": "deepseek",
+      "display_name": "DeepSeek",
+      "category": "cn_official",
+      "description": "DeepSeek V4 — 高性价比文本生成与推理",
+      "icon": "🔮",
+      "website": "https://platform.deepseek.com",
+      "api_base": "https://api.deepseek.com",
+      "api_format": "openai",
+      "models": [
+        "deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.deepseek.com"}
+      ]
+    },
+    {
+      "name": "zhipu",
+      "display_name": "智谱 (GLM)",
+      "category": "cn_official",
+      "description": "智谱 GLM-4/5 — 国产高性价比写作/翻译",
+      "icon": "🔬",
+      "website": "https://open.bigmodel.cn",
+      "api_base": "https://open.bigmodel.cn/api/paas/v4",
+      "api_format": "openai",
+      "models": [
+        "glm-5", "glm-4", "glm-4-flash", "glm-4v"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://open.bigmodel.cn/api/paas/v4"}
+      ]
+    },
+    {
+      "name": "qianfan",
+      "display_name": "百度千帆",
+      "category": "cn_official",
+      "description": "百度千帆大模型平台 — ERNIE系列模型",
+      "icon": "🔵",
+      "website": "https://cloud.baidu.com/product/qianfan_modelbuilder",
+      "api_base": "https://qianfan.baidubce.com/v2",
+      "api_format": "openai",
+      "models": [
+        "ernie-4.5", "ernie-4.0", "ernie-3.5", "ernie-speed", "ernie-lite"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "secret_key", "label": "Secret Key", "type": "password", "required": false},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://qianfan.baidubce.com/v2"}
+      ]
+    },
+    {
+      "name": "bailian",
+      "display_name": "阿里百炼",
+      "category": "cn_official",
+      "description": "阿里云百炼平台 — 通义千问系列模型",
+      "icon": "🟣",
+      "website": "https://bailian.console.aliyun.com",
+      "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_format": "openai",
+      "models": [
+        "qwen3-max", "qwen3-coder-plus", "qwen3-plus", "qwen3-turbo",
+        "qwen-max", "qwen-plus", "qwen-turbo"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://dashscope.aliyuncs.com/compatible-mode/v1"}
+      ]
+    },
+    {
+      "name": "kimi",
+      "display_name": "Kimi (月之暗面)",
+      "category": "cn_official",
+      "description": "Moonshot Kimi K2 — 长上下文推理写作",
+      "icon": "💜",
+      "website": "https://platform.moonshot.cn/console",
+      "api_base": "https://api.moonshot.cn/v1",
+      "api_format": "openai",
+      "models": [
+        "kimi-k2.6", "kimi-k2.5", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.moonshot.cn/v1"}
+      ]
+    },
+    {
+      "name": "stepfun",
+      "display_name": "阶跃星辰 (StepFun)",
+      "category": "cn_official",
+      "description": "阶跃星辰 Step 系列大模型",
+      "icon": "🩵",
+      "website": "https://platform.stepfun.com",
+      "api_base": "https://api.stepfun.com/v1",
+      "api_format": "openai",
+      "models": [
+        "step-3.5-flash", "step-3.5-flash-2603", "step-2"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.stepfun.com/v1"}
+      ]
+    },
+    {
+      "name": "minimax",
+      "display_name": "MiniMax",
+      "category": "cn_official",
+      "description": "MiniMax M2.7 — 高性能文本与语音模型",
+      "icon": "🅰️",
+      "website": "https://platform.minimaxi.com",
+      "api_base": "https://api.minimaxi.com/v1",
+      "api_format": "openai",
+      "models": [
+        "MiniMax-M2.7", "MiniMax-T1", "abab-7"
+      ],
+      "capabilities": ["writing", "translate", "audio_gen"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.minimaxi.com/v1"}
+      ]
+    },
+    {
+      "name": "xiaomimimo",
+      "display_name": "小米 MiMo",
+      "category": "cn_official",
+      "description": "小米 MiMo V2.5 — 超大上下文窗口",
+      "icon": "📱",
+      "website": "https://platform.xiaomimimo.com",
+      "api_base": "https://api.xiaomimimo.com/v1",
+      "api_format": "openai",
+      "models": [
+        "mimo-v2.5-pro", "mimo-v2.5"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.xiaomimimo.com/v1"}
+      ]
+    },
+    {
+      "name": "doubao",
+      "display_name": "豆包 (火山引擎)",
+      "category": "cn_official",
+      "description": "字节跳动豆包大模型 — 写作/翻译/推理",
+      "icon": "🫘",
+      "website": "https://console.volcengine.com/ark",
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_format": "openai",
+      "models": [
+        "doubao-pro-32k", "doubao-pro-128k", "doubao-lite-32k", "doubao-seed-2-0"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Endpoint", "type": "text", "required": false, "placeholder": "https://ark.cn-beijing.volces.com/api/v3"}
+      ]
+    },
+    {
+      "name": "yi",
+      "display_name": "零一万物 (Yi)",
+      "category": "cn_official",
+      "description": "零一万物 Yi 系列 — 开源高性能大模型",
+      "icon": "🔰",
+      "website": "https://platform.01.ai",
+      "api_base": "https://api.01.ai/v1",
+      "api_format": "openai",
+      "models": [
+        "yi-lightning", "yi-large", "yi-medium", "yi-vision"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.01.ai/v1"}
+      ]
+    },
+    {
+      "name": "azure",
+      "display_name": "Azure OpenAI",
+      "category": "cloud_provider",
+      "description": "Microsoft Azure OpenAI 服务 — 企业级GPT部署",
+      "icon": "🔷",
+      "website": "https://azure.microsoft.com/products/cognitive-services/openai-service",
+      "api_base": "https://YOUR_RESOURCE_NAME.openai.azure.com",
+      "api_format": "openai",
+      "models": [
+        "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-35-turbo"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "Resource Endpoint", "type": "text", "required": true, "placeholder": "https://YOUR_RESOURCE.openai.azure.com"},
+        {"key": "api_version", "label": "API Version", "type": "text", "required": false, "placeholder": "2025-01-01-preview"}
+      ]
+    },
+    {
+      "name": "bedrock",
+      "display_name": "AWS Bedrock",
+      "category": "cloud_provider",
+      "description": "Amazon Bedrock — 访问Claude/Llama等基础模型",
+      "icon": "🟠",
+      "website": "https://aws.amazon.com/bedrock",
+      "api_base": "https://bedrock-runtime.us-east-1.amazonaws.com",
+      "api_format": "openai",
+      "models": [
+        "anthropic.claude-sonnet-4", "anthropic.claude-haiku-3.5",
+        "meta.llama-4-maverick", "amazon.nova-pro"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "aws_access_key_id", "label": "AWS Access Key ID", "type": "text", "required": true},
+        {"key": "aws_secret_access_key", "label": "AWS Secret Key", "type": "password", "required": true},
+        {"key": "aws_region", "label": "AWS Region", "type": "text", "required": false, "placeholder": "us-east-1"}
+      ]
+    },
+    {
+      "name": "gemini",
+      "display_name": "Google Gemini",
+      "category": "cloud_provider",
+      "description": "Google Gemini API — 多模态大模型",
+      "icon": "🟦",
+      "website": "https://ai.google.dev",
+      "api_base": "https://generativelanguage.googleapis.com",
+      "api_format": "gemini",
+      "models": [
+        "gemini-3.1-pro", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.0-flash"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://generativelanguage.googleapis.com"}
+      ]
+    },
+    {
+      "name": "openrouter",
+      "display_name": "OpenRouter",
+      "category": "aggregator",
+      "description": "统一API网关 — 访问100+国内外模型",
+      "icon": "🔄",
+      "website": "https://openrouter.ai",
+      "api_base": "https://openrouter.ai/api/v1",
+      "api_format": "openai",
+      "models": [
+        "anthropic/claude-sonnet-4.6", "anthropic/claude-opus-4.7",
+        "openai/gpt-4o", "openai/gpt-4o-mini", "openai/o3",
+        "google/gemini-3-pro", "google/gemini-3-flash",
+        "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro",
+        "meta-llama/llama-4-maverick", "qwen/qwen3-max"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://openrouter.ai/api/v1"}
+      ]
+    },
+    {
+      "name": "siliconflow",
+      "display_name": "硅基流动 (SiliconFlow)",
+      "category": "aggregator",
+      "description": "硅基流动 — 开源模型聚合推理平台",
+      "icon": "🟣",
+      "website": "https://siliconflow.cn",
+      "api_base": "https://api.siliconflow.cn/v1",
+      "api_format": "openai",
+      "models": [
+        "Pro/MiniMaxAI/MiniMax-M2.7", "Qwen/Qwen3-235B-A22B",
+        "deepseek-ai/DeepSeek-V3", "meta-llama/Llama-4-Maverick"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.siliconflow.cn/v1"}
+      ]
+    },
+    {
+      "name": "novita",
+      "display_name": "Novita AI",
+      "category": "aggregator",
+      "description": "Novita AI — 多种国际/国产模型聚合API",
+      "icon": "🆕",
+      "website": "https://novita.ai",
+      "api_base": "https://api.novita.ai/openai/v1",
+      "api_format": "openai",
+      "models": [
+        "zai-org/glm-5", "meta-llama/llama-4-maverick",
+        "deepseek/deepseek-v4-flash"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.novita.ai/openai/v1"}
+      ]
+    },
+    {
+      "name": "aihubmix",
+      "display_name": "AiHubMix",
+      "category": "aggregator",
+      "description": "AiHubMix — 多功能AI API聚合服务",
+      "icon": "🔀",
+      "website": "https://aihubmix.com",
+      "api_base": "https://aihubmix.com/v1",
+      "api_format": "openai",
+      "models": [
+        "gpt-4o", "gpt-4o-mini", "claude-sonnet-4.6",
+        "deepseek-v4-flash", "gemini-3-pro"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://aihubmix.com/v1"}
+      ]
+    },
+    {
+      "name": "shengsuanyun",
+      "display_name": "Shengsuanyun",
+      "category": "aggregator",
+      "description": "Shengsuanyun — AI路由聚合服务",
+      "icon": "🌐",
+      "website": "https://www.shengsuanyun.com",
+      "api_base": "https://router.shengsuanyun.com/api/v1",
+      "api_format": "openai",
+      "models": [
+        "gpt-4o", "gpt-4o-mini", "claude-sonnet-4.6", "deepseek-v4-flash"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://router.shengsuanyun.com/api/v1"}
+      ]
+    },
+    {
+      "name": "pateway",
+      "display_name": "PatewayAI",
+      "category": "third_party",
+      "description": "PatewayAI — 第三方AI API接入服务",
+      "icon": "🔗",
+      "website": "https://pateway.ai",
+      "api_base": "https://api.pateway.ai/v1",
+      "api_format": "openai",
+      "models": [
+        "gpt-4o", "gpt-4o-mini", "claude-sonnet-4.6"
+      ],
+      "capabilities": ["writing", "translate"],
+      "config_fields": [
+        {"key": "api_key", "label": "API Key", "type": "password", "required": true},
+        {"key": "api_base", "label": "API Base URL", "type": "text", "required": false, "placeholder": "https://api.pateway.ai/v1"}
+      ]
+    }
+  ]
+}
